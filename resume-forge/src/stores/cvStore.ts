@@ -111,15 +111,14 @@ export const useCvStore = create<CVState>((set, get) => ({
       const columns = keys.join(', ');
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
 
-      await db.execute(
-        `INSERT INTO cv_documents (${columns}) VALUES (${placeholders})`,
+      // Use RETURNING id to safely get the newly created row ID
+      const insertResult = await db.select<any[]>(
+        `INSERT INTO cv_documents (${columns}) VALUES (${placeholders}) RETURNING id`,
         values
       );
 
-      // Need to get the ID of the newly inserted CV. SQLite `lastInsertRowId`
-      const newIdRow = await db.select<any[]>('SELECT id FROM cv_documents ORDER BY created_at DESC LIMIT 1');
-      if(newIdRow.length > 0) {
-        const newCvId = newIdRow[0].id;
+      if(insertResult.length > 0) {
+        const newCvId = insertResult[0].id;
         // 3. Duplicate blocks
         const rawBlocks = await db.select<any[]>('SELECT * FROM cv_blocks WHERE cv_id = $1', [id]);
         for (const block of rawBlocks) {
@@ -233,11 +232,15 @@ export const useCvStore = create<CVState>((set, get) => ({
   reorderCvBlocks: async (cvId, blockIds) => {
     try {
       const db = await getDb();
+      await db.execute('BEGIN TRANSACTION');
       for (let i = 0; i < blockIds.length; i++) {
         await db.execute('UPDATE cv_blocks SET sort_order = $1 WHERE id = $2', [i, blockIds[i]]);
       }
+      await db.execute('COMMIT');
       await get().fetchCvBlocks(cvId);
     } catch (err) {
+      const db = await getDb();
+      await db.execute('ROLLBACK');
       set({ error: err instanceof Error ? err.message : 'Failed to reorder blocks' });
     }
   },

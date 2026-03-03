@@ -7,7 +7,6 @@ import { useProfileStore } from '@/stores/profileStore';
 
 interface SectionItemProps {
   block: CVBlock;
-  cvId: string;
 }
 
 export function SectionItem({ block }: SectionItemProps) {
@@ -27,9 +26,8 @@ export function SectionItem({ block }: SectionItemProps) {
   };
 
   const removeBlock = () => {
-    if(confirm('Voulez-vous retirer cet élément du CV ?')) {
-      deleteCvBlock(block.id);
-    }
+    // TODO: Utiliser une boîte de dialogue personnalisée au lieu de confirm() selon le Jalon 10
+    deleteCvBlock(block.id);
   };
 
   // Determine what to display based on block type

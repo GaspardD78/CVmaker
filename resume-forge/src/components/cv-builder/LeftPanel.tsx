@@ -66,7 +66,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
             >
               <div className="space-y-2">
                 {currentCvBlocks.map((block) => (
-                  <SectionItem key={block.id} block={block} cvId={cvId} />
+                  <SectionItem key={block.id} block={block} />
                 ))}
               </div>
             </SortableContext>
