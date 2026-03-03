@@ -16,9 +16,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <User className="w-5 h-5 mr-3" />
               Profil
             </Link>
-            <Link to="/cv/1" className="flex items-center text-blue-600 font-medium hover:text-blue-800 transition">
+            <Link to="/cv" className="flex items-center text-blue-600 font-medium hover:text-blue-800 transition">
               <FileText className="w-5 h-5 mr-3" />
-              Éditeur de CV
+              Mes CVs
             </Link>
             <Link to="/tracker" className="flex items-center text-blue-600 font-medium hover:text-blue-800 transition">
               <Briefcase className="w-5 h-5 mr-3" />
