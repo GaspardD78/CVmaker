@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { ProfilePage } from "@/components/profile/ProfilePage";
+import { CVList } from "@/components/cv-builder/CVList";
+import { CVBuilderPage } from "@/components/cv-builder/CVBuilderPage";
 import "./App.css";
 
 function Dashboard() {
@@ -8,15 +10,6 @@ function Dashboard() {
     <div className="p-4">
       <h1 className="text-2xl font-bold">Tableau de bord</h1>
       <p>Bienvenue sur ResumeForge !</p>
-    </div>
-  );
-}
-
-function CVBuilder() {
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Éditeur de CV</h1>
-      <p>Éditez votre CV ici</p>
     </div>
   );
 }
@@ -37,7 +30,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/cv/:id" element={<CVBuilder />} />
+          <Route path="/cv" element={<CVList />} />
+          <Route path="/cv/:id" element={<CVBuilderPage />} />
           <Route path="/tracker" element={<Tracker />} />
         </Routes>
       </Layout>
