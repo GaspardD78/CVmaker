@@ -94,9 +94,8 @@ export function CVList() {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm('Voulez-vous vraiment supprimer ce CV ?')) {
-                          deleteCv(cv.id);
-                        }
+                        // TODO: Remplacer par une modal custom selon les guidelines Jalon 10
+                        deleteCv(cv.id);
                       }}
                       className="text-gray-500 hover:text-red-600 p-1"
                       title="Supprimer"
