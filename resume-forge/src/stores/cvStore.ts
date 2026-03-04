@@ -230,8 +230,9 @@ export const useCvStore = create<CVState>((set, get) => ({
   },
 
   reorderCvBlocks: async (cvId, blockIds) => {
+    let db;
     try {
-      const db = await getDb();
+      db = await getDb();
       await db.execute('BEGIN TRANSACTION');
       for (let i = 0; i < blockIds.length; i++) {
         await db.execute('UPDATE cv_blocks SET sort_order = $1 WHERE id = $2', [i, blockIds[i]]);
@@ -239,8 +240,9 @@ export const useCvStore = create<CVState>((set, get) => ({
       await db.execute('COMMIT');
       await get().fetchCvBlocks(cvId);
     } catch (err) {
-      const db = await getDb();
-      await db.execute('ROLLBACK');
+      if (db) {
+        try { await db.execute('ROLLBACK'); } catch (e) { /* ignore rollback errors */ }
+      }
       set({ error: err instanceof Error ? err.message : 'Failed to reorder blocks' });
     }
   },

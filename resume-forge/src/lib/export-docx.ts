@@ -271,31 +271,27 @@ export async function exportToDocx(
   entries: MasterEntry[],
   template: CVTemplate
 ) {
-  try {
-    const defaultFilename = `${cv.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ats.docx`;
+  const defaultFilename = `${cv.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ats.docx`;
 
-    // Ask user where to save
-    const filePath = await save({
-      defaultPath: defaultFilename,
-      filters: [{
-        name: 'Word Document',
-        extensions: ['docx']
-      }]
-    });
+  // Ask user where to save
+  const filePath = await save({
+    defaultPath: defaultFilename,
+    filters: [{
+      name: 'Word Document',
+      extensions: ['docx']
+    }]
+  });
 
-    if (!filePath) {
-      return; // User canceled
-    }
-
-    const blob = await generateDocxBlob(cv, profile, blocks, entries, template);
-    const arrayBuffer = await blob.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    await writeFile(filePath, uint8Array);
-
-    // Returning true so the caller can trigger a toast
-    return true;
-  } catch (error) {
-    throw error;
+  if (!filePath) {
+    return false; // User canceled
   }
+
+  const blob = await generateDocxBlob(cv, profile, blocks, entries, template);
+  const arrayBuffer = await blob.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+
+  await writeFile(filePath, uint8Array);
+
+  // Returning true so the caller can trigger a toast
+  return true;
 }
