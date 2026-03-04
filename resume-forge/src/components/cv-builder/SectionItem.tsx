@@ -5,6 +5,8 @@ import { CVBlock } from '@/types/cv';
 import { GripVertical, Eye, EyeOff, Trash2, Edit2, Check, X } from 'lucide-react';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
+import { confirm } from '@tauri-apps/plugin-dialog';
+import { toast } from 'sonner';
 
 interface SectionItemProps {
   block: CVBlock;
@@ -33,9 +35,20 @@ export function SectionItem({ block }: SectionItemProps) {
     updateCvBlock(block.id, { isVisible: !block.isVisible });
   };
 
-  const removeBlock = () => {
-    // TODO: Utiliser une boîte de dialogue personnalisée au lieu de confirm() selon le Jalon 10
-    deleteCvBlock(block.id);
+  const removeBlock = async () => {
+    const isConfirmed = await confirm("Êtes-vous sûr de vouloir retirer ce bloc du CV ?", {
+      title: 'Confirmer le retrait',
+      kind: 'warning',
+    });
+
+    if (isConfirmed) {
+      try {
+        await deleteCvBlock(block.id);
+        toast.success("Bloc retiré avec succès");
+      } catch (err) {
+        toast.error("Erreur lors du retrait du bloc");
+      }
+    }
   };
 
   let title = 'Section';

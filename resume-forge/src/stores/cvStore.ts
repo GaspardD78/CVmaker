@@ -33,7 +33,7 @@ export const useCvStore = create<CVState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawCvs = await db.select<any[]>('SELECT * FROM cv_documents ORDER BY updated_at DESC');
+      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents ORDER BY updated_at DESC');
       const cvs = rawCvs.map(cv => keysToCamelCase<CVDocument>(cv));
       set({ cvs });
     } catch (err) {
@@ -47,7 +47,7 @@ export const useCvStore = create<CVState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawCvs = await db.select<any[]>('SELECT * FROM cv_documents WHERE id = $1', [id]);
+      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = $1', [id]);
       if (rawCvs.length > 0) {
         set({ currentCv: keysToCamelCase<CVDocument>(rawCvs[0]) });
       } else {
@@ -64,7 +64,7 @@ export const useCvStore = create<CVState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawBlocks = await db.select<any[]>('SELECT * FROM cv_blocks WHERE cv_id = $1 ORDER BY sort_order ASC', [cvId]);
+      const rawBlocks = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_blocks WHERE cv_id = $1 ORDER BY sort_order ASC', [cvId]);
       const blocks = rawBlocks.map(b => keysToCamelCase<CVBlock>(b));
       set({ currentCvBlocks: blocks });
     } catch (err) {
@@ -77,7 +77,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   createCv: async (cv) => {
     try {
       const db = await getDb();
-      const snakeCv = keysToSnakeCase<Record<string, any>>(cv);
+      const snakeCv = keysToSnakeCase<Record<string, unknown>>(cv);
       const keys = Object.keys(snakeCv);
       const values = Object.values(snakeCv);
 
@@ -98,13 +98,13 @@ export const useCvStore = create<CVState>((set, get) => ({
     try {
       const db = await getDb();
       // 1. Fetch original CV
-      const rawCvs = await db.select<any[]>('SELECT * FROM cv_documents WHERE id = $1', [id]);
+      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = $1', [id]);
       if (rawCvs.length === 0) return;
       const originalCv = rawCvs[0];
 
       // 2. Create new CV based on original
       const newName = `${originalCv.name} (copie)`;
-      const cvToInsert = { ...originalCv, id: undefined, name: newName, created_at: undefined, updated_at: undefined };
+      const cvToInsert: Record<string, unknown> = { ...originalCv, id: undefined, name: newName, created_at: undefined, updated_at: undefined };
       const keys = Object.keys(cvToInsert).filter(k => cvToInsert[k] !== undefined);
       const values = keys.map(k => cvToInsert[k]);
 
@@ -112,7 +112,7 @@ export const useCvStore = create<CVState>((set, get) => ({
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
 
       // Use RETURNING id to safely get the newly created row ID
-      const insertResult = await db.select<any[]>(
+      const insertResult = await db.select<{id: string}[]>(
         `INSERT INTO cv_documents (${columns}) VALUES (${placeholders}) RETURNING id`,
         values
       );
@@ -120,9 +120,9 @@ export const useCvStore = create<CVState>((set, get) => ({
       if(insertResult.length > 0) {
         const newCvId = insertResult[0].id;
         // 3. Duplicate blocks
-        const rawBlocks = await db.select<any[]>('SELECT * FROM cv_blocks WHERE cv_id = $1', [id]);
+        const rawBlocks = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_blocks WHERE cv_id = $1', [id]);
         for (const block of rawBlocks) {
-          const blockToInsert = { ...block, id: undefined, cv_id: newCvId, created_at: undefined };
+          const blockToInsert: Record<string, unknown> = { ...block, id: undefined, cv_id: newCvId, created_at: undefined };
           const bKeys = Object.keys(blockToInsert).filter(k => blockToInsert[k] !== undefined);
           const bValues = bKeys.map(k => blockToInsert[k]);
 
@@ -153,7 +153,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   updateCv: async (id, updates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, any>>(updates);
+      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 
@@ -173,7 +173,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   createCvBlock: async (block) => {
     try {
       const db = await getDb();
-      const snakeBlock = keysToSnakeCase<Record<string, any>>(block);
+      const snakeBlock = keysToSnakeCase<Record<string, unknown>>(block);
       const keys = Object.keys(snakeBlock);
       const values = Object.values(snakeBlock);
 
@@ -193,7 +193,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   updateCvBlock: async (id, updates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, any>>(updates);
+      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 

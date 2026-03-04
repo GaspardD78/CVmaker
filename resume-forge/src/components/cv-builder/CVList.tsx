@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { Plus, Copy, Trash2, Edit } from 'lucide-react';
+import { toast } from 'sonner';
+import { confirm } from '@tauri-apps/plugin-dialog';
 
 export function CVList() {
   const { cvs, fetchCvs, createCv, deleteCv, duplicateCv, isLoading } = useCvStore();
@@ -18,19 +20,49 @@ export function CVList() {
   const handleCreate = async () => {
     if (!newCvName.trim() || !profile) return;
     setIsCreating(true);
-    await createCv({
-      profileId: profile.id,
-      name: newCvName,
-      templateId: 'ats-classic',
-      targetJob: null,
-      targetCompany: null,
-      customSummary: null,
-      settings: {},
-      isFavorite: false,
-      lastExported: null,
+    try {
+      await createCv({
+        profileId: profile.id,
+        name: newCvName,
+        templateId: 'ats-classic',
+        targetJob: null,
+        targetCompany: null,
+        customSummary: null,
+        settings: {},
+        isFavorite: false,
+        lastExported: null,
+      });
+      setNewCvName('');
+      toast.success("CV créé avec succès");
+    } catch (err) {
+      toast.error("Erreur lors de la création du CV");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    const isConfirmed = await confirm(`Êtes-vous sûr de vouloir supprimer le CV "${name}" ?`, {
+      title: 'Confirmer la suppression',
+      kind: 'warning',
     });
-    setNewCvName('');
-    setIsCreating(false);
+    if (isConfirmed) {
+      try {
+        await deleteCv(id);
+        toast.success("CV supprimé");
+      } catch (err) {
+        toast.error("Erreur lors de la suppression du CV");
+      }
+    }
+  };
+
+  const handleDuplicate = async (id: string) => {
+    try {
+      await duplicateCv(id);
+      toast.success("CV dupliqué avec succès");
+    } catch (err) {
+      toast.error("Erreur lors de la duplication du CV");
+    }
   };
 
   return (
@@ -86,17 +118,14 @@ export function CVList() {
                   </Link>
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => duplicateCv(cv.id)}
+                      onClick={() => handleDuplicate(cv.id)}
                       className="text-gray-500 hover:text-blue-600 p-1"
                       title="Dupliquer"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => {
-                        // TODO: Remplacer par une modal custom selon les guidelines Jalon 10
-                        deleteCv(cv.id);
-                      }}
+                      onClick={() => handleDelete(cv.id, cv.name)}
                       className="text-gray-500 hover:text-red-600 p-1"
                       title="Supprimer"
                     >

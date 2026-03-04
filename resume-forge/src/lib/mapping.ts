@@ -1,4 +1,4 @@
-// Utility functions for SQLite to TypeScript mappings
+// Fonctions utilitaires pour le mapping SQLite vers TypeScript
 
 export function toCamelCase(str: string): string {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -10,19 +10,21 @@ export function toSnakeCase(str: string): string {
 
 const JSON_FIELDS = ['metadata', 'tags', 'settings', 'override_data', 'overrideData'];
 
-export function keysToCamelCase<T>(obj: any): T {
+export function keysToCamelCase<T>(obj: unknown): T {
   if (obj === null || typeof obj !== 'object') {
-    return obj;
+    return obj as T;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => keysToCamelCase(item)) as any;
+    return obj.map(item => keysToCamelCase(item)) as unknown as T;
   }
 
-  const result: any = {};
-  for (const key of Object.keys(obj)) {
+  const result: Record<string, unknown> = {};
+  const objRecord = obj as Record<string, unknown>;
+
+  for (const key of Object.keys(objRecord)) {
     const camelKey = toCamelCase(key);
-    let value = obj[key];
+    let value = objRecord[key];
 
     // Parser uniquement les champs JSON connus
     if (typeof value === 'string' && (JSON_FIELDS.includes(key) || JSON_FIELDS.includes(camelKey))) {
@@ -37,19 +39,21 @@ export function keysToCamelCase<T>(obj: any): T {
   return result as T;
 }
 
-export function keysToSnakeCase<T>(obj: any): T {
+export function keysToSnakeCase<T>(obj: unknown): T {
   if (obj === null || typeof obj !== 'object') {
-    return obj;
+    return obj as T;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => keysToSnakeCase(item)) as any;
+    return obj.map(item => keysToSnakeCase(item)) as unknown as T;
   }
 
-  const result: any = {};
-  for (const key of Object.keys(obj)) {
+  const result: Record<string, unknown> = {};
+  const objRecord = obj as Record<string, unknown>;
+
+  for (const key of Object.keys(objRecord)) {
     const snakeKey = toSnakeCase(key);
-    let value = obj[key];
+    let value = objRecord[key];
 
     // Sérialiser uniquement les champs JSON connus ou si la valeur est un objet
     if ((JSON_FIELDS.includes(key) || JSON_FIELDS.includes(snakeKey)) && typeof value === 'object' && value !== null) {

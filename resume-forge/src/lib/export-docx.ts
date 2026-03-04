@@ -210,6 +210,9 @@ export async function generateDocxBlob(
             font: template.docx.fonts.body,
             size: template.docx.bodySize,
           },
+          paragraph: {
+            spacing: { line: template.docx.lineSpacing }
+          }
         },
       },
       paragraphStyles: [
