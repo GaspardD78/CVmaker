@@ -15,7 +15,7 @@ function formatDate(dateString: string | null): string {
   if (!dateString) return 'Aujourd\'hui';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
 }
 
 export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
