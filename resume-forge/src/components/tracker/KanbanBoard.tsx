@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useApplicationStore } from '@/stores/applicationStore';
-import { Application, ApplicationStatus } from '@/types/application';
+import { Application, ApplicationStatus, ApplicationSource } from '@/types/application';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
 import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
@@ -28,7 +28,12 @@ export const KANBAN_COLUMNS = [
   { id: 'done', title: 'Terminé', statuses: ['accepted', 'rejected', 'withdrawn', 'ghosted'] },
 ];
 
-export function KanbanBoard() {
+interface KanbanBoardProps {
+  searchTerm?: string;
+  sourceFilter?: ApplicationSource | 'all';
+}
+
+export function KanbanBoard({ searchTerm = '', sourceFilter = 'all' }: KanbanBoardProps) {
   const { applications, updateApplication, createEvent } = useApplicationStore();
   const [activeApplication, setActiveApplication] = useState<Application | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
@@ -45,12 +50,19 @@ export function KanbanBoard() {
   );
 
   const applicationsByColumn = useMemo(() => {
+    const filteredApps = applications.filter(app => {
+      const matchesSearch = app.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            app.jobTitle.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSource = sourceFilter === 'all' || app.source === sourceFilter;
+      return matchesSearch && matchesSource;
+    });
+
     const grouped = KANBAN_COLUMNS.reduce((acc, col) => {
-      acc[col.id] = applications.filter(app => col.statuses.includes(app.status));
+      acc[col.id] = filteredApps.filter(app => col.statuses.includes(app.status));
       return acc;
     }, {} as Record<string, Application[]>);
     return grouped;
-  }, [applications]);
+  }, [applications, searchTerm, sourceFilter]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;

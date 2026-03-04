@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useProfileStore } from '@/stores/profileStore';
+import { useCvStore } from '@/stores/cvStore';
 import { ApplicationStatus, ApplicationSource } from '@/types/application';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
@@ -13,6 +14,7 @@ interface ApplicationFormModalProps {
 export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalProps) {
   const { createApplication } = useApplicationStore();
   const { profile, fetchProfile } = useProfileStore();
+  const { cvs, fetchCvs } = useCvStore();
 
   const [companyName, setCompanyName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
@@ -23,9 +25,20 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
   const [nextAction, setNextAction] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
 
+  const [cvId, setCvId] = useState<string | null>(null);
+  const [location, setLocation] = useState('');
+  const [remotePolicy, setRemotePolicy] = useState('');
+  const [salaryMin, setSalaryMin] = useState<number | ''>('');
+  const [salaryMax, setSalaryMax] = useState<number | ''>('');
+  const [sourceDetail, setSourceDetail] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+
   useEffect(() => {
     fetchProfile();
-  }, [fetchProfile]);
+    fetchCvs();
+  }, [fetchProfile, fetchCvs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,20 +50,20 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
 
     await createApplication({
       profileId: profile.id,
-      cvId: null, // Will connect later
+      cvId: cvId || null,
       companyName,
       jobTitle,
       jobUrl: jobUrl || null,
       source,
-      sourceDetail: null,
-      contactName: null,
-      contactEmail: null,
-      contactPhone: null,
+      sourceDetail: sourceDetail || null,
+      contactName: contactName || null,
+      contactEmail: contactEmail || null,
+      contactPhone: contactPhone || null,
       status,
-      salaryMin: null,
-      salaryMax: null,
-      location: null,
-      remotePolicy: null,
+      salaryMin: salaryMin === '' ? null : Number(salaryMin),
+      salaryMax: salaryMax === '' ? null : Number(salaryMax),
+      location: location || null,
+      remotePolicy: remotePolicy || null,
       priority,
       notes: null,
       appliedAt: status !== 'draft' ? new Date().toISOString() : null,
@@ -71,6 +84,15 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
     setPriority(2);
     setNextAction('');
     setNextActionDate('');
+    setCvId(null);
+    setLocation('');
+    setRemotePolicy('');
+    setSalaryMin('');
+    setSalaryMax('');
+    setSourceDetail('');
+    setContactName('');
+    setContactEmail('');
+    setContactPhone('');
   };
 
   return (
@@ -126,6 +148,20 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CV utilisé</label>
+              <select
+                value={cvId || ''}
+                onChange={(e) => setCvId(e.target.value || null)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+              >
+                <option value="">-- Aucun CV sélectionné --</option>
+                {cvs.map(cv => (
+                  <option key={cv.id} value={cv.id}>{cv.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
@@ -152,6 +188,125 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
                   <option value={2}>Moyenne</option>
                   <option value={3}>Basse</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
+                <select
+                  value={source}
+                  onChange={(e) => setSource(e.target.value as ApplicationSource)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                >
+                  <option value="job_board">Job Board</option>
+                  <option value="spontaneous">Candidature spontanée</option>
+                  <option value="network">Réseau</option>
+                  <option value="recruiter">Recruteur</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="other">Autre</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Détail source</label>
+                <input
+                  type="text"
+                  value={sourceDetail}
+                  onChange={(e) => setSourceDetail(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  placeholder="Ex: Indeed, Recommandation"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Localisation</label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  placeholder="Ex: Paris"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Politique Télétravail</label>
+                <select
+                  value={remotePolicy}
+                  onChange={(e) => setRemotePolicy(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                >
+                  <option value="">Non spécifié</option>
+                  <option value="full_remote">100% Télétravail</option>
+                  <option value="hybrid">Hybride</option>
+                  <option value="onsite">Sur site</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Salaire Min (€)</label>
+                <input
+                  type="number"
+                  value={salaryMin}
+                  onChange={(e) => setSalaryMin(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  placeholder="Ex: 40000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Salaire Max (€)</label>
+                <input
+                  type="number"
+                  value={salaryMax}
+                  onChange={(e) => setSalaryMax(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  placeholder="Ex: 50000"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t">
+              <h4 className="font-medium text-sm text-gray-900">Contact</h4>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom du contact</label>
+                <input
+                  type="text"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  placeholder="Nom du recruteur..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="email@..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                  <input
+                    type="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="06..."
+                  />
+                </div>
               </div>
             </div>
 
