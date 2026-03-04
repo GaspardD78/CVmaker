@@ -25,22 +25,19 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      let rawProfiles = await db.select<any[]>('SELECT * FROM profiles LIMIT 1');
+      let rawProfiles = await db.select<Record<string, unknown>[]>('SELECT * FROM profiles LIMIT 1');
 
       if (rawProfiles.length === 0) {
-        // Create an empty profile if none exists
-        await db.execute(
-          `INSERT INTO profiles (first_name, last_name, email) VALUES ($1, $2, $3)`,
-          ['John', 'Doe', 'john.doe@example.com']
-        );
-        rawProfiles = await db.select<any[]>('SELECT * FROM profiles LIMIT 1');
+        // Remove automatic creation of default user here. Handle it in UI.
+        set({ profile: null, entries: [] });
+        return;
       }
 
       if (rawProfiles.length > 0) {
         const rawProfile = rawProfiles[0];
         const profile = keysToCamelCase<Profile>(rawProfile);
 
-        const rawEntries = await db.select<any[]>('SELECT * FROM master_entries WHERE profile_id = $1 ORDER BY sort_order ASC', [rawProfile.id]);
+        const rawEntries = await db.select<Record<string, unknown>[]>('SELECT * FROM master_entries WHERE profile_id = $1 ORDER BY sort_order ASC', [rawProfile.id as string]);
         const entries = rawEntries.map(e => keysToCamelCase<MasterEntry>(e));
 
         set({ profile, entries });
@@ -54,12 +51,25 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
   updateProfile: async (updates) => {
     const current = get().profile;
-    if (!current) return;
+
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, any>>(updates);
+      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
+
+      if (!current) {
+        // If profile doesn't exist, we must create it instead
+        const columns = keys.join(', ');
+        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+
+        await db.execute(
+          `INSERT INTO profiles (${columns}) VALUES (${placeholders})`,
+          values
+        );
+        await get().fetchProfile();
+        return;
+      }
 
       if (keys.length > 0) {
         const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
@@ -77,7 +87,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   addEntry: async (entry) => {
     try {
       const db = await getDb();
-      const snakeEntry = keysToSnakeCase<Record<string, any>>(entry);
+      const snakeEntry = keysToSnakeCase<Record<string, unknown>>(entry);
       const keys = Object.keys(snakeEntry);
       const values = Object.values(snakeEntry);
 
@@ -99,7 +109,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   updateEntry: async (id, entryUpdates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, any>>(entryUpdates);
+      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(entryUpdates);
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 

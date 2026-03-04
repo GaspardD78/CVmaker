@@ -8,6 +8,7 @@ import { ArrowLeft, Download, FileText } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
 import { printPDF } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
+import { toast } from 'sonner';
 
 export function CVBuilderPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,10 +32,10 @@ export function CVBuilderPage() {
       const template = getTemplate(currentCv.templateId);
       const success = await exportToDocx(currentCv, profile, currentCvBlocks, entries, template);
       if (success) {
-        // TODO: Replace with proper toast
+        toast.success("Le CV a été exporté en DOCX avec succès !");
       }
     } catch (error) {
-      // TODO: Replace with proper toast
+      toast.error(`Erreur lors de l'export DOCX: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
     } finally {
       setIsExporting(false);
     }

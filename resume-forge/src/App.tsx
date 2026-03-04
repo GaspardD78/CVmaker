@@ -3,6 +3,7 @@ import { Layout } from "@/components/layout/Layout";
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { CVList } from "@/components/cv-builder/CVList";
 import { CVBuilderPage } from "@/components/cv-builder/CVBuilderPage";
+import { Toaster } from "sonner";
 import "./App.css";
 
 function Dashboard() {
@@ -35,6 +36,7 @@ function App() {
           <Route path="/tracker" element={<Tracker />} />
         </Routes>
       </Layout>
+      <Toaster position="top-right" />
     </BrowserRouter>
   );
 }

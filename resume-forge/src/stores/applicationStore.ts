@@ -24,7 +24,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawApps = await db.select<any[]>('SELECT * FROM applications ORDER BY updated_at DESC');
+      const rawApps = await db.select<Record<string, unknown>[]>('SELECT * FROM applications ORDER BY updated_at DESC');
       const applications = rawApps.map(app => keysToCamelCase<Application>(app));
       set({ applications });
     } catch (err) {
@@ -37,7 +37,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   createApplication: async (app) => {
     try {
       const db = await getDb();
-      const snakeApp = keysToSnakeCase<Record<string, any>>(app);
+      const snakeApp = keysToSnakeCase<Record<string, unknown>>(app);
       const keys = Object.keys(snakeApp);
       const values = Object.values(snakeApp);
 
@@ -57,7 +57,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   updateApplication: async (id, updates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, any>>(updates);
+      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 

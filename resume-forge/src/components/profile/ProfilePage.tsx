@@ -1,12 +1,15 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useProfileStore } from '@/stores/profileStore';
 import { EntryType, MasterEntry } from '@/types/profile';
+import { toast } from 'sonner';
+import { confirm } from '@tauri-apps/plugin-dialog';
 
 export function ProfilePage() {
   const { profile, entries, fetchProfile, updateProfile, addEntry, updateEntry, deleteEntry, isLoading, error } = useProfileStore();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isAddingEntry, setIsAddingEntry] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<EntryType | 'all'>('all');
 
   useEffect(() => {
     fetchProfile();
@@ -30,8 +33,13 @@ export function ProfilePage() {
       title: formData.get('title') as string,
       summary: formData.get('summary') as string,
     };
-    await updateProfile(updates);
-    setIsEditingProfile(false);
+    try {
+      await updateProfile(updates);
+      setIsEditingProfile(false);
+      toast.success(profile ? "Profil mis à jour avec succès" : "Profil créé avec succès");
+    } catch (err) {
+      toast.error("Erreur lors de la sauvegarde du profil");
+    }
   };
 
   const handleAddEntry = async (e: FormEvent<HTMLFormElement>) => {
@@ -51,24 +59,46 @@ export function ProfilePage() {
       description: formData.get('description') as string,
     };
 
-    if (editingEntryId) {
-      await updateEntry(editingEntryId, entryData);
-      setEditingEntryId(null);
-    } else {
-      await addEntry({
-        profileId: profile.id,
-        ...entryData,
-        metadata: {},
-        sortOrder: entries.length,
-        tags: [],
-      });
-      setIsAddingEntry(false);
+    try {
+      if (editingEntryId) {
+        await updateEntry(editingEntryId, entryData);
+        setEditingEntryId(null);
+        toast.success("Entrée modifiée avec succès");
+      } else {
+        await addEntry({
+          profileId: profile.id,
+          ...entryData,
+          metadata: {},
+          sortOrder: entries.length,
+          tags: [],
+        });
+        setIsAddingEntry(false);
+        toast.success("Nouvelle entrée ajoutée");
+      }
+    } catch (err) {
+      toast.error("Erreur lors de la sauvegarde de l'entrée");
     }
   };
 
   const handleEditEntryClick = (entry: MasterEntry) => {
     setEditingEntryId(entry.id);
     setIsAddingEntry(false);
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    const isConfirmed = await confirm("Êtes-vous sûr de vouloir supprimer cette entrée ? Elle sera retirée de tous vos CV.", {
+      title: 'Confirmer la suppression',
+      kind: 'warning',
+    });
+
+    if (isConfirmed) {
+      try {
+        await deleteEntry(id);
+        toast.success("Entrée supprimée");
+      } catch (err) {
+        toast.error("Erreur lors de la suppression");
+      }
+    }
   };
 
   const handleCancelEntryForm = () => {
@@ -79,8 +109,63 @@ export function ProfilePage() {
   if (isLoading) return <div className="p-4">Chargement...</div>;
   if (error) return <div className="p-4 text-red-500">Erreur : {error}</div>;
 
+  const availableTypes: { value: EntryType; label: string }[] = [
+    { value: 'experience', label: 'Expériences' },
+    { value: 'education', label: 'Formations' },
+    { value: 'skill', label: 'Compétences' },
+    { value: 'certification', label: 'Certifications' },
+    { value: 'language', label: 'Langues' },
+    { value: 'project', label: 'Projets' },
+    { value: 'interest', label: 'Intérêts' },
+    { value: 'volunteer', label: 'Bénévolat' },
+  ];
+
+  const filteredEntries = activeTab === 'all'
+    ? entries
+    : entries.filter((e) => e.entryType === activeTab);
+
+  if (!profile && !isEditingProfile) {
+    // Si aucun profil, forcer la création (et cacher les entrées)
+    return (
+      <div className="p-4 space-y-8 max-w-4xl mx-auto">
+        <section>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Créer votre Profil Maître</h1>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm border space-y-4">
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Prénom *</label>
+                  <input name="firstName" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nom *</label>
+                  <input name="lastName" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <input name="email" type="email" className="mt-1 block w-full border border-gray-300 rounded-md p-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Téléphone</label>
+                  <input name="phone" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700">
+                  Créer le profil
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 space-y-8">
+    <div className="p-4 space-y-8 max-w-5xl mx-auto">
       <section>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Profil Maître</h1>
@@ -227,6 +312,32 @@ export function ProfilePage() {
           )}
         </div>
 
+        <div className="flex space-x-2 overflow-x-auto pb-2 mb-4 border-b">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`px-3 py-1.5 rounded-t-md text-sm font-medium transition-colors ${
+              activeTab === 'all'
+                ? 'bg-blue-100 text-blue-800 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Tout
+          </button>
+          {availableTypes.map((type) => (
+            <button
+              key={type.value}
+              onClick={() => setActiveTab(type.value)}
+              className={`px-3 py-1.5 rounded-t-md text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === type.value
+                  ? 'bg-blue-100 text-blue-800 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              {type.label}
+            </button>
+          ))}
+        </div>
+
         {(isAddingEntry || editingEntryId) && (
           <form onSubmit={handleAddEntry} className="bg-white p-6 rounded-lg shadow-sm border mb-6 space-y-4">
             <h3 className="font-semibold mb-2">
@@ -238,15 +349,15 @@ export function ProfilePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Type</label>
-                    <select name="entryType" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={entryToEdit?.entryType || 'experience'} required>
-                      <option value="experience">Expérience</option>
-                      <option value="education">Formation</option>
-                      <option value="skill">Compétence</option>
-                      <option value="certification">Certification</option>
-                      <option value="language">Langue</option>
-                      <option value="interest">Intérêt</option>
-                      <option value="project">Projet</option>
-                      <option value="volunteer">Bénévolat</option>
+                    <select
+                      name="entryType"
+                      className="mt-1 block w-full border border-gray-300 rounded-md p-2 bg-white"
+                      defaultValue={entryToEdit?.entryType || (activeTab !== 'all' ? activeTab : 'experience')}
+                      required
+                    >
+                      {availableTypes.map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -293,22 +404,26 @@ export function ProfilePage() {
           </form>
         )}
 
-        {entries.length === 0 ? (
+        {filteredEntries.length === 0 ? (
           <div className="bg-gray-50 p-8 rounded-lg border text-center text-gray-500">
-            Aucune entrée pour le moment.
+            Aucune entrée pour cette catégorie pour le moment.
           </div>
         ) : (
           <ul className="space-y-4">
-            {entries.map(entry => (
+            {filteredEntries.map(entry => (
               <li key={entry.id} className="bg-white p-4 rounded-lg shadow-sm border flex justify-between items-center group">
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600 uppercase">
-                      {entry.entryType}
+                      {availableTypes.find(t => t.value === entry.entryType)?.label || entry.entryType}
                     </span>
                     <h3 className="font-semibold text-gray-900">{entry.title}</h3>
                   </div>
-                  {entry.subtitle && <p className="text-sm text-gray-600 mt-1">{entry.subtitle} {entry.location ? `- ${entry.location}` : ''}</p>}
+                  {(entry.subtitle || entry.location) && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      {entry.subtitle} {entry.location ? `— ${entry.location}` : ''}
+                    </p>
+                  )}
                 </div>
                 <div className="text-gray-400 opacity-0 group-hover:opacity-100 transition flex space-x-3">
                   <button
@@ -318,7 +433,7 @@ export function ProfilePage() {
                     Modifier
                   </button>
                   <button
-                    onClick={() => deleteEntry(entry.id)}
+                    onClick={() => handleDeleteEntry(entry.id)}
                     className="text-red-500 hover:text-red-700 text-sm font-medium"
                   >
                     Supprimer
