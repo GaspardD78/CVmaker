@@ -123,7 +123,10 @@ export async function generateDocxBlob(
         : '';
 
       const titleText = entryData.title;
-      const subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
+      let subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
+      if (entryData.location) {
+        subtitleText += subtitleText ? ` — ${entryData.location}` : ` | ${entryData.location}`;
+      }
 
       sectionsChildren.push(
         new Paragraph({

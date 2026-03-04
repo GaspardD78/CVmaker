@@ -84,10 +84,11 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
                 <div className="flex justify-between items-baseline mb-1">
                   <div>
                     <span className={template.preview.titleClass}>{entryData.title}</span>
-                    {entryData.subtitle && (
+                    {(entryData.subtitle || entryData.location) && (
                       <span className={template.preview.subtitleClass}>
                         {' '}
                         | {entryData.subtitle}
+                        {entryData.subtitle && entryData.location ? ` — ${entryData.location}` : entryData.location || ''}
                       </span>
                     )}
                   </div>
