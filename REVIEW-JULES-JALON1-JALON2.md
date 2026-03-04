@@ -1,5 +1,19 @@
 # Review des commits Jules — Jalon 1 & Jalon 2
 
+> **Note de mise à jour :** Les jalons 1 & 2 sont officiellement **TERMINÉS**.
+> Tous les problèmes critiques, importants et mineurs mentionnés ci-dessous **ont déjà été résolus** dans la branche `main` actuelle.
+> Notamment :
+> - Les types `any` ont été supprimés (ex: `export-docx.ts` utilise des `Paragraph[]`).
+> - Les puces ATS `LevelFormat.BULLET` ont été ajoutées.
+> - Le parsing heuristique JSON a été corrigé dans `mapping.ts` en utilisant la liste stricte `JSON_FIELDS`.
+> - L'UI d'override par CV a été implémentée dans `SectionItem.tsx`.
+> - Les dimensions A4 (11906x16838) sont forcées dans `export-docx.ts`.
+> - Aucun `console.log` ni `alert()` ne pollue le code ; `toast` et les boîtes de dialogue natives Tauri sont bien utilisées (suppression confirmée dans `CVList.tsx`).
+> - Le filtrage par onglets sur `ProfilePage.tsx` gère dynamiquement tous les `availableTypes`.
+> - La remarque sur `migrations.ts` (TS) est ignorée volontairement : l'architecture choisie gère les migrations via `tauri-plugin-sql` (Rust) au lancement, c'est l'approche idiomatique Tauri validée.
+>
+> L'application compile, les tests passent, et les exports DOCX/PDF respectent les critères ATS.
+
 **Date :** 2026-03-04
 **Reviewer :** Claude (analyse automatisée)
 **Branche analysée :** `main` (commits `07caf42` à `0f00f0d`)
