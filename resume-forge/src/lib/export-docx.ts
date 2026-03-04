@@ -296,7 +296,6 @@ export async function exportToDocx(
     // Returning true so the caller can trigger a toast
     return true;
   } catch (error) {
-    console.error('Erreur lors de l\'export DOCX:', error);
     throw error;
   }
 }
