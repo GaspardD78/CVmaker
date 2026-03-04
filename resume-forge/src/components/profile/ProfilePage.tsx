@@ -2,6 +2,9 @@ import { useEffect, useState, FormEvent } from 'react';
 import { useProfileStore } from '@/stores/profileStore';
 import { EntryType, MasterEntry } from '@/types/profile';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { confirm } from '@tauri-apps/plugin-dialog';
 
 export function ProfilePage() {
@@ -136,26 +139,26 @@ export function ProfilePage() {
             <form onSubmit={handleProfileSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Prénom *</label>
-                  <input name="firstName" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" required />
+                  <Label>Prénom *</Label>
+                  <Input name="firstName" type="text" className="mt-1" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Nom *</label>
-                  <input name="lastName" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" required />
+                  <Label>Nom *</Label>
+                  <Input name="lastName" type="text" className="mt-1" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <input name="email" type="email" className="mt-1 block w-full border border-gray-300 rounded-md p-2" />
+                  <Label>Email</Label>
+                  <Input name="email" type="email" className="mt-1" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Téléphone</label>
-                  <input name="phone" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" />
+                  <Label>Téléphone</Label>
+                  <Input name="phone" type="text" className="mt-1" />
                 </div>
               </div>
               <div className="flex justify-end">
-                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700">
+                <Button type="submit">
                   Créer le profil
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -169,12 +172,13 @@ export function ProfilePage() {
       <section>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Profil Maître</h1>
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setIsEditingProfile(!isEditingProfile)}
             className="text-blue-600 hover:text-blue-800"
           >
             {isEditingProfile ? 'Annuler' : 'Modifier'}
-          </button>
+          </Button>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-sm border space-y-4">
@@ -182,62 +186,62 @@ export function ProfilePage() {
             <form onSubmit={handleProfileSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Prénom</label>
-                  <input name="firstName" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.firstName || ''} required />
+                  <Label>Prénom</Label>
+                  <Input name="firstName" type="text" className="mt-1" defaultValue={profile?.firstName || ''} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Nom</label>
-                  <input name="lastName" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.lastName || ''} required />
+                  <Label>Nom</Label>
+                  <Input name="lastName" type="text" className="mt-1" defaultValue={profile?.lastName || ''} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <input name="email" type="email" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.email || ''} />
+                  <Label>Email</Label>
+                  <Input name="email" type="email" className="mt-1" defaultValue={profile?.email || ''} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Téléphone</label>
-                  <input name="phone" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.phone || ''} />
+                  <Label>Téléphone</Label>
+                  <Input name="phone" type="text" className="mt-1" defaultValue={profile?.phone || ''} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Adresse</label>
-                  <input name="address" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.address || ''} />
+                  <Label>Adresse</Label>
+                  <Input name="address" type="text" className="mt-1" defaultValue={profile?.address || ''} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Ville</label>
-                  <input name="city" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.city || ''} />
+                  <Label>Ville</Label>
+                  <Input name="city" type="text" className="mt-1" defaultValue={profile?.city || ''} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Code postal</label>
-                  <input name="postalCode" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.postalCode || ''} />
+                  <Label>Code postal</Label>
+                  <Input name="postalCode" type="text" className="mt-1" defaultValue={profile?.postalCode || ''} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Pays</label>
-                  <input name="country" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.country || 'France'} />
+                  <Label>Pays</Label>
+                  <Input name="country" type="text" className="mt-1" defaultValue={profile?.country || 'France'} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Titre professionnel</label>
-                  <input name="title" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.title || ''} />
+                  <Label>Titre professionnel</Label>
+                  <Input name="title" type="text" className="mt-1" defaultValue={profile?.title || ''} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">LinkedIn URL</label>
-                  <input name="linkedinUrl" type="url" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.linkedinUrl || ''} />
+                  <Label>LinkedIn URL</Label>
+                  <Input name="linkedinUrl" type="url" className="mt-1" defaultValue={profile?.linkedinUrl || ''} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">GitHub URL</label>
-                  <input name="githubUrl" type="url" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.githubUrl || ''} />
+                  <Label>GitHub URL</Label>
+                  <Input name="githubUrl" type="url" className="mt-1" defaultValue={profile?.githubUrl || ''} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Portfolio URL</label>
-                  <input name="portfolioUrl" type="url" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={profile?.portfolioUrl || ''} />
+                  <Label>Portfolio URL</Label>
+                  <Input name="portfolioUrl" type="url" className="mt-1" defaultValue={profile?.portfolioUrl || ''} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Résumé</label>
-                  <textarea name="summary" className="mt-1 block w-full border border-gray-300 rounded-md p-2" rows={3} defaultValue={profile?.summary || ''} />
+                  <Label>Résumé</Label>
+                  <textarea name="summary" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={profile?.summary || ''} />
                 </div>
               </div>
               <div className="flex justify-end">
-                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700">
+                <Button type="submit">
                   Enregistrer
-                </button>
+                </Button>
               </div>
             </form>
           ) : (
@@ -303,12 +307,11 @@ export function ProfilePage() {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Entrées Maîtres (Expériences, Formations...)</h2>
           {!isAddingEntry && !editingEntryId && (
-            <button
+            <Button
               onClick={() => setIsAddingEntry(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition"
             >
               + Ajouter
-            </button>
+            </Button>
           )}
         </div>
 
@@ -348,10 +351,10 @@ export function ProfilePage() {
               return (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Type</label>
+                    <Label>Type</Label>
                     <select
                       name="entryType"
-                      className="mt-1 block w-full border border-gray-300 rounded-md p-2 bg-white"
+                      className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       defaultValue={entryToEdit?.entryType || (activeTab !== 'all' ? activeTab : 'experience')}
                       required
                     >
@@ -361,24 +364,24 @@ export function ProfilePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Titre</label>
-                    <input name="title" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={entryToEdit?.title || ''} required />
+                    <Label>Titre</Label>
+                    <Input name="title" type="text" className="mt-1" defaultValue={entryToEdit?.title || ''} required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Sous-titre (ex: Entreprise, École)</label>
-                    <input name="subtitle" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={entryToEdit?.subtitle || ''} />
+                    <Label>Sous-titre (ex: Entreprise, École)</Label>
+                    <Input name="subtitle" type="text" className="mt-1" defaultValue={entryToEdit?.subtitle || ''} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Lieu</label>
-                    <input name="location" type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={entryToEdit?.location || ''} />
+                    <Label>Lieu</Label>
+                    <Input name="location" type="text" className="mt-1" defaultValue={entryToEdit?.location || ''} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Date de début</label>
-                    <input name="startDate" type="text" placeholder="YYYY-MM" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={entryToEdit?.startDate || ''} />
+                    <Label>Date de début</Label>
+                    <Input name="startDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.startDate || ''} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Date de fin</label>
-                    <input name="endDate" type="text" placeholder="YYYY-MM" className="mt-1 block w-full border border-gray-300 rounded-md p-2" defaultValue={entryToEdit?.endDate || ''} />
+                    <Label>Date de fin</Label>
+                    <Input name="endDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.endDate || ''} />
                   </div>
                   <div className="col-span-2">
                     <label className="flex items-center space-x-2">
@@ -387,19 +390,19 @@ export function ProfilePage() {
                     </label>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
+                    <Label>Description</Label>
+                    <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
                   </div>
                 </div>
               );
             })()}
             <div className="flex justify-end mt-4 space-x-3">
-              <button type="button" onClick={handleCancelEntryForm} className="px-4 py-2 border rounded hover:bg-gray-50 text-gray-700">
+              <Button type="button" variant="outline" onClick={handleCancelEntryForm}>
                 Annuler
-              </button>
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700">
+              </Button>
+              <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white">
                 Sauvegarder l'entrée
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -426,18 +429,22 @@ export function ProfilePage() {
                   )}
                 </div>
                 <div className="text-gray-400 opacity-0 group-hover:opacity-100 transition flex space-x-3">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleEditEntryClick(entry)}
                     className="text-blue-500 hover:text-blue-700 text-sm font-medium"
                   >
                     Modifier
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleDeleteEntry(entry.id)}
                     className="text-red-500 hover:text-red-700 text-sm font-medium"
                   >
                     Supprimer
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))}
