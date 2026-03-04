@@ -5,6 +5,7 @@ import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users,
 import { ApplicationTimeline } from './ApplicationTimeline';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 
 interface ApplicationDetailsPanelProps {
   applicationId: string | null;
@@ -62,28 +63,39 @@ export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationD
     });
 
     if (isConfirmed) {
-      await deleteApplication(application.id);
-      onClose();
+      try {
+        await deleteApplication(application.id);
+        toast.success("Candidature supprimée");
+        onClose();
+      } catch (error) {
+        toast.error("Erreur lors de la suppression");
+      }
     }
   };
 
   const handleSave = async (overrides?: Partial<Parameters<typeof updateApplication>[1]>) => {
     setIsSaving(true);
-    await updateApplication(application.id, {
-      notes: notes || null,
-      nextAction: nextAction || null,
-      nextActionDate: nextActionDate || null,
-      location: location || null,
-      remotePolicy: remotePolicy || null,
-      salaryMin: salaryMin === '' ? null : Number(salaryMin),
-      salaryMax: salaryMax === '' ? null : Number(salaryMax),
-      sourceDetail: sourceDetail || null,
-      contactName: contactName || null,
-      contactEmail: contactEmail || null,
-      contactPhone: contactPhone || null,
-      ...overrides
-    });
-    setIsSaving(false);
+    try {
+      await updateApplication(application.id, {
+        notes: notes || null,
+        nextAction: nextAction || null,
+        nextActionDate: nextActionDate || null,
+        location: location || null,
+        remotePolicy: remotePolicy || null,
+        salaryMin: salaryMin === '' ? null : Number(salaryMin),
+        salaryMax: salaryMax === '' ? null : Number(salaryMax),
+        sourceDetail: sourceDetail || null,
+        contactName: contactName || null,
+        contactEmail: contactEmail || null,
+        contactPhone: contactPhone || null,
+        ...overrides
+      });
+      toast.success("Candidature mise à jour");
+    } catch (error) {
+      toast.error("Erreur lors de la mise à jour");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

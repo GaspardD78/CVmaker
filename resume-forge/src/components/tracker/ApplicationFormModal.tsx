@@ -5,6 +5,7 @@ import { useCvStore } from '@/stores/cvStore';
 import { ApplicationStatus, ApplicationSource } from '@/types/application';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ApplicationFormModalProps {
   isOpen: boolean;
@@ -44,35 +45,40 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
     e.preventDefault();
 
     if (!profile) {
-      alert("Veuillez d'abord configurer votre profil !");
+      toast.error("Veuillez d'abord configurer votre profil !");
       return;
     }
 
-    await createApplication({
-      profileId: profile.id,
-      cvId: cvId || null,
-      companyName,
-      jobTitle,
-      jobUrl: jobUrl || null,
-      source,
-      sourceDetail: sourceDetail || null,
-      contactName: contactName || null,
-      contactEmail: contactEmail || null,
-      contactPhone: contactPhone || null,
-      status,
-      salaryMin: salaryMin === '' ? null : Number(salaryMin),
-      salaryMax: salaryMax === '' ? null : Number(salaryMax),
-      location: location || null,
-      remotePolicy: remotePolicy || null,
-      priority,
-      notes: null,
-      appliedAt: status !== 'draft' ? new Date().toISOString() : null,
-      nextAction: nextAction || null,
-      nextActionDate: nextActionDate || null,
-    });
+    try {
+      await createApplication({
+        profileId: profile.id,
+        cvId: cvId || null,
+        companyName,
+        jobTitle,
+        jobUrl: jobUrl || null,
+        source,
+        sourceDetail: sourceDetail || null,
+        contactName: contactName || null,
+        contactEmail: contactEmail || null,
+        contactPhone: contactPhone || null,
+        status,
+        salaryMin: salaryMin === '' ? null : Number(salaryMin),
+        salaryMax: salaryMax === '' ? null : Number(salaryMax),
+        location: location || null,
+        remotePolicy: remotePolicy || null,
+        priority,
+        notes: null,
+        appliedAt: status !== 'draft' ? new Date().toISOString() : null,
+        nextAction: nextAction || null,
+        nextActionDate: nextActionDate || null,
+      });
 
-    onClose();
-    resetForm();
+      toast.success("Candidature ajoutée avec succès");
+      onClose();
+      resetForm();
+    } catch (error) {
+      toast.error("Erreur lors de l'ajout de la candidature");
+    }
   };
 
   const resetForm = () => {
