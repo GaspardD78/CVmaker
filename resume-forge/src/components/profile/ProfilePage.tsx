@@ -244,7 +244,9 @@ export function ProfilePage() {
                       <option value="skill">Compétence</option>
                       <option value="certification">Certification</option>
                       <option value="language">Langue</option>
+                      <option value="interest">Intérêt</option>
                       <option value="project">Projet</option>
+                      <option value="volunteer">Bénévolat</option>
                     </select>
                   </div>
                   <div>

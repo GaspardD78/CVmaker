@@ -12,7 +12,7 @@ import { getTemplate } from '@/templates';
 export function CVBuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentCv, currentCvBlocks, fetchCvById, fetchCvBlocks } = useCvStore();
+  const { currentCv, currentCvBlocks, fetchCvById, fetchCvBlocks, updateCv } = useCvStore();
   const { profile, entries, fetchProfile } = useProfileStore();
   const [isExporting, setIsExporting] = useState(false);
 
@@ -21,7 +21,6 @@ export function CVBuilderPage() {
       fetchCvById(id);
       fetchCvBlocks(id);
       fetchProfile();
-      // fetchEntries is not needed since useProfileStore fetches all entries in fetchProfile
     }
   }, [id, fetchCvById, fetchCvBlocks, fetchProfile]);
 
@@ -32,11 +31,10 @@ export function CVBuilderPage() {
       const template = getTemplate(currentCv.templateId);
       const success = await exportToDocx(currentCv, profile, currentCvBlocks, entries, template);
       if (success) {
-        console.log("DOCX exporté avec succès");
+        // TODO: Replace with proper toast
       }
     } catch (error) {
-      console.error(error);
-      alert("Erreur lors de l'export DOCX.");
+      // TODO: Replace with proper toast
     } finally {
       setIsExporting(false);
     }
@@ -44,6 +42,11 @@ export function CVBuilderPage() {
 
   const handleExportPdf = () => {
     printPDF();
+  };
+
+  const handleTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!currentCv) return;
+    await updateCv(currentCv.id, { templateId: e.target.value });
   };
 
   if (!currentCv || !profile) {
@@ -66,6 +69,14 @@ export function CVBuilderPage() {
           </h1>
         </div>
         <div className="flex items-center space-x-3">
+           <select
+             value={currentCv.templateId}
+             onChange={handleTemplateChange}
+             className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-2"
+           >
+             <option value="ats-classic">ATS Classique</option>
+             <option value="ats-modern">ATS Moderne</option>
+           </select>
            <button
              onClick={handleExportDocx}
              disabled={isExporting}

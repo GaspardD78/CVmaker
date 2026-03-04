@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, LevelFormat } from 'docx';
 import { CVDocument, CVBlock } from '../types/cv';
 import { MasterEntry, Profile } from '../types/profile';
 import { CVTemplate } from '../types/template';
@@ -19,7 +19,7 @@ export async function generateDocxBlob(
   entries: MasterEntry[],
   template: CVTemplate
 ): Promise<Blob> {
-  const sectionsChildren: any[] = [];
+  const sectionsChildren: Paragraph[] = [];
 
   // 1. Identity / Header (Linear approach for ATS)
   sectionsChildren.push(
@@ -48,7 +48,7 @@ export async function generateDocxBlob(
           }),
         ],
         alignment: AlignmentType.CENTER,
-        spacing: { after: 200 },
+        spacing: { after: 200, line: template.docx.lineSpacing },
       })
     );
   }
@@ -78,7 +78,7 @@ export async function generateDocxBlob(
             font: template.docx.fonts.body,
           }),
         ],
-        spacing: { after: template.docx.sectionSpacing },
+        spacing: { after: template.docx.sectionSpacing, line: template.docx.lineSpacing },
       })
     );
   }
@@ -107,7 +107,7 @@ export async function generateDocxBlob(
               font: template.docx.fonts.body,
             }),
           ],
-          spacing: { after: 100 },
+          spacing: { after: 100, line: template.docx.lineSpacing },
         })
       );
     } else if (block.blockType === 'entry_ref' && block.entryId) {
@@ -153,21 +153,26 @@ export async function generateDocxBlob(
         })
       );
 
-      // Entry Description (handling newlines)
+      // Entry Description (handling newlines and bullets)
       if (entryData.description) {
         const lines = entryData.description.split('\n');
         for (const line of lines) {
-          if (line.trim()) {
+          const trimmedLine = line.trim();
+          if (trimmedLine) {
+            const isBullet = trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ');
+            const content = isBullet ? trimmedLine.substring(2).trim() : trimmedLine;
+
             sectionsChildren.push(
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: line,
+                    text: content,
                     size: template.docx.bodySize,
                     font: template.docx.fonts.body,
                   }),
                 ],
-                spacing: { after: 50 },
+                spacing: { after: 50, line: template.docx.lineSpacing },
+                numbering: isBullet ? { reference: "default-bullet", level: 0 } : undefined,
               })
             );
           }
@@ -177,6 +182,24 @@ export async function generateDocxBlob(
   }
 
   const doc = new Document({
+    numbering: {
+      config: [
+        {
+          reference: "default-bullet",
+          levels: [
+            {
+              level: 0,
+              format: LevelFormat.BULLET,
+              text: "•",
+              alignment: AlignmentType.LEFT,
+              style: {
+                paragraph: { indent: { left: 720, hanging: 360 } }
+              }
+            }
+          ]
+        }
+      ]
+    },
     styles: {
       default: {
         document: {
@@ -226,6 +249,10 @@ export async function generateDocxBlob(
       {
         properties: {
           page: {
+            size: {
+              width: template.docx.pageSize === 'A4' ? 11906 : 12240, // A4 or Letter
+              height: template.docx.pageSize === 'A4' ? 16838 : 15840,
+            },
             margin: template.docx.margins,
           },
         },
