@@ -3,6 +3,7 @@ import { useApplicationStore } from '@/stores/applicationStore';
 import { EventType } from '@/types/application';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface EventFormModalProps {
   isOpen: boolean;
@@ -43,19 +44,24 @@ export function EventFormModal({ isOpen, onClose, applicationId }: EventFormModa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    await createEvent({
-      applicationId,
-      eventType,
-      eventDate: new Date(eventDate).toISOString(),
-      title: title || getDefaultTitle(eventType),
-      description: description || null,
-      oldStatus: null,
-      newStatus: null,
-      calendarId: null,
-    });
+    try {
+      await createEvent({
+        applicationId,
+        eventType,
+        eventDate: new Date(eventDate).toISOString(),
+        title: title || getDefaultTitle(eventType),
+        description: description || null,
+        oldStatus: null,
+        newStatus: null,
+        calendarId: null,
+      });
 
-    onClose();
-    resetForm();
+      toast.success("Événement ajouté");
+      onClose();
+      resetForm();
+    } catch (error) {
+      toast.error("Erreur lors de l'ajout de l'événement");
+    }
   };
 
   const resetForm = () => {
