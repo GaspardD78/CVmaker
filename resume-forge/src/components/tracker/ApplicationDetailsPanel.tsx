@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
-import { X, ExternalLink, Calendar } from 'lucide-react';
+import { useCvStore } from '@/stores/cvStore';
+import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase } from 'lucide-react';
 import { ApplicationTimeline } from './ApplicationTimeline';
+import { confirm } from '@tauri-apps/plugin-dialog';
+import { Link } from 'react-router-dom';
 
 interface ApplicationDetailsPanelProps {
   applicationId: string | null;
@@ -9,7 +12,8 @@ interface ApplicationDetailsPanelProps {
 }
 
 export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationDetailsPanelProps) {
-  const { applications, updateApplication } = useApplicationStore();
+  const { applications, updateApplication, deleteApplication } = useApplicationStore();
+  const { cvs, fetchCvs } = useCvStore();
 
   const application = applications.find(a => a.id === applicationId);
 
@@ -18,22 +22,66 @@ export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationD
   const [nextActionDate, setNextActionDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  const [location, setLocation] = useState('');
+  const [remotePolicy, setRemotePolicy] = useState('');
+  const [salaryMin, setSalaryMin] = useState<number | ''>('');
+  const [salaryMax, setSalaryMax] = useState<number | ''>('');
+  const [sourceDetail, setSourceDetail] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+
+  useEffect(() => {
+    fetchCvs();
+  }, [fetchCvs]);
+
   useEffect(() => {
     if (application) {
       setNotes(application.notes || '');
       setNextAction(application.nextAction || '');
       setNextActionDate(application.nextActionDate || '');
+      setLocation(application.location || '');
+      setRemotePolicy(application.remotePolicy || '');
+      setSalaryMin(application.salaryMin ?? '');
+      setSalaryMax(application.salaryMax ?? '');
+      setSourceDetail(application.sourceDetail || '');
+      setContactName(application.contactName || '');
+      setContactEmail(application.contactEmail || '');
+      setContactPhone(application.contactPhone || '');
     }
   }, [application]);
 
   if (!application) return null;
 
-  const handleSave = async () => {
+  const linkedCv = application.cvId ? cvs.find(cv => cv.id === application.cvId) : null;
+
+  const handleDelete = async () => {
+    const isConfirmed = await confirm("Voulez-vous vraiment supprimer cette candidature ?", {
+      title: "Confirmation de suppression",
+      kind: "warning",
+    });
+
+    if (isConfirmed) {
+      await deleteApplication(application.id);
+      onClose();
+    }
+  };
+
+  const handleSave = async (overrides?: Partial<Parameters<typeof updateApplication>[1]>) => {
     setIsSaving(true);
     await updateApplication(application.id, {
       notes: notes || null,
       nextAction: nextAction || null,
       nextActionDate: nextActionDate || null,
+      location: location || null,
+      remotePolicy: remotePolicy || null,
+      salaryMin: salaryMin === '' ? null : Number(salaryMin),
+      salaryMax: salaryMax === '' ? null : Number(salaryMax),
+      sourceDetail: sourceDetail || null,
+      contactName: contactName || null,
+      contactEmail: contactEmail || null,
+      contactPhone: contactPhone || null,
+      ...overrides
     });
     setIsSaving(false);
   };
@@ -45,9 +93,14 @@ export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationD
           <h2 className="text-xl font-bold">{application.jobTitle}</h2>
           <p className="text-gray-600">{application.companyName}</p>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
-          <X size={20} />
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleDelete} className="p-2 hover:bg-red-50 text-red-500 rounded-full transition-colors" title="Supprimer">
+            <Trash2 size={20} />
+          </button>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -59,7 +112,78 @@ export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationD
                <span className="text-sm font-medium">Voir l'offre</span>
              </a>
           )}
-          {/* Add more info badges here if location, salary etc are provided */}
+
+          {linkedCv && (
+             <Link to={`/cv/${linkedCv.id}`} className="flex items-center gap-2 p-3 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors">
+               <FileText size={18} />
+               <span className="text-sm font-medium truncate">{linkedCv.name}</span>
+             </Link>
+          )}
+        </div>
+
+        {/* Infos supplémentaires */}
+        <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+          <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <Briefcase size={16} /> Détails de l'offre
+          </h3>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><MapPin size={12}/> Localisation</label>
+              <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="Ex: Paris" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Télétravail</label>
+              <select value={remotePolicy} onChange={(e) => {
+                const newValue = e.target.value;
+                setRemotePolicy(newValue);
+                handleSave({ remotePolicy: newValue });
+              }} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none">
+                <option value="">Non spécifié</option>
+                <option value="full_remote">100% Télétravail</option>
+                <option value="hybrid">Hybride</option>
+                <option value="onsite">Sur site</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+               <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><DollarSign size={12}/> Salaire Min</label>
+               <input type="number" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value ? Number(e.target.value) : '')} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="40000" />
+             </div>
+             <div>
+               <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><DollarSign size={12}/> Salaire Max</label>
+               <input type="number" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value ? Number(e.target.value) : '')} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="50000" />
+             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Détail Source ({application.source})</label>
+            <input type="text" value={sourceDetail} onChange={(e) => setSourceDetail(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="Détail..." />
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+          <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <Users size={16} /> Contact
+          </h3>
+
+          <div>
+             <label className="block text-xs font-medium text-gray-500 mb-1">Nom</label>
+             <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="Nom du contact..." />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+               <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+               <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="email@..." />
+             </div>
+             <div>
+               <label className="block text-xs font-medium text-gray-500 mb-1">Téléphone</label>
+               <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="06..." />
+             </div>
+          </div>
         </div>
 
         {/* Prochaine action */}
@@ -82,7 +206,7 @@ export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationD
               className="w-full px-3 py-2 text-sm border border-orange-200 rounded bg-white"
             />
             <button
-              onClick={handleSave}
+              onClick={() => handleSave()}
               disabled={isSaving}
               className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 disabled:opacity-50 transition-colors"
             >
@@ -97,7 +221,7 @@ export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationD
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            onBlur={handleSave}
+            onBlur={() => handleSave()}
             placeholder="Notes personnelles..."
             className="w-full h-32 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
           />
