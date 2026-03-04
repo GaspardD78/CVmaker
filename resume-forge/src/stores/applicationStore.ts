@@ -12,6 +12,9 @@ interface ApplicationState {
   createApplication: (app: Omit<Application, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateApplication: (id: string, updates: Partial<Application>) => Promise<void>;
   deleteApplication: (id: string) => Promise<void>;
+  fetchEvents: (applicationId: string) => Promise<void>;
+  createEvent: (event: Omit<ApplicationEvent, 'id' | 'createdAt'>) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
 }
 
 export const useApplicationStore = create<ApplicationState>((set, get) => ({
@@ -83,6 +86,61 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       }));
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to delete application' });
+    }
+  },
+
+  fetchEvents: async (applicationId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const db = await getDb();
+      const rawEvents = await db.select<Record<string, unknown>[]>(
+        'SELECT * FROM application_events WHERE application_id = $1 ORDER BY event_date DESC',
+        [applicationId]
+      );
+      const events = rawEvents.map(event => keysToCamelCase<ApplicationEvent>(event));
+      set({ events });
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to fetch events' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  createEvent: async (event) => {
+    try {
+      const db = await getDb();
+      const snakeEvent = keysToSnakeCase<Record<string, unknown>>(event);
+      const keys = Object.keys(snakeEvent);
+      const values = Object.values(snakeEvent);
+
+      const columns = keys.join(', ');
+      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+
+      await db.execute(
+        `INSERT INTO application_events (${columns}) VALUES (${placeholders})`,
+        values
+      );
+      await get().fetchEvents(event.applicationId);
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to create event' });
+    }
+  },
+
+  deleteEvent: async (id) => {
+    try {
+      const db = await getDb();
+      const currentEvents = get().events;
+      const eventToDelete = currentEvents.find(e => e.id === id);
+
+      await db.execute('DELETE FROM application_events WHERE id = $1', [id]);
+
+      if (eventToDelete) {
+        set(state => ({
+          events: state.events.filter(e => e.id !== id)
+        }));
+      }
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to delete event' });
     }
   },
 }));

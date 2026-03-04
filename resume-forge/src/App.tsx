@@ -3,26 +3,10 @@ import { Layout } from "@/components/layout/Layout";
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { CVList } from "@/components/cv-builder/CVList";
 import { CVBuilderPage } from "@/components/cv-builder/CVBuilderPage";
+import { Dashboard } from "@/components/dashboard/Dashboard";
+import { TrackerPage } from "@/components/tracker/TrackerPage";
 import { Toaster } from "sonner";
 import "./App.css";
-
-function Dashboard() {
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Tableau de bord</h1>
-      <p>Bienvenue sur ResumeForge !</p>
-    </div>
-  );
-}
-
-function Tracker() {
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Suivi des candidatures</h1>
-      <p>Suivez vos candidatures</p>
-    </div>
-  );
-}
 
 function App() {
   return (
@@ -33,7 +17,7 @@ function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/cv" element={<CVList />} />
           <Route path="/cv/:id" element={<CVBuilderPage />} />
-          <Route path="/tracker" element={<Tracker />} />
+          <Route path="/tracker" element={<TrackerPage />} />
         </Routes>
       </Layout>
       <Toaster position="top-right" />
