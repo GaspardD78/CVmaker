@@ -74,6 +74,18 @@ describe('mapping utilities', () => {
       expect(result.otherField).toBe('regular string');
     });
 
+    it('should gracefully handle invalid JSON in known JSON fields', () => {
+      const invalidJsonString = '{ invalid json " : 1';
+      const input = {
+        metadata: invalidJsonString
+      };
+      const result = keysToCamelCase<any>(input);
+
+      // The catch block in keysToCamelCase should keep the original string
+      // when JSON.parse fails
+      expect(result.metadata).toBe(invalidJsonString);
+    });
+
     it('should handle nested arrays', () => {
       const input = [{ first_name: 'John' }, { first_name: 'Jane' }];
       const expected = [{ firstName: 'John' }, { firstName: 'Jane' }];
