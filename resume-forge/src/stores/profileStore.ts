@@ -38,7 +38,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         const rawProfile = rawProfiles[0];
         const profile = keysToCamelCase<Profile>(rawProfile);
 
-        const rawEntries = await db.select<Record<string, unknown>[]>('SELECT * FROM master_entries WHERE profile_id = $1 ORDER BY sort_order ASC', [rawProfile.id as string]);
+        const rawEntries = await db.select<Record<string, unknown>[]>('SELECT * FROM master_entries WHERE profile_id = ?1 ORDER BY sort_order ASC', [rawProfile.id as string]);
         const entries = rawEntries.map(e => keysToCamelCase<MasterEntry>(e));
 
         set({ profile, entries });
@@ -56,13 +56,20 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('profiles', keysToSnakeCase<Record<string, unknown>>(updates));
+
+      // Ensure required NOT NULL columns have defaults to avoid SQLite constraint failure
+      if (!current) {
+        if (!('first_name' in snakeUpdates) || (snakeUpdates as any).first_name === '') snakeUpdates.first_name = 'Prénom';
+        if (!('last_name' in snakeUpdates) || (snakeUpdates as any).last_name === '') snakeUpdates.last_name = 'Nom';
+      }
+
       const keys = Object.keys(snakeUpdates);
-      const values = Array.from(Object.values(snakeUpdates));
+      const values = [...Object.values(snakeUpdates)];
 
       if (!current) {
         // If profile doesn't exist, we must create it instead
         const columns = keys.join(', ');
-        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+        const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
         await db.execute(
           `INSERT INTO profiles (${columns}) VALUES (${placeholders})`,
@@ -73,15 +80,18 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       }
 
       if (keys.length > 0) {
-        const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const setString = keys.map((key, i) => `${key} = ?${i + 1}`).join(', ');
         await db.execute(
-          `UPDATE profiles SET ${setString}, updated_at = datetime('now') WHERE id = $${keys.length + 1}`,
-          Array.from([...values, current.id])
+          `UPDATE profiles SET ${setString}, updated_at = datetime('now') WHERE id = ?${keys.length + 1}`,
+          [...values, current.id]
         );
       }
       set({ profile: { ...current, ...updates } });
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to update profile' }); throw err;
+      const errorMessage = typeof err === 'string' ? err : (err instanceof Error ? err.message : 'Failed to update profile');
+      console.error("Erreur SQL complète :", err);
+      set({ error: errorMessage });
+      throw err;
     }
   },
 
@@ -90,10 +100,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const db = await getDb();
       const snakeEntry = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entry));
       const keys = Object.keys(snakeEntry);
-      const values = Array.from(Object.values(snakeEntry));
+      const values = [...Object.values(snakeEntry)];
 
       const columns = keys.join(', ');
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
       await db.execute(
         `INSERT INTO master_entries (${columns}) VALUES (${placeholders})`,
@@ -112,13 +122,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entryUpdates));
       const keys = Object.keys(snakeUpdates);
-      const values = Array.from(Object.values(snakeUpdates));
+      const values = [...Object.values(snakeUpdates)];
 
       if (keys.length > 0) {
-        const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const setString = keys.map((key, i) => `${key} = ?${i + 1}`).join(', ');
         await db.execute(
-          `UPDATE master_entries SET ${setString}, updated_at = datetime('now') WHERE id = $${keys.length + 1}`,
-          Array.from([...values, id])
+          `UPDATE master_entries SET ${setString}, updated_at = datetime('now') WHERE id = ?${keys.length + 1}`,
+          [...values, id]
         );
       }
       await get().fetchProfile();
@@ -130,7 +140,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   deleteEntry: async (id) => {
     try {
       const db = await getDb();
-      await db.execute('DELETE FROM master_entries WHERE id = $1', [id]);
+      await db.execute('DELETE FROM master_entries WHERE id = ?1', [id]);
       set(state => ({
         entries: state.entries.filter(e => e.id !== id)
       }));

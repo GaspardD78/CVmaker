@@ -65,6 +65,41 @@ Avant de pouvoir lancer ou compiler ResumeForge, vous devez installer les dépen
     ```
     *(La première compilation de Rust peut prendre quelques minutes).*
 
+### Procédure de Re-Build après correction
+
+Si vous avez modifié le code (frontend ou backend) pour corriger un bug, suivez ces étapes pour re-compiler proprement l'application :
+
+1.  **Nettoyer les anciens builds (Optionnel mais recommandé) :**
+    Sur macOS / Linux (Bash) :
+    ```bash
+    rm -rf dist
+    cd src-tauri
+    cargo clean
+    cd ..
+    ```
+    Sur Windows (PowerShell) :
+    ```powershell
+    Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
+    cd src-tauri
+    cargo clean
+    cd ..
+    ```
+
+2.  **Vérifier le typage strict TypeScript :**
+    ```bash
+    npx tsc --noEmit
+    ```
+
+3.  **Compiler le frontend (Vite) :**
+    ```bash
+    npm run build
+    ```
+
+4.  **Re-compiler et lancer l'application Tauri :**
+    ```bash
+    npm run tauri dev
+    ```
+
 ### Compilation (Build pour la production)
 
 Pour générer un exécutable autonome (.exe, .dmg, .app, ou .deb/.AppImage selon votre OS) :
