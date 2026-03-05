@@ -48,7 +48,7 @@ export const useCvStore = create<CVState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = $1', [id]);
+      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = ?1', [id]);
       if (rawCvs.length > 0) {
         set({ currentCv: keysToCamelCase<CVDocument>(rawCvs[0]) });
       } else {
@@ -65,7 +65,7 @@ export const useCvStore = create<CVState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawBlocks = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_blocks WHERE cv_id = $1 ORDER BY sort_order ASC', [cvId]);
+      const rawBlocks = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_blocks WHERE cv_id = ?1 ORDER BY sort_order ASC', [cvId]);
       const blocks = rawBlocks.map(b => keysToCamelCase<CVBlock>(b));
       set({ currentCvBlocks: blocks });
     } catch (err) {
@@ -80,10 +80,10 @@ export const useCvStore = create<CVState>((set, get) => ({
       const db = await getDb();
       const snakeCv = filterAllowedColumns('cv_documents', keysToSnakeCase<Record<string, unknown>>(cv));
       const keys = Object.keys(snakeCv);
-      const values = Array.from(Object.values(snakeCv));
+      const values = [...Object.values(snakeCv)];
 
       const columns = keys.join(', ');
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
       await db.execute(
         `INSERT INTO cv_documents (${columns}) VALUES (${placeholders})`,
@@ -99,7 +99,7 @@ export const useCvStore = create<CVState>((set, get) => ({
     try {
       const db = await getDb();
       // 1. Fetch original CV
-      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = $1', [id]);
+      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = ?1', [id]);
       if (rawCvs.length === 0) return;
       const originalCv = rawCvs[0];
 
@@ -110,7 +110,7 @@ export const useCvStore = create<CVState>((set, get) => ({
       const values = keys.map(k => cvToInsert[k]);
 
       const columns = keys.join(', ');
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
       // Use RETURNING id to safely get the newly created row ID
       const insertResult = await db.select<{id: string}[]>(
@@ -127,9 +127,9 @@ export const useCvStore = create<CVState>((set, get) => ({
             sort_order, is_visible, override_data
           )
           SELECT
-            $1 as cv_id, entry_id, block_type, section_name, custom_content,
+            ?1 as cv_id, entry_id, block_type, section_name, custom_content,
             sort_order, is_visible, override_data
-          FROM cv_blocks WHERE cv_id = $2`,
+          FROM cv_blocks WHERE cv_id = ?2`,
           [newCvId, id]
         );
       }
@@ -143,7 +143,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   deleteCv: async (id) => {
     try {
       const db = await getDb();
-      await db.execute('DELETE FROM cv_documents WHERE id = $1', [id]);
+      await db.execute('DELETE FROM cv_documents WHERE id = ?1', [id]);
       set(state => ({
         cvs: state.cvs.filter(c => c.id !== id)
       }));
@@ -157,13 +157,13 @@ export const useCvStore = create<CVState>((set, get) => ({
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('cv_documents', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
-      const values = Array.from(Object.values(snakeUpdates));
+      const values = [...Object.values(snakeUpdates)];
 
       if (keys.length > 0) {
-        const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const setString = keys.map((key, i) => `${key} = ?${i + 1}`).join(', ');
         await db.execute(
-          `UPDATE cv_documents SET ${setString}, updated_at = datetime('now') WHERE id = $${keys.length + 1}`,
-          Array.from([...values, id])
+          `UPDATE cv_documents SET ${setString}, updated_at = datetime('now') WHERE id = ?${keys.length + 1}`,
+          [...values, id]
         );
       }
       await get().fetchCvs();
@@ -177,10 +177,10 @@ export const useCvStore = create<CVState>((set, get) => ({
       const db = await getDb();
       const snakeBlock = filterAllowedColumns('cv_blocks', keysToSnakeCase<Record<string, unknown>>(block));
       const keys = Object.keys(snakeBlock);
-      const values = Array.from(Object.values(snakeBlock));
+      const values = [...Object.values(snakeBlock)];
 
       const columns = keys.join(', ');
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
       await db.execute(
         `INSERT INTO cv_blocks (${columns}) VALUES (${placeholders})`,
@@ -197,13 +197,13 @@ export const useCvStore = create<CVState>((set, get) => ({
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('cv_blocks', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
-      const values = Array.from(Object.values(snakeUpdates));
+      const values = [...Object.values(snakeUpdates)];
 
       if (keys.length > 0) {
-        const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const setString = keys.map((key, i) => `${key} = ?${i + 1}`).join(', ');
         await db.execute(
-          `UPDATE cv_blocks SET ${setString} WHERE id = $${keys.length + 1}`,
-          Array.from([...values, id])
+          `UPDATE cv_blocks SET ${setString} WHERE id = ?${keys.length + 1}`,
+          [...values, id]
         );
       }
 
@@ -222,7 +222,7 @@ export const useCvStore = create<CVState>((set, get) => ({
       const db = await getDb();
       const currentBlocks = get().currentCvBlocks;
       const block = currentBlocks.find(b => b.id === id);
-      await db.execute('DELETE FROM cv_blocks WHERE id = $1', [id]);
+      await db.execute('DELETE FROM cv_blocks WHERE id = ?1', [id]);
       if(block) {
           await get().fetchCvBlocks(block.cvId);
       }
@@ -237,7 +237,7 @@ export const useCvStore = create<CVState>((set, get) => ({
       db = await getDb();
       await db.execute('BEGIN TRANSACTION');
       for (let i = 0; i < blockIds.length; i++) {
-        await db.execute('UPDATE cv_blocks SET sort_order = $1 WHERE id = $2', [i, blockIds[i]]);
+        await db.execute('UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2', [i, blockIds[i]]);
       }
       await db.execute('COMMIT');
       await get().fetchCvBlocks(cvId);

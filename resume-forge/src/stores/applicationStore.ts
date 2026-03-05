@@ -43,10 +43,10 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       const db = await getDb();
       const snakeApp = filterAllowedColumns('applications', keysToSnakeCase<Record<string, unknown>>(app));
       const keys = Object.keys(snakeApp);
-      const values = Array.from(Object.values(snakeApp));
+      const values = [...Object.values(snakeApp)];
 
       const columns = keys.join(', ');
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
       await db.execute(
         `INSERT INTO applications (${columns}) VALUES (${placeholders})`,
@@ -63,13 +63,13 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('applications', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
-      const values = Array.from(Object.values(snakeUpdates));
+      const values = [...Object.values(snakeUpdates)];
 
       if (keys.length > 0) {
-        const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const setString = keys.map((key, i) => `${key} = ?${i + 1}`).join(', ');
         await db.execute(
-          `UPDATE applications SET ${setString}, updated_at = datetime('now') WHERE id = $${keys.length + 1}`,
-          Array.from([...values, id])
+          `UPDATE applications SET ${setString}, updated_at = datetime('now') WHERE id = ?${keys.length + 1}`,
+          [...values, id]
         );
       }
       await get().fetchApplications();
@@ -81,7 +81,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   deleteApplication: async (id) => {
     try {
       const db = await getDb();
-      await db.execute('DELETE FROM applications WHERE id = $1', [id]);
+      await db.execute('DELETE FROM applications WHERE id = ?1', [id]);
       set(state => ({
         applications: state.applications.filter(a => a.id !== id)
       }));
@@ -95,7 +95,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
     try {
       const db = await getDb();
       const rawEvents = await db.select<Record<string, unknown>[]>(
-        'SELECT * FROM application_events WHERE application_id = $1 ORDER BY event_date DESC',
+        'SELECT * FROM application_events WHERE application_id = ?1 ORDER BY event_date DESC',
         [applicationId]
       );
       const events = rawEvents.map(event => keysToCamelCase<ApplicationEvent>(event));
@@ -112,10 +112,10 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       const db = await getDb();
       const snakeEvent = filterAllowedColumns('application_events', keysToSnakeCase<Record<string, unknown>>(event));
       const keys = Object.keys(snakeEvent);
-      const values = Array.from(Object.values(snakeEvent));
+      const values = [...Object.values(snakeEvent)];
 
       const columns = keys.join(', ');
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
       await db.execute(
         `INSERT INTO application_events (${columns}) VALUES (${placeholders})`,
@@ -133,7 +133,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       const currentEvents = get().events;
       const eventToDelete = currentEvents.find(e => e.id === id);
 
-      await db.execute('DELETE FROM application_events WHERE id = $1', [id]);
+      await db.execute('DELETE FROM application_events WHERE id = ?1', [id]);
 
       if (eventToDelete) {
         set(state => ({

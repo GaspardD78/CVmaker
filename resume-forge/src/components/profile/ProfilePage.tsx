@@ -29,12 +29,21 @@ export function ProfilePage() {
     }
     // If the form doesn't contain a specific field, it just won't be in updates.
     // We only update/insert fields actually present in the form.
+
+    // Ensure NOT NULL constraints for SQLite when creating the profile initially
+    if (!profile) {
+      if (!updates.firstName || updates.firstName.trim() === '') updates.firstName = 'Prénom par défaut';
+      if (!updates.lastName || updates.lastName.trim() === '') updates.lastName = 'Nom par défaut';
+    }
+
     try {
       await updateProfile(updates);
       setIsEditingProfile(false);
       toast.success(profile ? "Profil mis à jour avec succès" : "Profil créé avec succès");
     } catch (err) {
-      toast.error("Erreur lors de la sauvegarde du profil");
+      const errorMessage = typeof err === 'string' ? err : (err instanceof Error ? err.message : 'Erreur inconnue');
+      toast.error(`Erreur : ${errorMessage}`);
+      console.error(err);
     }
   };
 
