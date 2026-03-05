@@ -21,21 +21,14 @@ export function ProfilePage() {
   const handleProfileSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const updates = {
-      firstName: formData.get('firstName') as string,
-      lastName: formData.get('lastName') as string,
-      email: formData.get('email') as string,
-      phone: formData.get('phone') as string,
-      address: formData.get('address') as string,
-      city: formData.get('city') as string,
-      postalCode: formData.get('postalCode') as string,
-      country: formData.get('country') as string,
-      linkedinUrl: formData.get('linkedinUrl') as string,
-      githubUrl: formData.get('githubUrl') as string,
-      portfolioUrl: formData.get('portfolioUrl') as string,
-      title: formData.get('title') as string,
-      summary: formData.get('summary') as string,
-    };
+    const updates: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === 'string') {
+        updates[key] = value;
+      }
+    }
+    // If the form doesn't contain a specific field, it just won't be in updates.
+    // We only update/insert fields actually present in the form.
     try {
       await updateProfile(updates);
       setIsEditingProfile(false);

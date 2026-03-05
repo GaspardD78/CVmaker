@@ -57,7 +57,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('profiles', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
-      const values = Object.values(snakeUpdates);
+      const values = Array.from(Object.values(snakeUpdates));
 
       if (!current) {
         // If profile doesn't exist, we must create it instead
@@ -76,12 +76,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
         await db.execute(
           `UPDATE profiles SET ${setString}, updated_at = datetime('now') WHERE id = $${keys.length + 1}`,
-          [...values, current.id]
+          Array.from([...values, current.id])
         );
       }
       set({ profile: { ...current, ...updates } });
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to update profile' });
+      console.error(err);
+      set({ error: err instanceof Error ? err.message : 'Failed to update profile' }); throw err;
     }
   },
 
@@ -90,7 +91,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const db = await getDb();
       const snakeEntry = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entry));
       const keys = Object.keys(snakeEntry);
-      const values = Object.values(snakeEntry);
+      const values = Array.from(Object.values(snakeEntry));
 
       const columns = keys.join(', ');
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
@@ -112,13 +113,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entryUpdates));
       const keys = Object.keys(snakeUpdates);
-      const values = Object.values(snakeUpdates);
+      const values = Array.from(Object.values(snakeUpdates));
 
       if (keys.length > 0) {
         const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
         await db.execute(
           `UPDATE master_entries SET ${setString}, updated_at = datetime('now') WHERE id = $${keys.length + 1}`,
-          [...values, id]
+          Array.from([...values, id])
         );
       }
       await get().fetchProfile();
