@@ -43,7 +43,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       const db = await getDb();
       const snakeApp = filterAllowedColumns('applications', keysToSnakeCase<Record<string, unknown>>(app));
       const keys = Object.keys(snakeApp);
-      const values = Object.values(snakeApp);
+      const values = Array.from(Object.values(snakeApp));
 
       const columns = keys.join(', ');
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
@@ -63,13 +63,13 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('applications', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
-      const values = Object.values(snakeUpdates);
+      const values = Array.from(Object.values(snakeUpdates));
 
       if (keys.length > 0) {
         const setString = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
         await db.execute(
           `UPDATE applications SET ${setString}, updated_at = datetime('now') WHERE id = $${keys.length + 1}`,
-          [...values, id]
+          Array.from([...values, id])
         );
       }
       await get().fetchApplications();
@@ -112,7 +112,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       const db = await getDb();
       const snakeEvent = filterAllowedColumns('application_events', keysToSnakeCase<Record<string, unknown>>(event));
       const keys = Object.keys(snakeEvent);
-      const values = Object.values(snakeEvent);
+      const values = Array.from(Object.values(snakeEvent));
 
       const columns = keys.join(', ');
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
