@@ -85,3 +85,26 @@ Le fichier compilé se trouvera dans le dossier `src-tauri/target/release/bundle
 ## Licence
 
 *(Ajoutez les détails de la licence ici, ex: MIT License)*
+
+## Compatibilité Ubuntu 24.04
+
+Pour compiler et exécuter cette application sur Ubuntu 24.04, vous devez installer plusieurs dépendances système. Vous pouvez utiliser le script fourni pour les installer :
+
+```bash
+./setup-ubuntu.sh
+```
+
+Ces dépendances incluent :
+- `libglib2.0-dev`
+- `libgtk-3-dev`
+- `libwebkit2gtk-4.1-dev`
+- `build-essential`
+- `curl`
+- `wget`
+- `file`
+- `libxdo-dev`
+- `libssl-dev`
+- `libayatana-appindicator3-dev`
+- `librsvg2-dev`
+
+Après avoir installé les dépendances système, configurez votre environnement JavaScript et exécutez `npm install` ou `bun install` dans le répertoire `resume-forge`.
