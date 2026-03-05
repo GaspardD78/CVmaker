@@ -120,17 +120,18 @@ export const useCvStore = create<CVState>((set, get) => ({
 
       if(insertResult.length > 0) {
         const newCvId = insertResult[0].id;
-        // 3. Duplicate blocks
-        const rawBlocks = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_blocks WHERE cv_id = $1', [id]);
-        for (const block of rawBlocks) {
-          const blockToInsert: Record<string, unknown> = filterAllowedColumns('cv_blocks', { ...block, id: undefined, cv_id: newCvId, created_at: undefined });
-          const bKeys = Object.keys(blockToInsert).filter(k => blockToInsert[k] !== undefined);
-          const bValues = bKeys.map(k => blockToInsert[k]);
-
-          const bColumns = bKeys.join(', ');
-          const bPlaceholders = bKeys.map((_, i) => `$${i + 1}`).join(', ');
-          await db.execute(`INSERT INTO cv_blocks (${bColumns}) VALUES (${bPlaceholders})`, bValues);
-        }
+        // 3. Duplicate blocks using a single INSERT ... SELECT query
+        await db.execute(
+          `INSERT INTO cv_blocks (
+            cv_id, entry_id, block_type, section_name, custom_content,
+            sort_order, is_visible, override_data
+          )
+          SELECT
+            $1 as cv_id, entry_id, block_type, section_name, custom_content,
+            sort_order, is_visible, override_data
+          FROM cv_blocks WHERE cv_id = $2`,
+          [newCvId, id]
+        );
       }
 
       await get().fetchCvs();
