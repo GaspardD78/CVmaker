@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Application, ApplicationEvent } from '@/types/application';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase, keysToSnakeCase } from '@/lib/mapping';
+import { filterAllowedColumns } from '@/lib/validation';
 
 interface ApplicationState {
   applications: Application[];
@@ -40,7 +41,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   createApplication: async (app) => {
     try {
       const db = await getDb();
-      const snakeApp = keysToSnakeCase<Record<string, unknown>>(app);
+      const snakeApp = filterAllowedColumns('applications', keysToSnakeCase<Record<string, unknown>>(app));
       const keys = Object.keys(snakeApp);
       const values = Object.values(snakeApp);
 
@@ -60,7 +61,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   updateApplication: async (id, updates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
+      const snakeUpdates = filterAllowedColumns('applications', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 
@@ -109,7 +110,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   createEvent: async (event) => {
     try {
       const db = await getDb();
-      const snakeEvent = keysToSnakeCase<Record<string, unknown>>(event);
+      const snakeEvent = filterAllowedColumns('application_events', keysToSnakeCase<Record<string, unknown>>(event));
       const keys = Object.keys(snakeEvent);
       const values = Object.values(snakeEvent);
 

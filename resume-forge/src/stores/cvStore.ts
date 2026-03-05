@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { CVDocument, CVBlock } from '@/types/cv';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase, keysToSnakeCase } from '@/lib/mapping';
+import { filterAllowedColumns } from '@/lib/validation';
 
 interface CVState {
   cvs: CVDocument[];
@@ -77,7 +78,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   createCv: async (cv) => {
     try {
       const db = await getDb();
-      const snakeCv = keysToSnakeCase<Record<string, unknown>>(cv);
+      const snakeCv = filterAllowedColumns('cv_documents', keysToSnakeCase<Record<string, unknown>>(cv));
       const keys = Object.keys(snakeCv);
       const values = Object.values(snakeCv);
 
@@ -104,7 +105,7 @@ export const useCvStore = create<CVState>((set, get) => ({
 
       // 2. Create new CV based on original
       const newName = `${originalCv.name} (copie)`;
-      const cvToInsert: Record<string, unknown> = { ...originalCv, id: undefined, name: newName, created_at: undefined, updated_at: undefined };
+      const cvToInsert: Record<string, unknown> = filterAllowedColumns('cv_documents', { ...originalCv, id: undefined, name: newName, created_at: undefined, updated_at: undefined });
       const keys = Object.keys(cvToInsert).filter(k => cvToInsert[k] !== undefined);
       const values = keys.map(k => cvToInsert[k]);
 
@@ -122,7 +123,7 @@ export const useCvStore = create<CVState>((set, get) => ({
         // 3. Duplicate blocks
         const rawBlocks = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_blocks WHERE cv_id = $1', [id]);
         for (const block of rawBlocks) {
-          const blockToInsert: Record<string, unknown> = { ...block, id: undefined, cv_id: newCvId, created_at: undefined };
+          const blockToInsert: Record<string, unknown> = filterAllowedColumns('cv_blocks', { ...block, id: undefined, cv_id: newCvId, created_at: undefined });
           const bKeys = Object.keys(blockToInsert).filter(k => blockToInsert[k] !== undefined);
           const bValues = bKeys.map(k => blockToInsert[k]);
 
@@ -153,7 +154,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   updateCv: async (id, updates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
+      const snakeUpdates = filterAllowedColumns('cv_documents', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 
@@ -173,7 +174,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   createCvBlock: async (block) => {
     try {
       const db = await getDb();
-      const snakeBlock = keysToSnakeCase<Record<string, unknown>>(block);
+      const snakeBlock = filterAllowedColumns('cv_blocks', keysToSnakeCase<Record<string, unknown>>(block));
       const keys = Object.keys(snakeBlock);
       const values = Object.values(snakeBlock);
 
@@ -193,7 +194,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   updateCvBlock: async (id, updates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
+      const snakeUpdates = filterAllowedColumns('cv_blocks', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 

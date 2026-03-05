@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Profile, MasterEntry } from '@/types/profile';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase, keysToSnakeCase } from '@/lib/mapping';
+import { filterAllowedColumns } from '@/lib/validation';
 
 interface ProfileState {
   profile: Profile | null;
@@ -54,7 +55,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(updates);
+      const snakeUpdates = filterAllowedColumns('profiles', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 
@@ -87,7 +88,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   addEntry: async (entry) => {
     try {
       const db = await getDb();
-      const snakeEntry = keysToSnakeCase<Record<string, unknown>>(entry);
+      const snakeEntry = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entry));
       const keys = Object.keys(snakeEntry);
       const values = Object.values(snakeEntry);
 
@@ -109,7 +110,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   updateEntry: async (id, entryUpdates) => {
     try {
       const db = await getDb();
-      const snakeUpdates = keysToSnakeCase<Record<string, unknown>>(entryUpdates);
+      const snakeUpdates = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entryUpdates));
       const keys = Object.keys(snakeUpdates);
       const values = Object.values(snakeUpdates);
 
