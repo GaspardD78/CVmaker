@@ -95,11 +95,17 @@ export const useCvStore = create<CVState>((set, get) => ({
   },
 
   duplicateCv: async (id) => {
+    let db;
     try {
-      const db = await getDb();
+      db = await getDb();
+      await db.execute('BEGIN TRANSACTION');
+
       // 1. Fetch original CV
       const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = $1', [id]);
-      if (rawCvs.length === 0) return;
+      if (rawCvs.length === 0) {
+        await db.execute('ROLLBACK');
+        return;
+      }
       const originalCv = rawCvs[0];
 
       // 2. Create new CV based on original
@@ -119,21 +125,21 @@ export const useCvStore = create<CVState>((set, get) => ({
 
       if(insertResult.length > 0) {
         const newCvId = insertResult[0].id;
-        // 3. Duplicate blocks
-        const rawBlocks = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_blocks WHERE cv_id = $1', [id]);
-        for (const block of rawBlocks) {
-          const blockToInsert: Record<string, unknown> = { ...block, id: undefined, cv_id: newCvId, created_at: undefined };
-          const bKeys = Object.keys(blockToInsert).filter(k => blockToInsert[k] !== undefined);
-          const bValues = bKeys.map(k => blockToInsert[k]);
-
-          const bColumns = bKeys.join(', ');
-          const bPlaceholders = bKeys.map((_, i) => `$${i + 1}`).join(', ');
-          await db.execute(`INSERT INTO cv_blocks (${bColumns}) VALUES (${bPlaceholders})`, bValues);
-        }
+        // 3. Duplicate blocks in one go using INSERT INTO SELECT
+        await db.execute(`
+          INSERT INTO cv_blocks (cv_id, entry_id, block_type, section_name, custom_content, sort_order, is_visible, override_data)
+          SELECT $1, entry_id, block_type, section_name, custom_content, sort_order, is_visible, override_data
+          FROM cv_blocks
+          WHERE cv_id = $2
+        `, [newCvId, id]);
       }
 
+      await db.execute('COMMIT');
       await get().fetchCvs();
     } catch (err) {
+      if (db) {
+        try { await db.execute('ROLLBACK'); } catch (e) { /* ignore rollback errors */ }
+      }
       set({ error: err instanceof Error ? err.message : 'Failed to duplicate CV' });
     }
   },
