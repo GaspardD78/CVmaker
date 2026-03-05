@@ -81,7 +81,6 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       }
       set({ profile: { ...current, ...updates } });
     } catch (err) {
-      console.error(err);
       set({ error: err instanceof Error ? err.message : 'Failed to update profile' }); throw err;
     }
   },
