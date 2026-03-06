@@ -92,7 +92,7 @@ export async function generateDocxBlob(
     if (block.blockType === 'section_header' && block.sectionName) {
       sectionsChildren.push(
         new Paragraph({
-          text: block.sectionName.toUpperCase(),
+          text: (block.sectionName || '').toUpperCase(),
           heading: HeadingLevel.HEADING_2,
           spacing: { before: template.docx.sectionSpacing, after: 100 },
         })
@@ -102,7 +102,7 @@ export async function generateDocxBlob(
         new Paragraph({
           children: [
             new TextRun({
-              text: block.customContent,
+              text: block.customContent || '',
               size: template.docx.bodySize,
               font: template.docx.fonts.body,
             }),
@@ -115,49 +115,64 @@ export async function generateDocxBlob(
       if (!entry) continue;
 
       // Apply overrides if any
-      const entryData = { ...entry, ...block.overrideData };
+      const overrideData = block.overrideData || {};
+      const entryData = { ...entry, ...overrideData };
 
       // Entry Title & Date
       const dateText = entryData.startDate
-        ? `${formatDate(entryData.startDate)} - ${entryData.isCurrent ? 'Présent' : formatDate(entryData.endDate)}`
+        ? `${formatDate(entryData.startDate as string)} - ${entryData.isCurrent ? 'Présent' : formatDate(entryData.endDate as string)}`
         : '';
 
-      const titleText = entryData.title;
+      const titleText = (entryData.title as string) || '';
       let subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
       if (entryData.location) {
         subtitleText += subtitleText ? ` — ${entryData.location}` : ` | ${entryData.location}`;
       }
 
+      const textRuns = [];
+
+      if (titleText) {
+        textRuns.push(
+          new TextRun({
+            text: titleText,
+            bold: true,
+            size: template.docx.bodySize,
+            font: template.docx.fonts.body,
+          })
+        );
+      }
+
+      if (subtitleText) {
+        textRuns.push(
+          new TextRun({
+            text: subtitleText,
+            italics: true,
+            size: template.docx.bodySize,
+            font: template.docx.fonts.body,
+          })
+        );
+      }
+
+      if (dateText) {
+        textRuns.push(
+          new TextRun({
+            text: `  (${dateText})`,
+            size: template.docx.bodySize,
+            font: template.docx.fonts.body,
+            color: '666666',
+          })
+        );
+      }
+
       sectionsChildren.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: titleText,
-              bold: true,
-              size: template.docx.bodySize,
-              font: template.docx.fonts.body,
-            }),
-            new TextRun({
-              text: subtitleText,
-              italics: true,
-              size: template.docx.bodySize,
-              font: template.docx.fonts.body,
-            }),
-            ...(dateText ? [
-              new TextRun({
-                text: `  (${dateText})`,
-                size: template.docx.bodySize,
-                font: template.docx.fonts.body,
-                color: '666666',
-              })
-            ] : []),
-          ],
+          children: textRuns,
           spacing: { before: 100, after: 50 },
         })
       );
 
       // Entry Description (handling newlines and bullets)
-      if (entryData.description) {
+      if (entryData.description && typeof entryData.description === 'string') {
         const lines = entryData.description.split('\n');
         for (const line of lines) {
           const trimmedLine = line.trim();
@@ -277,27 +292,32 @@ export async function exportToDocx(
   entries: MasterEntry[],
   template: CVTemplate
 ) {
-  const defaultFilename = `${cv.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ats.docx`;
+  try {
+    const defaultFilename = `${cv.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ats.docx`;
 
-  // Ask user where to save
-  const filePath = await save({
-    defaultPath: defaultFilename,
-    filters: [{
-      name: 'Word Document',
-      extensions: ['docx']
-    }]
-  });
+    // Ask user where to save
+    const filePath = await save({
+      defaultPath: defaultFilename,
+      filters: [{
+        name: 'Word Document',
+        extensions: ['docx']
+      }]
+    });
 
-  if (!filePath) {
-    return false; // User canceled
+    if (!filePath) {
+      return false; // User canceled
+    }
+
+    const blob = await generateDocxBlob(cv, profile, blocks, entries, template);
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    await writeFile(filePath, uint8Array);
+
+    // Returning true so the caller can trigger a toast
+    return true;
+  } catch (error) {
+    console.error("Error exporting to DOCX:", error);
+    throw error;
   }
-
-  const blob = await generateDocxBlob(cv, profile, blocks, entries, template);
-  const arrayBuffer = await blob.arrayBuffer();
-  const uint8Array = new Uint8Array(arrayBuffer);
-
-  await writeFile(filePath, uint8Array);
-
-  // Returning true so the caller can trigger a toast
-  return true;
 }
