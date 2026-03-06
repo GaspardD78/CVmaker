@@ -6,8 +6,8 @@
 
 @media print {
   @page {
-    margin: 0;
-    size: auto;
+    margin: 1cm;
+    size: A4;
   }
   body {
     background-color: white !important;

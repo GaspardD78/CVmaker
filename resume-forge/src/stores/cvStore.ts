@@ -167,6 +167,11 @@ export const useCvStore = create<CVState>((set, get) => ({
         );
       }
       await get().fetchCvs();
+      // Ensure the current CV in state is updated so debouncing mechanisms don't loop
+      const currentCv = get().currentCv;
+      if (currentCv && currentCv.id === id) {
+        await get().fetchCvById(id);
+      }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to update CV' });
     }
