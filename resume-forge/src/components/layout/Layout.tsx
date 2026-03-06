@@ -4,7 +4,7 @@ import { LayoutDashboard, User, FileText, Briefcase } from 'lucide-react';
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-gray-100">
-      <aside className="w-64 bg-white shadow-md p-4 flex flex-col justify-between">
+      <aside className="w-64 bg-white shadow-md p-4 flex flex-col justify-between print:hidden">
         <div>
           <h2 className="text-xl font-bold mb-8">ResumeForge</h2>
           <nav className="flex flex-col space-y-4">
@@ -27,7 +27,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto bg-gray-50">
+      <main className="flex-1 overflow-auto bg-gray-50 print:bg-white print:p-0 print:overflow-visible">
         {children}
       </main>
     </div>

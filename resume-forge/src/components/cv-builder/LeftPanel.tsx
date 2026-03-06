@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCvStore } from '@/stores/cvStore';
 import {
   DndContext,
@@ -29,6 +29,33 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [targetJob, setTargetJob] = useState(currentCv?.targetJob || '');
   const [targetCompany, setTargetCompany] = useState(currentCv?.targetCompany || '');
   const [customSummary, setCustomSummary] = useState(currentCv?.customSummary || '');
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Skip initial render or if currentCv is missing
+    if (!currentCv) return;
+
+    if (
+      targetJob !== (currentCv.targetJob || '') ||
+      targetCompany !== (currentCv.targetCompany || '') ||
+      customSummary !== (currentCv.customSummary || '')
+    ) {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+      saveTimeoutRef.current = setTimeout(() => {
+        updateCv(cvId, {
+          targetJob,
+          targetCompany,
+          customSummary,
+        });
+      }, 2000); // 2 seconds debounce
+    }
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [targetJob, targetCompany, customSummary, cvId, updateCv, currentCv]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -65,15 +92,6 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       isVisible: true,
       overrideData: {},
     });
-  };
-
-  const handleSaveSettings = async () => {
-    await updateCv(cvId, {
-      targetJob,
-      targetCompany,
-      customSummary,
-    });
-    setIsSettingsOpen(false);
   };
 
   return (
@@ -121,14 +139,6 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                 className="w-full p-1.5 border rounded focus:ring focus:ring-blue-200 resize-y h-20"
                 placeholder="Accroche spécifique à ce CV..."
               />
-            </div>
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={handleSaveSettings}
-                className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700"
-              >
-                Appliquer
-              </button>
             </div>
           </div>
         </div>

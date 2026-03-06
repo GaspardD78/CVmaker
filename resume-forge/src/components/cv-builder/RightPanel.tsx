@@ -14,7 +14,7 @@ export function RightPanel() {
   const template = getTemplate(currentCv.templateId);
 
   return (
-    <div className="w-[210mm] min-h-[297mm]">
+    <div className="w-[210mm] min-h-[297mm] print:w-full print:min-h-0 print:m-0 print:p-0">
       <PrintableCV
         ref={printableRef}
         cv={currentCv}

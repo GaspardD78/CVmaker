@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CVBlock } from '@/types/cv';
@@ -23,6 +23,51 @@ export function SectionItem({ block }: SectionItemProps) {
   const [overrideTitle, setOverrideTitle] = useState('');
   const [overrideSubtitle, setOverrideSubtitle] = useState('');
   const [overrideDescription, setOverrideDescription] = useState('');
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isEntryRef = block.blockType === 'entry_ref' && block.entryId;
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    let hasChanged = false;
+    if (isEntryRef) {
+      const currentTitle = block.overrideData?.title ?? entries.find(e => e.id === block.entryId)?.title ?? '';
+      const currentSubtitle = block.overrideData?.subtitle ?? entries.find(e => e.id === block.entryId)?.subtitle ?? '';
+      const currentDescription = block.overrideData?.description ?? entries.find(e => e.id === block.entryId)?.description ?? '';
+
+      if (overrideTitle !== currentTitle || overrideSubtitle !== currentSubtitle || overrideDescription !== currentDescription) {
+        hasChanged = true;
+      }
+    } else if (block.blockType === 'custom_text') {
+      if (overrideDescription !== (block.customContent || '')) {
+        hasChanged = true;
+      }
+    }
+
+    if (!hasChanged) return;
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(() => {
+      if (isEntryRef) {
+        const newOverrideData = {
+          ...block.overrideData,
+          title: overrideTitle,
+          subtitle: overrideSubtitle,
+          description: overrideDescription,
+        };
+        updateCvBlock(block.id, { overrideData: newOverrideData });
+      } else if (block.blockType === 'custom_text') {
+         updateCvBlock(block.id, { customContent: overrideDescription });
+      }
+    }, 2000); // 2 second auto-save
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [overrideTitle, overrideSubtitle, overrideDescription, isEditing, block.id, block.overrideData, block.customContent, block.blockType, isEntryRef, block.entryId, entries, updateCvBlock]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -54,7 +99,6 @@ export function SectionItem({ block }: SectionItemProps) {
   let title = 'Section';
   let subtitle = '';
   let defaultDescription = '';
-  const isEntryRef = block.blockType === 'entry_ref' && block.entryId;
 
   if (block.blockType === 'section_header') {
     title = block.sectionName || 'Nouvelle Section';
@@ -88,6 +132,7 @@ export function SectionItem({ block }: SectionItemProps) {
   };
 
   const saveOverride = () => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     if (isEntryRef) {
       const newOverrideData = {
         ...block.overrideData,
