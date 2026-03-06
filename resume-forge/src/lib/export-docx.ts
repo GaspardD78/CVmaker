@@ -302,7 +302,7 @@ export async function exportToDocx(
   try {
     const defaultFilename = `${cv.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ats.docx`;
 
-    // Ask user where to save
+    // 1. Demande à l'utilisateur où sauvegarder
     const filePath = await save({
       defaultPath: defaultFilename,
       filters: [{
@@ -312,19 +312,33 @@ export async function exportToDocx(
     });
 
     if (!filePath) {
-      return false; // User canceled
+      console.log("Export annulé par l'utilisateur.");
+      return false; // L'utilisateur a annulé
     }
 
+    console.log("Début de la génération du Blob DOCX...");
+
+    // 2. Génération du document
     const blob = await generateDocxBlob(cv, profile, blocks, entries, template);
     const arrayBuffer = await blob.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
 
+    console.log(`Écriture du fichier DOCX sur le disque : ${filePath}`);
+
+    // 3. Écriture via Tauri
     await writeFile(filePath, uint8Array);
 
-    // Returning true so the caller can trigger a toast
+    console.log("Export DOCX réussi avec succès !");
     return true;
+
   } catch (error) {
-    console.error("Error exporting to DOCX:", error);
-    throw error;
+    // CAPTURE DE L'ERREUR POUR LA RENDRE VISIBLE
+    console.error("🔥 ERREUR CRITIQUE LORS DE L'EXPORT DOCX :", error);
+
+    // Extraction du message d'erreur pour l'interface
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+
+    // On relance l'erreur pour que le bouton d'export puisse afficher un vrai message d'erreur à l'écran (Toast)
+    throw new Error(`Détail de l'erreur : ${errorMessage}`);
   }
 }
