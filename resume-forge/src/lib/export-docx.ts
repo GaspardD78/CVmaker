@@ -51,6 +51,9 @@ export async function generateDocxBlob(
         spacing: { after: 200, line: template.docx.lineSpacing },
       })
     );
+  } else {
+     // Ensure at least one element is added or handle gracefully
+     sectionsChildren.push(new Paragraph({ text: "" }));
   }
 
   // Add Target Job/Title
@@ -162,6 +165,10 @@ export async function generateDocxBlob(
             color: '666666',
           })
         );
+      }
+
+      if (textRuns.length === 0) {
+        textRuns.push(new TextRun({ text: "" }));
       }
 
       sectionsChildren.push(
