@@ -73,6 +73,10 @@ export function LeftPanel({ cvId }: { cvId: string }) {
 
       const newArray = arrayMove(currentCvBlocks, oldIndex, newIndex);
       const newOrder = newArray.map(item => item.id);
+
+      // Optimistic update to prevent jitter
+      useCvStore.setState({ currentCvBlocks: newArray });
+
       await reorderCvBlocks(cvId, newOrder);
     }
   };

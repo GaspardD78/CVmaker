@@ -33,9 +33,9 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     ].filter(Boolean).join(' • ');
 
     return (
-      <div ref={ref} className={`${template.preview.containerClass} print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none`}>
+      <div ref={ref} className={`${template.preview.containerClass} bg-white text-black dark:bg-white dark:text-black print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none`}>
         {/* Header Section */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-6 text-black dark:text-black">
           <h1 className="text-3xl font-bold uppercase tracking-wider mb-2">
             {profile.firstName} {profile.lastName}
           </h1>
