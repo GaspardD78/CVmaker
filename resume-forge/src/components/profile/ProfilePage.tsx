@@ -7,6 +7,122 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirm } from '@tauri-apps/plugin-dialog';
 
+function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
+  const [selectedType, setSelectedType] = useState(entryToEdit?.entryType || (defaultTab !== 'all' ? defaultTab : 'experience'));
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <Label>Type</Label>
+        <select
+          name="entryType"
+          className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          value={selectedType}
+          onChange={(e) => setSelectedType(e.target.value)}
+          required
+        >
+          {availableTypes.map((t: any) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {selectedType === 'skill' ? (
+        <>
+          <div>
+            <Label>Nom de la compétence *</Label>
+            <Input name="title" type="text" className="mt-1" defaultValue={entryToEdit?.title || ''} required />
+          </div>
+          <div>
+            <Label>Niveau (Optionnel)</Label>
+            <Input name="subtitle" type="text" className="mt-1" defaultValue={entryToEdit?.subtitle || ''} />
+          </div>
+          <div className="col-span-2">
+            <Label>Description / Détails (Optionnel)</Label>
+            <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={2} defaultValue={entryToEdit?.description || ''}></textarea>
+          </div>
+          {/* Hidden fields to satisfy the form data structure */}
+          <input type="hidden" name="location" value="" />
+          <input type="hidden" name="startDate" value="" />
+          <input type="hidden" name="endDate" value="" />
+        </>
+      ) : selectedType === 'education' ? (
+        <>
+          <div>
+            <Label>Diplôme *</Label>
+            <Input name="title" type="text" className="mt-1" defaultValue={entryToEdit?.title || ''} required />
+          </div>
+          <div>
+            <Label>École / Établissement</Label>
+            <Input name="subtitle" type="text" className="mt-1" defaultValue={entryToEdit?.subtitle || ''} />
+          </div>
+          <div>
+            <Label>Ville</Label>
+            <Input name="location" type="text" className="mt-1" defaultValue={entryToEdit?.location || ''} />
+          </div>
+          <div>
+             {/* Filler to keep grid layout clean */}
+          </div>
+          <div>
+            <Label>Date de début</Label>
+            <Input name="startDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.startDate || ''} />
+          </div>
+          <div>
+            <Label>Date de fin</Label>
+            <Input name="endDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.endDate || ''} />
+          </div>
+          <div className="col-span-2">
+            <label className="flex items-center space-x-2">
+              <input type="checkbox" name="isCurrent" className="rounded border-gray-300" defaultChecked={entryToEdit?.isCurrent || false} />
+              <span className="text-sm font-medium text-gray-700">En cours</span>
+            </label>
+          </div>
+          <div className="col-span-2">
+            <Label>Mention / Description</Label>
+            <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <Label>Poste / Titre *</Label>
+            <Input name="title" type="text" className="mt-1" defaultValue={entryToEdit?.title || ''} required />
+          </div>
+          <div>
+            <Label>Entreprise / Organisation</Label>
+            <Input name="subtitle" type="text" className="mt-1" defaultValue={entryToEdit?.subtitle || ''} />
+          </div>
+          <div>
+            <Label>Lieu</Label>
+            <Input name="location" type="text" className="mt-1" defaultValue={entryToEdit?.location || ''} />
+          </div>
+          <div>
+             {/* Filler */}
+          </div>
+          <div>
+            <Label>Date de début</Label>
+            <Input name="startDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.startDate || ''} />
+          </div>
+          <div>
+            <Label>Date de fin</Label>
+            <Input name="endDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.endDate || ''} />
+          </div>
+          <div className="col-span-2">
+            <label className="flex items-center space-x-2">
+              <input type="checkbox" name="isCurrent" className="rounded border-gray-300" defaultChecked={entryToEdit?.isCurrent || false} />
+              <span className="text-sm font-medium text-gray-700">En cours</span>
+            </label>
+          </div>
+          <div className="col-span-2">
+            <Label>Description</Label>
+            <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function ProfilePage() {
   const { profile, entries, fetchProfile, updateProfile, addEntry, updateEntry, deleteEntry, isLoading, error } = useProfileStore();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -350,53 +466,8 @@ export function ProfilePage() {
             </h3>
             {(() => {
               const entryToEdit = entries.find(e => e.id === editingEntryId);
-              return (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Type</Label>
-                    <select
-                      name="entryType"
-                      className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      defaultValue={entryToEdit?.entryType || (activeTab !== 'all' ? activeTab : 'experience')}
-                      required
-                    >
-                      {availableTypes.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label>Titre</Label>
-                    <Input name="title" type="text" className="mt-1" defaultValue={entryToEdit?.title || ''} required />
-                  </div>
-                  <div>
-                    <Label>Sous-titre (ex: Entreprise, École)</Label>
-                    <Input name="subtitle" type="text" className="mt-1" defaultValue={entryToEdit?.subtitle || ''} />
-                  </div>
-                  <div>
-                    <Label>Lieu</Label>
-                    <Input name="location" type="text" className="mt-1" defaultValue={entryToEdit?.location || ''} />
-                  </div>
-                  <div>
-                    <Label>Date de début</Label>
-                    <Input name="startDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.startDate || ''} />
-                  </div>
-                  <div>
-                    <Label>Date de fin</Label>
-                    <Input name="endDate" type="text" placeholder="YYYY-MM" className="mt-1" defaultValue={entryToEdit?.endDate || ''} />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" name="isCurrent" className="rounded border-gray-300" defaultChecked={entryToEdit?.isCurrent || false} />
-                      <span className="text-sm font-medium text-gray-700">En cours</span>
-                    </label>
-                  </div>
-                  <div className="col-span-2">
-                    <Label>Description</Label>
-                    <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
-                  </div>
-                </div>
-              );
+              // Use a local state for the form's entry type so fields update immediately when changing the select
+              return <EntryFormFields entryToEdit={entryToEdit} defaultTab={activeTab} availableTypes={availableTypes} />;
             })()}
             <div className="flex justify-end mt-4 space-x-3">
               <Button type="button" variant="outline" onClick={handleCancelEntryForm}>

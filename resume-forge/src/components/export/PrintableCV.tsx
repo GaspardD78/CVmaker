@@ -2,6 +2,7 @@ import { forwardRef } from 'react';
 import { CVDocument, CVBlock } from '../../types/cv';
 import { MasterEntry, Profile } from '../../types/profile';
 import { CVTemplate } from '../../types/template';
+import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
 interface PrintableCVProps {
   cv: CVDocument;
@@ -68,7 +69,9 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
           if (block.blockType === 'custom_text') {
             return (
               <div key={block.id} className={`${template.preview.entryClass} print:break-inside-avoid`}>
-                <p className={template.preview.descriptionClass}>{block.customContent}</p>
+                <div className={template.preview.descriptionClass}>
+                  <MarkdownRenderer text={block.customContent || ''} />
+                </div>
               </div>
             );
           }
@@ -101,7 +104,9 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
                   )}
                 </div>
                 {entryData.description && (
-                  <p className={template.preview.descriptionClass}>{entryData.description}</p>
+                  <div className={template.preview.descriptionClass}>
+                    <MarkdownRenderer text={entryData.description as string} />
+                  </div>
                 )}
               </div>
             );
