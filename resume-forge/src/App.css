@@ -6,7 +6,7 @@
 
 @media print {
   @page {
-    margin: 1cm;
+    margin: 20mm;
     size: A4;
   }
   body {
