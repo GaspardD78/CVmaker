@@ -59,7 +59,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
           if (block.blockType === 'section_header') {
             return (
-              <h3 key={block.id} className={template.preview.headingClass}>
+              <h3 key={block.id} className={`${template.preview.headingClass} print:break-after-avoid`}>
                 {block.sectionName}
               </h3>
             );
@@ -67,7 +67,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
           if (block.blockType === 'custom_text') {
             return (
-              <div key={block.id} className={template.preview.entryClass}>
+              <div key={block.id} className={`${template.preview.entryClass} print:break-inside-avoid`}>
                 <p className={template.preview.descriptionClass}>{block.customContent}</p>
               </div>
             );
@@ -80,7 +80,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             const entryData = { ...entry, ...block.overrideData };
 
             return (
-              <div key={block.id} className={template.preview.entryClass}>
+              <div key={block.id} className={`${template.preview.entryClass} print:break-inside-avoid`}>
                 <div className="flex justify-between items-baseline mb-1">
                   <div>
                     <span className={template.preview.titleClass}>{entryData.title}</span>
