@@ -89,6 +89,26 @@ export async function generateDocxBlob(
   // 2. Blocks / Sections
   const sortedBlocks = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
 
+  // Helper to parse markdown bold logic into array of TextRuns
+  const parseMarkdownText = (text: string, templateContext: any) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part) => {
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return new TextRun({
+          text: part.slice(2, -2),
+          bold: true,
+          size: templateContext.docx.bodySize,
+          font: templateContext.docx.fonts.body,
+        });
+      }
+      return new TextRun({
+        text: part,
+        size: templateContext.docx.bodySize,
+        font: templateContext.docx.fonts.body,
+      });
+    });
+  };
+
   for (const block of sortedBlocks) {
     if (!block.isVisible) continue;
 
@@ -101,18 +121,20 @@ export async function generateDocxBlob(
         })
       );
     } else if (block.blockType === 'custom_text' && block.customContent) {
-      sectionsChildren.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: block.customContent || '',
-              size: template.docx.bodySize,
-              font: template.docx.fonts.body,
-            }),
-          ],
-          spacing: { after: 100, line: template.docx.lineSpacing },
-        })
-      );
+      const lines = block.customContent.split('\n');
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        const isBullet = trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ');
+        const content = isBullet ? trimmedLine.substring(2).trim() : line; // use 'line' to preserve leading spaces if not bullet
+
+        sectionsChildren.push(
+          new Paragraph({
+            children: parseMarkdownText(content, template),
+            spacing: { after: 50, line: template.docx.lineSpacing },
+            numbering: isBullet ? { reference: "default-bullet", level: 0 } : undefined,
+          })
+        );
+      }
     } else if (block.blockType === 'entry_ref' && block.entryId) {
       const entry = entries.find((e) => e.id === block.entryId);
       if (!entry) continue;
@@ -189,13 +211,7 @@ export async function generateDocxBlob(
 
             sectionsChildren.push(
               new Paragraph({
-                children: [
-                  new TextRun({
-                    text: content,
-                    size: template.docx.bodySize,
-                    font: template.docx.fonts.body,
-                  }),
-                ],
+                children: parseMarkdownText(content, template),
                 spacing: { after: 50, line: template.docx.lineSpacing },
                 numbering: isBullet ? { reference: "default-bullet", level: 0 } : undefined,
               })

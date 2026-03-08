@@ -98,6 +98,23 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     });
   };
 
+  const handleAddSectionHeader = async (sectionName: string) => {
+    const maxOrder = currentCvBlocks.length > 0
+      ? Math.max(...currentCvBlocks.map(b => b.sortOrder))
+      : 0;
+
+    await createCvBlock({
+      cvId,
+      entryId: null,
+      blockType: 'section_header',
+      sectionName,
+      customContent: null,
+      sortOrder: maxOrder + 1,
+      isVisible: true,
+      overrideData: {},
+    });
+  };
+
   return (
     <div className="p-4 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
@@ -182,12 +199,34 @@ export function LeftPanel({ cvId }: { cvId: string }) {
           + Ajouter une entrée master
         </button>
 
-        <button
-          onClick={handleAddCustomText}
-          className="bg-gray-50 text-gray-700 py-2 rounded-lg font-medium w-full border-2 border-dashed border-gray-300 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm text-sm"
-        >
-          + Ajouter du texte personnalisé
-        </button>
+        <div className="flex space-x-2">
+          <select
+            className="bg-gray-50 text-gray-700 py-2 px-3 rounded-lg font-medium border border-gray-300 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              if (e.target.value) {
+                handleAddSectionHeader(e.target.value);
+                e.target.value = ''; // reset after selection
+              }
+            }}
+          >
+            <option value="">+ Ajouter un titre de section...</option>
+            <option value="Expériences Professionnelles">Expériences Professionnelles</option>
+            <option value="Formations">Formations</option>
+            <option value="Compétences">Compétences</option>
+            <option value="Projets Récents">Projets Récents</option>
+            <option value="Certifications">Certifications</option>
+            <option value="Langues">Langues</option>
+            <option value="Centres d'intérêt">Intérêts</option>
+            <option value="Nouvelle Section">Autre...</option>
+          </select>
+
+          <button
+            onClick={handleAddCustomText}
+            className="flex-1 bg-gray-50 text-gray-700 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm text-sm"
+          >
+            + Texte libre
+          </button>
+        </div>
       </div>
 
       {isSelectorOpen && (
