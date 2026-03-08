@@ -55,7 +55,7 @@ export function CVBuilderPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-100">
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-100 print:h-auto print:overflow-visible print:bg-white print:block">
       {/* Top Bar */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center shadow-sm print:hidden">
         <div className="flex items-center space-x-4">
@@ -97,15 +97,15 @@ export function CVBuilderPage() {
       </div>
 
       {/* Main Builder Area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden print:overflow-visible print:block print:h-auto">
         {/* Left Panel - Editing */}
         <div className="w-1/3 min-w-[300px] max-w-[450px] bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden print:hidden">
           <LeftPanel cvId={id!} />
         </div>
 
         {/* Right Panel - Preview */}
-        <div className="flex-1 h-full overflow-auto bg-gray-50 p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
-          <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none">
+        <div className="flex-1 h-full overflow-auto bg-gray-50 p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto">
+          <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
             <RightPanel />
           </div>
         </div>
