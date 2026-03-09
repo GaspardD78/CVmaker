@@ -86,6 +86,14 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const bodyLineHeight      = settings.bodyLineHeight      || '';
     const entrySpacing        = settings.entrySpacing        || '';
 
+    // Photo settings
+    const photoShape      = settings.photoShape      || '';
+    const photoSize       = settings.photoSize        || '';
+    const photoZoom       = settings.photoZoom        || '';
+    const photoPositionX  = settings.photoPositionX  || '';
+    const photoPositionY  = settings.photoPositionY  || '';
+    const photoBorder     = settings.photoBorder      || '';
+
     const h3Rules = [
       primaryColor       ? `color: ${primaryColor}; border-color: ${primaryColor};` : '',
       headerFontSize     ? `font-size: ${headerFontSize};`                          : '',
@@ -193,13 +201,44 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
         {/* Header Section */}
         <div className={`mb-4 text-black dark:text-black ${hasPhoto ? 'flex items-center gap-6' : 'text-center'}`}>
-          {hasPhoto && (
-            <img
-              src={profile.photoPath!}
-              alt="Photo de profil"
-              className="w-24 h-24 rounded-full object-cover flex-shrink-0 border-2 border-gray-200 print:w-20 print:h-20"
-            />
-          )}
+          {hasPhoto && (() => {
+            const size = photoSize || '96px';
+            const shapeClass = photoShape || 'rounded-full';
+            const objectPos = `${photoPositionX || 'center'} ${photoPositionY || 'center'}`;
+            const zoom = photoZoom ? parseFloat(photoZoom) : 1;
+
+            const borderStyle: React.CSSProperties = {};
+            let borderClass = 'border-2 border-gray-200';
+            let shadowClass = '';
+            if (photoBorder === 'none') {
+              borderClass = 'border-0';
+            } else if (photoBorder === 'accent' && primaryColor) {
+              borderClass = 'border-2';
+              borderStyle.borderColor = primaryColor;
+            } else if (photoBorder === 'thick') {
+              borderClass = 'border-4 border-gray-300';
+            } else if (photoBorder === 'shadow') {
+              borderClass = 'border-0';
+              shadowClass = 'shadow-lg';
+            }
+
+            return (
+              <div
+                className={`${shapeClass} overflow-hidden flex-shrink-0 ${borderClass} ${shadowClass}`}
+                style={{ width: size, height: size, ...borderStyle }}
+              >
+                <img
+                  src={profile.photoPath!}
+                  alt="Photo de profil"
+                  className="w-full h-full object-cover"
+                  style={{
+                    objectPosition: objectPos,
+                    transform: zoom !== 1 ? `scale(${zoom})` : undefined,
+                  }}
+                />
+              </div>
+            );
+          })()}
           <div className={hasPhoto ? 'flex-1' : ''}>
             <h1 className={template.preview.nameClass || 'text-3xl font-bold uppercase tracking-wider mb-1'}>
               {profile.firstName} {profile.lastName}

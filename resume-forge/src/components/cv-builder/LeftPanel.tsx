@@ -49,6 +49,12 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [entrySpacing, setEntrySpacing]               = useState(cvSettings.entrySpacing        || '');
   const [pageMargin, setPageMargin]                   = useState(cvSettings.pageMargin          || '');
   const [sectionBorderStyle, setSectionBorderStyle]   = useState(cvSettings.sectionBorderStyle  || '');
+  const [photoShape, setPhotoShape]                   = useState(cvSettings.photoShape          || '');
+  const [photoSize, setPhotoSize]                     = useState(cvSettings.photoSize            || '');
+  const [photoZoom, setPhotoZoom]                     = useState(cvSettings.photoZoom            || '');
+  const [photoPositionX, setPhotoPositionX]           = useState(cvSettings.photoPositionX      || '');
+  const [photoPositionY, setPhotoPositionY]           = useState(cvSettings.photoPositionY      || '');
+  const [photoBorder, setPhotoBorder]                 = useState(cvSettings.photoBorder          || '');
 
   const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -87,45 +93,27 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     subtitleFontStyle, subtitleFontWeight,
     bodyTextAlign, bodyLineHeight, entrySpacing,
     pageMargin, sectionBorderStyle,
+    photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
   });
 
   useEffect(() => {
     const saved = lastSavedDesign.current;
-    if (
-      fontFamily !== saved.fontFamily ||
-      fontSize !== saved.fontSize ||
-      primaryColor !== saved.primaryColor ||
-      headerFontSize !== saved.headerFontSize ||
-      headerFontWeight !== saved.headerFontWeight ||
-      headerTextTransform !== saved.headerTextTransform ||
-      headerTextAlign !== saved.headerTextAlign ||
-      subtitleFontStyle !== saved.subtitleFontStyle ||
-      subtitleFontWeight !== saved.subtitleFontWeight ||
-      bodyTextAlign !== saved.bodyTextAlign ||
-      bodyLineHeight !== saved.bodyLineHeight ||
-      entrySpacing !== saved.entrySpacing ||
-      pageMargin !== saved.pageMargin ||
-      sectionBorderStyle !== saved.sectionBorderStyle
-    ) {
+    const current = {
+      fontFamily, fontSize, primaryColor,
+      headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
+      subtitleFontStyle, subtitleFontWeight,
+      bodyTextAlign, bodyLineHeight, entrySpacing,
+      pageMargin, sectionBorderStyle,
+      photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
+    };
+    const hasChanged = (Object.keys(current) as (keyof typeof current)[]).some(k => current[k] !== saved[k]);
+    if (hasChanged) {
       if (designSaveTimeoutRef.current) clearTimeout(designSaveTimeoutRef.current);
       designSaveTimeoutRef.current = setTimeout(() => {
-        lastSavedDesign.current = {
-          fontFamily, fontSize, primaryColor,
-          headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
-          subtitleFontStyle, subtitleFontWeight,
-          bodyTextAlign, bodyLineHeight, entrySpacing,
-          pageMargin, sectionBorderStyle,
-        };
+        lastSavedDesign.current = { ...current };
         const currentSettings = useCvStore.getState().currentCv?.settings as Record<string, unknown> || {};
         updateCv(cvId, {
-          settings: {
-            ...currentSettings,
-            fontFamily, fontSize, primaryColor,
-            headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
-            subtitleFontStyle, subtitleFontWeight,
-            bodyTextAlign, bodyLineHeight, entrySpacing,
-            pageMargin, sectionBorderStyle,
-          },
+          settings: { ...currentSettings, ...current },
         });
       }, 1000);
     }
@@ -140,6 +128,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       subtitleFontStyle, subtitleFontWeight,
       bodyTextAlign, bodyLineHeight, entrySpacing,
       pageMargin, sectionBorderStyle,
+      photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
       cvId, updateCv]);
 
   const sensors = useSensors(
@@ -461,6 +450,72 @@ export function LeftPanel({ cvId }: { cvId: string }) {
               <option value="double">Double ligne</option>
               <option value="none">Aucune bordure</option>
             </select>
+
+            {/* Photo settings */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Photo de profil</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Forme</label>
+                <select value={photoShape} onChange={e => setPhotoShape(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Cercle</option>
+                  <option value="rounded-lg">Arrondi</option>
+                  <option value="rounded-sm">Rect. arrondi</option>
+                  <option value="rounded-none">Carré</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+                <select value={photoSize} onChange={e => setPhotoSize(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Normale (96px)</option>
+                  <option value="64px">Petite (64px)</option>
+                  <option value="80px">Réduite (80px)</option>
+                  <option value="112px">Grande (112px)</option>
+                  <option value="128px">Très grande (128px)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Zoom</label>
+                <select value={photoZoom} onChange={e => setPhotoZoom(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Normal (1x)</option>
+                  <option value="1.15">Léger (1.15x)</option>
+                  <option value="1.3">Moyen (1.3x)</option>
+                  <option value="1.5">Fort (1.5x)</option>
+                  <option value="2">Très fort (2x)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Bordure</label>
+                <select value={photoBorder} onChange={e => setPhotoBorder(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Fine grise</option>
+                  <option value="none">Aucune</option>
+                  <option value="accent">Couleur d'accent</option>
+                  <option value="thick">Épaisse grise</option>
+                  <option value="shadow">Ombre portée</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Cadrage H</label>
+                <select value={photoPositionX} onChange={e => setPhotoPositionX(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Centre</option>
+                  <option value="left">Gauche</option>
+                  <option value="right">Droite</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Cadrage V</label>
+                <select value={photoPositionY} onChange={e => setPhotoPositionY(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Centre</option>
+                  <option value="top">Haut</option>
+                  <option value="bottom">Bas</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       )}
