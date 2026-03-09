@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
-import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase } from 'lucide-react';
+import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase, Pencil } from 'lucide-react';
 import { ApplicationTimeline } from './ApplicationTimeline';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { Link } from 'react-router-dom';
@@ -10,9 +10,10 @@ import { toast } from 'sonner';
 interface ApplicationDetailsPanelProps {
   applicationId: string | null;
   onClose: () => void;
+  onEdit?: () => void;
 }
 
-export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationDetailsPanelProps) {
+export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: ApplicationDetailsPanelProps) {
   const { applications, updateApplication, deleteApplication } = useApplicationStore();
   const { cvs, fetchCvs } = useCvStore();
 
@@ -106,6 +107,11 @@ export function ApplicationDetailsPanel({ applicationId, onClose }: ApplicationD
           <p className="text-gray-600">{application.companyName}</p>
         </div>
         <div className="flex gap-2">
+          {onEdit && (
+            <button onClick={onEdit} className="p-2 hover:bg-blue-50 text-blue-500 rounded-full transition-colors" title="Modifier">
+              <Pencil size={20} />
+            </button>
+          )}
           <button onClick={handleDelete} className="p-2 hover:bg-red-50 text-red-500 rounded-full transition-colors" title="Supprimer">
             <Trash2 size={20} />
           </button>

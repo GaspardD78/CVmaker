@@ -18,6 +18,7 @@ import { Application, ApplicationStatus, ApplicationSource } from '@/types/appli
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
 import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
+import { ApplicationFormModal } from './ApplicationFormModal';
 
 export const KANBAN_COLUMNS = [
   { id: 'draft', title: 'Brouillon', statuses: ['draft'] },
@@ -37,6 +38,7 @@ export function KanbanBoard({ searchTerm = '', sourceFilter = 'all' }: KanbanBoa
   const { applications, updateApplication, createEvent } = useApplicationStore();
   const [activeApplication, setActiveApplication] = useState<Application | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+  const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -161,8 +163,15 @@ export function KanbanBoard({ searchTerm = '', sourceFilter = 'all' }: KanbanBoa
         <ApplicationDetailsPanel
           applicationId={selectedApplicationId}
           onClose={() => setSelectedApplicationId(null)}
+          onEdit={() => setEditingApplicationId(selectedApplicationId)}
         />
       )}
+
+      <ApplicationFormModal
+        isOpen={editingApplicationId !== null}
+        onClose={() => setEditingApplicationId(null)}
+        application={applications.find(a => a.id === editingApplicationId)}
+      />
     </>
   );
 }
