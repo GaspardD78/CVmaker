@@ -542,7 +542,7 @@ export function ProfilePage() {
             {(() => {
               const entryToEdit = entries.find(e => e.id === editingEntryId);
               // Use a local state for the form's entry type so fields update immediately when changing the select
-              return <EntryFormFields entryToEdit={entryToEdit} defaultTab={activeTab} availableTypes={availableTypes} />;
+              return <EntryFormFields key={entryToEdit?.id ?? 'new'} entryToEdit={entryToEdit} defaultTab={activeTab} availableTypes={availableTypes} />;
             })()}
             <div className="flex justify-end mt-4 space-x-3">
               <Button type="button" variant="outline" onClick={handleCancelEntryForm}>
