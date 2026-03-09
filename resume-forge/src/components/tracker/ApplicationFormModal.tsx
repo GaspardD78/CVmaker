@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
-import { ApplicationStatus, ApplicationSource } from '@/types/application';
+import { Application, ApplicationStatus, ApplicationSource } from '@/types/application';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,10 +10,11 @@ import { toast } from 'sonner';
 interface ApplicationFormModalProps {
   isOpen: boolean;
   onClose: () => void;
+  application?: Application;
 }
 
-export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalProps) {
-  const { createApplication } = useApplicationStore();
+export function ApplicationFormModal({ isOpen, onClose, application }: ApplicationFormModalProps) {
+  const { createApplication, updateApplication } = useApplicationStore();
   const { profile, fetchProfile } = useProfileStore();
   const { cvs, fetchCvs } = useCvStore();
 
@@ -41,6 +42,32 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
     fetchCvs();
   }, [fetchProfile, fetchCvs]);
 
+  useEffect(() => {
+    if (isOpen) {
+      if (application) {
+        setCompanyName(application.companyName);
+        setJobTitle(application.jobTitle);
+        setJobUrl(application.jobUrl || '');
+        setSource(application.source);
+        setStatus(application.status);
+        setPriority(application.priority);
+        setNextAction(application.nextAction || '');
+        setNextActionDate(application.nextActionDate || '');
+        setCvId(application.cvId || null);
+        setLocation(application.location || '');
+        setRemotePolicy(application.remotePolicy || '');
+        setSalaryMin(application.salaryMin ?? '');
+        setSalaryMax(application.salaryMax ?? '');
+        setSourceDetail(application.sourceDetail || '');
+        setContactName(application.contactName || '');
+        setContactEmail(application.contactEmail || '');
+        setContactPhone(application.contactPhone || '');
+      } else {
+        resetForm();
+      }
+    }
+  }, [isOpen, application]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -49,35 +76,43 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
       return;
     }
 
-    try {
-      await createApplication({
-        profileId: profile.id,
-        cvId: cvId || null,
-        companyName,
-        jobTitle,
-        jobUrl: jobUrl || null,
-        source,
-        sourceDetail: sourceDetail || null,
-        contactName: contactName || null,
-        contactEmail: contactEmail || null,
-        contactPhone: contactPhone || null,
-        status,
-        salaryMin: salaryMin === '' ? null : Number(salaryMin),
-        salaryMax: salaryMax === '' ? null : Number(salaryMax),
-        location: location || null,
-        remotePolicy: remotePolicy || null,
-        priority,
-        notes: null,
-        appliedAt: status !== 'draft' ? new Date().toISOString() : null,
-        nextAction: nextAction || null,
-        nextActionDate: nextActionDate || null,
-      });
+    const fields = {
+      cvId: cvId || null,
+      companyName,
+      jobTitle,
+      jobUrl: jobUrl || null,
+      source,
+      sourceDetail: sourceDetail || null,
+      contactName: contactName || null,
+      contactEmail: contactEmail || null,
+      contactPhone: contactPhone || null,
+      status,
+      salaryMin: salaryMin === '' ? null : Number(salaryMin),
+      salaryMax: salaryMax === '' ? null : Number(salaryMax),
+      location: location || null,
+      remotePolicy: remotePolicy || null,
+      priority,
+      nextAction: nextAction || null,
+      nextActionDate: nextActionDate || null,
+    };
 
-      toast.success("Candidature ajoutée avec succès");
+    try {
+      if (application) {
+        await updateApplication(application.id, fields);
+        toast.success("Candidature mise à jour");
+      } else {
+        await createApplication({
+          profileId: profile.id,
+          notes: null,
+          appliedAt: status !== 'draft' ? new Date().toISOString() : null,
+          ...fields,
+        });
+        toast.success("Candidature ajoutée avec succès");
+      }
       onClose();
       resetForm();
     } catch (error) {
-      toast.error("Erreur lors de l'ajout de la candidature");
+      toast.error(application ? "Erreur lors de la mise à jour" : "Erreur lors de l'ajout de la candidature");
     }
   };
 
@@ -112,7 +147,7 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm" />
         <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl w-full max-w-md p-6 z-50 max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4 border-b pb-2">
-            <Dialog.Title className="text-lg font-bold">Nouvelle candidature</Dialog.Title>
+            <Dialog.Title className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</Dialog.Title>
             <Dialog.Close className="text-gray-500 hover:bg-gray-100 p-1 rounded-full">
               <X size={20} />
             </Dialog.Close>
@@ -178,8 +213,15 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
                 >
                   <option value="draft">Brouillon</option>
                   <option value="applied">Postulé</option>
+                  <option value="acknowledged">Accusé réception</option>
                   <option value="phone_screen">Pré-qual. tél.</option>
+                  <option value="technical_test">Test technique</option>
                   <option value="interview">Entretien</option>
+                  <option value="offer">Offre reçue</option>
+                  <option value="accepted">Accepté</option>
+                  <option value="rejected">Refusé</option>
+                  <option value="withdrawn">Retiré</option>
+                  <option value="ghosted">Sans réponse</option>
                 </select>
               </div>
 
@@ -324,7 +366,7 @@ export function ApplicationFormModal({ isOpen, onClose }: ApplicationFormModalPr
                 type="submit"
                 className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-md"
               >
-                Ajouter
+                {application ? 'Modifier' : 'Ajouter'}
               </button>
             </div>
           </form>
