@@ -19,11 +19,14 @@ export function MarkdownRenderer({ text }: MarkdownRendererProps) {
   };
 
   const parseInlineElements = (lineText: string, lineIndex: number) => {
-    // Basic bold parsing: **text**
-    const parts = lineText.split(/(\*\*.*?\*\*)/g);
+    // Matches **bold** first, then *italic* (single asterisk, no asterisks inside)
+    const parts = lineText.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
         return <strong key={`${lineIndex}-${i}`}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+        return <em key={`${lineIndex}-${i}`}>{part.slice(1, -1)}</em>;
       }
       return part;
     });
