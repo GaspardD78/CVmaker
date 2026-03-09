@@ -70,10 +70,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       fontSize !== '11px'
         ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${fontSize} !important; }`
         : '',
-      subtitleFontStyle  ? `#printable-cv .cv-subtitle { font-style: ${subtitleFontStyle} !important; }` : '',
-      subtitleFontWeight ? `#printable-cv .cv-subtitle { font-weight: ${subtitleFontWeight} !important; }` : '',
-      bodyTextAlign      ? `#printable-cv .cv-desc { text-align: ${bodyTextAlign} !important; }` : '',
-      bodyLineHeight     ? `#printable-cv .cv-desc { line-height: ${bodyLineHeight} !important; }` : '',
+      subtitleFontStyle  ? `#printable-cv .cv-title { font-style: ${subtitleFontStyle} !important; }` : '',
+      subtitleFontWeight ? `#printable-cv .cv-title { font-weight: ${subtitleFontWeight} !important; }` : '',
+      bodyTextAlign      ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { text-align: ${bodyTextAlign} !important; }` : '',
+      bodyLineHeight     ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: ${bodyLineHeight} !important; }` : '',
       entrySpacing       ? `#printable-cv .cv-entry { margin-bottom: ${entrySpacing} !important; }` : '',
     ].filter(Boolean).join('\n');
 
