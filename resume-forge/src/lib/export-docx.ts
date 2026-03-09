@@ -89,14 +89,23 @@ export async function generateDocxBlob(
   // 2. Blocks / Sections
   const sortedBlocks = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // Helper to parse markdown bold logic into array of TextRuns
+  // Helper to parse markdown (bold + italic) into array of TextRuns
   const parseMarkdownText = (text: string, templateContext: any) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
+    // Matches **bold** first, then *italic* (single asterisk, no asterisks inside)
+    const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
     return parts.map((part) => {
       if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
         return new TextRun({
           text: part.slice(2, -2),
           bold: true,
+          size: templateContext.docx.bodySize,
+          font: templateContext.docx.fonts.body,
+        });
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+        return new TextRun({
+          text: part.slice(1, -1),
+          italics: true,
           size: templateContext.docx.bodySize,
           font: templateContext.docx.fonts.body,
         });

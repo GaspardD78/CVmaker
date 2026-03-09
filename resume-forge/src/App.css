@@ -9,6 +9,26 @@
     margin: 20mm;
     size: A4;
   }
+
+  /* Masquer tout le contenu par défaut */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Rendre visible uniquement le contenu du CV */
+  #printable-cv,
+  #printable-cv * {
+    visibility: visible;
+  }
+
+  /* Positionner le CV en haut de la page */
+  #printable-cv {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+
   body {
     background-color: white !important;
     -webkit-print-color-adjust: exact;
