@@ -40,7 +40,7 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
           <div className="col-span-2">
             <Label>Description / Détails (Optionnel)</Label>
             <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={2} defaultValue={entryToEdit?.description || ''}></textarea>
-            <p className="text-xs text-gray-500 mt-1">Astuce : Utilisez <code className="bg-gray-100 px-1 rounded">- </code> pour une liste à puces et <code className="bg-gray-100 px-1 rounded">**texte**</code> pour mettre en gras.</p>
+            <p className="text-xs text-gray-500 mt-1">Astuce : <code className="bg-gray-100 px-1 rounded">- texte</code> liste · <code className="bg-gray-100 px-1 rounded">**texte**</code> gras · <code className="bg-gray-100 px-1 rounded">*texte*</code> italique</p>
           </div>
           {/* Hidden fields to satisfy the form data structure */}
           <input type="hidden" name="location" value="" />
@@ -81,7 +81,7 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
           <div className="col-span-2">
             <Label>Mention / Description</Label>
             <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
-            <p className="text-xs text-gray-500 mt-1">Astuce : Utilisez <code className="bg-gray-100 px-1 rounded">- </code> pour une liste à puces et <code className="bg-gray-100 px-1 rounded">**texte**</code> pour mettre en gras.</p>
+            <p className="text-xs text-gray-500 mt-1">Astuce : <code className="bg-gray-100 px-1 rounded">- texte</code> liste · <code className="bg-gray-100 px-1 rounded">**texte**</code> gras · <code className="bg-gray-100 px-1 rounded">*texte*</code> italique</p>
           </div>
         </>
       ) : (
@@ -118,7 +118,7 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
           <div className="col-span-2">
             <Label>Description</Label>
             <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
-            <p className="text-xs text-gray-500 mt-1">Astuce : Utilisez <code className="bg-gray-100 px-1 rounded">- </code> pour une liste à puces et <code className="bg-gray-100 px-1 rounded">**texte**</code> pour mettre en gras.</p>
+            <p className="text-xs text-gray-500 mt-1">Astuce : <code className="bg-gray-100 px-1 rounded">- texte</code> liste · <code className="bg-gray-100 px-1 rounded">**texte**</code> gras · <code className="bg-gray-100 px-1 rounded">*texte*</code> italique</p>
           </div>
         </>
       )}
@@ -130,6 +130,31 @@ export function ProfilePage() {
   const { profile, entries, fetchProfile, updateProfile, addEntry, updateEntry, deleteEntry, isLoading, error } = useProfileStore();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isAddingEntry, setIsAddingEntry] = useState(false);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      try {
+        await updateProfile({ photoPath: base64 });
+        toast.success('Photo de profil mise à jour');
+      } catch {
+        toast.error("Erreur lors de l'enregistrement de la photo");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      await updateProfile({ photoPath: null });
+      toast.success('Photo supprimée');
+    } catch {
+      toast.error('Erreur lors de la suppression de la photo');
+    }
+  };
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<EntryType | 'all'>('all');
 
@@ -358,6 +383,28 @@ export function ProfilePage() {
                   <Label>Résumé</Label>
                   <textarea name="summary" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={profile?.summary || ''} />
                 </div>
+                <div className="col-span-2">
+                  <Label>Photo de profil</Label>
+                  {profile?.photoPath && (
+                    <div className="mt-2 mb-3 flex items-center gap-3">
+                      <img src={profile.photoPath} alt="Photo actuelle" className="w-16 h-16 rounded-full object-cover border border-gray-200" />
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        className="text-xs text-red-600 hover:text-red-800 underline"
+                      >
+                        Supprimer la photo
+                      </button>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="mt-1 block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Formats acceptés : JPG, PNG, WebP. Taille recommandée : 200×200 px.</p>
+                </div>
               </div>
               <div className="flex justify-end">
                 <Button type="submit">
@@ -367,6 +414,21 @@ export function ProfilePage() {
             </form>
           ) : (
             <div className="grid grid-cols-2 gap-4">
+              {profile?.photoPath && (
+                <div className="col-span-2 flex items-center gap-4 pb-2 border-b border-gray-100">
+                  <img src={profile.photoPath} alt="Photo de profil" className="w-16 h-16 rounded-full object-cover border border-gray-200" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Photo de profil</p>
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="text-xs text-red-500 hover:text-red-700 underline mt-1"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Prénom</label>
                 <div className="mt-1 p-2 bg-gray-50 rounded-md border border-transparent">{profile?.firstName || '-'}</div>

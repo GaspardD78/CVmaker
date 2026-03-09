@@ -18,7 +18,7 @@ import {
 import { SectionItem } from './SectionItem';
 import { EntrySelector } from './EntrySelector';
 
-import { Settings } from 'lucide-react';
+import { Settings, Palette } from 'lucide-react';
 
 export function LeftPanel({ cvId }: { cvId: string }) {
   const { currentCv, currentCvBlocks, reorderCvBlocks, createCvBlock, updateCv } = useCvStore();
@@ -31,6 +31,13 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [customSummary, setCustomSummary] = useState(currentCv?.customSummary || '');
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const cvSettings = (currentCv?.settings || {}) as Record<string, string>;
+  const [isDesignOpen, setIsDesignOpen] = useState(false);
+  const [fontFamily, setFontFamily] = useState(cvSettings.fontFamily || 'Calibri');
+  const [fontSize, setFontSize] = useState(cvSettings.fontSize || '11px');
+  const [primaryColor, setPrimaryColor] = useState(cvSettings.primaryColor || '#1f2937');
+  const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Skip initial render or if currentCv is missing
@@ -56,6 +63,26 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, [targetJob, targetCompany, customSummary, cvId, updateCv, currentCv]);
+
+  useEffect(() => {
+    if (!currentCv) return;
+    const s = (currentCv.settings || {}) as Record<string, string>;
+    if (
+      fontFamily !== (s.fontFamily || 'Calibri') ||
+      fontSize !== (s.fontSize || '11px') ||
+      primaryColor !== (s.primaryColor || '#1f2937')
+    ) {
+      if (designSaveTimeoutRef.current) clearTimeout(designSaveTimeoutRef.current);
+      designSaveTimeoutRef.current = setTimeout(() => {
+        updateCv(cvId, {
+          settings: { ...(currentCv.settings as object || {}), fontFamily, fontSize, primaryColor },
+        });
+      }, 1000);
+    }
+    return () => {
+      if (designSaveTimeoutRef.current) clearTimeout(designSaveTimeoutRef.current);
+    };
+  }, [fontFamily, fontSize, primaryColor, cvId, updateCv, currentCv]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -125,13 +152,22 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     <div className="p-4 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-bold text-gray-900">Blocs du CV</h2>
-        <button
-          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-          className="text-gray-500 hover:text-blue-600 transition-colors p-1 rounded-full hover:bg-gray-100"
-          title="Paramètres du CV"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            className={`transition-colors p-1 rounded-full hover:bg-gray-100 ${isSettingsOpen ? 'text-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
+            title="Paramètres du CV"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsDesignOpen(!isDesignOpen)}
+            className={`transition-colors p-1 rounded-full hover:bg-gray-100 ${isDesignOpen ? 'text-purple-600' : 'text-gray-500 hover:text-purple-600'}`}
+            title="Design du CV"
+          >
+            <Palette className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {isSettingsOpen && (
@@ -166,6 +202,52 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                 className="w-full p-1.5 border rounded focus:ring focus:ring-blue-200 resize-y h-20"
                 placeholder="Accroche spécifique à ce CV..."
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDesignOpen && (
+        <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg shadow-sm text-sm">
+          <h3 className="font-semibold text-purple-900 mb-2">Design du CV</h3>
+          <div className="space-y-2">
+            <div>
+              <label className="block text-xs text-gray-700 mb-1">Police</label>
+              <select
+                value={fontFamily}
+                onChange={e => setFontFamily(e.target.value)}
+                className="w-full p-1.5 border rounded focus:ring focus:ring-purple-200 text-sm"
+              >
+                <option value="Calibri">Calibri (défaut)</option>
+                <option value="Arial">Arial</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Helvetica">Helvetica</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-700 mb-1">Taille du texte</label>
+              <select
+                value={fontSize}
+                onChange={e => setFontSize(e.target.value)}
+                className="w-full p-1.5 border rounded focus:ring focus:ring-purple-200 text-sm"
+              >
+                <option value="10px">Petit (10pt)</option>
+                <option value="11px">Normal (11pt)</option>
+                <option value="12px">Grand (12pt)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-700 mb-1">Couleur d'accent</label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={e => setPrimaryColor(e.target.value)}
+                  className="w-10 h-8 rounded cursor-pointer border border-gray-300"
+                />
+                <span className="text-xs text-gray-500 font-mono">{primaryColor}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -4,6 +4,14 @@ import { MasterEntry, Profile } from '../../types/profile';
 import { CVTemplate } from '../../types/template';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
+const FONT_STACKS: Record<string, string> = {
+  'Calibri': "'Calibri', 'Arial', sans-serif",
+  'Arial': "'Arial', sans-serif",
+  'Georgia': "'Georgia', serif",
+  'Times New Roman': "'Times New Roman', serif",
+  'Helvetica': "'Helvetica', 'Arial', sans-serif",
+};
+
 interface PrintableCVProps {
   cv: CVDocument;
   profile: Profile;
@@ -33,19 +41,54 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       profile.linkedinUrl,
     ].filter(Boolean).join(' • ');
 
+    // Design settings
+    const settings = (cv.settings || {}) as Record<string, string>;
+    const fontFamily = FONT_STACKS[settings.fontFamily || 'Calibri'] || FONT_STACKS['Calibri'];
+    const fontSize = settings.fontSize || '11px';
+    const primaryColor = settings.primaryColor || '';
+
+    const cssOverrides = [
+      primaryColor
+        ? `#printable-cv h3 { color: ${primaryColor} !important; border-color: ${primaryColor} !important; }`
+        : '',
+      fontSize !== '11px'
+        ? `#printable-cv p, #printable-cv li, #printable-cv span.desc { font-size: ${fontSize} !important; }`
+        : '',
+    ].filter(Boolean).join('\n');
+
+    const hasPhoto = Boolean(profile.photoPath);
+
     return (
-      <div id="printable-cv" ref={ref} className={`${template.preview.containerClass} bg-white text-black dark:bg-white dark:text-black print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none`}>
+      <div
+        id="printable-cv"
+        ref={ref}
+        style={{ fontFamily }}
+        className={`${template.preview.containerClass} bg-white text-black dark:bg-white dark:text-black print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none`}
+      >
+        {cssOverrides && (
+          <style dangerouslySetInnerHTML={{ __html: cssOverrides }} />
+        )}
+
         {/* Header Section */}
-        <div className="text-center mb-6 text-black dark:text-black">
-          <h1 className="text-3xl font-bold uppercase tracking-wider mb-2">
-            {profile.firstName} {profile.lastName}
-          </h1>
-          {contactInfo && (
-            <p className="text-sm text-gray-600 mb-3">{contactInfo}</p>
+        <div className={`mb-6 text-black dark:text-black ${hasPhoto ? 'flex items-center gap-6' : 'text-center'}`}>
+          {hasPhoto && (
+            <img
+              src={profile.photoPath!}
+              alt="Photo de profil"
+              className="w-24 h-24 rounded-full object-cover flex-shrink-0 border-2 border-gray-200 print:w-20 print:h-20"
+            />
           )}
-          {title && (
-            <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-          )}
+          <div className={hasPhoto ? 'flex-1' : ''}>
+            <h1 className="text-3xl font-bold uppercase tracking-wider mb-2">
+              {profile.firstName} {profile.lastName}
+            </h1>
+            {contactInfo && (
+              <p className="text-sm text-gray-600 mb-3">{contactInfo}</p>
+            )}
+            {title && (
+              <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+            )}
+          </div>
         </div>
 
         {summary && (
