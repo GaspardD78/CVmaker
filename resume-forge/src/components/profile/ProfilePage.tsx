@@ -134,9 +134,19 @@ export function ProfilePage() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64 = event.target?.result as string;
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      // Resize to max 300×300 and compress to JPEG 75% to keep DB payload small
+      const maxSize = 300;
+      const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const base64 = canvas.toDataURL('image/jpeg', 0.75);
       try {
         await updateProfile({ photoPath: base64 });
         toast.success('Photo de profil mise à jour');
@@ -144,7 +154,7 @@ export function ProfilePage() {
         toast.error("Erreur lors de l'enregistrement de la photo");
       }
     };
-    reader.readAsDataURL(file);
+    img.src = objectUrl;
   };
 
   const handleRemovePhoto = async () => {

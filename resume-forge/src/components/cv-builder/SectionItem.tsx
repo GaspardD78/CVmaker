@@ -196,18 +196,26 @@ export function SectionItem({ block }: SectionItemProps) {
     );
   }
 
+  const isSectionHeader = block.blockType === 'section_header';
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`border rounded mb-2 bg-white flex items-center shadow-sm ${!block.isVisible ? 'opacity-50' : ''}`}
+      className={`border rounded mb-1 flex items-center shadow-sm ${
+        isSectionHeader
+          ? 'bg-gray-100 border-gray-300 mt-2'
+          : 'bg-white border-gray-200'
+      } ${!block.isVisible ? 'opacity-50' : ''}`}
     >
-      <div {...attributes} {...listeners} className="p-2 cursor-grab hover:bg-gray-100 text-gray-400">
+      <div {...attributes} {...listeners} className="p-2 cursor-grab hover:bg-gray-200 text-gray-400">
         <GripVertical className="w-4 h-4" />
       </div>
 
       <div className="flex-1 py-2 px-1 flex flex-col justify-center truncate">
-        <span className="font-medium text-sm text-gray-800 truncate">{title}</span>
+        <span className={`text-sm truncate ${isSectionHeader ? 'font-bold uppercase tracking-wide text-gray-600 text-xs' : 'font-medium text-gray-800'}`}>
+          {title}
+        </span>
         {subtitle && <span className="text-xs text-gray-500 truncate">{subtitle}</span>}
       </div>
 
