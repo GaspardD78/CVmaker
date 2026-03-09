@@ -24,6 +24,15 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
   const [nextActionDate, setNextActionDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  const SOURCE_LABELS: Record<string, string> = {
+    job_board: 'Job Board',
+    spontaneous: 'Candidature spontanée',
+    network: 'Réseau',
+    recruiter: 'Recruteur',
+    linkedin: 'LinkedIn',
+    other: 'Autre',
+  };
+
   const [location, setLocation] = useState('');
   const [remotePolicy, setRemotePolicy] = useState('');
   const [salaryMin, setSalaryMin] = useState<number | ''>('');
@@ -177,7 +186,7 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Détail Source ({application.source})</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Détail source ({SOURCE_LABELS[application.source] ?? application.source})</label>
             <input type="text" value={sourceDetail} onChange={(e) => setSourceDetail(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="Détail..." />
           </div>
         </div>

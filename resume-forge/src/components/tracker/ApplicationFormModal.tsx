@@ -36,6 +36,7 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -96,6 +97,7 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
       nextActionDate: nextActionDate || null,
     };
 
+    setIsSubmitting(true);
     try {
       if (application) {
         await updateApplication(application.id, fields);
@@ -113,6 +115,8 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
       resetForm();
     } catch (error) {
       toast.error(application ? "Erreur lors de la mise à jour" : "Erreur lors de l'ajout de la candidature");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -364,9 +368,10 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
               </Dialog.Close>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-md"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {application ? 'Modifier' : 'Ajouter'}
+                {isSubmitting ? 'Enregistrement...' : (application ? 'Modifier' : 'Ajouter')}
               </button>
             </div>
           </form>
