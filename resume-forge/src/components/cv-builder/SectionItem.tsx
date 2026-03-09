@@ -182,12 +182,15 @@ export function SectionItem({ block }: SectionItemProps) {
         )}
 
         {(isEntryRef || block.blockType === 'custom_text') && (
-          <textarea
-            value={overrideDescription}
-            onChange={(e) => setOverrideDescription(e.target.value)}
-            placeholder="Description des missions, réalisations..."
-            className="p-1 text-sm border border-gray-300 rounded h-24 resize-y focus:ring-blue-500 focus:border-blue-500"
-          />
+          <>
+            <textarea
+              value={overrideDescription}
+              onChange={(e) => setOverrideDescription(e.target.value)}
+              placeholder="Description des missions, réalisations..."
+              className="p-1 text-sm border border-gray-300 rounded h-24 resize-y focus:ring-blue-500 focus:border-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Astuce : Utilisez <code className="bg-white px-1 rounded">- </code> pour une liste à puces et <code className="bg-white px-1 rounded">**texte**</code> pour mettre en gras.</p>
+          </>
         )}
       </div>
     );

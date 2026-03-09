@@ -94,11 +94,17 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       customContent: 'Nouveau texte personnalisé...',
       sortOrder: maxOrder + 1,
       isVisible: true,
-      overrideData: {},
+      overrideData: null as any,
     });
   };
 
   const handleAddSectionHeader = async (sectionName: string) => {
+    const nameToUse = sectionName === "Nouvelle Section"
+      ? window.prompt("Nom de la nouvelle section :", "Nouvelle Section")
+      : sectionName;
+
+    if (!nameToUse) return; // User canceled the prompt
+
     const maxOrder = currentCvBlocks.length > 0
       ? Math.max(...currentCvBlocks.map(b => b.sortOrder))
       : 0;
@@ -107,11 +113,11 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       cvId,
       entryId: null,
       blockType: 'section_header',
-      sectionName,
+      sectionName: nameToUse,
       customContent: null,
       sortOrder: maxOrder + 1,
       isVisible: true,
-      overrideData: {},
+      overrideData: null as any,
     });
   };
 
