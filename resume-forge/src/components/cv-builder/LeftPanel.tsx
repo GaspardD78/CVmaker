@@ -47,6 +47,8 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [bodyTextAlign, setBodyTextAlign]             = useState(cvSettings.bodyTextAlign       || '');
   const [bodyLineHeight, setBodyLineHeight]           = useState(cvSettings.bodyLineHeight      || '');
   const [entrySpacing, setEntrySpacing]               = useState(cvSettings.entrySpacing        || '');
+  const [pageMargin, setPageMargin]                   = useState(cvSettings.pageMargin          || '');
+  const [sectionBorderStyle, setSectionBorderStyle]   = useState(cvSettings.sectionBorderStyle  || '');
 
   const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -84,6 +86,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
     subtitleFontStyle, subtitleFontWeight,
     bodyTextAlign, bodyLineHeight, entrySpacing,
+    pageMargin, sectionBorderStyle,
   });
 
   useEffect(() => {
@@ -100,7 +103,9 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       subtitleFontWeight !== saved.subtitleFontWeight ||
       bodyTextAlign !== saved.bodyTextAlign ||
       bodyLineHeight !== saved.bodyLineHeight ||
-      entrySpacing !== saved.entrySpacing
+      entrySpacing !== saved.entrySpacing ||
+      pageMargin !== saved.pageMargin ||
+      sectionBorderStyle !== saved.sectionBorderStyle
     ) {
       if (designSaveTimeoutRef.current) clearTimeout(designSaveTimeoutRef.current);
       designSaveTimeoutRef.current = setTimeout(() => {
@@ -109,6 +114,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
           headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
           subtitleFontStyle, subtitleFontWeight,
           bodyTextAlign, bodyLineHeight, entrySpacing,
+          pageMargin, sectionBorderStyle,
         };
         const currentSettings = useCvStore.getState().currentCv?.settings as Record<string, unknown> || {};
         updateCv(cvId, {
@@ -118,6 +124,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
             headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
             subtitleFontStyle, subtitleFontWeight,
             bodyTextAlign, bodyLineHeight, entrySpacing,
+            pageMargin, sectionBorderStyle,
           },
         });
       }, 1000);
@@ -132,6 +139,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
       subtitleFontStyle, subtitleFontWeight,
       bodyTextAlign, bodyLineHeight, entrySpacing,
+      pageMargin, sectionBorderStyle,
       cvId, updateCv]);
 
   const sensors = useSensors(
@@ -428,6 +436,30 @@ export function LeftPanel({ cvId }: { cvId: string }) {
               <option value="16px">Normal</option>
               <option value="24px">Aéré</option>
               <option value="32px">Large</option>
+            </select>
+
+            {/* Page margins */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Marges de la page</p>
+            <select value={pageMargin} onChange={e => setPageMargin(e.target.value)}
+              className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+              <option value="">Auto</option>
+              <option value="24px 28px">Étroites</option>
+              <option value="32px 36px">Réduites</option>
+              <option value="40px 48px">Normales</option>
+              <option value="48px 56px">Larges</option>
+              <option value="56px 64px">Très larges</option>
+            </select>
+
+            {/* Section border style */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Style de bordure des sections</p>
+            <select value={sectionBorderStyle} onChange={e => setSectionBorderStyle(e.target.value)}
+              className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+              <option value="">Auto</option>
+              <option value="solid">Ligne continue</option>
+              <option value="dashed">Tirets</option>
+              <option value="dotted">Pointillés</option>
+              <option value="double">Double ligne</option>
+              <option value="none">Aucune bordure</option>
             </select>
           </div>
         </div>

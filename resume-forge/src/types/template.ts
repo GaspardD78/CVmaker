@@ -26,5 +26,17 @@ export interface CVTemplate {
     descriptionClass: string;
     skillsContainerClass?: string;
     skillClass?: string;
+    /** Render skills/languages/interests as inline badges */
+    skillBadgeClass?: string;
+    /** Wrapper for badge-style entries */
+    skillBadgeContainerClass?: string;
+    /** Header name class */
+    nameClass?: string;
+    /** Header title/job class */
+    headerTitleClass?: string;
+    /** Contact info line class */
+    contactClass?: string;
+    /** Summary block class */
+    summaryClass?: string;
   };
 }
