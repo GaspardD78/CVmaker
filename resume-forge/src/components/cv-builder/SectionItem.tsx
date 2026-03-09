@@ -81,7 +81,43 @@ export function SectionItem({ block }: SectionItemProps) {
   };
 
   const removeBlock = async () => {
-    const isConfirmed = await confirm("Êtes-vous sûr de vouloir retirer ce bloc du CV ?", {
+    const blocks = useCvStore.getState().currentCvBlocks;
+    const idx = blocks.findIndex(b => b.id === block.id);
+
+    // Build the list of extra IDs to cascade-delete
+    const extraIds: string[] = [];
+    let confirmMessage = "Êtes-vous sûr de vouloir retirer ce bloc du CV ?";
+
+    if (block.blockType === 'section_header') {
+      // Collect every block that belongs to this section (until next header)
+      for (let i = idx + 1; i < blocks.length; i++) {
+        if (blocks[i].blockType === 'section_header') break;
+        extraIds.push(blocks[i].id);
+      }
+      if (extraIds.length > 0) {
+        confirmMessage = `Supprimer ce titre de section retirera aussi ses ${extraIds.length} bloc(s) associé(s). Continuer ?`;
+      }
+    } else {
+      // For entry_ref / custom_text: check if this is the last block under its section header
+      for (let i = idx - 1; i >= 0; i--) {
+        if (blocks[i].blockType === 'section_header') {
+          // Find the end of this section
+          let sectionEnd = blocks.length;
+          for (let j = i + 1; j < blocks.length; j++) {
+            if (blocks[j].blockType === 'section_header') { sectionEnd = j; break; }
+          }
+          // Count remaining entries after removing this block
+          const remaining = blocks.slice(i + 1, sectionEnd).filter(b => b.id !== block.id).length;
+          if (remaining === 0) {
+            extraIds.push(blocks[i].id);
+            confirmMessage = "C'est le dernier bloc de cette section. Retirer aussi le titre de section ?";
+          }
+          break;
+        }
+      }
+    }
+
+    const isConfirmed = await confirm(confirmMessage, {
       title: 'Confirmer le retrait',
       kind: 'warning',
     });
@@ -89,6 +125,9 @@ export function SectionItem({ block }: SectionItemProps) {
     if (isConfirmed) {
       try {
         await deleteCvBlock(block.id);
+        for (const id of extraIds) {
+          await deleteCvBlock(id);
+        }
         toast.success("Bloc retiré avec succès");
       } catch (err) {
         toast.error("Erreur lors du retrait du bloc");
