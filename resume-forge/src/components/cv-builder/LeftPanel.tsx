@@ -37,6 +37,17 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [fontFamily, setFontFamily] = useState(cvSettings.fontFamily || 'Calibri');
   const [fontSize, setFontSize] = useState(cvSettings.fontSize || '11px');
   const [primaryColor, setPrimaryColor] = useState(cvSettings.primaryColor || '#1f2937');
+
+  const [headerFontSize, setHeaderFontSize]           = useState(cvSettings.headerFontSize      || '');
+  const [headerFontWeight, setHeaderFontWeight]       = useState(cvSettings.headerFontWeight    || '');
+  const [headerTextTransform, setHeaderTextTransform] = useState(cvSettings.headerTextTransform || '');
+  const [headerTextAlign, setHeaderTextAlign]         = useState(cvSettings.headerTextAlign     || '');
+  const [subtitleFontStyle, setSubtitleFontStyle]     = useState(cvSettings.subtitleFontStyle   || '');
+  const [subtitleFontWeight, setSubtitleFontWeight]   = useState(cvSettings.subtitleFontWeight  || '');
+  const [bodyTextAlign, setBodyTextAlign]             = useState(cvSettings.bodyTextAlign       || '');
+  const [bodyLineHeight, setBodyLineHeight]           = useState(cvSettings.bodyLineHeight      || '');
+  const [entrySpacing, setEntrySpacing]               = useState(cvSettings.entrySpacing        || '');
+
   const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -68,22 +79,46 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   // NOT against currentCv. This prevents the loop: updateCv → fetchCvById →
   // currentCv changes → effect re-runs → updateCv again (and the concurrent
   // write that would break template switching).
-  const lastSavedDesign = useRef({ fontFamily, fontSize, primaryColor });
+  const lastSavedDesign = useRef({
+    fontFamily, fontSize, primaryColor,
+    headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
+    subtitleFontStyle, subtitleFontWeight,
+    bodyTextAlign, bodyLineHeight, entrySpacing,
+  });
 
   useEffect(() => {
     const saved = lastSavedDesign.current;
     if (
       fontFamily !== saved.fontFamily ||
       fontSize !== saved.fontSize ||
-      primaryColor !== saved.primaryColor
+      primaryColor !== saved.primaryColor ||
+      headerFontSize !== saved.headerFontSize ||
+      headerFontWeight !== saved.headerFontWeight ||
+      headerTextTransform !== saved.headerTextTransform ||
+      headerTextAlign !== saved.headerTextAlign ||
+      subtitleFontStyle !== saved.subtitleFontStyle ||
+      subtitleFontWeight !== saved.subtitleFontWeight ||
+      bodyTextAlign !== saved.bodyTextAlign ||
+      bodyLineHeight !== saved.bodyLineHeight ||
+      entrySpacing !== saved.entrySpacing
     ) {
       if (designSaveTimeoutRef.current) clearTimeout(designSaveTimeoutRef.current);
       designSaveTimeoutRef.current = setTimeout(() => {
-        lastSavedDesign.current = { fontFamily, fontSize, primaryColor };
-        // Read current settings from the store at fire-time (not from stale closure)
+        lastSavedDesign.current = {
+          fontFamily, fontSize, primaryColor,
+          headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
+          subtitleFontStyle, subtitleFontWeight,
+          bodyTextAlign, bodyLineHeight, entrySpacing,
+        };
         const currentSettings = useCvStore.getState().currentCv?.settings as Record<string, unknown> || {};
         updateCv(cvId, {
-          settings: { ...currentSettings, fontFamily, fontSize, primaryColor },
+          settings: {
+            ...currentSettings,
+            fontFamily, fontSize, primaryColor,
+            headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
+            subtitleFontStyle, subtitleFontWeight,
+            bodyTextAlign, bodyLineHeight, entrySpacing,
+          },
         });
       }, 1000);
     }
@@ -93,7 +128,11 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   // currentCv intentionally excluded: including it caused updateCv → fetchCvById
   // → currentCv change → re-trigger loop, breaking concurrent template changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fontFamily, fontSize, primaryColor, cvId, updateCv]);
+  }, [fontFamily, fontSize, primaryColor,
+      headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
+      subtitleFontStyle, subtitleFontWeight,
+      bodyTextAlign, bodyLineHeight, entrySpacing,
+      cvId, updateCv]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -281,6 +320,115 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                 <span className="text-xs text-gray-500 font-mono">{primaryColor}</span>
               </div>
             </div>
+
+            {/* Section headers */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Titres de section</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+                <select value={headerFontSize} onChange={e => setHeaderFontSize(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="11px">Petit (11)</option>
+                  <option value="13px">Moyen (13)</option>
+                  <option value="15px">Grand (15)</option>
+                  <option value="18px">Très grand (18)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Graisse</label>
+                <select value={headerFontWeight} onChange={e => setHeaderFontWeight(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="600">Semi-gras</option>
+                  <option value="bold">Gras</option>
+                  <option value="800">Extra-gras</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Casse</label>
+                <select value={headerTextTransform} onChange={e => setHeaderTextTransform(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="none">Normal</option>
+                  <option value="uppercase">MAJUSCULES</option>
+                  <option value="capitalize">Capitalize</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Alignement</label>
+                <select value={headerTextAlign} onChange={e => setHeaderTextAlign(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="left">Gauche</option>
+                  <option value="center">Centré</option>
+                  <option value="right">Droite</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Subtitles */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Sous-titres</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Style</label>
+                <select value={subtitleFontStyle} onChange={e => setSubtitleFontStyle(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="italic">Italique</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Graisse</label>
+                <select value={subtitleFontWeight} onChange={e => setSubtitleFontWeight(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="500">Moyen</option>
+                  <option value="bold">Gras</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Body */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Corps du texte</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Alignement</label>
+                <select value={bodyTextAlign} onChange={e => setBodyTextAlign(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="left">Gauche</option>
+                  <option value="justify">Justifié</option>
+                  <option value="center">Centré</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Interligne</label>
+                <select value={bodyLineHeight} onChange={e => setBodyLineHeight(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="1.2">Serré (1.2)</option>
+                  <option value="1.4">Normal (1.4)</option>
+                  <option value="1.6">Aéré (1.6)</option>
+                  <option value="1.8">Large (1.8)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Entry spacing */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Espacement entre blocs</p>
+            <select value={entrySpacing} onChange={e => setEntrySpacing(e.target.value)}
+              className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+              <option value="">Auto</option>
+              <option value="4px">Très serré</option>
+              <option value="8px">Serré</option>
+              <option value="16px">Normal</option>
+              <option value="24px">Aéré</option>
+              <option value="32px">Large</option>
+            </select>
           </div>
         </div>
       )}

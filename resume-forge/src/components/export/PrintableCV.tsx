@@ -47,13 +47,34 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const fontSize = settings.fontSize || '11px';
     const primaryColor = settings.primaryColor || '';
 
+    const headerFontSize      = settings.headerFontSize      || '';
+    const headerFontWeight    = settings.headerFontWeight    || '';
+    const headerTextTransform = settings.headerTextTransform || '';
+    const headerTextAlign     = settings.headerTextAlign     || '';
+    const subtitleFontStyle   = settings.subtitleFontStyle   || '';
+    const subtitleFontWeight  = settings.subtitleFontWeight  || '';
+    const bodyTextAlign       = settings.bodyTextAlign       || '';
+    const bodyLineHeight      = settings.bodyLineHeight      || '';
+    const entrySpacing        = settings.entrySpacing        || '';
+
+    const h3Rules = [
+      primaryColor       ? `color: ${primaryColor}; border-color: ${primaryColor};` : '',
+      headerFontSize     ? `font-size: ${headerFontSize};`                          : '',
+      headerFontWeight   ? `font-weight: ${headerFontWeight};`                      : '',
+      headerTextTransform? `text-transform: ${headerTextTransform};`                : '',
+      headerTextAlign    ? `text-align: ${headerTextAlign};`                        : '',
+    ].filter(Boolean).join(' ');
+
     const cssOverrides = [
-      primaryColor
-        ? `#printable-cv h3 { color: ${primaryColor} !important; border-color: ${primaryColor} !important; }`
-        : '',
+      h3Rules ? `#printable-cv h3 { ${h3Rules} }` : '',
       fontSize !== '11px'
-        ? `#printable-cv p, #printable-cv li, #printable-cv span.desc { font-size: ${fontSize} !important; }`
+        ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${fontSize} !important; }`
         : '',
+      subtitleFontStyle  ? `#printable-cv .cv-subtitle { font-style: ${subtitleFontStyle} !important; }` : '',
+      subtitleFontWeight ? `#printable-cv .cv-subtitle { font-weight: ${subtitleFontWeight} !important; }` : '',
+      bodyTextAlign      ? `#printable-cv .cv-desc { text-align: ${bodyTextAlign} !important; }` : '',
+      bodyLineHeight     ? `#printable-cv .cv-desc { line-height: ${bodyLineHeight} !important; }` : '',
+      entrySpacing       ? `#printable-cv .cv-entry { margin-bottom: ${entrySpacing} !important; }` : '',
     ].filter(Boolean).join('\n');
 
     const hasPhoto = Boolean(profile.photoPath);
@@ -111,8 +132,8 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
           if (block.blockType === 'custom_text') {
             return (
-              <div key={block.id} className={`${template.preview.entryClass} print:break-inside-avoid`}>
-                <div className={template.preview.descriptionClass}>
+              <div key={block.id} className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
+                <div className={`cv-desc ${template.preview.descriptionClass}`}>
                   <MarkdownRenderer text={block.customContent || ''} />
                 </div>
               </div>
@@ -126,12 +147,12 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             const entryData = { ...entry, ...block.overrideData };
 
             return (
-              <div key={block.id} className={`${template.preview.entryClass} print:break-inside-avoid`}>
+              <div key={block.id} className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
                 <div className="flex justify-between items-baseline mb-1">
                   <div>
-                    <span className={template.preview.titleClass}>{entryData.title}</span>
+                    <span className={`cv-title ${template.preview.titleClass}`}>{entryData.title}</span>
                     {(entryData.subtitle || entryData.location) && (
-                      <span className={template.preview.subtitleClass}>
+                      <span className={`cv-subtitle ${template.preview.subtitleClass}`}>
                         {' '}
                         | {entryData.subtitle}
                         {entryData.subtitle && entryData.location ? ` — ${entryData.location}` : entryData.location || ''}
@@ -147,7 +168,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
                   )}
                 </div>
                 {entryData.description && (
-                  <div className={template.preview.descriptionClass}>
+                  <div className={`cv-desc ${template.preview.descriptionClass}`}>
                     <MarkdownRenderer text={entryData.description as string} />
                   </div>
                 )}
