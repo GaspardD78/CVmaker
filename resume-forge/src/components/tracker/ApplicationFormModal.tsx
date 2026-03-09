@@ -49,7 +49,7 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
         setCompanyName(application.companyName);
         setJobTitle(application.jobTitle);
         setJobUrl(application.jobUrl || '');
-        setSource(application.source);
+        setSource(application.source || 'job_board');
         setStatus(application.status);
         setPriority(application.priority);
         setNextAction(application.nextAction || '');
