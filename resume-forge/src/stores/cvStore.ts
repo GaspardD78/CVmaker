@@ -4,6 +4,21 @@ import { getDb } from '@/lib/db';
 import { keysToCamelCase, keysToSnakeCase } from '@/lib/mapping';
 import { filterAllowedColumns } from '@/lib/validation';
 
+/**
+ * Serializes all DB write operations to prevent concurrent SQLite writes.
+ * The Tauri SQL plugin uses a connection pool; two simultaneous writes from
+ * different JS async tasks can each land on a different pool connection,
+ * causing "database is locked" errors.
+ */
+let writeQueue: Promise<unknown> = Promise.resolve();
+function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+  // Always run the next task, even if the previous one failed
+  const task = writeQueue.then(() => fn(), () => fn());
+  // Don't let errors propagate into the queue itself
+  writeQueue = task.then(() => {}, () => {});
+  return task as Promise<T>;
+}
+
 interface CVState {
   cvs: CVDocument[];
   currentCv: CVDocument | null;
@@ -75,7 +90,7 @@ export const useCvStore = create<CVState>((set, get) => ({
     }
   },
 
-  createCv: async (cv) => {
+  createCv: (cv) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       const snakeCv = filterAllowedColumns('cv_documents', keysToSnakeCase<Record<string, unknown>>(cv));
@@ -93,17 +108,15 @@ export const useCvStore = create<CVState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to create CV' });
     }
-  },
+  }),
 
-  duplicateCv: async (id) => {
+  duplicateCv: (id) => enqueueWrite(async () => {
     try {
       const db = await getDb();
-      // 1. Fetch original CV
       const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE id = ?1', [id]);
       if (rawCvs.length === 0) return;
       const originalCv = rawCvs[0];
 
-      // 2. Create new CV based on original
       const newName = `${originalCv.name} (copie)`;
       const cvToInsert: Record<string, unknown> = filterAllowedColumns('cv_documents', { ...originalCv, id: undefined, name: newName, created_at: undefined, updated_at: undefined });
       const keys = Object.keys(cvToInsert).filter(k => cvToInsert[k] !== undefined);
@@ -112,7 +125,6 @@ export const useCvStore = create<CVState>((set, get) => ({
       const columns = keys.join(', ');
       const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
-      // Use RETURNING id to safely get the newly created row ID
       const insertResult = await db.select<{id: string}[]>(
         `INSERT INTO cv_documents (${columns}) VALUES (${placeholders}) RETURNING id`,
         values
@@ -120,7 +132,6 @@ export const useCvStore = create<CVState>((set, get) => ({
 
       if(insertResult.length > 0) {
         const newCvId = insertResult[0].id;
-        // 3. Duplicate blocks using a single INSERT ... SELECT query
         await db.execute(
           `INSERT INTO cv_blocks (
             cv_id, entry_id, block_type, section_name, custom_content,
@@ -138,9 +149,9 @@ export const useCvStore = create<CVState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to duplicate CV' });
     }
-  },
+  }),
 
-  deleteCv: async (id) => {
+  deleteCv: (id) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       await db.execute('DELETE FROM cv_documents WHERE id = ?1', [id]);
@@ -150,9 +161,9 @@ export const useCvStore = create<CVState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to delete CV' });
     }
-  },
+  }),
 
-  updateCv: async (id, updates) => {
+  updateCv: (id, updates) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('cv_documents', keysToSnakeCase<Record<string, unknown>>(updates));
@@ -167,7 +178,6 @@ export const useCvStore = create<CVState>((set, get) => ({
         );
       }
       await get().fetchCvs();
-      // Ensure the current CV in state is updated so debouncing mechanisms don't loop
       const currentCv = get().currentCv;
       if (currentCv && currentCv.id === id) {
         await get().fetchCvById(id);
@@ -175,9 +185,9 @@ export const useCvStore = create<CVState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to update CV' });
     }
-  },
+  }),
 
-  createCvBlock: async (block) => {
+  createCvBlock: (block) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       const snakeBlock = filterAllowedColumns('cv_blocks', keysToSnakeCase<Record<string, unknown>>(block));
@@ -195,9 +205,9 @@ export const useCvStore = create<CVState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to create block' });
     }
-  },
+  }),
 
-  updateCvBlock: async (id, updates) => {
+  updateCvBlock: (id, updates) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('cv_blocks', keysToSnakeCase<Record<string, unknown>>(updates));
@@ -220,9 +230,9 @@ export const useCvStore = create<CVState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to update block' });
     }
-  },
+  }),
 
-  deleteCvBlock: async (id) => {
+  deleteCvBlock: (id) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       const currentBlocks = get().currentCvBlocks;
@@ -234,9 +244,9 @@ export const useCvStore = create<CVState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to delete block' });
     }
-  },
+  }),
 
-  reorderCvBlocks: async (cvId, blockIds) => {
+  reorderCvBlocks: (cvId, blockIds) => enqueueWrite(async () => {
     let db;
     try {
       db = await getDb();
@@ -245,12 +255,15 @@ export const useCvStore = create<CVState>((set, get) => ({
         await db.execute('UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2', [i, blockIds[i]]);
       }
       await db.execute('COMMIT');
-      await get().fetchCvBlocks(cvId);
+      // Do NOT re-fetch here: the optimistic update in handleDragEnd already applied
+      // the correct order. Re-fetching would race with the write and potentially reset.
     } catch (err) {
       if (db) {
         try { await db.execute('ROLLBACK'); } catch (e) { /* ignore rollback errors */ }
       }
+      // On error: re-fetch to restore the actual DB state
+      await get().fetchCvBlocks(cvId);
       set({ error: err instanceof Error ? err.message : 'Failed to reorder blocks' });
     }
-  },
+  }),
 }));

@@ -64,25 +64,36 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     };
   }, [targetJob, targetCompany, customSummary, cvId, updateCv, currentCv]);
 
+  // Track what was last saved so we compare against local state only —
+  // NOT against currentCv. This prevents the loop: updateCv → fetchCvById →
+  // currentCv changes → effect re-runs → updateCv again (and the concurrent
+  // write that would break template switching).
+  const lastSavedDesign = useRef({ fontFamily, fontSize, primaryColor });
+
   useEffect(() => {
-    if (!currentCv) return;
-    const s = (currentCv.settings || {}) as Record<string, string>;
+    const saved = lastSavedDesign.current;
     if (
-      fontFamily !== (s.fontFamily || 'Calibri') ||
-      fontSize !== (s.fontSize || '11px') ||
-      primaryColor !== (s.primaryColor || '#1f2937')
+      fontFamily !== saved.fontFamily ||
+      fontSize !== saved.fontSize ||
+      primaryColor !== saved.primaryColor
     ) {
       if (designSaveTimeoutRef.current) clearTimeout(designSaveTimeoutRef.current);
       designSaveTimeoutRef.current = setTimeout(() => {
+        lastSavedDesign.current = { fontFamily, fontSize, primaryColor };
+        // Read current settings from the store at fire-time (not from stale closure)
+        const currentSettings = useCvStore.getState().currentCv?.settings as Record<string, unknown> || {};
         updateCv(cvId, {
-          settings: { ...(currentCv.settings as object || {}), fontFamily, fontSize, primaryColor },
+          settings: { ...currentSettings, fontFamily, fontSize, primaryColor },
         });
       }, 1000);
     }
     return () => {
       if (designSaveTimeoutRef.current) clearTimeout(designSaveTimeoutRef.current);
     };
-  }, [fontFamily, fontSize, primaryColor, cvId, updateCv, currentCv]);
+  // currentCv intentionally excluded: including it caused updateCv → fetchCvById
+  // → currentCv change → re-trigger loop, breaking concurrent template changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fontFamily, fontSize, primaryColor, cvId, updateCv]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
