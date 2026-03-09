@@ -47,7 +47,12 @@ export function CVBuilderPage() {
 
   const handleTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (!currentCv) return;
-    await updateCv(currentCv.id, { templateId: e.target.value });
+    const newTemplateId = e.target.value;
+
+    // Optimistic UI update to prevent the select from snapping back while DB saves
+    useCvStore.setState({ currentCv: { ...currentCv, templateId: newTemplateId } });
+
+    await updateCv(currentCv.id, { templateId: newTemplateId });
   };
 
   if (!currentCv || !profile) {

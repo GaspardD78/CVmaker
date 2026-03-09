@@ -40,6 +40,7 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
           <div className="col-span-2">
             <Label>Description / Détails (Optionnel)</Label>
             <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={2} defaultValue={entryToEdit?.description || ''}></textarea>
+            <p className="text-xs text-gray-500 mt-1">Astuce : Utilisez <code className="bg-gray-100 px-1 rounded">- </code> pour une liste à puces et <code className="bg-gray-100 px-1 rounded">**texte**</code> pour mettre en gras.</p>
           </div>
           {/* Hidden fields to satisfy the form data structure */}
           <input type="hidden" name="location" value="" />
@@ -80,6 +81,7 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
           <div className="col-span-2">
             <Label>Mention / Description</Label>
             <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
+            <p className="text-xs text-gray-500 mt-1">Astuce : Utilisez <code className="bg-gray-100 px-1 rounded">- </code> pour une liste à puces et <code className="bg-gray-100 px-1 rounded">**texte**</code> pour mettre en gras.</p>
           </div>
         </>
       ) : (
@@ -116,6 +118,7 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
           <div className="col-span-2">
             <Label>Description</Label>
             <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={3} defaultValue={entryToEdit?.description || ''}></textarea>
+            <p className="text-xs text-gray-500 mt-1">Astuce : Utilisez <code className="bg-gray-100 px-1 rounded">- </code> pour une liste à puces et <code className="bg-gray-100 px-1 rounded">**texte**</code> pour mettre en gras.</p>
           </div>
         </>
       )}
