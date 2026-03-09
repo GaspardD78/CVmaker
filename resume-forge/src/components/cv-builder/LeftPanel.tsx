@@ -368,8 +368,8 @@ export function LeftPanel({ cvId }: { cvId: string }) {
               </div>
             </div>
 
-            {/* Subtitles */}
-            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Sous-titres</p>
+            {/* Entry titles (Recruteur IT, Master...) */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Titres d'entrée <span className="font-normal text-gray-400">(postes, diplômes…)</span></p>
             <div className="grid grid-cols-2 gap-1">
               <div>
                 <label className="block text-xs text-gray-600 mb-0.5">Style</label>
