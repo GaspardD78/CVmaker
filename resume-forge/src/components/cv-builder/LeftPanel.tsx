@@ -109,7 +109,28 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       const oldIndex = currentCvBlocks.findIndex((item) => item.id === active.id);
       const newIndex = currentCvBlocks.findIndex((item) => item.id === over?.id);
 
-      const newArray = arrayMove(currentCvBlocks, oldIndex, newIndex);
+      let newArray = arrayMove(currentCvBlocks, oldIndex, newIndex);
+
+      // If dragging a section_header, bring its associated entries along with it
+      const draggedBlock = currentCvBlocks[oldIndex];
+      if (draggedBlock.blockType === 'section_header') {
+        // Collect entry IDs that belong to this section (from oldIndex+1 until next header)
+        const groupEntryIds: string[] = [];
+        for (let i = oldIndex + 1; i < currentCvBlocks.length; i++) {
+          if (currentCvBlocks[i].blockType === 'section_header') break;
+          groupEntryIds.push(currentCvBlocks[i].id);
+        }
+
+        if (groupEntryIds.length > 0) {
+          // Pull them out from wherever arrayMove scattered them
+          const groupEntries = groupEntryIds.map(id => newArray.find(b => b.id === id)!);
+          newArray = newArray.filter(b => !groupEntryIds.includes(b.id));
+          // Re-insert them right after the header in its new position
+          const headerNewIdx = newArray.findIndex(b => b.id === draggedBlock.id);
+          newArray.splice(headerNewIdx + 1, 0, ...groupEntries);
+        }
+      }
+
       const newOrder = newArray.map(item => item.id);
 
       // Optimistic update to prevent jitter
