@@ -82,6 +82,8 @@ export function CVBuilderPage() {
            >
              <option value="ats-classic">ATS Classique</option>
              <option value="ats-modern">ATS Moderne</option>
+             <option value="elegant">Élégant</option>
+             <option value="minimalist">Minimaliste</option>
            </select>
            <button
              onClick={handleExportDocx}
