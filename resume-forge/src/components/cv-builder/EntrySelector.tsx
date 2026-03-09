@@ -33,10 +33,33 @@ export function EntrySelector({ cvId, onClose }: EntrySelectorProps) {
   );
 
   const handleAddEntry = async (entry: MasterEntry) => {
-    // Determine the next sort order
-    const maxOrder = currentCvBlocks.length > 0
-      ? Math.max(...currentCvBlocks.map(b => b.sortOrder))
-      : 0;
+    const blocks = useCvStore.getState().currentCvBlocks;
+    const maxOrder = blocks.length > 0 ? Math.max(...blocks.map(b => b.sortOrder)) : -1;
+
+    // Check if this is the first entry of this type in the CV.
+    // If so, automatically insert a section_header before the entry.
+    const isFirstOfType = !blocks.some(b => {
+      if (b.blockType !== 'entry_ref' || !b.entryId) return false;
+      const masterEntry = entries.find(e => e.id === b.entryId);
+      return masterEntry?.entryType === entry.entryType;
+    });
+
+    let nextOrder = maxOrder + 1;
+
+    if (isFirstOfType) {
+      const sectionLabel = availableTypes.find(t => t.value === entry.entryType)?.label ?? entry.entryType;
+      await createCvBlock({
+        cvId,
+        entryId: null,
+        blockType: 'section_header',
+        sectionName: sectionLabel,
+        customContent: null,
+        sortOrder: nextOrder,
+        isVisible: true,
+        overrideData: {},
+      });
+      nextOrder++;
+    }
 
     await createCvBlock({
       cvId,
@@ -44,7 +67,7 @@ export function EntrySelector({ cvId, onClose }: EntrySelectorProps) {
       blockType: 'entry_ref',
       sectionName: null,
       customContent: null,
-      sortOrder: maxOrder + 1,
+      sortOrder: nextOrder,
       isVisible: true,
       overrideData: {},
     });
