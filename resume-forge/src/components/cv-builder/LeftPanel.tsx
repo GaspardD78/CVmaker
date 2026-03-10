@@ -57,6 +57,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [photoPositionX, setPhotoPositionX]           = useState(cvSettings.photoPositionX      || '');
   const [photoPositionY, setPhotoPositionY]           = useState(cvSettings.photoPositionY      || '');
   const [photoBorder, setPhotoBorder]                 = useState(cvSettings.photoBorder          || '');
+  const [headerStyle, setHeaderStyle]                 = useState(cvSettings.headerStyle          || '');
 
   const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -112,6 +113,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       setPhotoPositionX(freshSettings.photoPositionX || '');
       setPhotoPositionY(freshSettings.photoPositionY || '');
       setPhotoBorder(freshSettings.photoBorder || '');
+      setHeaderStyle(freshSettings.headerStyle || '');
       // Update lastSavedDesign so the save effect doesn't re-trigger from resync
       const resynced = {
         fontFamily: freshSettings.fontFamily || 'Calibri',
@@ -134,6 +136,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
         photoPositionX: freshSettings.photoPositionX || '',
         photoPositionY: freshSettings.photoPositionY || '',
         photoBorder: freshSettings.photoBorder || '',
+        headerStyle: freshSettings.headerStyle || '',
       };
       lastSavedDesign.current = resynced;
     }
@@ -151,6 +154,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     bodyTextAlign, bodyLineHeight, entrySpacing,
     pageMargin, sectionBorderStyle,
     photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
+    headerStyle,
   });
 
   useEffect(() => {
@@ -162,6 +166,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       bodyTextAlign, bodyLineHeight, entrySpacing,
       pageMargin, sectionBorderStyle,
       photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
+      headerStyle,
     };
     const hasChanged = (Object.keys(current) as (keyof typeof current)[]).some(k => current[k] !== saved[k]);
     if (hasChanged) {
@@ -186,6 +191,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       bodyTextAlign, bodyLineHeight, entrySpacing,
       pageMargin, sectionBorderStyle,
       photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
+      headerStyle,
       cvId, updateCv]);
 
   const sensors = useSensors(
@@ -608,6 +614,20 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                 </select>
               </div>
             </div>
+
+            {/* Header style */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Style d'en-tête</p>
+            <select value={headerStyle} onChange={e => setHeaderStyle(e.target.value)}
+              className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+              <option value="">Standard</option>
+              <option value="accent-light">Fond coloré léger</option>
+              <option value="accent-banner">Bandeau coloré</option>
+              <option value="dark-banner">Bandeau sombre</option>
+              <option value="gradient-banner">Dégradé coloré</option>
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1 leading-tight">
+              Bandeau pleine largeur utilise la couleur d'accent ci-dessus.
+            </p>
           </div>
           </div>{/* end scrollable content */}
         </div>{/* end design panel */}
