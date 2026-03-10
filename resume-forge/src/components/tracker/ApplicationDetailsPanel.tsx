@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
-import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase, Pencil } from 'lucide-react';
+import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase, Pencil, CalendarPlus } from 'lucide-react';
 import { ApplicationTimeline } from './ApplicationTimeline';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { buildGoogleCalendarUrl, openInGoogleCalendar } from '@/lib/googleCalendar';
 
 interface ApplicationDetailsPanelProps {
   applicationId: string | null;
@@ -238,13 +239,35 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
               onChange={(e) => setNextActionDate(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-orange-200 rounded bg-white"
             />
-            <button
-              onClick={() => handleSave()}
-              disabled={isSaving}
-              className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 disabled:opacity-50 transition-colors"
-            >
-              {isSaving ? 'Enregistrement...' : 'Mettre à jour'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSave()}
+                disabled={isSaving}
+                className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 disabled:opacity-50 transition-colors"
+              >
+                {isSaving ? 'Enregistrement...' : 'Mettre à jour'}
+              </button>
+              {nextAction && nextActionDate && (
+                <button
+                  onClick={async () => {
+                    const startDate = new Date(`${nextActionDate}T09:00:00`);
+                    const url = buildGoogleCalendarUrl({
+                      title: nextAction,
+                      startDate,
+                      durationMinutes: 30,
+                      description: `Candidature : ${application.jobTitle} chez ${application.companyName}`,
+                      location: application.location || undefined,
+                    });
+                    await openInGoogleCalendar(url);
+                  }}
+                  title="Créer un rappel dans Google Calendar"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-sm rounded hover:bg-blue-100 border border-blue-200 transition-colors"
+                >
+                  <CalendarPlus size={14} />
+                  Google Calendar
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -262,7 +285,14 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
 
         {/* Timeline */}
         <div className="border-t pt-6">
-          <ApplicationTimeline applicationId={application.id} />
+          <ApplicationTimeline
+            applicationId={application.id}
+            applicationContext={{
+              companyName: application.companyName,
+              jobTitle: application.jobTitle,
+              location: application.location,
+            }}
+          />
         </div>
       </div>
     </div>

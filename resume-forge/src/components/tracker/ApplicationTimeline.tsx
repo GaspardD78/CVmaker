@@ -3,11 +3,19 @@ import { useApplicationStore } from '@/stores/applicationStore';
 import { EventType } from '@/types/application';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Plus, Mail, Phone, Calendar, Clock, FileText, ArrowRight } from 'lucide-react';
+import { Plus, Mail, Phone, Calendar, Clock, FileText, ArrowRight, CalendarPlus, Trash2 } from 'lucide-react';
 import { EventFormModal } from './EventFormModal';
+import { buildEventGoogleCalendarUrl, openInGoogleCalendar } from '@/lib/googleCalendar';
+import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
+import { toast } from 'sonner';
 
 interface ApplicationTimelineProps {
   applicationId: string;
+  applicationContext?: {
+    companyName?: string;
+    jobTitle?: string;
+    location?: string | null;
+  };
 }
 
 const getEventIcon = (type: EventType) => {
@@ -38,13 +46,46 @@ const getEventColor = (type: EventType) => {
   }
 };
 
-export function ApplicationTimeline({ applicationId }: ApplicationTimelineProps) {
-  const { events, fetchEvents } = useApplicationStore();
+export function ApplicationTimeline({ applicationId, applicationContext }: ApplicationTimelineProps) {
+  const { events, fetchEvents, deleteEvent } = useApplicationStore();
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
 
   useEffect(() => {
     fetchEvents(applicationId);
   }, [applicationId, fetchEvents]);
+
+  const handleOpenInCalendar = async (event: typeof events[0]) => {
+    const url = buildEventGoogleCalendarUrl(
+      {
+        title: event.title,
+        eventDate: event.eventDate,
+        description: event.description,
+        eventType: event.eventType,
+      },
+      applicationContext
+    );
+    await openInGoogleCalendar(url);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    let confirmed = false;
+    try {
+      confirmed = await tauriConfirm("Supprimer cet événement ?", {
+        title: "Confirmation",
+        kind: "warning",
+      });
+    } catch {
+      confirmed = window.confirm("Supprimer cet événement ?");
+    }
+    if (confirmed) {
+      try {
+        await deleteEvent(eventId);
+        toast.success("Événement supprimé");
+      } catch {
+        toast.error("Erreur lors de la suppression");
+      }
+    }
+  };
 
   return (
     <div>
@@ -67,10 +108,37 @@ export function ApplicationTimeline({ applicationId }: ApplicationTimelineProps)
 
             <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
               <div className="flex justify-between items-start mb-1">
-                <h4 className="text-sm font-bold text-gray-900">{event.title}</h4>
-                <span className="text-xs text-gray-500 whitespace-nowrap ml-3">
-                  {format(new Date(event.eventDate), 'dd MMM yyyy HH:mm', { locale: fr })}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h4 className="text-sm font-bold text-gray-900 truncate">{event.title}</h4>
+                  {event.calendarId === 'google' && (
+                    <span title="Ajouté à Google Calendar" className="shrink-0 w-4 h-4 text-blue-500">
+                      <CalendarPlus size={14} />
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 ml-3 shrink-0">
+                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                    {format(new Date(event.eventDate), 'dd MMM yyyy HH:mm', { locale: fr })}
+                  </span>
+                  {event.eventType !== 'status_change' && (
+                    <button
+                      onClick={() => handleOpenInCalendar(event)}
+                      title="Ouvrir dans Google Calendar"
+                      className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                    >
+                      <CalendarPlus size={14} />
+                    </button>
+                  )}
+                  {event.eventType !== 'status_change' && (
+                    <button
+                      onClick={() => handleDeleteEvent(event.id)}
+                      title="Supprimer"
+                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {event.description && (
@@ -91,6 +159,7 @@ export function ApplicationTimeline({ applicationId }: ApplicationTimelineProps)
         isOpen={isEventModalOpen}
         onClose={() => setIsEventModalOpen(false)}
         applicationId={applicationId}
+        applicationContext={applicationContext}
       />
     </div>
   );
