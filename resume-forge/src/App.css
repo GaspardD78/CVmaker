@@ -6,8 +6,8 @@
 
 @media print {
   @page {
-    margin: 20mm;
     size: A4;
+    margin: 0;
   }
 
   /* Masquer tout le contenu par défaut */
@@ -21,12 +21,18 @@
     visibility: visible;
   }
 
-  /* Positionner le CV en haut de la page */
+  /*
+   * position: fixed garantit que le CV est ancré au coin supérieur gauche
+   * de la page dans tous les moteurs WebKit (Linux/macOS/Windows),
+   * contrairement à position: absolute qui peut se référer à un conteneur
+   * intermédiaire selon le moteur de rendu.
+   */
   #printable-cv {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
+    height: auto;
   }
 
   body {
