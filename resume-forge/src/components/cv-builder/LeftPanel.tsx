@@ -36,7 +36,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [isDesignOpen, setIsDesignOpen] = useState(false);
   const [fontFamily, setFontFamily] = useState(cvSettings.fontFamily || 'Calibri');
   const [fontSize, setFontSize] = useState(cvSettings.fontSize || '11px');
-  const [primaryColor, setPrimaryColor] = useState(cvSettings.primaryColor || '#1f2937');
+  const [primaryColor, setPrimaryColor] = useState(cvSettings.primaryColor || '');
 
   const [headerFontSize, setHeaderFontSize]           = useState(cvSettings.headerFontSize      || '');
   const [headerFontWeight, setHeaderFontWeight]       = useState(cvSettings.headerFontWeight    || '');
@@ -82,6 +82,61 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, [targetJob, targetCompany, customSummary, cvId, updateCv, currentCv]);
+
+  // When the template changes, re-sync local design state from the store
+  // so that old overrides don't persist and conflict with the new template.
+  const lastTemplateId = useRef(currentCv?.templateId);
+  useEffect(() => {
+    if (!currentCv) return;
+    if (lastTemplateId.current && currentCv.templateId !== lastTemplateId.current) {
+      const freshSettings = (currentCv.settings || {}) as Record<string, string>;
+      setFontFamily(freshSettings.fontFamily || 'Calibri');
+      setFontSize(freshSettings.fontSize || '11px');
+      setPrimaryColor(freshSettings.primaryColor || '');
+      setHeaderFontSize(freshSettings.headerFontSize || '');
+      setHeaderFontWeight(freshSettings.headerFontWeight || '');
+      setHeaderTextTransform(freshSettings.headerTextTransform || '');
+      setHeaderTextAlign(freshSettings.headerTextAlign || '');
+      setSubtitleFontStyle(freshSettings.subtitleFontStyle || '');
+      setSubtitleFontWeight(freshSettings.subtitleFontWeight || '');
+      setBodyTextAlign(freshSettings.bodyTextAlign || '');
+      setBodyLineHeight(freshSettings.bodyLineHeight || '');
+      setEntrySpacing(freshSettings.entrySpacing || '');
+      setPageMargin(freshSettings.pageMargin || '');
+      setSectionBorderStyle(freshSettings.sectionBorderStyle || '');
+      setPhotoShape(freshSettings.photoShape || '');
+      setPhotoSize(freshSettings.photoSize || '');
+      setPhotoZoom(freshSettings.photoZoom || '');
+      setPhotoPositionX(freshSettings.photoPositionX || '');
+      setPhotoPositionY(freshSettings.photoPositionY || '');
+      setPhotoBorder(freshSettings.photoBorder || '');
+      // Update lastSavedDesign so the save effect doesn't re-trigger from resync
+      const resynced = {
+        fontFamily: freshSettings.fontFamily || 'Calibri',
+        fontSize: freshSettings.fontSize || '11px',
+        primaryColor: freshSettings.primaryColor || '',
+        headerFontSize: freshSettings.headerFontSize || '',
+        headerFontWeight: freshSettings.headerFontWeight || '',
+        headerTextTransform: freshSettings.headerTextTransform || '',
+        headerTextAlign: freshSettings.headerTextAlign || '',
+        subtitleFontStyle: freshSettings.subtitleFontStyle || '',
+        subtitleFontWeight: freshSettings.subtitleFontWeight || '',
+        bodyTextAlign: freshSettings.bodyTextAlign || '',
+        bodyLineHeight: freshSettings.bodyLineHeight || '',
+        entrySpacing: freshSettings.entrySpacing || '',
+        pageMargin: freshSettings.pageMargin || '',
+        sectionBorderStyle: freshSettings.sectionBorderStyle || '',
+        photoShape: freshSettings.photoShape || '',
+        photoSize: freshSettings.photoSize || '',
+        photoZoom: freshSettings.photoZoom || '',
+        photoPositionX: freshSettings.photoPositionX || '',
+        photoPositionY: freshSettings.photoPositionY || '',
+        photoBorder: freshSettings.photoBorder || '',
+      };
+      lastSavedDesign.current = resynced;
+    }
+    lastTemplateId.current = currentCv.templateId;
+  }, [currentCv?.templateId]);
 
   // Track what was last saved so we compare against local state only —
   // NOT against currentCv. This prevents the loop: updateCv → fetchCvById →
@@ -310,11 +365,20 @@ export function LeftPanel({ cvId }: { cvId: string }) {
               <div className="flex items-center space-x-2">
                 <input
                   type="color"
-                  value={primaryColor}
+                  value={primaryColor || '#1f2937'}
                   onChange={e => setPrimaryColor(e.target.value)}
                   className="w-10 h-8 rounded cursor-pointer border border-gray-300"
                 />
-                <span className="text-xs text-gray-500 font-mono">{primaryColor}</span>
+                <span className="text-xs text-gray-500 font-mono">{primaryColor || 'Auto (thème)'}</span>
+                {primaryColor && (
+                  <button
+                    type="button"
+                    onClick={() => setPrimaryColor('')}
+                    className="text-xs text-purple-600 hover:text-purple-800 underline"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
             </div>
 
@@ -479,6 +543,9 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                 <label className="block text-xs text-gray-600 mb-0.5">Zoom</label>
                 <select value={photoZoom} onChange={e => setPhotoZoom(e.target.value)}
                   className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="0.5">Très loin (0.5x)</option>
+                  <option value="0.7">Loin (0.7x)</option>
+                  <option value="0.85">Dézoom (0.85x)</option>
                   <option value="">Normal (1x)</option>
                   <option value="1.15">Léger (1.15x)</option>
                   <option value="1.3">Moyen (1.3x)</option>

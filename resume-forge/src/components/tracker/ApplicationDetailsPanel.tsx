@@ -3,7 +3,7 @@ import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
 import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase, Pencil } from 'lucide-react';
 import { ApplicationTimeline } from './ApplicationTimeline';
-import { confirm } from '@tauri-apps/plugin-dialog';
+import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -67,10 +67,16 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
   const linkedCv = application.cvId ? cvs.find(cv => cv.id === application.cvId) : null;
 
   const handleDelete = async () => {
-    const isConfirmed = await confirm("Voulez-vous vraiment supprimer cette candidature ?", {
-      title: "Confirmation de suppression",
-      kind: "warning",
-    });
+    let isConfirmed = false;
+    try {
+      isConfirmed = await tauriConfirm("Voulez-vous vraiment supprimer cette candidature ?", {
+        title: "Confirmation de suppression",
+        kind: "warning",
+      });
+    } catch {
+      // Fallback to browser confirm if Tauri dialog is unavailable
+      isConfirmed = window.confirm("Voulez-vous vraiment supprimer cette candidature ?");
+    }
 
     if (isConfirmed) {
       try {
@@ -109,7 +115,7 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl z-40 border-l border-gray-200 flex flex-col transform transition-transform duration-300">
+    <div className="fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl z-50 border-l border-gray-200 flex flex-col transform transition-transform duration-300">
       <div className="flex justify-between items-center p-4 border-b">
         <div>
           <h2 className="text-xl font-bold">{application.jobTitle}</h2>
