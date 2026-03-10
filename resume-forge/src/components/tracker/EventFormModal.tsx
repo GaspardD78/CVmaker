@@ -2,22 +2,35 @@ import { useState } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { EventType } from '@/types/application';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X } from 'lucide-react';
+import { X, CalendarPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  isCalendarWorthy,
+  getDefaultDuration,
+  buildEventGoogleCalendarUrl,
+  openInGoogleCalendar,
+} from '@/lib/googleCalendar';
 
 interface EventFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   applicationId: string;
+  applicationContext?: {
+    companyName?: string;
+    jobTitle?: string;
+    location?: string | null;
+  };
 }
 
-export function EventFormModal({ isOpen, onClose, applicationId }: EventFormModalProps) {
+export function EventFormModal({ isOpen, onClose, applicationId, applicationContext }: EventFormModalProps) {
   const { createEvent } = useApplicationStore();
 
   const [eventType, setEventType] = useState<EventType>('note');
   const [eventDate, setEventDate] = useState(new Date().toISOString().substring(0, 16));
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(30);
+  const [addToCalendar, setAddToCalendar] = useState(false);
 
   const getDefaultTitle = (type: EventType) => {
     switch (type) {
@@ -39,6 +52,10 @@ export function EventFormModal({ isOpen, onClose, applicationId }: EventFormModa
     if (!title || title === getDefaultTitle(eventType)) {
       setTitle(getDefaultTitle(newType));
     }
+    setDurationMinutes(getDefaultDuration(newType));
+    if (!isCalendarWorthy(newType)) {
+      setAddToCalendar(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,8 +70,22 @@ export function EventFormModal({ isOpen, onClose, applicationId }: EventFormModa
         description: description || null,
         oldStatus: null,
         newStatus: null,
-        calendarId: null,
+        calendarId: addToCalendar ? 'google' : null,
       });
+
+      if (addToCalendar) {
+        const url = buildEventGoogleCalendarUrl(
+          {
+            title: title || getDefaultTitle(eventType),
+            eventDate: new Date(eventDate).toISOString(),
+            description: description || null,
+            eventType,
+            durationMinutes,
+          },
+          applicationContext
+        );
+        await openInGoogleCalendar(url);
+      }
 
       toast.success("Événement ajouté");
       onClose();
@@ -69,6 +100,8 @@ export function EventFormModal({ isOpen, onClose, applicationId }: EventFormModa
     setEventDate(new Date().toISOString().substring(0, 16));
     setTitle('');
     setDescription('');
+    setDurationMinutes(30);
+    setAddToCalendar(false);
   };
 
   return (
@@ -119,6 +152,24 @@ export function EventFormModal({ isOpen, onClose, applicationId }: EventFormModa
               />
             </div>
 
+            {isCalendarWorthy(eventType) && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Durée</label>
+                <select
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                >
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes</option>
+                  <option value={45}>45 minutes</option>
+                  <option value={60}>1 heure</option>
+                  <option value={90}>1h30</option>
+                  <option value={120}>2 heures</option>
+                </select>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Titre *</label>
               <input
@@ -140,6 +191,21 @@ export function EventFormModal({ isOpen, onClose, applicationId }: EventFormModa
                 placeholder="Détails supplémentaires..."
               />
             </div>
+
+            {isCalendarWorthy(eventType) && (
+              <label className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={addToCalendar}
+                  onChange={(e) => setAddToCalendar(e.target.checked)}
+                  className="w-4 h-4 accent-blue-600"
+                />
+                <span className="flex items-center gap-2 text-sm font-medium text-blue-700">
+                  <CalendarPlus size={16} />
+                  Créer dans Google Calendar
+                </span>
+              </label>
+            )}
 
             <div className="pt-4 flex justify-end gap-3 border-t">
               <Dialog.Close className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
