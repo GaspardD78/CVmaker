@@ -206,7 +206,11 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
       if (block.blockType === 'entry_ref' && block.entryId) {
         const entry = entries.find(e => e.id === block.entryId);
-        if (entry && BADGE_ENTRY_TYPES.includes(entry.entryType)) {
+        // Only badge-ify entries with no description; entries with descriptions
+        // are rendered as full entries so details are not lost
+        const entryDesc = entry ? (block.overrideData?.description ?? entry.description) : null;
+        const isBadgeCandidate = entry && BADGE_ENTRY_TYPES.includes(entry.entryType) && !entryDesc;
+        if (isBadgeCandidate) {
           // Collect consecutive badge entries
           const badgeGroup: CVBlock[] = [block];
           let j = i + 1;
@@ -216,6 +220,8 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             if (next.blockType !== 'entry_ref' || !next.entryId) break;
             const nextEntry = entries.find(e => e.id === next.entryId);
             if (!nextEntry || !BADGE_ENTRY_TYPES.includes(nextEntry.entryType)) break;
+            const nextDesc = next.overrideData?.description ?? nextEntry.description;
+            if (nextDesc) break; // Entry with description breaks the badge group
             badgeGroup.push(next);
             j++;
           }
@@ -265,16 +271,18 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
             return (
               <div
-                className={`${shapeClass} overflow-hidden flex-shrink-0 ${borderClass} ${shadowClass}`}
-                style={{ width: size, height: size, ...borderStyle }}
+                className={`${shapeClass} overflow-hidden flex-shrink-0 ${borderClass} ${shadowClass} bg-gray-100`}
+                style={{ width: size, height: size, ...borderStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <img
                   src={profile.photoPath!}
                   alt="Photo de profil"
-                  className="w-full h-full object-cover"
+                  className={`${zoom < 1 ? '' : 'w-full h-full'} object-cover`}
                   style={{
                     objectPosition: objectPos,
-                    transform: zoom !== 1 ? `scale(${zoom})` : undefined,
+                    ...(zoom < 1
+                      ? { width: `${zoom * 100}%`, height: `${zoom * 100}%`, borderRadius: 'inherit' }
+                      : { transform: zoom !== 1 ? `scale(${zoom})` : undefined }),
                   }}
                 />
               </div>

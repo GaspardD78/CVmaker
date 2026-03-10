@@ -178,9 +178,13 @@ export const useCvStore = create<CVState>((set, get) => ({
         );
       }
       await get().fetchCvs();
+      // Merge updates into currentCv directly instead of re-fetching.
+      // Re-fetching via fetchCvById caused a race condition: when a design save
+      // and a template change were queued concurrently, the design save's
+      // fetchCvById would read stale data and revert the optimistic template update.
       const currentCv = get().currentCv;
       if (currentCv && currentCv.id === id) {
-        await get().fetchCvById(id);
+        set({ currentCv: { ...currentCv, ...updates } });
       }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to update CV' });
