@@ -630,7 +630,7 @@ export function LeftPanel({ cvId }: { cvId: string }) {
             </p>
           </div>
           </div>{/* end scrollable content */}
-        </div>{/* end design panel */}
+        </div>
       )}
 
       <div className="flex-1 overflow-auto bg-gray-50 border rounded-lg p-3 text-sm text-gray-500 shadow-inner custom-scrollbar">
