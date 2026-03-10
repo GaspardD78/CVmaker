@@ -38,11 +38,17 @@ Avant de pouvoir lancer ou compiler ResumeForge, vous devez installer les dépen
 3.  **Dépendances Système OS :**
     *   **Sur Windows :** Installez les *Build Tools for Visual Studio 2022* (incluant le module C++). Tauri recommande d'utiliser le [WebView2 runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (généralement préinstallé sur Windows 10/11).
     *   **Sur macOS :** Xcode Command Line Tools (tapez `xcode-select --install` dans le terminal).
-    *   **Sur Linux (ex: Ubuntu/Debian) :** Exécutez la commande suivante pour installer les bibliothèques GTK et WebKit nécessaires :
+    *   **Sur Linux (ex: Ubuntu/Debian) :** Exécutez le script de setup fourni (il installe les bibliothèques GTK/WebKit et les dépendances Node en une seule commande) :
+        ```bash
+        bash setup-ubuntu.sh
+        ```
+        Ou manuellement :
         ```bash
         sudo apt-get update
         sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+        npm install
         ```
+        > **Note :** Sans ces dépendances, la compilation Rust échoue avec `gdk-sys` introuvable, et l'application ne crée jamais `resumeforge.db`.
 
 ### Installation du projet
 
