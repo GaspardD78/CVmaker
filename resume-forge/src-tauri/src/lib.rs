@@ -8,7 +8,13 @@ pub fn run() {
             description: "create_initial_tables",
             sql: include_str!("../migrations/001_init.sql"),
             kind: MigrationKind::Up,
-        }
+        },
+        Migration {
+            version: 2,
+            description: "create_application_attachments",
+            sql: include_str!("../migrations/002_application_attachments.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
