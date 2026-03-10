@@ -3,6 +3,7 @@ import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
 import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase, Pencil, CalendarPlus } from 'lucide-react';
 import { ApplicationTimeline } from './ApplicationTimeline';
+import { ApplicationAttachments } from './ApplicationAttachments';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -281,6 +282,11 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
             placeholder="Notes personnelles..."
             className="w-full h-32 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
           />
+        </div>
+
+        {/* Pièces jointes */}
+        <div className="border-t pt-6">
+          <ApplicationAttachments applicationId={application.id} />
         </div>
 
         {/* Timeline */}
