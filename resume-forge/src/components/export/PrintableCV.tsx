@@ -126,12 +126,9 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const entrySpacing        = settings.entrySpacing        || '';
 
     // Photo settings
-    const photoShape      = settings.photoShape      || '';
-    const photoSize       = settings.photoSize        || '';
-    const photoZoom       = settings.photoZoom        || '';
-    const photoPositionX  = settings.photoPositionX  || '';
-    const photoPositionY  = settings.photoPositionY  || '';
-    const photoBorder     = settings.photoBorder      || '';
+    const photoShape  = settings.photoShape  || '';
+    const photoSize   = settings.photoSize   || '';
+    const photoBorder = settings.photoBorder || '';
 
     const h3Rules = [
       primaryColor       ? `color: ${primaryColor}; border-color: ${primaryColor};` : '',
@@ -169,26 +166,52 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     if (profile.githubUrl) contactItems.push({ icon: <GitHubIcon />, text: shortenUrl(profile.githubUrl), href: ensureHref(profile.githubUrl) });
     if (profile.portfolioUrl) contactItems.push({ icon: <GlobeIcon />, text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });
 
+    // Parse a description string into badge labels.
+    // Each line starting with "- " or "* " becomes a separate badge.
+    // Free text (no bullets) becomes a single badge label.
+    const parseBadgeLabels = (description: string): string[] => {
+      const lines = description.split('\n').map(l => l.trim()).filter(Boolean);
+      const bulletLines = lines.filter(l => /^[-*]\s/.test(l));
+      if (bulletLines.length > 0) {
+        return bulletLines.map(l => l.replace(/^[-*]\s+/, ''));
+      }
+      // Free text → one badge with the full description
+      return [description.trim()];
+    };
+
     // Group consecutive badge-type entries after a section header
     const renderBadgeGroup = (badgeBlocks: CVBlock[]) => {
       const badgeContainerClass = template.preview.skillBadgeContainerClass || 'flex flex-wrap gap-2 mt-1';
       const badgeClass = template.preview.skillBadgeClass || 'inline-block px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300 rounded';
 
+      const badges: { key: string; label: string }[] = [];
+
+      badgeBlocks.forEach(block => {
+        const entry = entries.find(e => e.id === block.entryId);
+        if (!entry) return;
+        const entryData = { ...entry, ...block.overrideData };
+        const description = entryData.description as string | null;
+
+        if (description) {
+          // Expand description into individual badges
+          const labels = parseBadgeLabels(description);
+          labels.forEach((label, i) => badges.push({ key: `${block.id}-desc-${i}`, label }));
+        } else {
+          // No description: show title (with optional subtitle)
+          const label = entryData.subtitle
+            ? `${entryData.title} — ${entryData.subtitle}`
+            : (entryData.title as string);
+          badges.push({ key: block.id, label });
+        }
+      });
+
       return (
         <div className={badgeContainerClass}>
-          {badgeBlocks.map(block => {
-            const entry = entries.find(e => e.id === block.entryId);
-            if (!entry) return null;
-            const entryData = { ...entry, ...block.overrideData };
-            const label = entryData.subtitle
-              ? `${entryData.title} — ${entryData.subtitle}`
-              : (entryData.title as string);
-            return (
-              <span key={block.id} className={`cv-badge ${badgeClass}`}>
-                {label}
-              </span>
-            );
-          })}
+          {badges.map(({ key, label }) => (
+            <span key={key} className={`cv-badge ${badgeClass}`}>
+              {label}
+            </span>
+          ))}
         </div>
       );
     };
@@ -206,12 +229,9 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
       if (block.blockType === 'entry_ref' && block.entryId) {
         const entry = entries.find(e => e.id === block.entryId);
-        // Only badge-ify entries with no description; entries with descriptions
-        // are rendered as full entries so details are not lost
-        const entryDesc = entry ? (block.overrideData?.description ?? entry.description) : null;
-        const isBadgeCandidate = entry && BADGE_ENTRY_TYPES.includes(entry.entryType) && !entryDesc;
-        if (isBadgeCandidate) {
-          // Collect consecutive badge entries
+        if (entry && BADGE_ENTRY_TYPES.includes(entry.entryType)) {
+          // Collect consecutive badge entries (all skill/language/interest)
+          // Descriptions are expanded to individual badges inside renderBadgeGroup
           const badgeGroup: CVBlock[] = [block];
           let j = i + 1;
           while (j < sortedBlocks.length) {
@@ -220,8 +240,6 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             if (next.blockType !== 'entry_ref' || !next.entryId) break;
             const nextEntry = entries.find(e => e.id === next.entryId);
             if (!nextEntry || !BADGE_ENTRY_TYPES.includes(nextEntry.entryType)) break;
-            const nextDesc = next.overrideData?.description ?? nextEntry.description;
-            if (nextDesc) break; // Entry with description breaks the badge group
             badgeGroup.push(next);
             j++;
           }
@@ -251,8 +269,6 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
           {hasPhoto && (() => {
             const size = photoSize || '96px';
             const shapeClass = photoShape || 'rounded-full';
-            const objectPos = `${photoPositionX || 'center'} ${photoPositionY || 'center'}`;
-            const zoom = photoZoom ? parseFloat(photoZoom) : 1;
 
             const borderStyle: React.CSSProperties = {};
             let borderClass = 'border-2 border-gray-200';
@@ -271,19 +287,13 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
             return (
               <div
-                className={`${shapeClass} overflow-hidden flex-shrink-0 ${borderClass} ${shadowClass} bg-gray-100`}
-                style={{ width: size, height: size, ...borderStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                className={`${shapeClass} overflow-hidden flex-shrink-0 ${borderClass} ${shadowClass}`}
+                style={{ width: size, height: size, ...borderStyle }}
               >
                 <img
                   src={profile.photoPath!}
                   alt="Photo de profil"
-                  className={`${zoom < 1 ? '' : 'w-full h-full'} object-cover`}
-                  style={{
-                    objectPosition: objectPos,
-                    ...(zoom < 1
-                      ? { width: `${zoom * 100}%`, height: `${zoom * 100}%`, borderRadius: 'inherit' }
-                      : { transform: zoom !== 1 ? `scale(${zoom})` : undefined }),
-                  }}
+                  className="w-full h-full object-cover"
                 />
               </div>
             );

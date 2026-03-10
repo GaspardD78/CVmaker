@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirm } from '@tauri-apps/plugin-dialog';
+import { PhotoCropModal } from './PhotoCropModal';
 
 function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
   const [selectedType, setSelectedType] = useState(entryToEdit?.entryType || (defaultTab !== 'all' ? defaultTab : 'experience'));
@@ -131,30 +132,31 @@ export function ProfilePage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isAddingEntry, setIsAddingEntry] = useState(false);
 
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const img = new Image();
+    // Reset the input so the same file can be re-selected after cancel
+    e.target.value = '';
     const objectUrl = URL.createObjectURL(file);
-    img.onload = async () => {
-      URL.revokeObjectURL(objectUrl);
-      // Resize to max 300×300 and compress to JPEG 75% to keep DB payload small
-      const maxSize = 300;
-      const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const base64 = canvas.toDataURL('image/jpeg', 0.75);
-      try {
-        await updateProfile({ photoPath: base64 });
-        toast.success('Photo de profil mise à jour');
-      } catch {
-        toast.error("Erreur lors de l'enregistrement de la photo");
-      }
-    };
-    img.src = objectUrl;
+    setCropImageSrc(objectUrl);
+  };
+
+  const handleCropConfirm = async (base64: string) => {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
+    try {
+      await updateProfile({ photoPath: base64 });
+      toast.success('Photo de profil mise à jour');
+    } catch {
+      toast.error("Erreur lors de l'enregistrement de la photo");
+    }
+  };
+
+  const handleCropCancel = () => {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
   };
 
   const handleRemovePhoto = async () => {
@@ -599,6 +601,14 @@ export function ProfilePage() {
           </ul>
         )}
       </section>
+
+      {cropImageSrc && (
+        <PhotoCropModal
+          imageSrc={cropImageSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   );
 }

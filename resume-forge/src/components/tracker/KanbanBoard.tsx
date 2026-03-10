@@ -17,8 +17,6 @@ import { useApplicationStore } from '@/stores/applicationStore';
 import { Application, ApplicationStatus, ApplicationSource } from '@/types/application';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
-import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
-import { ApplicationFormModal } from './ApplicationFormModal';
 import { toast } from 'sonner';
 
 export const KANBAN_COLUMNS = [
@@ -33,13 +31,12 @@ export const KANBAN_COLUMNS = [
 interface KanbanBoardProps {
   searchTerm?: string;
   sourceFilter?: ApplicationSource | 'all';
+  onCardClick?: (app: Application) => void;
 }
 
-export function KanbanBoard({ searchTerm = '', sourceFilter = 'all' }: KanbanBoardProps) {
+export function KanbanBoard({ searchTerm = '', sourceFilter = 'all', onCardClick }: KanbanBoardProps) {
   const { applications, updateApplication, createEvent } = useApplicationStore();
   const [activeApplication, setActiveApplication] = useState<Application | null>(null);
-  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
-  const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -125,7 +122,7 @@ export function KanbanBoard({ searchTerm = '', sourceFilter = 'all' }: KanbanBoa
   };
 
   const handleCardClick = (app: Application) => {
-    setSelectedApplicationId(app.id);
+    onCardClick?.(app);
   };
 
   if (applications.length === 0) {
@@ -143,55 +140,36 @@ export function KanbanBoard({ searchTerm = '', sourceFilter = 'all' }: KanbanBoa
   }
 
   return (
-    <>
-      <div className="flex h-full gap-6 w-max pb-4 px-2">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          {KANBAN_COLUMNS.map((col) => (
-            <KanbanColumn
-              key={col.id}
-              id={col.id}
-              title={col.title}
-              applications={applicationsByColumn[col.id] || []}
-              onCardClick={handleCardClick}
-            />
-          ))}
+    <div className="flex h-full gap-6 w-max pb-4 px-2">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        {KANBAN_COLUMNS.map((col) => (
+          <KanbanColumn
+            key={col.id}
+            id={col.id}
+            title={col.title}
+            applications={applicationsByColumn[col.id] || []}
+            onCardClick={handleCardClick}
+          />
+        ))}
 
-          <DragOverlay dropAnimation={{
-            sideEffects: defaultDropAnimationSideEffects({
-              styles: {
-                active: { opacity: '0.4' },
-              },
-            }),
-          }}>
-            {activeApplication ? (
-              <KanbanCard application={activeApplication} onClick={() => {}} />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      </div>
-
-      {selectedApplicationId && (
-        <ApplicationDetailsPanel
-          applicationId={selectedApplicationId}
-          onClose={() => {
-            setSelectedApplicationId(null);
-            setEditingApplicationId(null);
-          }}
-          onEdit={() => setEditingApplicationId(selectedApplicationId)}
-        />
-      )}
-
-      <ApplicationFormModal
-        isOpen={editingApplicationId !== null}
-        onClose={() => setEditingApplicationId(null)}
-        application={applications.find(a => a.id === editingApplicationId)}
-      />
-    </>
+        <DragOverlay dropAnimation={{
+          sideEffects: defaultDropAnimationSideEffects({
+            styles: {
+              active: { opacity: '0.4' },
+            },
+          }),
+        }}>
+          {activeApplication ? (
+            <KanbanCard application={activeApplication} onClick={() => {}} />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }
