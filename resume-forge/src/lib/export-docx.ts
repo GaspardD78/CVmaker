@@ -19,6 +19,42 @@ export async function generateDocxBlob(
   entries: MasterEntry[],
   template: CVTemplate
 ): Promise<Blob> {
+  // Apply cv.settings overrides on top of template defaults
+  const cvSettings = (cv.settings || {}) as Record<string, string>;
+
+  const fontFamily = cvSettings.fontFamily || '';
+  const effectiveBodyFont = fontFamily || template.docx.fonts.body;
+  const effectiveHeadingFont = fontFamily || template.docx.fonts.heading;
+
+  const fontSizeMap: Record<string, number> = { '10px': 20, '11px': 22, '12px': 24 };
+  const effectiveBodySize = fontSizeMap[cvSettings.fontSize] ?? template.docx.bodySize;
+  const headingOffset = template.docx.headingSize - template.docx.bodySize;
+  const effectiveHeadingSize = effectiveBodySize + headingOffset;
+
+  const pageMarginMap: Record<string, { top: number; right: number; bottom: number; left: number }> = {
+    '24px 28px': { top: 567,  right: 567,  bottom: 567,  left: 567  },
+    '32px 36px': { top: 720,  right: 720,  bottom: 720,  left: 720  },
+    '40px 48px': { top: 1080, right: 1080, bottom: 1080, left: 1080 },
+    '48px 56px': { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+    '56px 64px': { top: 1800, right: 1800, bottom: 1800, left: 1800 },
+  };
+  const effectiveMargins =
+    (cvSettings.pageMargin && pageMarginMap[cvSettings.pageMargin])
+      ? pageMarginMap[cvSettings.pageMargin]
+      : template.docx.margins;
+
+  // Build an effective template so all helpers below use consistent values
+  const effectiveTemplate: CVTemplate = {
+    ...template,
+    docx: {
+      ...template.docx,
+      fonts: { heading: effectiveHeadingFont, body: effectiveBodyFont },
+      bodySize: effectiveBodySize,
+      headingSize: effectiveHeadingSize,
+      margins: effectiveMargins,
+    },
+  };
+
   const sectionsChildren: Paragraph[] = [];
 
   // 1. Identity / Header (Linear approach for ATS)
@@ -43,12 +79,12 @@ export async function generateDocxBlob(
         children: [
           new TextRun({
             text: contactInfo,
-            size: template.docx.bodySize,
-            font: template.docx.fonts.body,
+            size: effectiveTemplate.docx.bodySize,
+            font: effectiveTemplate.docx.fonts.body,
           }),
         ],
         alignment: AlignmentType.CENTER,
-        spacing: { after: 200, line: template.docx.lineSpacing },
+        spacing: { after: 200, line: effectiveTemplate.docx.lineSpacing },
       })
     );
   } else {
@@ -77,11 +113,11 @@ export async function generateDocxBlob(
         children: [
           new TextRun({
             text: summary,
-            size: template.docx.bodySize,
-            font: template.docx.fonts.body,
+            size: effectiveTemplate.docx.bodySize,
+            font: effectiveTemplate.docx.fonts.body,
           }),
         ],
-        spacing: { after: template.docx.sectionSpacing, line: template.docx.lineSpacing },
+        spacing: { after: effectiveTemplate.docx.sectionSpacing, line: effectiveTemplate.docx.lineSpacing },
       })
     );
   }
@@ -126,7 +162,7 @@ export async function generateDocxBlob(
         new Paragraph({
           text: (block.sectionName || '').toUpperCase(),
           heading: HeadingLevel.HEADING_2,
-          spacing: { before: template.docx.sectionSpacing, after: 100 },
+          spacing: { before: effectiveTemplate.docx.sectionSpacing, after: 100 },
         })
       );
     } else if (block.blockType === 'custom_text' && block.customContent) {
@@ -138,8 +174,8 @@ export async function generateDocxBlob(
 
         sectionsChildren.push(
           new Paragraph({
-            children: parseMarkdownText(content, template),
-            spacing: { after: 50, line: template.docx.lineSpacing },
+            children: parseMarkdownText(content, effectiveTemplate),
+            spacing: { after: 50, line: effectiveTemplate.docx.lineSpacing },
             numbering: isBullet ? { reference: "default-bullet", level: 0 } : undefined,
           })
         );
@@ -170,8 +206,8 @@ export async function generateDocxBlob(
           new TextRun({
             text: titleText,
             bold: true,
-            size: template.docx.bodySize,
-            font: template.docx.fonts.body,
+            size: effectiveTemplate.docx.bodySize,
+            font: effectiveTemplate.docx.fonts.body,
           })
         );
       }
@@ -181,8 +217,8 @@ export async function generateDocxBlob(
           new TextRun({
             text: subtitleText,
             italics: true,
-            size: template.docx.bodySize,
-            font: template.docx.fonts.body,
+            size: effectiveTemplate.docx.bodySize,
+            font: effectiveTemplate.docx.fonts.body,
           })
         );
       }
@@ -191,8 +227,8 @@ export async function generateDocxBlob(
         textRuns.push(
           new TextRun({
             text: `  (${dateText})`,
-            size: template.docx.bodySize,
-            font: template.docx.fonts.body,
+            size: effectiveTemplate.docx.bodySize,
+            font: effectiveTemplate.docx.fonts.body,
             color: '666666',
           })
         );
@@ -220,8 +256,8 @@ export async function generateDocxBlob(
 
             sectionsChildren.push(
               new Paragraph({
-                children: parseMarkdownText(content, template),
-                spacing: { after: 50, line: template.docx.lineSpacing },
+                children: parseMarkdownText(content, effectiveTemplate),
+                spacing: { after: 50, line: effectiveTemplate.docx.lineSpacing },
                 numbering: isBullet ? { reference: "default-bullet", level: 0 } : undefined,
               })
             );
@@ -254,11 +290,11 @@ export async function generateDocxBlob(
       default: {
         document: {
           run: {
-            font: template.docx.fonts.body,
-            size: template.docx.bodySize,
+            font: effectiveTemplate.docx.fonts.body,
+            size: effectiveTemplate.docx.bodySize,
           },
           paragraph: {
-            spacing: { line: template.docx.lineSpacing }
+            spacing: { line: effectiveTemplate.docx.lineSpacing }
           }
         },
       },
@@ -270,8 +306,8 @@ export async function generateDocxBlob(
           next: 'Normal',
           quickFormat: true,
           run: {
-            font: template.docx.fonts.heading,
-            size: template.docx.headingSize + 4,
+            font: effectiveTemplate.docx.fonts.heading,
+            size: effectiveTemplate.docx.headingSize + 4,
             bold: true,
           },
           paragraph: {
@@ -285,8 +321,8 @@ export async function generateDocxBlob(
           next: 'Normal',
           quickFormat: true,
           run: {
-            font: template.docx.fonts.heading,
-            size: template.docx.headingSize,
+            font: effectiveTemplate.docx.fonts.heading,
+            size: effectiveTemplate.docx.headingSize,
             bold: true,
           },
           paragraph: {
@@ -303,10 +339,10 @@ export async function generateDocxBlob(
         properties: {
           page: {
             size: {
-              width: template.docx.pageSize === 'A4' ? 11906 : 12240, // A4 or Letter
-              height: template.docx.pageSize === 'A4' ? 16838 : 15840,
+              width: effectiveTemplate.docx.pageSize === 'A4' ? 11906 : 12240, // A4 or Letter
+              height: effectiveTemplate.docx.pageSize === 'A4' ? 16838 : 15840,
             },
-            margin: template.docx.margins,
+            margin: effectiveTemplate.docx.margins,
           },
         },
         children: sectionsChildren,
