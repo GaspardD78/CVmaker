@@ -292,6 +292,7 @@ export async function generateDocxBlob(
           run: {
             font: effectiveTemplate.docx.fonts.body,
             size: effectiveTemplate.docx.bodySize,
+            language: { value: 'fr-FR' },
           },
           paragraph: {
             spacing: { line: effectiveTemplate.docx.lineSpacing }
