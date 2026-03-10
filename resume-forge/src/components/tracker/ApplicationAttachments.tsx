@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { AttachmentLabel } from '@/types/application';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { open as openInShell } from '@tauri-apps/plugin-shell';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
-import { Paperclip, Plus, ExternalLink, Trash2, FileText, FileImage, FileArchive, File } from 'lucide-react';
+import { Paperclip, Plus, ExternalLink, Trash2, FileText, FileImage, FileArchive, File, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ApplicationAttachmentsProps {
@@ -51,9 +51,14 @@ function formatFileSize(bytes: number | null): string {
 
 export function ApplicationAttachments({ applicationId }: ApplicationAttachmentsProps) {
   const { attachments, fetchAttachments, addAttachment, deleteAttachment } = useApplicationStore();
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAttachments(applicationId);
+    setLoadError(null);
+    fetchAttachments(applicationId).catch((err) => {
+      const msg = typeof err === 'string' ? err : (err instanceof Error ? err.message : String(err));
+      setLoadError(msg);
+    });
   }, [applicationId, fetchAttachments]);
 
   const handleAddFile = async () => {
@@ -142,6 +147,23 @@ export function ApplicationAttachments({ applicationId }: ApplicationAttachments
       toast.error('Erreur lors de la mise à jour');
     }
   };
+
+  if (loadError) {
+    return (
+      <div>
+        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3">
+          <Paperclip size={16} /> Documents joints
+        </h3>
+        <div className="flex items-start gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-100">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Impossible de charger les pièces jointes</p>
+            <p className="text-xs text-red-500 mt-0.5 font-mono break-all">{loadError}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

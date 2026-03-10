@@ -147,52 +147,42 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
     }
   },
 
+  // Attachment operations throw errors instead of setting global `error`,
+  // so the Kanban board is not replaced by an error screen.
   fetchAttachments: async (applicationId) => {
-    try {
-      const db = await getDb();
-      const raw = await db.select<Record<string, unknown>[]>(
-        'SELECT * FROM application_attachments WHERE application_id = ?1 ORDER BY created_at DESC',
-        [applicationId]
-      );
-      const attachments = raw.map(a => keysToCamelCase<ApplicationAttachment>(a));
-      set({ attachments });
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to fetch attachments' });
-    }
+    const db = await getDb();
+    const raw = await db.select<Record<string, unknown>[]>(
+      'SELECT * FROM application_attachments WHERE application_id = ?1 ORDER BY created_at DESC',
+      [applicationId]
+    );
+    const attachments = raw.map(a => keysToCamelCase<ApplicationAttachment>(a));
+    set({ attachments });
   },
 
   addAttachment: async (attachment) => {
-    try {
-      const db = await getDb();
-      const snakeAttachment = filterAllowedColumns(
-        'application_attachments',
-        keysToSnakeCase<Record<string, unknown>>(attachment)
-      );
-      const keys = Object.keys(snakeAttachment);
-      const values = [...Object.values(snakeAttachment)];
+    const db = await getDb();
+    const snakeAttachment = filterAllowedColumns(
+      'application_attachments',
+      keysToSnakeCase<Record<string, unknown>>(attachment)
+    );
+    const keys = Object.keys(snakeAttachment);
+    const values = [...Object.values(snakeAttachment)];
 
-      const columns = keys.join(', ');
-      const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
+    const columns = keys.join(', ');
+    const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
-      await db.execute(
-        `INSERT INTO application_attachments (${columns}) VALUES (${placeholders})`,
-        values
-      );
-      await get().fetchAttachments(attachment.applicationId);
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to add attachment' });
-    }
+    await db.execute(
+      `INSERT INTO application_attachments (${columns}) VALUES (${placeholders})`,
+      values
+    );
+    await get().fetchAttachments(attachment.applicationId);
   },
 
   deleteAttachment: async (id) => {
-    try {
-      const db = await getDb();
-      await db.execute('DELETE FROM application_attachments WHERE id = ?1', [id]);
-      set(state => ({
-        attachments: state.attachments.filter(a => a.id !== id)
-      }));
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to delete attachment' });
-    }
+    const db = await getDb();
+    await db.execute('DELETE FROM application_attachments WHERE id = ?1', [id]);
+    set(state => ({
+      attachments: state.attachments.filter(a => a.id !== id)
+    }));
   },
 }));
