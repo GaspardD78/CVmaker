@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { useCvStore } from '@/stores/cvStore';
+import { toast } from 'sonner';
 import {
   DndContext,
   closestCenter,
@@ -231,6 +233,47 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     }
   };
 
+  const handleFitToPage = () => {
+    const A4_PX = Math.round(297 * 96 / 25.4); // 297 mm → px at 96 dpi
+    const cvEl = () => document.getElementById('printable-cv');
+    const fits = () => (cvEl()?.scrollHeight ?? 0) <= A4_PX;
+
+    if (fits()) {
+      toast.info('Le CV tient déjà sur une page !');
+      return;
+    }
+
+    // Each array: candidates ordered from LARGEST → SMALLEST value.
+    // We iterate forward to find the smallest reduction that still fits.
+    const tryReduce = (
+      candidates: string[],
+      current: string,
+      setter: React.Dispatch<React.SetStateAction<string>>
+    ): boolean => {
+      const idx = candidates.indexOf(current);
+      // If current not found, try all (idx=-1 → start=0)
+      // If found, start from the next smaller value (idx+1)
+      const startIdx = idx < 0 ? 0 : idx + 1;
+      for (let i = startIdx; i < candidates.length; i++) {
+        flushSync(() => setter(candidates[i]));
+        if (fits()) return true;
+      }
+      return false;
+    };
+
+    const spacingCandidates = ['32px', '24px', '16px', '8px', '4px'];
+    const lineHCandidates   = ['1.8', '1.6', '1.4', '1.2'];
+    const marginCandidates  = ['56px 64px', '48px 56px', '40px 48px', '32px 36px', '24px 28px'];
+    const fontCandidates    = ['12px', '11px', '10px'];
+
+    if (tryReduce(spacingCandidates, entrySpacing, setEntrySpacing)) { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(lineHCandidates,   bodyLineHeight, setBodyLineHeight)) { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(marginCandidates,  pageMargin, setPageMargin)) { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(fontCandidates,    fontSize, setFontSize)) { toast.success('CV ajusté à 1 page !'); return; }
+
+    toast.warning('Le CV reste trop long, même avec les réglages minimaux.');
+  };
+
   const handleAddCustomText = async () => {
     const maxOrder = currentCvBlocks.length > 0
       ? Math.max(...currentCvBlocks.map(b => b.sortOrder))
@@ -331,8 +374,22 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       )}
 
       {isDesignOpen && (
-        <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg shadow-sm text-sm">
-          <h3 className="font-semibold text-purple-900 mb-2">Design du CV</h3>
+        <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg shadow-sm text-sm flex flex-col min-h-0 flex-shrink-0 max-h-[60vh]">
+          <div className="p-3 pb-2 border-b border-purple-200 flex-shrink-0">
+            <h3 className="font-semibold text-purple-900 mb-2">Design du CV</h3>
+            {/* ✨ Magic fit-to-page button */}
+            <button
+              type="button"
+              onClick={handleFitToPage}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-md transition-colors shadow-sm"
+            >
+              <span>✨</span> Ajuster à 1 page
+            </button>
+            <p className="text-[10px] text-gray-400 mt-1.5 text-center leading-tight">
+              Réduit automatiquement espacements, marges et police pour tenir sur une page, et sauvegarde les nouveaux réglages.
+            </p>
+          </div>
+          <div className="p-3 overflow-y-auto flex-1">
           <div className="space-y-2">
             <div>
               <label className="block text-xs text-gray-700 mb-1">Police</label>
@@ -552,7 +609,8 @@ export function LeftPanel({ cvId }: { cvId: string }) {
               </div>
             </div>
           </div>
-        </div>
+          </div>{/* end scrollable content */}
+        </div>{/* end design panel */}
       )}
 
       <div className="flex-1 overflow-auto bg-gray-50 border rounded-lg p-3 text-sm text-gray-500 shadow-inner custom-scrollbar">
