@@ -130,6 +130,49 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const photoSize   = settings.photoSize   || '';
     const photoBorder = settings.photoBorder || '';
 
+    // Header style
+    const headerStyle = settings.headerStyle || '';
+    const isBanner = ['accent-banner', 'dark-banner', 'gradient-banner'].includes(headerStyle);
+
+    // Compute effective container padding for full-width banner bleed (negative margin trick)
+    const getBannerPad = () => {
+      if (pageMargin) {
+        const parts = pageMargin.trim().split(/\s+/);
+        return { v: parts[0], h: parts[1] || parts[0] };
+      }
+      // Extract from template containerClass: 'p-10' → 40px, 'p-12' → 48px
+      const m = template.preview.containerClass.match(/\bp-(\d+)\b/);
+      const px = m ? parseInt(m[1]) * 4 : 40;
+      return { v: `${px}px`, h: `${px}px` };
+    };
+
+    const bannerColor = primaryColor || '#1f2937';
+    const headerBlockStyle: React.CSSProperties = (() => {
+      if (isBanner) {
+        const { v, h } = getBannerPad();
+        return {
+          marginLeft: `-${h}`, marginRight: `-${h}`,
+          marginTop: `-${v}`,
+          paddingLeft: h, paddingRight: h,
+          paddingTop: v, paddingBottom: v,
+          marginBottom: '1.5rem',
+          ...(headerStyle === 'gradient-banner'
+            ? { background: `linear-gradient(135deg, ${bannerColor} 0%, ${bannerColor}bb 100%)` }
+            : { backgroundColor: headerStyle === 'dark-banner' ? '#1f2937' : bannerColor }),
+        };
+      }
+      if (headerStyle === 'accent-light') {
+        return {
+          backgroundColor: primaryColor ? `${primaryColor}18` : '#f3f4f6',
+          padding: '14px 18px',
+          borderRadius: '6px',
+          borderLeft: `3px solid ${primaryColor || '#9ca3af'}`,
+          marginBottom: '1.25rem',
+        };
+      }
+      return {};
+    })();
+
     const h3Rules = [
       primaryColor       ? `color: ${primaryColor}; border-color: ${primaryColor};` : '',
       headerFontSize     ? `font-size: ${headerFontSize};`                          : '',
@@ -155,6 +198,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       `@media print { #printable-cv { padding: ${pageMargin || '28px 32px'} !important; } }`,
       primaryColor       ? `#printable-cv .cv-badge { border-color: ${primaryColor}30; background-color: ${primaryColor}10; color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv { border-color: ${primaryColor}; }` : '',
+      // Banner / header background: force all text inside to white
+      isBanner ? `#printable-cv .cv-header-block, #printable-cv .cv-header-block * { color: white !important; }` : '',
+      // Keep badges readable inside banners
+      isBanner ? `#printable-cv .cv-header-block .cv-badge { background-color: rgba(255,255,255,0.15) !important; border-color: rgba(255,255,255,0.4) !important; color: white !important; }` : '',
     ].filter(Boolean).join('\n');
 
     const hasPhoto = Boolean(profile.photoPath);
@@ -267,7 +314,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         )}
 
         {/* Header Section */}
-        <div className={`mb-4 text-black dark:text-black ${hasPhoto ? 'flex items-center gap-6' : 'text-center'}`}>
+        <div
+          className={`cv-header-block ${hasPhoto ? 'flex items-center gap-6' : 'text-center'} ${!isBanner && headerStyle !== 'accent-light' ? 'mb-4 text-black dark:text-black' : ''}`}
+          style={Object.keys(headerBlockStyle).length > 0 ? headerBlockStyle : undefined}
+        >
           {hasPhoto && (() => {
             const size = photoSize || '96px';
             const shapeClass = photoShape || 'rounded-full';
@@ -331,8 +381,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
           </div>
         </div>
 
-        {/* Separator */}
-        <hr className="border-t border-gray-300 mb-4 print:border-gray-400" style={primaryColor ? { borderColor: primaryColor } : undefined} />
+        {/* Separator — hidden for full-width banners (banner's own bottom provides the visual break) */}
+        {!isBanner && (
+          <hr className="border-t border-gray-300 mb-4 print:border-gray-400" style={primaryColor ? { borderColor: primaryColor } : undefined} />
+        )}
 
         {summary && (
           <div className="mb-5">
