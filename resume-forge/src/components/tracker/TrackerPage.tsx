@@ -2,18 +2,30 @@ import { useEffect, useState } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { KanbanBoard } from './KanbanBoard';
 import { ApplicationFormModal } from './ApplicationFormModal';
+import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
 import { Search, Filter } from 'lucide-react';
-import { ApplicationSource } from '@/types/application';
+import { Application, ApplicationSource } from '@/types/application';
 
 export function TrackerPage() {
-  const { fetchApplications, isLoading, error } = useApplicationStore();
+  const { applications, fetchApplications, isLoading, error } = useApplicationStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sourceFilter, setSourceFilter] = useState<ApplicationSource | 'all'>('all');
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [editingApplication, setEditingApplication] = useState<Application | null>(null);
 
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
+
+  // Keep selectedApplication in sync with the store when it changes (e.g. after edit)
+  useEffect(() => {
+    if (selectedApplication) {
+      const fresh = applications.find(a => a.id === selectedApplication.id);
+      if (!fresh) setSelectedApplication(null); // deleted
+      else if (fresh !== selectedApplication) setSelectedApplication(fresh);
+    }
+  }, [applications]);
 
   if (isLoading) {
     return (
@@ -78,12 +90,38 @@ export function TrackerPage() {
       </div>
 
       <div className="flex-1 overflow-x-auto p-6 bg-gray-50">
-        <KanbanBoard searchTerm={searchTerm} sourceFilter={sourceFilter} />
+        <KanbanBoard
+          searchTerm={searchTerm}
+          sourceFilter={sourceFilter}
+          onCardClick={(app) => setSelectedApplication(app)}
+        />
       </div>
 
+      {/* Details panel rendered at TrackerPage level to avoid overflow clipping */}
+      {selectedApplication && (
+        <ApplicationDetailsPanel
+          applicationId={selectedApplication.id}
+          onClose={() => {
+            setSelectedApplication(null);
+            setEditingApplication(null);
+          }}
+          onEdit={() => {
+            setEditingApplication(selectedApplication);
+          }}
+        />
+      )}
+
+      {/* New application modal */}
       <ApplicationFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+      />
+
+      {/* Edit application modal */}
+      <ApplicationFormModal
+        isOpen={editingApplication !== null}
+        onClose={() => setEditingApplication(null)}
+        application={editingApplication ?? undefined}
       />
     </div>
   );

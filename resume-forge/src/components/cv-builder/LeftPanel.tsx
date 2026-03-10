@@ -540,20 +540,6 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Zoom</label>
-                <select value={photoZoom} onChange={e => setPhotoZoom(e.target.value)}
-                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
-                  <option value="0.5">Très loin (0.5x)</option>
-                  <option value="0.7">Loin (0.7x)</option>
-                  <option value="0.85">Dézoom (0.85x)</option>
-                  <option value="">Normal (1x)</option>
-                  <option value="1.15">Léger (1.15x)</option>
-                  <option value="1.3">Moyen (1.3x)</option>
-                  <option value="1.5">Fort (1.5x)</option>
-                  <option value="2">Très fort (2x)</option>
-                </select>
-              </div>
-              <div>
                 <label className="block text-xs text-gray-600 mb-0.5">Bordure</label>
                 <select value={photoBorder} onChange={e => setPhotoBorder(e.target.value)}
                   className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
@@ -562,24 +548,6 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                   <option value="accent">Couleur d'accent</option>
                   <option value="thick">Épaisse grise</option>
                   <option value="shadow">Ombre portée</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Cadrage H</label>
-                <select value={photoPositionX} onChange={e => setPhotoPositionX(e.target.value)}
-                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
-                  <option value="">Centre</option>
-                  <option value="left">Gauche</option>
-                  <option value="right">Droite</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Cadrage V</label>
-                <select value={photoPositionY} onChange={e => setPhotoPositionY(e.target.value)}
-                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
-                  <option value="">Centre</option>
-                  <option value="top">Haut</option>
-                  <option value="bottom">Bas</option>
                 </select>
               </div>
             </div>
