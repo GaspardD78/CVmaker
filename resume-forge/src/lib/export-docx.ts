@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, LevelFormat } from 'docx';
 import { CVDocument, CVBlock } from '../types/cv';
-import { MasterEntry, Profile } from '../types/profile';
+import { MasterEntry, Profile, EntryType } from '../types/profile';
 import { CVTemplate } from '../types/template';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
@@ -188,79 +188,110 @@ export async function generateDocxBlob(
       const overrideData = block.overrideData || {};
       const entryData = { ...entry, ...overrideData };
 
-      // Entry Title & Date
-      const dateText = entryData.startDate
-        ? `${formatDate(entryData.startDate as string)} - ${entryData.isCurrent ? 'Présent' : formatDate(entryData.endDate as string)}`
-        : '';
+      const BADGE_TYPES: EntryType[] = ['skill', 'language', 'interest'];
 
-      const titleText = (entryData.title as string) || '';
-      let subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
-      if (entryData.location) {
-        subtitleText += subtitleText ? ` — ${entryData.location}` : ` | ${entryData.location}`;
-      }
-
-      const textRuns = [];
-
-      if (titleText) {
-        textRuns.push(
-          new TextRun({
-            text: titleText,
-            bold: true,
-            size: effectiveTemplate.docx.bodySize,
-            font: effectiveTemplate.docx.fonts.body,
-          })
-        );
-      }
-
-      if (subtitleText) {
-        textRuns.push(
-          new TextRun({
-            text: subtitleText,
-            italics: true,
-            size: effectiveTemplate.docx.bodySize,
-            font: effectiveTemplate.docx.fonts.body,
-          })
-        );
-      }
-
-      if (dateText) {
-        textRuns.push(
-          new TextRun({
-            text: `  (${dateText})`,
-            size: effectiveTemplate.docx.bodySize,
-            font: effectiveTemplate.docx.fonts.body,
-            color: '666666',
-          })
-        );
-      }
-
-      if (textRuns.length === 0) {
-        textRuns.push(new TextRun({ text: "" }));
-      }
-
-      sectionsChildren.push(
-        new Paragraph({
-          children: textRuns,
-          spacing: { before: 100, after: 50 },
-        })
-      );
-
-      // Entry Description (handling newlines and bullets)
-      if (entryData.description && typeof entryData.description === 'string') {
-        const lines = entryData.description.split('\n');
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine) {
-            const isBullet = trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ');
-            const content = isBullet ? trimmedLine.substring(2).trim() : trimmedLine;
-
+      if (BADGE_TYPES.includes(entry.entryType)) {
+        // Skills/languages/interests: render as flat bullet points without the entry title,
+        // mirroring the badge display in the app preview.
+        if (entryData.description && typeof entryData.description === 'string') {
+          const lines = entryData.description.split('\n');
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+            const content = /^[-*]\s/.test(trimmedLine) ? trimmedLine.substring(2).trim() : trimmedLine;
             sectionsChildren.push(
               new Paragraph({
                 children: parseMarkdownText(content, effectiveTemplate),
-                spacing: { after: 50, line: effectiveTemplate.docx.lineSpacing },
-                numbering: isBullet ? { reference: "default-bullet", level: 0 } : undefined,
+                spacing: { after: 40, line: effectiveTemplate.docx.lineSpacing },
+                numbering: { reference: "default-bullet", level: 0 },
               })
             );
+          }
+        } else if (entryData.title) {
+          // No description: the title itself is the badge label
+          sectionsChildren.push(
+            new Paragraph({
+              children: [new TextRun({ text: entryData.title as string, size: effectiveTemplate.docx.bodySize, font: effectiveTemplate.docx.fonts.body })],
+              spacing: { after: 40, line: effectiveTemplate.docx.lineSpacing },
+              numbering: { reference: "default-bullet", level: 0 },
+            })
+          );
+        }
+      } else {
+        // Regular entries (experience, education, certification, project, volunteer)
+        const dateText = entryData.startDate
+          ? `${formatDate(entryData.startDate as string)} - ${entryData.isCurrent ? 'Présent' : formatDate(entryData.endDate as string)}`
+          : '';
+
+        const titleText = (entryData.title as string) || '';
+        let subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
+        if (entryData.location) {
+          subtitleText += subtitleText ? ` — ${entryData.location}` : ` | ${entryData.location}`;
+        }
+
+        const textRuns = [];
+
+        if (titleText) {
+          textRuns.push(
+            new TextRun({
+              text: titleText,
+              bold: true,
+              size: effectiveTemplate.docx.bodySize,
+              font: effectiveTemplate.docx.fonts.body,
+            })
+          );
+        }
+
+        if (subtitleText) {
+          textRuns.push(
+            new TextRun({
+              text: subtitleText,
+              italics: true,
+              size: effectiveTemplate.docx.bodySize,
+              font: effectiveTemplate.docx.fonts.body,
+            })
+          );
+        }
+
+        if (dateText) {
+          textRuns.push(
+            new TextRun({
+              text: `  (${dateText})`,
+              size: effectiveTemplate.docx.bodySize,
+              font: effectiveTemplate.docx.fonts.body,
+              color: '666666',
+            })
+          );
+        }
+
+        if (textRuns.length === 0) {
+          textRuns.push(new TextRun({ text: "" }));
+        }
+
+        sectionsChildren.push(
+          new Paragraph({
+            children: textRuns,
+            spacing: { before: 100, after: 50 },
+          })
+        );
+
+        // Entry Description (handling newlines and bullets)
+        if (entryData.description && typeof entryData.description === 'string') {
+          const lines = entryData.description.split('\n');
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine) {
+              const isBullet = trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ');
+              const content = isBullet ? trimmedLine.substring(2).trim() : trimmedLine;
+
+              sectionsChildren.push(
+                new Paragraph({
+                  children: parseMarkdownText(content, effectiveTemplate),
+                  spacing: { after: 50, line: effectiveTemplate.docx.lineSpacing },
+                  numbering: isBullet ? { reference: "default-bullet", level: 0 } : undefined,
+                })
+              );
+            }
           }
         }
       }
