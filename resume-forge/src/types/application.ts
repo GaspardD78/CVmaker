@@ -68,3 +68,16 @@ export interface ApplicationEvent {
   calendarId: string | null;
   createdAt: string;
 }
+
+export type AttachmentLabel = 'cv' | 'cover_letter' | 'portfolio' | 'certificate' | 'other';
+
+export interface ApplicationAttachment {
+  id: string;
+  applicationId: string;
+  fileName: string;
+  filePath: string;
+  fileType: string | null;
+  fileSize: number | null;
+  label: AttachmentLabel;
+  createdAt: string;
+}

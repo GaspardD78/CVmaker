@@ -102,6 +102,16 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'calendar_id',
     'created_at',
   ],
+  application_attachments: [
+    'id',
+    'application_id',
+    'file_name',
+    'file_path',
+    'file_type',
+    'file_size',
+    'label',
+    'created_at',
+  ],
 };
 
 /**
