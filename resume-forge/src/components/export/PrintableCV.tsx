@@ -151,6 +151,8 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       bodyLineHeight     ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: ${bodyLineHeight} !important; }` : '',
       entrySpacing       ? `#printable-cv .cv-entry { margin-bottom: ${entrySpacing} !important; }` : '',
       pageMargin         ? `#printable-cv { padding: ${pageMargin} !important; }` : '',
+      // Ensure print always has readable padding (counteracts print:p-0; overridden by pageMargin above if set)
+      `@media print { #printable-cv { padding: ${pageMargin || '28px 32px'} !important; } }`,
       primaryColor       ? `#printable-cv .cv-badge { border-color: ${primaryColor}30; background-color: ${primaryColor}10; color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv { border-color: ${primaryColor}; }` : '',
     ].filter(Boolean).join('\n');

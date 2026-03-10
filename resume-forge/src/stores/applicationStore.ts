@@ -91,7 +91,6 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   },
 
   fetchEvents: async (applicationId) => {
-    set({ isLoading: true, error: null });
     try {
       const db = await getDb();
       const rawEvents = await db.select<Record<string, unknown>[]>(
@@ -102,8 +101,6 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       set({ events });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to fetch events' });
-    } finally {
-      set({ isLoading: false });
     }
   },
 
