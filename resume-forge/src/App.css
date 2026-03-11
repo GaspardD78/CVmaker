@@ -22,13 +22,20 @@
   }
 
   /*
-   * position: fixed garantit que le CV est ancré au coin supérieur gauche
-   * de la page dans tous les moteurs WebKit (Linux/macOS/Windows),
-   * contrairement à position: absolute qui peut se référer à un conteneur
-   * intermédiaire selon le moteur de rendu.
+   * position: absolute (et non fixed) pour que le contenu pagine
+   * correctement sur plusieurs pages. Avec fixed, WebKit répète l'élément
+   * sur chaque page imprimée — ce qui duplique le header/banner.
+   * html/body sont forcés en position:relative/static pour que l'absolute
+   * soit bien relatif au coin supérieur gauche de la page.
+   * On appelle window.scrollTo(0,0) avant window.print() dans export-pdf.ts.
    */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
   #printable-cv {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
