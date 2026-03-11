@@ -15,6 +15,8 @@ const FONT_STACKS: Record<string, string> = {
 /** Entry types rendered as inline badges instead of full entry blocks */
 const BADGE_ENTRY_TYPES: EntryType[] = ['skill', 'language', 'interest'];
 
+type DisplayFormat = 'badges' | 'comma' | 'list';
+
 interface PrintableCVProps {
   cv: CVDocument;
   profile: Profile;
@@ -259,36 +261,58 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       return [description.trim()];
     };
 
-    // Group consecutive badge-type entries after a section header
-    const renderBadgeGroup = (badgeBlocks: CVBlock[]) => {
-      const badgeContainerClass = template.preview.skillBadgeContainerClass || 'flex flex-wrap gap-2 mt-1';
-      const badgeClass = template.preview.skillBadgeClass || 'inline-block px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300 rounded';
-
-      const badges: { key: string; label: string }[] = [];
-
+    // Collect all labels for a group of badge-type blocks
+    const collectBadgeLabels = (badgeBlocks: CVBlock[]): string[] => {
+      const labels: string[] = [];
       badgeBlocks.forEach(block => {
         const entry = entries.find(e => e.id === block.entryId);
         if (!entry) return;
         const entryData = { ...entry, ...block.overrideData };
         const description = entryData.description as string | null;
-
         if (description) {
-          // Expand description into individual badges
-          const labels = parseBadgeLabels(description);
-          labels.forEach((label, i) => badges.push({ key: `${block.id}-desc-${i}`, label }));
+          parseBadgeLabels(description).forEach(l => labels.push(l));
         } else {
-          // No description: show title (with optional subtitle)
-          const label = entryData.subtitle
-            ? `${entryData.title} — ${entryData.subtitle}`
-            : (entryData.title as string);
-          badges.push({ key: block.id, label });
+          labels.push(
+            entryData.subtitle
+              ? `${entryData.title} — ${entryData.subtitle}`
+              : (entryData.title as string)
+          );
         }
       });
+      return labels;
+    };
 
+    // Render a group of badge entries according to the chosen display format
+    const renderBadgeGroup = (badgeBlocks: CVBlock[], format: DisplayFormat = 'badges') => {
+      const labels = collectBadgeLabels(badgeBlocks);
+
+      if (format === 'comma') {
+        return (
+          <p className={`cv-desc ${template.preview.descriptionClass}`}>
+            {labels.join(' · ')}
+          </p>
+        );
+      }
+
+      if (format === 'list') {
+        return (
+          <ul className={template.preview.skillsContainerClass || 'list-disc pl-5'}>
+            {labels.map((label, i) => (
+              <li key={i} className={template.preview.skillClass || 'mb-1 text-sm text-gray-800'}>
+                {label}
+              </li>
+            ))}
+          </ul>
+        );
+      }
+
+      // Default: badges
+      const badgeContainerClass = template.preview.skillBadgeContainerClass || 'flex flex-wrap gap-2 mt-1';
+      const badgeClass = template.preview.skillBadgeClass || 'inline-block px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300 rounded';
       return (
         <div className={badgeContainerClass}>
-          {badges.map(({ key, label }) => (
-            <span key={key} className={`cv-badge ${badgeClass}`}>
+          {labels.map((label, i) => (
+            <span key={i} className={`cv-badge ${badgeClass}`}>
               {label}
             </span>
           ))}
@@ -299,7 +323,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     // Pre-process blocks to group badge entries
     type RenderItem =
       | { type: 'block'; block: CVBlock }
-      | { type: 'badge-group'; blocks: CVBlock[] };
+      | { type: 'badge-group'; blocks: CVBlock[]; format: DisplayFormat };
 
     const renderItems: RenderItem[] = [];
     let i = 0;
@@ -311,7 +335,6 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         const entry = entries.find(e => e.id === block.entryId);
         if (entry && BADGE_ENTRY_TYPES.includes(entry.entryType)) {
           // Collect consecutive badge entries (all skill/language/interest)
-          // Descriptions are expanded to individual badges inside renderBadgeGroup
           const badgeGroup: CVBlock[] = [block];
           let j = i + 1;
           while (j < sortedBlocks.length) {
@@ -323,7 +346,15 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             badgeGroup.push(next);
             j++;
           }
-          renderItems.push({ type: 'badge-group', blocks: badgeGroup });
+          // Read display format from the nearest preceding section_header
+          let format: DisplayFormat = 'badges';
+          for (let k = i - 1; k >= 0; k--) {
+            if (sortedBlocks[k].blockType === 'section_header') {
+              format = (sortedBlocks[k].overrideData?.displayFormat as DisplayFormat) || 'badges';
+              break;
+            }
+          }
+          renderItems.push({ type: 'badge-group', blocks: badgeGroup, format });
           i = j;
           continue;
         }
@@ -426,7 +457,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         {/* Dynamic Blocks */}
         {renderItems.map((item, idx) => {
           if (item.type === 'badge-group') {
-            return <div key={`badge-${idx}`} className="cv-entry mb-3 print:break-inside-avoid">{renderBadgeGroup(item.blocks)}</div>;
+            return <div key={`badge-${idx}`} className="cv-entry mb-3 print:break-inside-avoid">{renderBadgeGroup(item.blocks, item.format)}</div>;
           }
 
           const block = item.block;

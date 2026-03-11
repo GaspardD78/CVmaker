@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CVBlock } from '@/types/cv';
-import { GripVertical, Eye, EyeOff, Trash2, Edit2, Check, X } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Trash2, Edit2, Check, X, Tags, AlignLeft, List } from 'lucide-react';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { toast } from 'sonner';
+
+type DisplayFormat = 'badges' | 'comma' | 'list';
 
 interface SectionItemProps {
   block: CVBlock;
@@ -19,31 +21,38 @@ export function SectionItem({ block }: SectionItemProps) {
 
   const [isEditing, setIsEditing] = useState(false);
 
-  // Local state for override data
+  // Local state for override data (entry_ref / custom_text)
   const [overrideTitle, setOverrideTitle] = useState('');
   const [overrideSubtitle, setOverrideSubtitle] = useState('');
   const [overrideDescription, setOverrideDescription] = useState('');
 
+  // Local state for section_header
+  const [sectionName, setSectionName] = useState('');
+  const [displayFormat, setDisplayFormat] = useState<DisplayFormat>('badges');
+
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isEntryRef = block.blockType === 'entry_ref' && block.entryId;
+  const isSectionHeader = block.blockType === 'section_header';
 
   useEffect(() => {
     if (!isEditing) return;
 
     let hasChanged = false;
-    if (isEntryRef) {
+
+    if (isSectionHeader) {
+      const currentName = block.sectionName || '';
+      const currentFormat = (block.overrideData?.displayFormat as DisplayFormat) || 'badges';
+      if (sectionName !== currentName || displayFormat !== currentFormat) hasChanged = true;
+    } else if (isEntryRef) {
       const currentTitle = block.overrideData?.title ?? entries.find(e => e.id === block.entryId)?.title ?? '';
       const currentSubtitle = block.overrideData?.subtitle ?? entries.find(e => e.id === block.entryId)?.subtitle ?? '';
       const currentDescription = block.overrideData?.description ?? entries.find(e => e.id === block.entryId)?.description ?? '';
-
       if (overrideTitle !== currentTitle || overrideSubtitle !== currentSubtitle || overrideDescription !== currentDescription) {
         hasChanged = true;
       }
     } else if (block.blockType === 'custom_text') {
-      if (overrideDescription !== (block.customContent || '')) {
-        hasChanged = true;
-      }
+      if (overrideDescription !== (block.customContent || '')) hasChanged = true;
     }
 
     if (!hasChanged) return;
@@ -51,23 +60,35 @@ export function SectionItem({ block }: SectionItemProps) {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
     saveTimeoutRef.current = setTimeout(() => {
-      if (isEntryRef) {
-        const newOverrideData = {
-          ...block.overrideData,
-          title: overrideTitle,
-          subtitle: overrideSubtitle,
-          description: overrideDescription,
-        };
-        updateCvBlock(block.id, { overrideData: newOverrideData });
+      if (isSectionHeader) {
+        updateCvBlock(block.id, {
+          sectionName,
+          overrideData: { ...block.overrideData, displayFormat },
+        });
+      } else if (isEntryRef) {
+        updateCvBlock(block.id, {
+          overrideData: {
+            ...block.overrideData,
+            title: overrideTitle,
+            subtitle: overrideSubtitle,
+            description: overrideDescription,
+          },
+        });
       } else if (block.blockType === 'custom_text') {
-         updateCvBlock(block.id, { customContent: overrideDescription });
+        updateCvBlock(block.id, { customContent: overrideDescription });
       }
-    }, 2000); // 2 second auto-save
+    }, 2000);
 
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [overrideTitle, overrideSubtitle, overrideDescription, isEditing, block.id, block.overrideData, block.customContent, block.blockType, isEntryRef, block.entryId, entries, updateCvBlock]);
+  }, [
+    sectionName, displayFormat,
+    overrideTitle, overrideSubtitle, overrideDescription,
+    isEditing, block.id, block.overrideData, block.customContent,
+    block.blockType, block.sectionName, isSectionHeader,
+    isEntryRef, block.entryId, entries, updateCvBlock,
+  ]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -84,12 +105,10 @@ export function SectionItem({ block }: SectionItemProps) {
     const blocks = useCvStore.getState().currentCvBlocks;
     const idx = blocks.findIndex(b => b.id === block.id);
 
-    // Build the list of extra IDs to cascade-delete
     const extraIds: string[] = [];
     let confirmMessage = "Êtes-vous sûr de vouloir retirer ce bloc du CV ?";
 
     if (block.blockType === 'section_header') {
-      // Collect every block that belongs to this section (until next header)
       for (let i = idx + 1; i < blocks.length; i++) {
         if (blocks[i].blockType === 'section_header') break;
         extraIds.push(blocks[i].id);
@@ -98,15 +117,12 @@ export function SectionItem({ block }: SectionItemProps) {
         confirmMessage = `Supprimer ce titre de section retirera aussi ses ${extraIds.length} bloc(s) associé(s). Continuer ?`;
       }
     } else {
-      // For entry_ref / custom_text: check if this is the last block under its section header
       for (let i = idx - 1; i >= 0; i--) {
         if (blocks[i].blockType === 'section_header') {
-          // Find the end of this section
           let sectionEnd = blocks.length;
           for (let j = i + 1; j < blocks.length; j++) {
             if (blocks[j].blockType === 'section_header') { sectionEnd = j; break; }
           }
-          // Count remaining entries after removing this block
           const remaining = blocks.slice(i + 1, sectionEnd).filter(b => b.id !== block.id).length;
           if (remaining === 0) {
             extraIds.push(blocks[i].id);
@@ -129,7 +145,7 @@ export function SectionItem({ block }: SectionItemProps) {
           await deleteCvBlock(id);
         }
         toast.success("Bloc retiré avec succès");
-      } catch (err) {
+      } catch {
         toast.error("Erreur lors du retrait du bloc");
       }
     }
@@ -139,12 +155,11 @@ export function SectionItem({ block }: SectionItemProps) {
   let subtitle = '';
   let defaultDescription = '';
 
-  if (block.blockType === 'section_header') {
+  if (isSectionHeader) {
     title = block.sectionName || 'Nouvelle Section';
   } else if (isEntryRef) {
     const entry = entries.find(e => e.id === block.entryId);
     if (entry) {
-      // Use override data if available, otherwise fallback to master entry data
       title = (block.overrideData?.title as string) || entry.title;
       subtitle = (block.overrideData?.subtitle as string) || entry.subtitle || '';
       defaultDescription = (block.overrideData?.description as string) || entry.description || '';
@@ -155,14 +170,18 @@ export function SectionItem({ block }: SectionItemProps) {
   }
 
   const startEditing = () => {
-    if (isEntryRef) {
+    if (isSectionHeader) {
+      setSectionName(block.sectionName || '');
+      setDisplayFormat((block.overrideData?.displayFormat as DisplayFormat) || 'badges');
+      setIsEditing(true);
+    } else if (isEntryRef) {
       setOverrideTitle(title);
       setOverrideSubtitle(subtitle);
       setOverrideDescription(defaultDescription);
       setIsEditing(true);
     } else if (block.blockType === 'custom_text') {
-       setOverrideDescription(defaultDescription);
-       setIsEditing(true);
+      setOverrideDescription(defaultDescription);
+      setIsEditing(true);
     }
   };
 
@@ -172,35 +191,82 @@ export function SectionItem({ block }: SectionItemProps) {
 
   const saveOverride = () => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    if (isEntryRef) {
-      const newOverrideData = {
-        ...block.overrideData,
-        title: overrideTitle,
-        subtitle: overrideSubtitle,
-        description: overrideDescription,
-      };
-      updateCvBlock(block.id, { overrideData: newOverrideData });
+    if (isSectionHeader) {
+      updateCvBlock(block.id, {
+        sectionName,
+        overrideData: { ...block.overrideData, displayFormat },
+      });
+    } else if (isEntryRef) {
+      updateCvBlock(block.id, {
+        overrideData: {
+          ...block.overrideData,
+          title: overrideTitle,
+          subtitle: overrideSubtitle,
+          description: overrideDescription,
+        },
+      });
     } else if (block.blockType === 'custom_text') {
-       updateCvBlock(block.id, { customContent: overrideDescription });
+      updateCvBlock(block.id, { customContent: overrideDescription });
     }
     setIsEditing(false);
   };
+
+  // ── Edit panel ────────────────────────────────────────────────────────────
 
   if (isEditing) {
     return (
       <div className="border rounded mb-2 bg-blue-50 flex flex-col p-3 shadow-md border-blue-200">
         <div className="flex justify-between items-center mb-2">
-           <span className="text-xs font-semibold text-blue-800 uppercase">Personnaliser pour ce CV</span>
-           <div className="flex space-x-2">
-             <button onClick={saveOverride} className="text-green-600 hover:text-green-700 bg-green-100 p-1 rounded">
-               <Check className="w-4 h-4" />
-             </button>
-             <button onClick={cancelEditing} className="text-red-600 hover:text-red-700 bg-red-100 p-1 rounded">
-               <X className="w-4 h-4" />
-             </button>
-           </div>
+          <span className="text-xs font-semibold text-blue-800 uppercase">
+            {isSectionHeader ? 'Section' : 'Personnaliser pour ce CV'}
+          </span>
+          <div className="flex space-x-2">
+            <button onClick={saveOverride} className="text-green-600 hover:text-green-700 bg-green-100 p-1 rounded">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={cancelEditing} className="text-red-600 hover:text-red-700 bg-red-100 p-1 rounded">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
+        {/* Section header edit */}
+        {isSectionHeader && (
+          <>
+            <input
+              type="text"
+              value={sectionName}
+              onChange={(e) => setSectionName(e.target.value)}
+              placeholder="Nom de la section"
+              className="mb-3 p-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+            />
+            <p className="text-xs font-medium text-blue-700 mb-1.5">Format d'affichage des éléments</p>
+            <div className="flex gap-2">
+              {(
+                [
+                  { value: 'badges', icon: <Tags className="w-3.5 h-3.5" />, label: 'Tags' },
+                  { value: 'comma',  icon: <AlignLeft className="w-3.5 h-3.5" />, label: 'Texte' },
+                  { value: 'list',   icon: <List className="w-3.5 h-3.5" />, label: 'Liste' },
+                ] as { value: DisplayFormat; icon: React.ReactNode; label: string }[]
+              ).map(({ value, icon, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setDisplayFormat(value)}
+                  className={`flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded border transition ${
+                    displayFormat === value
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                  }`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Entry ref edit */}
         {isEntryRef && (
           <>
             <input
@@ -235,7 +301,7 @@ export function SectionItem({ block }: SectionItemProps) {
     );
   }
 
-  const isSectionHeader = block.blockType === 'section_header';
+  // ── Normal row ────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -259,11 +325,9 @@ export function SectionItem({ block }: SectionItemProps) {
       </div>
 
       <div className="flex p-2 space-x-1 text-gray-400">
-        {(isEntryRef || block.blockType === 'custom_text') && (
-          <button onClick={startEditing} className="hover:text-blue-600 p-1" title="Personnaliser">
-            <Edit2 className="w-4 h-4" />
-          </button>
-        )}
+        <button onClick={startEditing} className="hover:text-blue-600 p-1" title="Personnaliser">
+          <Edit2 className="w-4 h-4" />
+        </button>
         <button onClick={toggleVisibility} className="hover:text-blue-600 p-1" title={block.isVisible ? "Masquer" : "Afficher"}>
           {block.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
         </button>
