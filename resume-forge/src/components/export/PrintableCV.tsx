@@ -116,14 +116,27 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const sectionBorderStyle = settings.sectionBorderStyle || '';
 
     const headerFontSize      = settings.headerFontSize      || '';
+    const headerFontFamily    = settings.headerFontFamily    ? (FONT_STACKS[settings.headerFontFamily]    || settings.headerFontFamily)    : '';
     const headerFontWeight    = settings.headerFontWeight    || '';
     const headerTextTransform = settings.headerTextTransform || '';
     const headerTextAlign     = settings.headerTextAlign     || '';
+    const subtitleFontSize    = settings.subtitleFontSize    || '';
+    const subtitleFontFamily  = settings.subtitleFontFamily  ? (FONT_STACKS[settings.subtitleFontFamily]  || settings.subtitleFontFamily)  : '';
     const subtitleFontStyle   = settings.subtitleFontStyle   || '';
     const subtitleFontWeight  = settings.subtitleFontWeight  || '';
+    const bodyFontFamily      = settings.bodyFontFamily      ? (FONT_STACKS[settings.bodyFontFamily]      || settings.bodyFontFamily)      : '';
+    const bodyFontSize        = settings.bodyFontSize        || '';
     const bodyTextAlign       = settings.bodyTextAlign       || '';
     const bodyLineHeight      = settings.bodyLineHeight      || '';
     const entrySpacing        = settings.entrySpacing        || '';
+    const sectionHeaderGap    = settings.sectionHeaderGap    || '';
+    const entryTitleGap       = settings.entryTitleGap       || '';
+    const summaryFontFamily   = settings.summaryFontFamily   ? (FONT_STACKS[settings.summaryFontFamily]   || settings.summaryFontFamily)   : '';
+    const summaryFontSize     = settings.summaryFontSize     || '';
+    const summaryFontStyle    = settings.summaryFontStyle    || '';
+    const summaryFontWeight   = settings.summaryFontWeight   || '';
+    const summaryTextAlign    = settings.summaryTextAlign    || '';
+    const summaryLineHeight   = settings.summaryLineHeight   || '';
 
     // Photo settings
     const photoShape  = settings.photoShape  || '';
@@ -185,14 +198,27 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
     const cssOverrides = [
       h3Rules ? `#printable-cv h3 { ${h3Rules} }` : '',
+      headerFontFamily   ? `#printable-cv h3 { font-family: ${headerFontFamily} !important; }` : '',
       fontSize !== '11px'
         ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${fontSize} !important; }`
         : '',
+      subtitleFontFamily ? `#printable-cv .cv-title { font-family: ${subtitleFontFamily} !important; }` : '',
+      subtitleFontSize   ? `#printable-cv .cv-title { font-size: ${subtitleFontSize} !important; }` : '',
       subtitleFontStyle  ? `#printable-cv .cv-title { font-style: ${subtitleFontStyle} !important; }` : '',
       subtitleFontWeight ? `#printable-cv .cv-title { font-weight: ${subtitleFontWeight} !important; }` : '',
+      bodyFontFamily     ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-family: ${bodyFontFamily} !important; }` : '',
+      bodyFontSize       ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${bodyFontSize} !important; }` : '',
       bodyTextAlign      ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { text-align: ${bodyTextAlign} !important; }` : '',
       bodyLineHeight     ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: ${bodyLineHeight} !important; }` : '',
       entrySpacing       ? `#printable-cv .cv-entry { margin-bottom: ${entrySpacing} !important; }` : '',
+      sectionHeaderGap   ? `#printable-cv h3 { margin-bottom: ${sectionHeaderGap} !important; }` : '',
+      entryTitleGap      ? `#printable-cv .cv-title-row { margin-bottom: ${entryTitleGap} !important; }` : '',
+      summaryFontFamily  ? `#printable-cv .cv-summary { font-family: ${summaryFontFamily} !important; }` : '',
+      summaryFontSize    ? `#printable-cv .cv-summary { font-size: ${summaryFontSize} !important; }` : '',
+      summaryFontStyle   ? `#printable-cv .cv-summary { font-style: ${summaryFontStyle} !important; }` : '',
+      summaryFontWeight  ? `#printable-cv .cv-summary { font-weight: ${summaryFontWeight} !important; }` : '',
+      summaryTextAlign   ? `#printable-cv .cv-summary { text-align: ${summaryTextAlign} !important; }` : '',
+      summaryLineHeight  ? `#printable-cv .cv-summary { line-height: ${summaryLineHeight} !important; }` : '',
       pageMargin         ? `#printable-cv { padding: ${pageMargin} !important; }` : '',
       // Print padding must match getBannerPad() so the banner's negative margin bleeds exactly to the page edge.
       // For non-banner templates we keep a sensible default.
@@ -393,7 +419,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
         {summary && (
           <div className="mb-5">
-            <p className={template.preview.summaryClass || template.preview.descriptionClass}>{summary}</p>
+            <p className={`cv-summary ${template.preview.summaryClass || template.preview.descriptionClass}`}>{summary}</p>
           </div>
         )}
 
@@ -431,7 +457,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
             return (
               <div key={block.id} className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
-                <div className="flex justify-between items-baseline mb-1">
+                <div className="cv-title-row flex justify-between items-baseline mb-1">
                   <div>
                     <span className={`cv-title ${template.preview.titleClass}`}>{entryData.title}</span>
                     {(entryData.subtitle || entryData.location) && (
