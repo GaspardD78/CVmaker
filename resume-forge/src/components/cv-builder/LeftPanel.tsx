@@ -20,7 +20,7 @@ import {
 import { SectionItem } from './SectionItem';
 import { EntrySelector } from './EntrySelector';
 
-import { Settings, Palette } from 'lucide-react';
+import { Settings, Palette, FileText } from 'lucide-react';
 
 export function LeftPanel({ cvId }: { cvId: string }) {
   const { currentCv, currentCvBlocks, reorderCvBlocks, createCvBlock, updateCv } = useCvStore();
@@ -36,21 +36,35 @@ export function LeftPanel({ cvId }: { cvId: string }) {
 
   const cvSettings = (currentCv?.settings || {}) as Record<string, string>;
   const [isDesignOpen, setIsDesignOpen] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [fontFamily, setFontFamily] = useState(cvSettings.fontFamily || 'Calibri');
   const [fontSize, setFontSize] = useState(cvSettings.fontSize || '11px');
   const [primaryColor, setPrimaryColor] = useState(cvSettings.primaryColor || '');
 
   const [headerFontSize, setHeaderFontSize]           = useState(cvSettings.headerFontSize      || '');
+  const [headerFontFamily, setHeaderFontFamily]       = useState(cvSettings.headerFontFamily    || '');
   const [headerFontWeight, setHeaderFontWeight]       = useState(cvSettings.headerFontWeight    || '');
   const [headerTextTransform, setHeaderTextTransform] = useState(cvSettings.headerTextTransform || '');
   const [headerTextAlign, setHeaderTextAlign]         = useState(cvSettings.headerTextAlign     || '');
+  const [subtitleFontSize, setSubtitleFontSize]       = useState(cvSettings.subtitleFontSize    || '');
+  const [subtitleFontFamily, setSubtitleFontFamily]   = useState(cvSettings.subtitleFontFamily  || '');
   const [subtitleFontStyle, setSubtitleFontStyle]     = useState(cvSettings.subtitleFontStyle   || '');
   const [subtitleFontWeight, setSubtitleFontWeight]   = useState(cvSettings.subtitleFontWeight  || '');
+  const [bodyFontFamily, setBodyFontFamily]           = useState(cvSettings.bodyFontFamily      || '');
+  const [bodyFontSize, setBodyFontSize]               = useState(cvSettings.bodyFontSize        || '');
   const [bodyTextAlign, setBodyTextAlign]             = useState(cvSettings.bodyTextAlign       || '');
   const [bodyLineHeight, setBodyLineHeight]           = useState(cvSettings.bodyLineHeight      || '');
   const [entrySpacing, setEntrySpacing]               = useState(cvSettings.entrySpacing        || '');
+  const [sectionHeaderGap, setSectionHeaderGap]       = useState(cvSettings.sectionHeaderGap    || '');
+  const [entryTitleGap, setEntryTitleGap]             = useState(cvSettings.entryTitleGap       || '');
   const [pageMargin, setPageMargin]                   = useState(cvSettings.pageMargin          || '');
   const [sectionBorderStyle, setSectionBorderStyle]   = useState(cvSettings.sectionBorderStyle  || '');
+  const [summaryFontFamily, setSummaryFontFamily]     = useState(cvSettings.summaryFontFamily   || '');
+  const [summaryFontSize, setSummaryFontSize]         = useState(cvSettings.summaryFontSize     || '');
+  const [summaryFontStyle, setSummaryFontStyle]       = useState(cvSettings.summaryFontStyle    || '');
+  const [summaryFontWeight, setSummaryFontWeight]     = useState(cvSettings.summaryFontWeight   || '');
+  const [summaryTextAlign, setSummaryTextAlign]       = useState(cvSettings.summaryTextAlign    || '');
+  const [summaryLineHeight, setSummaryLineHeight]     = useState(cvSettings.summaryLineHeight   || '');
   const [photoShape, setPhotoShape]                   = useState(cvSettings.photoShape          || '');
   const [photoSize, setPhotoSize]                     = useState(cvSettings.photoSize            || '');
   const [photoZoom, setPhotoZoom]                     = useState(cvSettings.photoZoom            || '');
@@ -97,16 +111,29 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       setFontSize(freshSettings.fontSize || '11px');
       setPrimaryColor(freshSettings.primaryColor || '');
       setHeaderFontSize(freshSettings.headerFontSize || '');
+      setHeaderFontFamily(freshSettings.headerFontFamily || '');
       setHeaderFontWeight(freshSettings.headerFontWeight || '');
       setHeaderTextTransform(freshSettings.headerTextTransform || '');
       setHeaderTextAlign(freshSettings.headerTextAlign || '');
+      setSubtitleFontSize(freshSettings.subtitleFontSize || '');
+      setSubtitleFontFamily(freshSettings.subtitleFontFamily || '');
       setSubtitleFontStyle(freshSettings.subtitleFontStyle || '');
       setSubtitleFontWeight(freshSettings.subtitleFontWeight || '');
+      setBodyFontFamily(freshSettings.bodyFontFamily || '');
+      setBodyFontSize(freshSettings.bodyFontSize || '');
       setBodyTextAlign(freshSettings.bodyTextAlign || '');
       setBodyLineHeight(freshSettings.bodyLineHeight || '');
       setEntrySpacing(freshSettings.entrySpacing || '');
+      setSectionHeaderGap(freshSettings.sectionHeaderGap || '');
+      setEntryTitleGap(freshSettings.entryTitleGap || '');
       setPageMargin(freshSettings.pageMargin || '');
       setSectionBorderStyle(freshSettings.sectionBorderStyle || '');
+      setSummaryFontFamily(freshSettings.summaryFontFamily || '');
+      setSummaryFontSize(freshSettings.summaryFontSize || '');
+      setSummaryFontStyle(freshSettings.summaryFontStyle || '');
+      setSummaryFontWeight(freshSettings.summaryFontWeight || '');
+      setSummaryTextAlign(freshSettings.summaryTextAlign || '');
+      setSummaryLineHeight(freshSettings.summaryLineHeight || '');
       setPhotoShape(freshSettings.photoShape || '');
       setPhotoSize(freshSettings.photoSize || '');
       setPhotoZoom(freshSettings.photoZoom || '');
@@ -120,16 +147,29 @@ export function LeftPanel({ cvId }: { cvId: string }) {
         fontSize: freshSettings.fontSize || '11px',
         primaryColor: freshSettings.primaryColor || '',
         headerFontSize: freshSettings.headerFontSize || '',
+        headerFontFamily: freshSettings.headerFontFamily || '',
         headerFontWeight: freshSettings.headerFontWeight || '',
         headerTextTransform: freshSettings.headerTextTransform || '',
         headerTextAlign: freshSettings.headerTextAlign || '',
+        subtitleFontSize: freshSettings.subtitleFontSize || '',
+        subtitleFontFamily: freshSettings.subtitleFontFamily || '',
         subtitleFontStyle: freshSettings.subtitleFontStyle || '',
         subtitleFontWeight: freshSettings.subtitleFontWeight || '',
+        bodyFontFamily: freshSettings.bodyFontFamily || '',
+        bodyFontSize: freshSettings.bodyFontSize || '',
         bodyTextAlign: freshSettings.bodyTextAlign || '',
         bodyLineHeight: freshSettings.bodyLineHeight || '',
         entrySpacing: freshSettings.entrySpacing || '',
+        sectionHeaderGap: freshSettings.sectionHeaderGap || '',
+        entryTitleGap: freshSettings.entryTitleGap || '',
         pageMargin: freshSettings.pageMargin || '',
         sectionBorderStyle: freshSettings.sectionBorderStyle || '',
+        summaryFontFamily: freshSettings.summaryFontFamily || '',
+        summaryFontSize: freshSettings.summaryFontSize || '',
+        summaryFontStyle: freshSettings.summaryFontStyle || '',
+        summaryFontWeight: freshSettings.summaryFontWeight || '',
+        summaryTextAlign: freshSettings.summaryTextAlign || '',
+        summaryLineHeight: freshSettings.summaryLineHeight || '',
         photoShape: freshSettings.photoShape || '',
         photoSize: freshSettings.photoSize || '',
         photoZoom: freshSettings.photoZoom || '',
@@ -149,10 +189,12 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   // write that would break template switching).
   const lastSavedDesign = useRef({
     fontFamily, fontSize, primaryColor,
-    headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
-    subtitleFontStyle, subtitleFontWeight,
-    bodyTextAlign, bodyLineHeight, entrySpacing,
+    headerFontSize, headerFontFamily, headerFontWeight, headerTextTransform, headerTextAlign,
+    subtitleFontSize, subtitleFontFamily, subtitleFontStyle, subtitleFontWeight,
+    bodyFontFamily, bodyFontSize, bodyTextAlign, bodyLineHeight,
+    entrySpacing, sectionHeaderGap, entryTitleGap,
     pageMargin, sectionBorderStyle,
+    summaryFontFamily, summaryFontSize, summaryFontStyle, summaryFontWeight, summaryTextAlign, summaryLineHeight,
     photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
     headerStyle,
   });
@@ -161,10 +203,12 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     const saved = lastSavedDesign.current;
     const current = {
       fontFamily, fontSize, primaryColor,
-      headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
-      subtitleFontStyle, subtitleFontWeight,
-      bodyTextAlign, bodyLineHeight, entrySpacing,
+      headerFontSize, headerFontFamily, headerFontWeight, headerTextTransform, headerTextAlign,
+      subtitleFontSize, subtitleFontFamily, subtitleFontStyle, subtitleFontWeight,
+      bodyFontFamily, bodyFontSize, bodyTextAlign, bodyLineHeight,
+      entrySpacing, sectionHeaderGap, entryTitleGap,
       pageMargin, sectionBorderStyle,
+      summaryFontFamily, summaryFontSize, summaryFontStyle, summaryFontWeight, summaryTextAlign, summaryLineHeight,
       photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
       headerStyle,
     };
@@ -186,10 +230,12 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   // → currentCv change → re-trigger loop, breaking concurrent template changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fontFamily, fontSize, primaryColor,
-      headerFontSize, headerFontWeight, headerTextTransform, headerTextAlign,
-      subtitleFontStyle, subtitleFontWeight,
-      bodyTextAlign, bodyLineHeight, entrySpacing,
+      headerFontSize, headerFontFamily, headerFontWeight, headerTextTransform, headerTextAlign,
+      subtitleFontSize, subtitleFontFamily, subtitleFontStyle, subtitleFontWeight,
+      bodyFontFamily, bodyFontSize, bodyTextAlign, bodyLineHeight,
+      entrySpacing, sectionHeaderGap, entryTitleGap,
       pageMargin, sectionBorderStyle,
+      summaryFontFamily, summaryFontSize, summaryFontStyle, summaryFontWeight, summaryTextAlign, summaryLineHeight,
       photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
       headerStyle,
       cvId, updateCv]);
@@ -267,15 +313,20 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       return false;
     };
 
-    const spacingCandidates = ['32px', '24px', '16px', '8px', '4px'];
-    const lineHCandidates   = ['1.8', '1.6', '1.4', '1.2'];
-    const marginCandidates  = ['56px 64px', '48px 56px', '40px 48px', '32px 36px', '24px 28px'];
-    const fontCandidates    = ['12px', '11px', '10px'];
+    const spacingCandidates     = ['32px', '24px', '16px', '8px', '4px'];
+    const internalGapCandidates = ['16px', '12px', '8px', '4px', '2px'];
+    const lineHCandidates       = ['1.8', '1.6', '1.4', '1.2'];
+    const marginCandidates      = ['56px 64px', '48px 56px', '40px 48px', '32px 36px', '24px 28px'];
+    const fontCandidates        = ['12px', '11px', '10px', '9px'];
 
-    if (tryReduce(spacingCandidates, entrySpacing, setEntrySpacing)) { toast.success('CV ajusté à 1 page !'); return; }
-    if (tryReduce(lineHCandidates,   bodyLineHeight, setBodyLineHeight)) { toast.success('CV ajusté à 1 page !'); return; }
-    if (tryReduce(marginCandidates,  pageMargin, setPageMargin)) { toast.success('CV ajusté à 1 page !'); return; }
-    if (tryReduce(fontCandidates,    fontSize, setFontSize)) { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(spacingCandidates,     entrySpacing,     setEntrySpacing))     { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(internalGapCandidates, sectionHeaderGap, setSectionHeaderGap)) { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(internalGapCandidates, entryTitleGap,    setEntryTitleGap))    { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(lineHCandidates,       bodyLineHeight,   setBodyLineHeight))   { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(marginCandidates,      pageMargin,       setPageMargin))       { toast.success('CV ajusté à 1 page !'); return; }
+    // Réduire d'abord la taille du corps spécifique, puis la taille globale
+    if (bodyFontSize && tryReduce(fontCandidates, bodyFontSize, setBodyFontSize)) { toast.success('CV ajusté à 1 page !'); return; }
+    if (tryReduce(fontCandidates,        fontSize,         setFontSize))         { toast.success('CV ajusté à 1 page !'); return; }
 
     toast.warning('Le CV reste trop long, même avec les réglages minimaux.');
   };
@@ -333,6 +384,16 @@ export function LeftPanel({ cvId }: { cvId: string }) {
             <Settings className="w-5 h-5" />
           </button>
           <button
+            onClick={() => setIsSummaryOpen(!isSummaryOpen)}
+            className={`relative transition-colors p-1 rounded-full hover:bg-gray-100 ${isSummaryOpen ? 'text-green-600' : 'text-gray-500 hover:text-green-600'}`}
+            title="Résumé / Accroche"
+          >
+            <FileText className="w-5 h-5" />
+            {customSummary && (
+              <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full" />
+            )}
+          </button>
+          <button
             onClick={() => setIsDesignOpen(!isDesignOpen)}
             className={`transition-colors p-1 rounded-full hover:bg-gray-100 ${isDesignOpen ? 'text-purple-600' : 'text-gray-500 hover:text-purple-600'}`}
             title="Design du CV"
@@ -376,6 +437,32 @@ export function LeftPanel({ cvId }: { cvId: string }) {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {isSummaryOpen && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg shadow-sm text-sm">
+          <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-1.5">
+            <FileText className="w-4 h-4" /> Résumé / Accroche
+          </h3>
+          <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+            Si renseigné, remplace le résumé du Profil Maître sur ce CV uniquement. Laissez vide pour utiliser le résumé par défaut.
+          </p>
+          <textarea
+            value={customSummary}
+            onChange={e => setCustomSummary(e.target.value)}
+            className="w-full p-1.5 border rounded focus:ring focus:ring-green-200 resize-y h-24 text-xs"
+            placeholder="Accroche spécifique à ce CV…"
+          />
+          {customSummary && (
+            <button
+              type="button"
+              onClick={() => setCustomSummary('')}
+              className="mt-1 text-[10px] text-red-500 hover:text-red-700 underline"
+            >
+              Supprimer (revenir au résumé du profil)
+            </button>
+          )}
         </div>
       )}
 
@@ -448,6 +535,18 @@ export function LeftPanel({ cvId }: { cvId: string }) {
             {/* Section headers */}
             <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Titres de section</p>
             <div className="grid grid-cols-2 gap-1">
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-0.5">Police</label>
+                <select value={headerFontFamily} onChange={e => setHeaderFontFamily(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto (globale)</option>
+                  <option value="Calibri">Calibri</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Helvetica">Helvetica</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
                 <select value={headerFontSize} onChange={e => setHeaderFontSize(e.target.value)}
@@ -495,13 +594,27 @@ export function LeftPanel({ cvId }: { cvId: string }) {
             {/* Entry titles (Recruteur IT, Master...) */}
             <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Titres d'entrée <span className="font-normal text-gray-400">(postes, diplômes…)</span></p>
             <div className="grid grid-cols-2 gap-1">
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-0.5">Police</label>
+                <select value={subtitleFontFamily} onChange={e => setSubtitleFontFamily(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto (globale)</option>
+                  <option value="Calibri">Calibri</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Helvetica">Helvetica</option>
+                </select>
+              </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Style</label>
-                <select value={subtitleFontStyle} onChange={e => setSubtitleFontStyle(e.target.value)}
+                <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+                <select value={subtitleFontSize} onChange={e => setSubtitleFontSize(e.target.value)}
                   className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
                   <option value="">Auto</option>
-                  <option value="normal">Normal</option>
-                  <option value="italic">Italique</option>
+                  <option value="10px">Petit (10)</option>
+                  <option value="11px">Normal (11)</option>
+                  <option value="12px">Moyen (12)</option>
+                  <option value="13px">Grand (13)</option>
                 </select>
               </div>
               <div>
@@ -514,19 +627,41 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                   <option value="bold">Gras</option>
                 </select>
               </div>
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-0.5">Style</label>
+                <select value={subtitleFontStyle} onChange={e => setSubtitleFontStyle(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="italic">Italique</option>
+                </select>
+              </div>
             </div>
 
             {/* Body */}
             <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Corps du texte</p>
             <div className="grid grid-cols-2 gap-1">
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Alignement</label>
-                <select value={bodyTextAlign} onChange={e => setBodyTextAlign(e.target.value)}
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-0.5">Police</label>
+                <select value={bodyFontFamily} onChange={e => setBodyFontFamily(e.target.value)}
                   className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
-                  <option value="">Auto</option>
-                  <option value="left">Gauche</option>
-                  <option value="justify">Justifié</option>
-                  <option value="center">Centré</option>
+                  <option value="">Auto (globale)</option>
+                  <option value="Calibri">Calibri</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Helvetica">Helvetica</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+                <select value={bodyFontSize} onChange={e => setBodyFontSize(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto (globale)</option>
+                  <option value="9px">Très petit (9)</option>
+                  <option value="10px">Petit (10)</option>
+                  <option value="11px">Normal (11)</option>
+                  <option value="12px">Grand (12)</option>
                 </select>
               </div>
               <div>
@@ -538,6 +673,16 @@ export function LeftPanel({ cvId }: { cvId: string }) {
                   <option value="1.4">Normal (1.4)</option>
                   <option value="1.6">Aéré (1.6)</option>
                   <option value="1.8">Large (1.8)</option>
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-0.5">Alignement</label>
+                <select value={bodyTextAlign} onChange={e => setBodyTextAlign(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="left">Gauche</option>
+                  <option value="justify">Justifié</option>
+                  <option value="center">Centré</option>
                 </select>
               </div>
             </div>
@@ -553,6 +698,103 @@ export function LeftPanel({ cvId }: { cvId: string }) {
               <option value="24px">Aéré</option>
               <option value="32px">Large</option>
             </select>
+
+            {/* Internal spacing */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Espacement interne</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Section → Entrée</label>
+                <select value={sectionHeaderGap} onChange={e => setSectionHeaderGap(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="2px">Minimal</option>
+                  <option value="4px">Serré</option>
+                  <option value="8px">Normal</option>
+                  <option value="12px">Aéré</option>
+                  <option value="16px">Large</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Titre → Corps</label>
+                <select value={entryTitleGap} onChange={e => setEntryTitleGap(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="0px">Aucun</option>
+                  <option value="2px">Minimal</option>
+                  <option value="4px">Serré</option>
+                  <option value="8px">Normal</option>
+                  <option value="12px">Aéré</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Summary formatting */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Résumé / Accroche</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-0.5">Police</label>
+                <select value={summaryFontFamily} onChange={e => setSummaryFontFamily(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto (globale)</option>
+                  <option value="Calibri">Calibri</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Helvetica">Helvetica</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+                <select value={summaryFontSize} onChange={e => setSummaryFontSize(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="10px">Petit (10)</option>
+                  <option value="11px">Normal (11)</option>
+                  <option value="12px">Grand (12)</option>
+                  <option value="13px">Très grand (13)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Graisse</label>
+                <select value={summaryFontWeight} onChange={e => setSummaryFontWeight(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="500">Moyen</option>
+                  <option value="bold">Gras</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Style</label>
+                <select value={summaryFontStyle} onChange={e => setSummaryFontStyle(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="italic">Italique</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Alignement</label>
+                <select value={summaryTextAlign} onChange={e => setSummaryTextAlign(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="left">Gauche</option>
+                  <option value="justify">Justifié</option>
+                  <option value="center">Centré</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Interligne</label>
+                <select value={summaryLineHeight} onChange={e => setSummaryLineHeight(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="1.2">Serré (1.2)</option>
+                  <option value="1.4">Normal (1.4)</option>
+                  <option value="1.6">Aéré (1.6)</option>
+                  <option value="1.8">Large (1.8)</option>
+                </select>
+              </div>
+            </div>
 
             {/* Page margins */}
             <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Marges de la page</p>

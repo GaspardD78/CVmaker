@@ -58,6 +58,12 @@ export function keysToSnakeCase<T>(obj: unknown): T {
     // Sérialiser uniquement les champs JSON connus ou si la valeur est un objet
     if ((JSON_FIELDS.includes(key) || JSON_FIELDS.includes(snakeKey)) && typeof value === 'object' && value !== null) {
       value = JSON.stringify(value);
+    } else if (typeof value === 'boolean') {
+      // SQLite stocke les booléens comme des entiers 0/1.
+      // Passer un booléen JS peut être sérialisé en chaîne "true"/"false"
+      // par certaines versions de tauri-plugin-sql, ce qui serait lu comme
+      // chaîne non-vide (truthy) en retour. On force toujours 0/1.
+      value = value ? 1 : 0;
     } else if (typeof value === 'object' && value !== null) {
         // Fallback optionnel si l'utilisateur envoie un objet inattendu (pour éviter [object Object])
         value = JSON.stringify(value);
