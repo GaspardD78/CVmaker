@@ -25,8 +25,11 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
+    /* Compense le zoom pour conserver la largeur pleine page */
+    width: calc(100% / var(--pdf-zoom, 1));
     height: auto;
+    zoom: var(--pdf-zoom, 1);
+    transform-origin: top left;
   }
 
   body {
