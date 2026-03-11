@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CVBlock } from '@/types/cv';
-import { GripVertical, Eye, EyeOff, Trash2, Edit2, Check, X, Tags, AlignLeft, List } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Trash2, Edit2, Check, X, Tags, AlignLeft, List, Columns2, Columns3, Table2 } from 'lucide-react';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { toast } from 'sonner';
 
-type DisplayFormat = 'badges' | 'comma' | 'list';
+type DisplayFormat = 'badges' | 'comma' | 'list' | 'columns2' | 'columns3' | 'table';
 
 interface SectionItemProps {
   block: CVBlock;
@@ -241,18 +241,21 @@ export function SectionItem({ block }: SectionItemProps) {
               className="mb-3 p-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="text-xs font-medium text-blue-700 mb-1.5">Format d'affichage des éléments</p>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               {(
                 [
-                  { value: 'badges', icon: <Tags className="w-3.5 h-3.5" />, label: 'Tags' },
-                  { value: 'comma',  icon: <AlignLeft className="w-3.5 h-3.5" />, label: 'Texte' },
-                  { value: 'list',   icon: <List className="w-3.5 h-3.5" />, label: 'Liste' },
+                  { value: 'badges',   icon: <Tags className="w-3.5 h-3.5" />,    label: 'Tags'    },
+                  { value: 'comma',    icon: <AlignLeft className="w-3.5 h-3.5" />, label: 'Texte'  },
+                  { value: 'list',     icon: <List className="w-3.5 h-3.5" />,    label: 'Liste'   },
+                  { value: 'columns2', icon: <Columns2 className="w-3.5 h-3.5" />, label: '2 col.' },
+                  { value: 'columns3', icon: <Columns3 className="w-3.5 h-3.5" />, label: '3 col.' },
+                  { value: 'table',    icon: <Table2 className="w-3.5 h-3.5" />,  label: 'Tableau' },
                 ] as { value: DisplayFormat; icon: React.ReactNode; label: string }[]
               ).map(({ value, icon, label }) => (
                 <button
                   key={value}
                   onClick={() => setDisplayFormat(value)}
-                  className={`flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded border transition ${
+                  className={`flex items-center justify-center gap-1 text-xs py-1.5 rounded border transition ${
                     displayFormat === value
                       ? 'bg-blue-600 text-white border-blue-600'
                       : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
