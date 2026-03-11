@@ -2,10 +2,16 @@ import { useEffect, useMemo } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { format, subDays, isBefore, startOfDay, isToday } from 'date-fns';
+import { format, subDays, isBefore, startOfDay, isToday, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Briefcase, FileText, AlertCircle, TrendingUp, Calendar as CalendarIcon, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+const safeDate = (val: string | null | undefined): Date | null => {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
 
 export function Dashboard() {
   const { applications, fetchApplications } = useApplicationStore();
@@ -16,17 +22,13 @@ export function Dashboard() {
     fetchCvs();
   }, [fetchApplications, fetchCvs]);
 
+  const now = new Date();
+
   const stats = useMemo(() => {
-    const safeDate = (val: string | null | undefined): Date | null => {
-      if (!val) return null;
-      const d = new Date(val);
-      return isNaN(d.getTime()) ? null : d;
-    };
 
     const activeStatuses = ['draft', 'applied', 'acknowledged', 'phone_screen', 'interview', 'technical_test', 'offer'];
     const activeApps = applications.filter(a => activeStatuses.includes(a.status));
 
-    const now = new Date();
     const thirtyDaysAgo = subDays(now, 30);
 
     const recentApps = applications.filter(a => {
@@ -40,14 +42,17 @@ export function Dashboard() {
       ? Math.round((appsWithResponse.length / applications.filter(a => a.status !== 'draft').length) * 100) || 0
       : 0;
 
-    const needsFollowup = applications.filter(a => {
-      if (!a.nextActionDate || ['accepted', 'rejected', 'withdrawn', 'ghosted'].includes(a.status)) return false;
-      const d = safeDate(a.nextActionDate);
-      if (!d) return false;
-      const actionDate = startOfDay(d);
-      const today = startOfDay(now);
-      return isBefore(actionDate, today) || isToday(actionDate);
-    });
+    const needsFollowup = applications
+      .filter(a => {
+        if (!a.nextActionDate || ['accepted', 'rejected', 'withdrawn', 'ghosted'].includes(a.status)) return false;
+        return safeDate(a.nextActionDate) !== null;
+      })
+      .sort((a, b) => {
+        const da = safeDate(a.nextActionDate);
+        const db = safeDate(b.nextActionDate);
+        if (!da || !db) return 0;
+        return da.getTime() - db.getTime();
+      });
 
     const interviews = applications.filter(a => a.status === 'interview');
 
@@ -178,20 +183,27 @@ export function Dashboard() {
               <div className="space-y-3">
                 {stats.needsFollowup.length > 0 ? (
                   stats.needsFollowup.map(app => {
-                    const d = app.nextActionDate ? new Date(app.nextActionDate) : null;
-                    const isValidDate = d && !isNaN(d.getTime());
+                    const d = safeDate(app.nextActionDate);
+                    const overdue = d ? isBefore(startOfDay(d), startOfDay(now)) : false;
+                    const today = d ? isToday(d) : false;
+                    const daysUntil = d ? differenceInDays(startOfDay(d), startOfDay(now)) : null;
+                    const urgent = overdue || today;
                     return (
-                      <div key={app.id} className="p-3 border border-red-100 bg-red-50 rounded-lg">
+                      <div key={app.id} className={`p-3 rounded-lg border ${urgent ? 'border-red-100 bg-red-50' : 'border-blue-100 bg-blue-50'}`}>
                         <div className="flex justify-between items-start mb-1">
                           <span className="font-semibold text-sm text-gray-900">{app.companyName}</span>
-                          <span className="text-xs font-medium text-red-600 px-2 py-0.5 bg-white rounded-full">
-                            {isValidDate ? format(d, 'dd MMM', { locale: fr }) : ''}
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${urgent ? 'text-red-600 bg-white' : 'text-blue-600 bg-white'}`}>
+                            {d ? format(d, 'dd MMM', { locale: fr }) : ''}
                           </span>
                         </div>
                         <p className="text-xs text-gray-600 line-clamp-1">{app.jobTitle}</p>
                         {app.nextAction && (
-                          <p className="text-xs text-red-700 mt-2 font-medium flex items-center gap-1">
-                            <AlertCircle size={12} /> {app.nextAction}
+                          <p className={`text-xs mt-2 font-medium flex items-center gap-1 ${urgent ? 'text-red-700' : 'text-blue-700'}`}>
+                            <AlertCircle size={12} />
+                            {app.nextAction}
+                            {!urgent && daysUntil !== null && daysUntil > 0 && (
+                              <span className="ml-auto text-blue-400 font-normal">dans {daysUntil}j</span>
+                            )}
                           </p>
                         )}
                       </div>
