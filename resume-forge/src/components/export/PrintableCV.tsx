@@ -238,12 +238,26 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       summaryTextAlign   ? `#printable-cv .cv-summary { text-align: ${summaryTextAlign} !important; }` : '',
       summaryLineHeight  ? `#printable-cv .cv-summary { line-height: ${summaryLineHeight} !important; }` : '',
       pageMargin         ? `#printable-cv { padding: ${pageMargin} !important; }` : '',
-      // Print padding must match getBannerPad() so the banner's negative margin bleeds exactly to the page edge.
-      // For non-banner templates we keep a sensible default.
+      // En impression : marges minimales (8px/10px par défaut, ou la valeur choisie par l'utilisateur).
+      // Pour les bandeaux, les marges négatives doivent correspondre exactement au padding du conteneur
+      // afin que le fond coloré saigne jusqu'au bord de la page.
       (() => {
-        const { v, h } = getBannerPad();
-        const printPad = pageMargin || (isBanner ? `${v} ${h}` : '28px 32px');
-        return `@media print { #printable-cv { padding: ${printPad} !important; } }`;
+        let pv: string, ph: string;
+        if (pageMargin) {
+          const parts = pageMargin.trim().split(/\s+/);
+          pv = parts[0]; ph = parts[1] || parts[0];
+        } else {
+          pv = '8px'; ph = '10px';
+        }
+        const rules = [`@media print { #printable-cv { padding: ${pv} ${ph} !important; } }`];
+        if (isBanner) {
+          rules.push(
+            `@media print { #printable-cv .cv-header-block { ` +
+            `margin-left: -${ph} !important; margin-right: -${ph} !important; margin-top: -${pv} !important; ` +
+            `padding-left: ${ph} !important; padding-right: ${ph} !important; padding-top: ${pv} !important; } }`
+          );
+        }
+        return rules.join('\n');
       })(),
       nameFontSize      ? `#printable-cv .cv-name { font-size: ${nameFontSize} !important; }` : '',
       nameFontWeight    ? `#printable-cv .cv-name { font-weight: ${nameFontWeight} !important; }` : '',
