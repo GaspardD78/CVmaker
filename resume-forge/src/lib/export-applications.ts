@@ -421,12 +421,3 @@ export async function exportApplicationsZip(options: ExportOptions = {}): Promis
 
   await writeFile(savePath, uint8);
 }
-
-function slugify(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .substring(0, 40);
-}
