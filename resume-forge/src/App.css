@@ -4,12 +4,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@media print {
-  @page {
-    size: A4;
-    margin: 0;
-  }
+@page {
+  size: A4;
+  margin: 0;
+}
 
+@media print {
   /* Masquer tout le contenu par défaut */
   body * {
     visibility: hidden;
