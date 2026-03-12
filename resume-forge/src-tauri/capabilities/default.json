@@ -16,6 +16,8 @@
     "sql:allow-load",
     "sql:allow-select",
     "fs:allow-write-file",
-    "fs:write-all"
+    "fs:write-all",
+    "fs:allow-read-file",
+    "fs:read-all"
   ]
 }
