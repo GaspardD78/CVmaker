@@ -72,6 +72,13 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const [photoPositionY, setPhotoPositionY]           = useState(cvSettings.photoPositionY      || '');
   const [photoBorder, setPhotoBorder]                 = useState(cvSettings.photoBorder          || '');
   const [headerStyle, setHeaderStyle]                 = useState(cvSettings.headerStyle          || '');
+  const [nameFontSize, setNameFontSize]               = useState(cvSettings.nameFontSize         || '');
+  const [nameFontWeight, setNameFontWeight]           = useState(cvSettings.nameFontWeight       || '');
+  const [nameTextTransform, setNameTextTransform]     = useState(cvSettings.nameTextTransform    || '');
+  const [nameLineBreak, setNameLineBreak]             = useState(cvSettings.nameLineBreak        || '');
+  const [titleFontSize, setTitleFontSize]             = useState(cvSettings.titleFontSize        || '');
+  const [titleFontStyle, setTitleFontStyle]           = useState(cvSettings.titleFontStyle       || '');
+  const [contactFontSize, setContactFontSize]         = useState(cvSettings.contactFontSize      || '');
 
   const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -141,6 +148,13 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       setPhotoPositionY(freshSettings.photoPositionY || '');
       setPhotoBorder(freshSettings.photoBorder || '');
       setHeaderStyle(freshSettings.headerStyle || '');
+      setNameFontSize(freshSettings.nameFontSize || '');
+      setNameFontWeight(freshSettings.nameFontWeight || '');
+      setNameTextTransform(freshSettings.nameTextTransform || '');
+      setNameLineBreak(freshSettings.nameLineBreak || '');
+      setTitleFontSize(freshSettings.titleFontSize || '');
+      setTitleFontStyle(freshSettings.titleFontStyle || '');
+      setContactFontSize(freshSettings.contactFontSize || '');
       // Update lastSavedDesign so the save effect doesn't re-trigger from resync
       const resynced = {
         fontFamily: freshSettings.fontFamily || 'Calibri',
@@ -177,6 +191,13 @@ export function LeftPanel({ cvId }: { cvId: string }) {
         photoPositionY: freshSettings.photoPositionY || '',
         photoBorder: freshSettings.photoBorder || '',
         headerStyle: freshSettings.headerStyle || '',
+        nameFontSize: freshSettings.nameFontSize || '',
+        nameFontWeight: freshSettings.nameFontWeight || '',
+        nameTextTransform: freshSettings.nameTextTransform || '',
+        nameLineBreak: freshSettings.nameLineBreak || '',
+        titleFontSize: freshSettings.titleFontSize || '',
+        titleFontStyle: freshSettings.titleFontStyle || '',
+        contactFontSize: freshSettings.contactFontSize || '',
       };
       lastSavedDesign.current = resynced;
     }
@@ -197,6 +218,8 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     summaryFontFamily, summaryFontSize, summaryFontStyle, summaryFontWeight, summaryTextAlign, summaryLineHeight,
     photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
     headerStyle,
+    nameFontSize, nameFontWeight, nameTextTransform, nameLineBreak,
+    titleFontSize, titleFontStyle, contactFontSize,
   });
 
   useEffect(() => {
@@ -211,6 +234,8 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       summaryFontFamily, summaryFontSize, summaryFontStyle, summaryFontWeight, summaryTextAlign, summaryLineHeight,
       photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
       headerStyle,
+      nameFontSize, nameFontWeight, nameTextTransform, nameLineBreak,
+      titleFontSize, titleFontStyle, contactFontSize,
     };
     const hasChanged = (Object.keys(current) as (keyof typeof current)[]).some(k => current[k] !== saved[k]);
     if (hasChanged) {
@@ -238,6 +263,8 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       summaryFontFamily, summaryFontSize, summaryFontStyle, summaryFontWeight, summaryTextAlign, summaryLineHeight,
       photoShape, photoSize, photoZoom, photoPositionX, photoPositionY, photoBorder,
       headerStyle,
+      nameFontSize, nameFontWeight, nameTextTransform, nameLineBreak,
+      titleFontSize, titleFontStyle, contactFontSize,
       cvId, updateCv]);
 
   const sensors = useSensors(
@@ -876,6 +903,89 @@ export function LeftPanel({ cvId }: { cvId: string }) {
             <p className="text-[10px] text-gray-400 mt-1 leading-tight">
               Bandeau pleine largeur utilise la couleur d'accent ci-dessus.
             </p>
+
+            {/* CV header typography (name / title / contact) */}
+            <p className="text-xs font-semibold text-purple-800 mt-3 mb-1 border-t border-purple-200 pt-2">Nom &amp; prénom</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+                <select value={nameFontSize} onChange={e => setNameFontSize(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto (thème)</option>
+                  <option value="16px">Petit (16)</option>
+                  <option value="20px">Moyen (20)</option>
+                  <option value="24px">Normal (24)</option>
+                  <option value="28px">Grand (28)</option>
+                  <option value="32px">Très grand (32)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Graisse</label>
+                <select value={nameFontWeight} onChange={e => setNameFontWeight(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="600">Semi-gras</option>
+                  <option value="bold">Gras</option>
+                  <option value="800">Extra-gras</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Casse</label>
+                <select value={nameTextTransform} onChange={e => setNameTextTransform(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="none">Normal</option>
+                  <option value="uppercase">MAJUSCULES</option>
+                  <option value="capitalize">Capitalize</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Saut de ligne</label>
+                <select value={nameLineBreak} onChange={e => setNameLineBreak(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Sur une ligne</option>
+                  <option value="split">Prénom / Nom</option>
+                </select>
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold text-purple-800 mt-2 mb-1">Poste / Titre</p>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+                <select value={titleFontSize} onChange={e => setTitleFontSize(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="12px">Petit (12)</option>
+                  <option value="14px">Normal (14)</option>
+                  <option value="16px">Grand (16)</option>
+                  <option value="18px">Très grand (18)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Style</label>
+                <select value={titleFontStyle} onChange={e => setTitleFontStyle(e.target.value)}
+                  className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                  <option value="">Auto</option>
+                  <option value="normal">Normal</option>
+                  <option value="italic">Italique</option>
+                </select>
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold text-purple-800 mt-2 mb-1">Coordonnées</p>
+            <div>
+              <label className="block text-xs text-gray-600 mb-0.5">Taille</label>
+              <select value={contactFontSize} onChange={e => setContactFontSize(e.target.value)}
+                className="w-full p-1 border rounded text-xs focus:ring focus:ring-purple-200">
+                <option value="">Auto</option>
+                <option value="9px">Très petit (9)</option>
+                <option value="10px">Petit (10)</option>
+                <option value="11px">Normal (11)</option>
+                <option value="12px">Grand (12)</option>
+              </select>
+            </div>
           </div>
           </div>{/* end scrollable content */}
         </div>
