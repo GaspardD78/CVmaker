@@ -51,7 +51,6 @@ async fn do_export(window: tauri::WebviewWindow, output_path: String) -> Result<
 
     window
         .with_webview(move |webview| {
-            use gtk::prelude::{PageSetupExt, PrintSettingsExt};
             use webkit2gtk::{PrintOperation, PrintOperationExt};
 
             let wv: webkit2gtk::WebView = webview.inner();
@@ -72,8 +71,8 @@ async fn do_export(window: tauri::WebviewWindow, output_path: String) -> Result<
             page_setup.set_right_margin(0.0, gtk::Unit::Mm);
 
             let op = PrintOperation::new(&wv);
-            op.set_print_settings(Some(&settings));
-            op.set_page_setup(Some(&page_setup));
+            op.set_print_settings(&settings);
+            op.set_page_setup(&page_setup);
 
             // Signaux de fin / erreur
             let tx_ok = tx_arc.clone();
