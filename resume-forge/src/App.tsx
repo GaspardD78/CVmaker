@@ -5,6 +5,7 @@ import { CVList } from "@/components/cv-builder/CVList";
 import { CVBuilderPage } from "@/components/cv-builder/CVBuilderPage";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { TrackerPage } from "@/components/tracker/TrackerPage";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 import { Toaster } from "sonner";
 import "./App.css";
 
@@ -18,6 +19,7 @@ function App() {
           <Route path="/cv" element={<CVList />} />
           <Route path="/cv/:id" element={<CVBuilderPage />} />
           <Route path="/tracker" element={<TrackerPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Layout>
       <Toaster position="top-right" />

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, User, FileText, Briefcase } from 'lucide-react';
+import { LayoutDashboard, User, FileText, Briefcase, Settings } from 'lucide-react';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +25,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
               Suivi des candidatures
             </Link>
           </nav>
+        </div>
+        <div className="pb-2">
+          <Link to="/settings" className="flex items-center text-gray-500 font-medium hover:text-gray-700 transition text-sm">
+            <Settings className="w-4 h-4 mr-3" />
+            Paramètres
+          </Link>
         </div>
       </aside>
       <main className="flex-1 overflow-auto bg-gray-50 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block">
