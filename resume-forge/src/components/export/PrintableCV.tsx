@@ -220,10 +220,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       fontSize !== '11px'
         ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${fontSize} !important; }`
         : '',
-      subtitleFontFamily ? `#printable-cv .cv-title { font-family: ${subtitleFontFamily} !important; }` : '',
-      subtitleFontSize   ? `#printable-cv .cv-title { font-size: ${subtitleFontSize} !important; }` : '',
-      subtitleFontStyle  ? `#printable-cv .cv-title { font-style: ${subtitleFontStyle} !important; }` : '',
-      subtitleFontWeight ? `#printable-cv .cv-title { font-weight: ${subtitleFontWeight} !important; }` : '',
+      subtitleFontFamily ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-family: ${subtitleFontFamily} !important; }` : '',
+      subtitleFontSize   ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-size: ${subtitleFontSize} !important; }` : '',
+      subtitleFontStyle  ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-style: ${subtitleFontStyle} !important; }` : '',
+      subtitleFontWeight ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-weight: ${subtitleFontWeight} !important; }` : '',
       bodyFontFamily     ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-family: ${bodyFontFamily} !important; }` : '',
       bodyFontSize       ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${bodyFontSize} !important; }` : '',
       bodyTextAlign      ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { text-align: ${bodyTextAlign} !important; }` : '',
@@ -582,7 +582,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
                     )}
                   </div>
                   {(entryData.startDate || entryData.endDate || entryData.isCurrent) && (
-                    <span className={template.preview.dateClass}>
+                    <span className={`cv-date ${template.preview.dateClass}`}>
                       {entryData.startDate ? fmtDate(entryData.startDate) : ''}
                       {entryData.startDate && (entryData.endDate || entryData.isCurrent) ? ' - ' : ''}
                       {entryData.isCurrent ? 'Présent' : (entryData.endDate ? fmtDate(entryData.endDate) : '')}
