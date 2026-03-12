@@ -32,6 +32,13 @@ function formatDate(dateString: string | null): string {
   return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
 }
 
+function formatDateYear(dateString: string | null): string {
+  if (!dateString) return 'Aujourd\'hui';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return new Intl.DateTimeFormat('fr-FR', { year: 'numeric' }).format(date);
+}
+
 /** Tiny inline SVG icons for contact info (print-safe, no external deps) */
 function MailIcon() {
   return (
@@ -147,6 +154,15 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
     // Header style
     const headerStyle = settings.headerStyle || '';
+
+    // CV header (name / job title / contact) settings
+    const nameFontSize      = settings.nameFontSize      || '';
+    const nameFontWeight    = settings.nameFontWeight    || '';
+    const nameTextTransform = settings.nameTextTransform || '';
+    const nameLineBreak     = settings.nameLineBreak     || '';
+    const titleFontSize     = settings.titleFontSize     || '';
+    const titleFontStyle    = settings.titleFontStyle    || '';
+    const contactFontSize   = settings.contactFontSize   || '';
     const isBanner = ['accent-banner', 'dark-banner', 'gradient-banner'].includes(headerStyle);
 
     // Compute effective container padding for full-width banner bleed (negative margin trick)
@@ -229,6 +245,12 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         const printPad = pageMargin || (isBanner ? `${v} ${h}` : '28px 32px');
         return `@media print { #printable-cv { padding: ${printPad} !important; } }`;
       })(),
+      nameFontSize      ? `#printable-cv .cv-name { font-size: ${nameFontSize} !important; }` : '',
+      nameFontWeight    ? `#printable-cv .cv-name { font-weight: ${nameFontWeight} !important; }` : '',
+      nameTextTransform ? `#printable-cv .cv-name { text-transform: ${nameTextTransform} !important; }` : '',
+      titleFontSize     ? `#printable-cv .cv-job-title { font-size: ${titleFontSize} !important; }` : '',
+      titleFontStyle    ? `#printable-cv .cv-job-title { font-style: ${titleFontStyle} !important; }` : '',
+      contactFontSize   ? `#printable-cv .cv-contact-info { font-size: ${contactFontSize} !important; }` : '',
       primaryColor       ? `#printable-cv .cv-badge { border-color: ${primaryColor}30; background-color: ${primaryColor}10; color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv { border-color: ${primaryColor}; }` : '',
       // Banner / header background: force all text inside to white
@@ -469,16 +491,18 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             );
           })()}
           <div className={hasPhoto ? 'flex-1' : ''}>
-            <h1 className={template.preview.nameClass || 'text-3xl font-bold uppercase tracking-wider mb-1'}>
-              {profile.firstName} {profile.lastName}
+            <h1 className={`cv-name ${template.preview.nameClass || 'text-3xl font-bold uppercase tracking-wider mb-1'}`}>
+              {nameLineBreak === 'split'
+                ? <>{profile.firstName}<br />{profile.lastName}</>
+                : `${profile.firstName} ${profile.lastName}`}
             </h1>
             {title && (
-              <h2 className={template.preview.headerTitleClass || 'text-xl font-semibold text-gray-800'}>
+              <h2 className={`cv-job-title ${template.preview.headerTitleClass || 'text-xl font-semibold text-gray-800'}`}>
                 {title}
               </h2>
             )}
             {contactItems.length > 0 && (
-              <div className={`mt-2 ${template.preview.contactClass || 'text-sm text-gray-600'}`}>
+              <div className={`cv-contact-info mt-2 ${template.preview.contactClass || 'text-sm text-gray-600'}`}>
                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
                   {contactItems.map((item, idx) => (
                     item.href ? (
@@ -541,6 +565,8 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             if (!entry) return null;
 
             const entryData = { ...entry, ...block.overrideData };
+            const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
+            const fmtDate = yearOnly ? formatDateYear : formatDate;
 
             return (
               <div key={block.id} className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
@@ -557,9 +583,9 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
                   </div>
                   {(entryData.startDate || entryData.endDate || entryData.isCurrent) && (
                     <span className={template.preview.dateClass}>
-                      {entryData.startDate ? formatDate(entryData.startDate) : ''}
+                      {entryData.startDate ? fmtDate(entryData.startDate) : ''}
                       {entryData.startDate && (entryData.endDate || entryData.isCurrent) ? ' - ' : ''}
-                      {entryData.isCurrent ? 'Présent' : (entryData.endDate ? formatDate(entryData.endDate) : '')}
+                      {entryData.isCurrent ? 'Présent' : (entryData.endDate ? fmtDate(entryData.endDate) : '')}
                     </span>
                   )}
                 </div>

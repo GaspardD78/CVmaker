@@ -37,6 +37,11 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* Rendre les liens visibles (et cliquables) dans le PDF généré */
+  #printable-cv a[href] {
+    text-decoration: underline;
+  }
 }
 
 @theme inline {
