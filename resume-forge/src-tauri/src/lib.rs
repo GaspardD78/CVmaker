@@ -53,6 +53,13 @@ async fn do_export(window: tauri::WebviewWindow, output_path: String) -> Result<
         .with_webview(move |webview| {
             use webkit2gtk::{PrintOperation, PrintOperationExt};
 
+            // Force GTK to synchronously load all print backends (including the
+            // file backend that creates the "Print to File" virtual printer).
+            // Without this call the backend list is empty when printing headlessly,
+            // even if GTK_PRINT_BACKENDS env var is set.
+            extern "C" { fn gtk_print_backend_load_modules(); }
+            unsafe { gtk_print_backend_load_modules(); }
+
             let wv: webkit2gtk::WebView = webview.inner();
 
             // Paramètres GTK : sortie vers fichier PDF
