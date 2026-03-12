@@ -6,7 +6,7 @@ import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { ArrowLeft, Download, FileText } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
-import { printPDF } from '@/lib/export-pdf';
+import { exportNativePdf } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
 import { toast } from 'sonner';
 
@@ -41,8 +41,18 @@ export function CVBuilderPage() {
     }
   };
 
-  const handleExportPdf = () => {
-    printPDF();
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      const success = await exportNativePdf();
+      if (success) {
+        toast.success("Le CV a été exporté en PDF avec succès !");
+      }
+    } catch (error) {
+      toast.error(`Erreur lors de l'export PDF: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -95,10 +105,11 @@ export function CVBuilderPage() {
            </button>
            <button
              onClick={handleExportPdf}
-             className="bg-gray-800 text-white px-4 py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm"
+             disabled={isExporting}
+             className="bg-gray-800 text-white px-4 py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm disabled:opacity-50"
            >
              <Download className="w-4 h-4 mr-2" />
-             Exporter PDF
+             {isExporting ? 'Export...' : 'Exporter PDF'}
            </button>
         </div>
       </div>

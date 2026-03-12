@@ -3,12 +3,14 @@ import { useApplicationStore } from '@/stores/applicationStore';
 import { KanbanBoard } from './KanbanBoard';
 import { ApplicationFormModal } from './ApplicationFormModal';
 import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
-import { Search, Filter } from 'lucide-react';
+import { ExportApplicationsModal } from './ExportApplicationsModal';
+import { Search, Filter, Download } from 'lucide-react';
 import { Application, ApplicationSource } from '@/types/application';
 
 export function TrackerPage() {
   const { applications, fetchApplications, isLoading, error } = useApplicationStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sourceFilter, setSourceFilter] = useState<ApplicationSource | 'all'>('all');
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
@@ -52,12 +54,22 @@ export function TrackerPage() {
             Gérez vos candidatures et leur avancement.
           </p>
         </div>
-        <button
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          onClick={() => setIsModalOpen(true)}
-        >
-          Nouvelle candidature
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            onClick={() => setIsExportOpen(true)}
+            title="Exporter les candidatures"
+          >
+            <Download size={15} />
+            Exporter
+          </button>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            onClick={() => setIsModalOpen(true)}
+          >
+            Nouvelle candidature
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border-b px-6 py-3 flex gap-4 items-center">
@@ -110,6 +122,8 @@ export function TrackerPage() {
           }}
         />
       )}
+
+      <ExportApplicationsModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
 
       {/* New application modal */}
       <ApplicationFormModal
