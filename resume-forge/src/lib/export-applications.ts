@@ -404,8 +404,10 @@ export async function exportApplicationsZip(options: ExportOptions = {}): Promis
       try {
         const content = await readFile(att.filePath);
         zip.file(`pieces_jointes/${folderName}/${att.fileName}`, content);
-      } catch {
-        // File may have been moved/deleted; skip silently
+      } catch (err) {
+        // File may have been moved/deleted — add a placeholder note
+        const msg = `Fichier introuvable au moment de l'export :\n${att.filePath}\n\nErreur : ${err}`;
+        zip.file(`pieces_jointes/${folderName}/${att.fileName}.manquant.txt`, msg);
       }
     }
   }
