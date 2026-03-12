@@ -150,6 +150,12 @@ async fn do_export(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // On Linux, force GTK to load the file print backend before the Tauri/GTK
+    // runtime initialises. Without this, "Print to File" is not available
+    // programmatically and the PDF export fails with "Printer not found".
+    #[cfg(target_os = "linux")]
+    std::env::set_var("GTK_PRINT_BACKENDS", "file,cups,lpr");
+
     let migrations = vec![
         Migration {
             version: 1,
