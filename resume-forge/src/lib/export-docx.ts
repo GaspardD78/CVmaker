@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
   BorderStyle, LevelFormat, Table, TableRow, TableCell, WidthType,
-  ShadingType, VerticalAlign, ImageRun, ExternalHyperlink,
+  ShadingType, VerticalAlign, ImageRun, ExternalHyperlink, SectionType,
 } from 'docx';
 import { CVDocument, CVBlock } from '../types/cv';
 import { MasterEntry, Profile, EntryType } from '../types/profile';
@@ -70,6 +70,109 @@ const NO_TABLE_BORDERS = {
   insideHorizontal: NO_BORDER, insideVertical: NO_BORDER,
 };
 
+// ── Unicode icons for contact items ────────────────────────────────────────────
+
+const CONTACT_ICONS: Record<string, string> = {
+  email: '\u2709',      // ✉
+  phone: '\u260E',      // ☎
+  city: '\u25CB',        // ○
+  linkedin: '\u25A0',   // ■ (small square for LinkedIn)
+  github: '\u25C6',     // ◆
+  portfolio: '\u25CE',  // ◎
+};
+
+// ── Photo masking (circular/rounded) via canvas ────────────────────────────────
+
+type PhotoShape = '' | 'rounded-full' | 'rounded-lg' | 'rounded-sm' | 'rounded-none';
+
+/**
+ * Apply a shape mask to the photo using an offscreen canvas.
+ * Returns a PNG Uint8Array with transparency for the masked areas.
+ */
+async function maskPhoto(
+  imageData: Uint8Array,
+  imageType: string,
+  size: number,
+  shape: PhotoShape,
+): Promise<Uint8Array> {
+  // If no shape or square, return original data
+  if (!shape || shape === 'rounded-none') return imageData;
+
+  // Create a blob from the raw image data
+  const mimeType = imageType === 'jpg' ? 'image/jpeg' : `image/${imageType}`;
+  const blob = new Blob([imageData], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+
+  try {
+    // Load the image
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = url;
+    });
+
+    // Create offscreen canvas at desired size
+    const canvas = document.createElement('canvas');
+    const renderSize = size * 2; // 2x for better quality
+    canvas.width = renderSize;
+    canvas.height = renderSize;
+    const ctx = canvas.getContext('2d')!;
+
+    // Draw the clipping path based on shape
+    ctx.beginPath();
+    if (shape === 'rounded-full') {
+      // Circle
+      ctx.arc(renderSize / 2, renderSize / 2, renderSize / 2, 0, Math.PI * 2);
+    } else if (shape === 'rounded-lg') {
+      // Large rounded corners (12% radius)
+      const radius = renderSize * 0.12;
+      roundRect(ctx, 0, 0, renderSize, renderSize, radius);
+    } else if (shape === 'rounded-sm') {
+      // Small rounded corners (6% radius)
+      const radius = renderSize * 0.06;
+      roundRect(ctx, 0, 0, renderSize, renderSize, radius);
+    } else {
+      // Fallback: full rectangle
+      ctx.rect(0, 0, renderSize, renderSize);
+    }
+    ctx.closePath();
+    ctx.clip();
+
+    // Draw the image filling the clipped area
+    ctx.drawImage(img, 0, 0, renderSize, renderSize);
+
+    // Export as PNG (to preserve transparency)
+    const dataUrl = canvas.toDataURL('image/png');
+    const base64 = dataUrl.split(',')[1];
+    const binaryStr = atob(base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    return bytes;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number, r: number,
+) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+}
+
+// ── Display format type (matches PrintableCV) ─────────────────────────────────
+
+type DisplayFormat = 'badges' | 'comma' | 'list' | 'columns2' | 'columns3' | 'table';
+
 // ── Main export function ───────────────────────────────────────────────────────
 
 export async function generateDocxBlob(
@@ -92,11 +195,11 @@ export async function generateDocxBlob(
 
   // ── Margins ──
   const pageMarginMap: Record<string, { top: number; right: number; bottom: number; left: number }> = {
-    '24px 28px': { top: 567,  right: 567,  bottom: 567,  left: 567  },
-    '32px 36px': { top: 720,  right: 720,  bottom: 720,  left: 720  },
-    '40px 48px': { top: 1080, right: 1080, bottom: 1080, left: 1080 },
-    '48px 56px': { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-    '56px 64px': { top: 1800, right: 1800, bottom: 1800, left: 1800 },
+    '24px 28px': { top: 454,  right: 530,  bottom: 454,  left: 530  },
+    '32px 36px': { top: 605,  right: 680,  bottom: 605,  left: 680  },
+    '40px 48px': { top: 756,  right: 907,  bottom: 756,  left: 907  },
+    '48px 56px': { top: 907,  right: 1058, bottom: 907,  left: 1058 },
+    '56px 64px': { top: 1058, right: 1210, bottom: 1058, left: 1210 },
   };
   const effectiveMargins =
     (cvSettings.pageMargin && pageMarginMap[cvSettings.pageMargin])
@@ -115,7 +218,22 @@ export async function generateDocxBlob(
     '64px': 64, '80px': 80, '96px': 96, '112px': 112, '128px': 128,
   };
   const photoPixels = photoSizeMap[cvSettings.photoSize || ''] || 80;
+  const photoShape = (cvSettings.photoShape || '') as PhotoShape;
   const photoData = profile.photoPath ? base64ToUint8Array(profile.photoPath) : null;
+
+  // Apply shape mask to photo if needed
+  let finalPhotoData: Uint8Array | null = null;
+  let finalPhotoType = 'png';
+  if (photoData) {
+    try {
+      finalPhotoData = await maskPhoto(photoData.data, photoData.type, photoPixels, photoShape);
+      finalPhotoType = 'png'; // masked photo is always PNG (for transparency)
+    } catch {
+      // Fallback: use original image without masking
+      finalPhotoData = photoData.data;
+      finalPhotoType = photoData.type;
+    }
+  }
 
   // ── Effective template ──
   const effectiveTemplate: CVTemplate = {
@@ -131,23 +249,29 @@ export async function generateDocxBlob(
 
   const B = effectiveTemplate.docx.bodySize;
   const F = effectiveTemplate.docx.fonts.body;
+  // Tighter line spacing: use template value but cap it for compactness
+  const lineSpacing = Math.min(effectiveTemplate.docx.lineSpacing, 276);
+  // Reduced section spacing
+  const sectionSpacing = Math.min(effectiveTemplate.docx.sectionSpacing, 200);
 
-  // ── Contact items ──
-  interface ContactItem { text: string; href?: string }
+  // ── Contact items with Unicode icons ──
+  interface ContactItem { icon: string; text: string; href?: string }
   const contactItems: ContactItem[] = [];
-  if (profile.email)        contactItems.push({ text: profile.email, href: `mailto:${profile.email}` });
-  if (profile.phone)        contactItems.push({ text: profile.phone });
-  if (profile.city)         contactItems.push({ text: profile.city });
-  if (profile.linkedinUrl)  contactItems.push({ text: shortenUrl(profile.linkedinUrl), href: ensureHref(profile.linkedinUrl) });
-  if (profile.githubUrl)    contactItems.push({ text: shortenUrl(profile.githubUrl),   href: ensureHref(profile.githubUrl) });
-  if (profile.portfolioUrl) contactItems.push({ text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });
+  if (profile.email)        contactItems.push({ icon: CONTACT_ICONS.email,     text: profile.email, href: `mailto:${profile.email}` });
+  if (profile.phone)        contactItems.push({ icon: CONTACT_ICONS.phone,     text: profile.phone });
+  if (profile.city)         contactItems.push({ icon: CONTACT_ICONS.city,      text: profile.city });
+  if (profile.linkedinUrl)  contactItems.push({ icon: CONTACT_ICONS.linkedin,  text: shortenUrl(profile.linkedinUrl), href: ensureHref(profile.linkedinUrl) });
+  if (profile.githubUrl)    contactItems.push({ icon: CONTACT_ICONS.github,    text: shortenUrl(profile.githubUrl),   href: ensureHref(profile.githubUrl) });
+  if (profile.portfolioUrl) contactItems.push({ icon: CONTACT_ICONS.portfolio, text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });
 
-  /** Build a contact paragraph (inline hyperlinks separated by " | "). */
-  const makeContactParagraph = (textColor: string): Paragraph => {
+  /** Build a contact paragraph with Unicode icons (inline hyperlinks separated by " | "). */
+  const makeContactParagraph = (textColor: string, alignment: typeof AlignmentType[keyof typeof AlignmentType] = AlignmentType.CENTER): Paragraph => {
     const linkColor = textColor || '444444';
     const children: (TextRun | ExternalHyperlink)[] = [];
     contactItems.forEach((item, idx) => {
-      if (idx > 0) children.push(new TextRun({ text: ' | ', size: B, font: F, color: linkColor }));
+      if (idx > 0) children.push(new TextRun({ text: '  |  ', size: B, font: F, color: linkColor }));
+      // Icon
+      children.push(new TextRun({ text: `${item.icon} `, size: B, font: F, color: linkColor }));
       if (item.href) {
         children.push(new ExternalHyperlink({
           link: item.href,
@@ -162,16 +286,18 @@ export async function generateDocxBlob(
     });
     return new Paragraph({
       children,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 100 },
+      alignment,
+      spacing: { after: 60 },
     });
   };
 
-  // ── Build header ──
-  const sectionsChildren: (Paragraph | Table)[] = [];
+  // ── Build document sections ──
   const title = cv.targetJob || profile.title;
+  const headerChildren: (Paragraph | Table)[] = [];
+  const bodyChildren: (Paragraph | Table)[] = [];
 
-  if (isBanner || photoData) {
+  // ── Build header ──
+  if (isBanner || finalPhotoData) {
     // ── Table-based header (banner background and/or photo) ──
     const shading = { fill: isBanner ? bannerHex : 'FFFFFF', type: ShadingType.CLEAR, color: 'auto' };
     const textColor = isBanner ? 'FFFFFF' : '';
@@ -182,7 +308,7 @@ export async function generateDocxBlob(
         bold: true, size: 32, font: effectiveTemplate.docx.fonts.heading,
         color: textColor || '000000',
       })],
-      spacing: { after: 60 },
+      spacing: { after: 40 },
     });
 
     const titlePara = title ? new Paragraph({
@@ -190,30 +316,31 @@ export async function generateDocxBlob(
         text: title, size: 24, font: F,
         color: textColor ? 'E0E0E0' : '444444',
       })],
-      spacing: { after: 80 },
+      spacing: { after: 60 },
     }) : null;
 
-    const contactPara = contactItems.length > 0 ? makeContactParagraph(textColor || '') : null;
-    // Remove underline style in banner (already have color contrast)
+    const contactPara = contactItems.length > 0
+      ? makeContactParagraph(textColor || '', AlignmentType.LEFT)
+      : null;
     const contentChildren: Paragraph[] = [namePara, titlePara, contactPara].filter(Boolean) as Paragraph[];
 
     const contentCell = new TableCell({
       children: contentChildren,
       shading,
       verticalAlign: VerticalAlign.CENTER,
-      margins: { top: 150, bottom: 150, left: 150, right: 150 },
-      width: photoData
+      margins: { top: 120, bottom: 120, left: 120, right: 120 },
+      width: finalPhotoData
         ? { size: 80, type: WidthType.PERCENTAGE }
         : { size: 100, type: WidthType.PERCENTAGE },
     });
 
     const rowCells: TableCell[] = [];
-    if (photoData) {
+    if (finalPhotoData) {
       const photoPara = new Paragraph({
         children: [new ImageRun({
-          data: photoData.data,
+          data: finalPhotoData,
           transformation: { width: photoPixels, height: photoPixels },
-          type: photoData.type as any,
+          type: finalPhotoType as any,
         })],
         alignment: AlignmentType.CENTER,
       });
@@ -221,35 +348,33 @@ export async function generateDocxBlob(
         children: [photoPara],
         shading,
         verticalAlign: VerticalAlign.CENTER,
-        margins: { top: 150, bottom: 150, left: 150, right: 150 },
+        margins: { top: 120, bottom: 120, left: 120, right: 120 },
         width: { size: 20, type: WidthType.PERCENTAGE },
       }));
     }
     rowCells.push(contentCell);
 
-    sectionsChildren.push(new Table({
+    headerChildren.push(new Table({
       rows: [new TableRow({ children: rowCells })],
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders: NO_TABLE_BORDERS,
     }));
-    // Spacer after header table
-    sectionsChildren.push(new Paragraph({ text: '', spacing: { after: 200 } }));
   } else {
     // ── Simple text header (no photo, no banner) ──
-    sectionsChildren.push(new Paragraph({
+    headerChildren.push(new Paragraph({
       text: `${profile.firstName} ${profile.lastName}`,
       heading: HeadingLevel.HEADING_1,
       alignment: AlignmentType.CENTER,
     }));
     if (contactItems.length > 0) {
-      sectionsChildren.push(makeContactParagraph(''));
+      headerChildren.push(makeContactParagraph(''));
     }
     if (title) {
-      sectionsChildren.push(new Paragraph({
+      headerChildren.push(new Paragraph({
         text: title,
         heading: HeadingLevel.HEADING_2,
         alignment: AlignmentType.CENTER,
-        spacing: { after: 300 },
+        spacing: { after: 200 },
       }));
     }
   }
@@ -257,9 +382,9 @@ export async function generateDocxBlob(
   // ── Summary ──
   const summary = cv.customSummary || profile.summary;
   if (summary) {
-    sectionsChildren.push(new Paragraph({
+    bodyChildren.push(new Paragraph({
       children: [new TextRun({ text: summary, size: B, font: F })],
-      spacing: { after: effectiveTemplate.docx.sectionSpacing, line: effectiveTemplate.docx.lineSpacing },
+      spacing: { after: sectionSpacing, line: lineSpacing },
     }));
   }
 
@@ -275,12 +400,176 @@ export async function generateDocxBlob(
     });
   };
 
-  // ── Blocks ──
+  // ── Helper: get display format from nearest preceding section_header ──
+  const getDisplayFormat = (blockIndex: number, sortedBlocks: CVBlock[]): DisplayFormat => {
+    for (let k = blockIndex - 1; k >= 0; k--) {
+      if (sortedBlocks[k].blockType === 'section_header') {
+        return (sortedBlocks[k].overrideData?.displayFormat as DisplayFormat) || 'badges';
+      }
+    }
+    return 'badges';
+  };
+
+  // ── Helper: collect badge labels from a group of badge blocks ──
+  const collectBadgeLabels = (badgeBlocks: CVBlock[]): string[] => {
+    const labels: string[] = [];
+    badgeBlocks.forEach(block => {
+      const entry = entries.find(e => e.id === block.entryId);
+      if (!entry) return;
+      const entryData = { ...entry, ...(block.overrideData || {}) };
+      const description = entryData.description as string | null;
+      if (description) {
+        const lines = description.split('\n').map(l => l.trim()).filter(Boolean);
+        const bulletLines = lines.filter(l => /^[-*]\s/.test(l));
+        if (bulletLines.length > 0) {
+          bulletLines.forEach(l => labels.push(l.replace(/^[-*]\s+/, '')));
+        } else {
+          labels.push(description.trim());
+        }
+      } else {
+        labels.push(
+          entryData.subtitle
+            ? `${entryData.title} — ${entryData.subtitle}`
+            : (entryData.title as string)
+        );
+      }
+    });
+    return labels;
+  };
+
+  // ── Helper: collect badge rows (name + optional level) for table format ──
+  const collectBadgeRows = (badgeBlocks: CVBlock[]): { name: string; level?: string }[] => {
+    const rows: { name: string; level?: string }[] = [];
+    badgeBlocks.forEach(block => {
+      const entry = entries.find(e => e.id === block.entryId);
+      if (!entry) return;
+      const entryData = { ...entry, ...(block.overrideData || {}) };
+      const description = entryData.description as string | null;
+      if (description) {
+        const lines = description.split('\n').map(l => l.trim()).filter(Boolean);
+        const bulletLines = lines.filter(l => /^[-*]\s/.test(l));
+        if (bulletLines.length > 0) {
+          bulletLines.forEach(l => rows.push({ name: l.replace(/^[-*]\s+/, '') }));
+        } else {
+          rows.push({ name: description.trim() });
+        }
+      } else {
+        rows.push({
+          name: entryData.title as string,
+          level: (entryData.subtitle as string) || undefined,
+        });
+      }
+    });
+    return rows;
+  };
+
+  // ── Render badge group according to display format ──
+  const renderBadgeGroup = (badgeBlocks: CVBlock[], format: DisplayFormat): (Paragraph | Table)[] => {
+    const result: (Paragraph | Table)[] = [];
+
+    if (format === 'comma' || format === 'badges') {
+      // Inline text separated by " · "
+      const labels = collectBadgeLabels(badgeBlocks);
+      result.push(new Paragraph({
+        children: [new TextRun({ text: labels.join(' · '), size: B, font: F })],
+        spacing: { after: 60, line: lineSpacing },
+      }));
+
+    } else if (format === 'list') {
+      // Bulleted list
+      const labels = collectBadgeLabels(badgeBlocks);
+      labels.forEach(label => {
+        result.push(new Paragraph({
+          children: parseMarkdownText(label),
+          spacing: { after: 30, line: lineSpacing },
+          numbering: { reference: 'default-bullet', level: 0 },
+        }));
+      });
+
+    } else if (format === 'columns2' || format === 'columns3') {
+      // Table-based columns (2 or 3 columns)
+      const labels = collectBadgeLabels(badgeBlocks);
+      const numCols = format === 'columns2' ? 2 : 3;
+      const colWidth = Math.floor(100 / numCols);
+
+      // Build rows of N columns
+      const tableRows: TableRow[] = [];
+      for (let i = 0; i < labels.length; i += numCols) {
+        const cells: TableCell[] = [];
+        for (let c = 0; c < numCols; c++) {
+          const label = labels[i + c] || '';
+          cells.push(new TableCell({
+            children: [new Paragraph({
+              children: label
+                ? [new TextRun({ text: `• ${label}`, size: B, font: F })]
+                : [new TextRun({ text: '' })],
+              spacing: { after: 20 },
+            })],
+            width: { size: colWidth, type: WidthType.PERCENTAGE },
+            margins: { top: 20, bottom: 20, left: 40, right: 40 },
+          }));
+        }
+        tableRows.push(new TableRow({ children: cells }));
+      }
+      if (tableRows.length > 0) {
+        result.push(new Table({
+          rows: tableRows,
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: NO_TABLE_BORDERS,
+        }));
+      }
+
+    } else if (format === 'table') {
+      // Two-column table: name | level
+      const rows = collectBadgeRows(badgeBlocks);
+      const tableRows: TableRow[] = rows.map(({ name, level }) =>
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: name, size: B, font: F })],
+                spacing: { after: 20 },
+              })],
+              width: { size: 60, type: WidthType.PERCENTAGE },
+              margins: { top: 20, bottom: 20, left: 40, right: 40 },
+            }),
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({
+                  text: level || '',
+                  size: B, font: F,
+                  italics: true,
+                  color: '666666',
+                })],
+                spacing: { after: 20 },
+                alignment: AlignmentType.RIGHT,
+              })],
+              width: { size: 40, type: WidthType.PERCENTAGE },
+              margins: { top: 20, bottom: 20, left: 40, right: 40 },
+            }),
+          ],
+        })
+      );
+      if (tableRows.length > 0) {
+        result.push(new Table({
+          rows: tableRows,
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: NO_TABLE_BORDERS,
+        }));
+      }
+    }
+
+    return result;
+  };
+
+  // ── Process blocks ──
   const sortedBlocks = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
   const BADGE_TYPES: EntryType[] = ['skill', 'language', 'interest'];
+  let i = 0;
 
-  for (const block of sortedBlocks) {
-    if (!block.isVisible) continue;
+  while (i < sortedBlocks.length) {
+    const block = sortedBlocks[i];
+    if (!block.isVisible) { i++; continue; }
 
     if (block.blockType === 'section_header' && block.sectionName) {
       const sectionRun: any = {
@@ -290,51 +579,53 @@ export async function generateDocxBlob(
       };
       if (accentHex) sectionRun.color = accentHex;
 
-      sectionsChildren.push(new Paragraph({
+      bodyChildren.push(new Paragraph({
         children: [new TextRun({ ...sectionRun, text: (block.sectionName || '').toUpperCase() })],
-        spacing: { before: effectiveTemplate.docx.sectionSpacing, after: 100 },
+        spacing: { before: sectionSpacing, after: 60 },
         border: {
           bottom: { color: accentHex || 'auto', space: 1, style: BorderStyle.SINGLE, size: 6 },
         },
       }));
+      i++;
 
     } else if (block.blockType === 'custom_text' && block.customContent) {
       for (const line of block.customContent.split('\n')) {
         const t = line.trim();
         const isBullet = t.startsWith('- ') || t.startsWith('* ');
-        sectionsChildren.push(new Paragraph({
+        bodyChildren.push(new Paragraph({
           children: parseMarkdownText(isBullet ? t.substring(2).trim() : line),
-          spacing: { after: 50, line: effectiveTemplate.docx.lineSpacing },
+          spacing: { after: 40, line: lineSpacing },
           numbering: isBullet ? { reference: 'default-bullet', level: 0 } : undefined,
         }));
       }
+      i++;
 
     } else if (block.blockType === 'entry_ref' && block.entryId) {
       const entry = entries.find(e => e.id === block.entryId);
-      if (!entry) continue;
-      const entryData = { ...entry, ...(block.overrideData || {}) };
+      if (!entry) { i++; continue; }
 
       if (BADGE_TYPES.includes(entry.entryType)) {
-        if (entryData.description && typeof entryData.description === 'string') {
-          for (const line of entryData.description.split('\n')) {
-            const t = line.trim();
-            if (!t) continue;
-            const content = /^[-*]\s/.test(t) ? t.substring(2).trim() : t;
-            sectionsChildren.push(new Paragraph({
-              children: parseMarkdownText(content),
-              spacing: { after: 40, line: effectiveTemplate.docx.lineSpacing },
-              numbering: { reference: 'default-bullet', level: 0 },
-            }));
-          }
-        } else if (entryData.title) {
-          sectionsChildren.push(new Paragraph({
-            children: [new TextRun({ text: entryData.title as string, size: B, font: F })],
-            spacing: { after: 40, line: effectiveTemplate.docx.lineSpacing },
-            numbering: { reference: 'default-bullet', level: 0 },
-          }));
+        // Collect consecutive badge entries
+        const badgeGroup: CVBlock[] = [block];
+        let j = i + 1;
+        while (j < sortedBlocks.length) {
+          const next = sortedBlocks[j];
+          if (!next.isVisible) { j++; continue; }
+          if (next.blockType !== 'entry_ref' || !next.entryId) break;
+          const nextEntry = entries.find(e => e.id === next.entryId);
+          if (!nextEntry || !BADGE_TYPES.includes(nextEntry.entryType)) break;
+          badgeGroup.push(next);
+          j++;
         }
+
+        const format = getDisplayFormat(i, sortedBlocks);
+        const rendered = renderBadgeGroup(badgeGroup, format);
+        bodyChildren.push(...rendered);
+        i = j;
+
       } else {
         // Regular entries (experience, education, certification…)
+        const entryData = { ...entry, ...(block.overrideData || {}) };
         const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
         const fmtDate = yearOnly ? formatDateYear : formatDate;
         const dateText = entryData.startDate
@@ -353,9 +644,9 @@ export async function generateDocxBlob(
         if (dateText)    textRuns.push(new TextRun({ text: `  (${dateText})`, size: B, font: F, color: '666666' }));
         if (!textRuns.length) textRuns.push(new TextRun({ text: '' }));
 
-        sectionsChildren.push(new Paragraph({
+        bodyChildren.push(new Paragraph({
           children: textRuns,
-          spacing: { before: 100, after: 50 },
+          spacing: { before: 80, after: 30 },
         }));
 
         if (entryData.description && typeof entryData.description === 'string') {
@@ -363,15 +654,68 @@ export async function generateDocxBlob(
             const t = line.trim();
             if (!t) continue;
             const isBullet = t.startsWith('- ') || t.startsWith('* ');
-            sectionsChildren.push(new Paragraph({
+            bodyChildren.push(new Paragraph({
               children: parseMarkdownText(isBullet ? t.substring(2).trim() : t),
-              spacing: { after: 50, line: effectiveTemplate.docx.lineSpacing },
+              spacing: { after: 30, line: lineSpacing },
               numbering: isBullet ? { reference: 'default-bullet', level: 0 } : undefined,
             }));
           }
         }
+        i++;
       }
+    } else {
+      i++;
     }
+  }
+
+  // ── Page dimensions ──
+  const pageWidth = effectiveTemplate.docx.pageSize === 'A4' ? 11906 : 12240;
+  const pageHeight = effectiveTemplate.docx.pageSize === 'A4' ? 16838 : 15840;
+
+  // ── Build document with sections ──
+  // If banner, use a first section with zero margins for the header,
+  // then a continuous second section with normal margins for the body.
+  const sections = [];
+
+  if (isBanner) {
+    // Section 1: Header with zero horizontal margins (full-bleed banner)
+    sections.push({
+      properties: {
+        page: {
+          size: { width: pageWidth, height: pageHeight },
+          margin: { top: 0, right: 0, bottom: 0, left: 0 },
+        },
+      },
+      children: [...headerChildren] as Paragraph[],
+    });
+
+    // Section 2: Body content with normal margins (continuous)
+    sections.push({
+      properties: {
+        type: SectionType.CONTINUOUS,
+        page: {
+          size: { width: pageWidth, height: pageHeight },
+          margin: effectiveTemplate.docx.margins,
+        },
+      },
+      children: bodyChildren as Paragraph[],
+    });
+  } else {
+    // Single section with normal margins
+    sections.push({
+      properties: {
+        page: {
+          size: { width: pageWidth, height: pageHeight },
+          margin: effectiveTemplate.docx.margins,
+        },
+      },
+      children: [
+        ...headerChildren,
+        // Spacer after header
+        new Paragraph({ text: '', spacing: { after: 120 } }),
+        ...bodyChildren,
+      ] as Paragraph[],
+    });
   }
 
   // ── Document ──
@@ -384,7 +728,7 @@ export async function generateDocxBlob(
           format: LevelFormat.BULLET,
           text: '•',
           alignment: AlignmentType.LEFT,
-          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
+          style: { paragraph: { indent: { left: 540, hanging: 270 } } },
         }],
       }],
     },
@@ -392,7 +736,7 @@ export async function generateDocxBlob(
       default: {
         document: {
           run: { font: effectiveTemplate.docx.fonts.body, size: B, language: { value: 'fr-FR' } },
-          paragraph: { spacing: { line: effectiveTemplate.docx.lineSpacing } },
+          paragraph: { spacing: { line: lineSpacing } },
         },
       },
       paragraphStyles: [
@@ -408,7 +752,7 @@ export async function generateDocxBlob(
             bold: true,
             ...(accentHex ? { color: accentHex } : {}),
           },
-          paragraph: { spacing: { after: 200 } },
+          paragraph: { spacing: { after: 120 } },
         },
         {
           id: 'Heading2',
@@ -423,7 +767,7 @@ export async function generateDocxBlob(
             ...(accentHex ? { color: accentHex } : {}),
           },
           paragraph: {
-            spacing: { before: 200, after: 100 },
+            spacing: { before: 120, after: 60 },
             border: {
               bottom: { color: accentHex || 'auto', space: 1, style: BorderStyle.SINGLE, size: 6 },
             },
@@ -431,18 +775,7 @@ export async function generateDocxBlob(
         },
       ],
     },
-    sections: [{
-      properties: {
-        page: {
-          size: {
-            width:  effectiveTemplate.docx.pageSize === 'A4' ? 11906 : 12240,
-            height: effectiveTemplate.docx.pageSize === 'A4' ? 16838 : 15840,
-          },
-          margin: effectiveTemplate.docx.margins,
-        },
-      },
-      children: sectionsChildren as Paragraph[],
-    }],
+    sections,
   });
 
   return await Packer.toBlob(doc);
