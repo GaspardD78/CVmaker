@@ -68,7 +68,7 @@ function neutralizeOklchColors(root: HTMLElement): () => void {
   }
 
   // ── 2. Clone & patch stylesheets containing oklch ──
-  const swapped: { original: CSSStyleSheet; clone: HTMLStyleElement }[] = [];
+  const swapped: { ownerEl: HTMLElement; clone: HTMLStyleElement }[] = [];
 
   for (const sheet of Array.from(document.styleSheets)) {
     try {
@@ -93,7 +93,6 @@ function neutralizeOklchColors(root: HTMLElement): () => void {
 
       // First: replace variable declarations containing oklch
       for (const [varName, rgb] of varMap) {
-        // Replace the full declaration value for this variable
         const declRe = new RegExp(
           `(${varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*)([^;]*oklch\\([^)]*\\)[^;]*)`,
           'gi',
@@ -110,9 +109,10 @@ function neutralizeOklchColors(root: HTMLElement): () => void {
       clone.textContent = patched;
       document.head.appendChild(clone);
 
-      // Disable the original
-      sheet.disabled = true;
-      swapped.push({ original: sheet, clone });
+      // Disable the original by setting the disabled attribute on the
+      // owning DOM element (more reliable than sheet.disabled for restore)
+      ownerEl.setAttribute('disabled', 'true');
+      swapped.push({ ownerEl, clone });
     } catch { /* skip */ }
   }
 
@@ -146,9 +146,9 @@ function neutralizeOklchColors(root: HTMLElement): () => void {
         el.style.removeProperty(cssProp);
       }
     }
-    for (const { original, clone } of swapped) {
+    for (const { ownerEl, clone } of swapped) {
       clone.remove();
-      original.disabled = false;
+      ownerEl.removeAttribute('disabled');
     }
   };
 }
