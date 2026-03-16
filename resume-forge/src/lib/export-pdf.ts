@@ -8,42 +8,86 @@ const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
 /**
+ * Convertit une valeur oklch(...) en rgb() via le navigateur.
+ * On utilise un élément temporaire : le navigateur résout oklch → rgb
+ * dans getComputedStyle.
+ */
+function oklchToRgb(oklchValue: string): string {
+  const el = document.createElement('div');
+  el.style.color = oklchValue;
+  el.style.display = 'none';
+  document.body.appendChild(el);
+  const rgb = getComputedStyle(el).color;
+  el.remove();
+  return rgb || 'transparent';
+}
+
+/**
+ * Remplace toutes les occurrences oklch(...) dans un texte CSS
+ * par leurs équivalents rgb(), en utilisant un cache.
+ */
+function replaceAllOklch(cssText: string, cache: Map<string, string>): string {
+  return cssText.replace(/oklch\([^)]*\)/gi, (match) => {
+    let rgb = cache.get(match);
+    if (!rgb) {
+      rgb = oklchToRgb(match);
+      cache.set(match, rgb);
+    }
+    return rgb;
+  });
+}
+
+/**
+ * Remplace le textContent des <style> contenant oklch() par une
+ * version où chaque oklch(...) est converti en rgb().
+ *
+ * Retourne une fonction de restauration qui remet le texte original.
+ * Les stylesheets restent actives (pas de sheet.disabled) donc les
+ * classes Tailwind de layout/sizing/flexbox continuent de fonctionner.
+ * Les couleurs rgb sont visuellement identiques → pas de flash visible.
+ */
+function patchStyleSheetsOklch(): () => void {
+  const cache = new Map<string, string>();
+  const originals: { el: HTMLStyleElement; text: string }[] = [];
+
+  for (const style of Array.from(document.querySelectorAll<HTMLStyleElement>('style'))) {
+    const text = style.textContent || '';
+    if (!text.includes('oklch')) continue;
+
+    originals.push({ el: style, text });
+    style.textContent = replaceAllOklch(text, cache);
+  }
+
+  return () => {
+    for (const { el, text } of originals) {
+      el.textContent = text;
+    }
+  };
+}
+
+/**
  * Exporte le CV en PDF via html2canvas + jsPDF.
  *
  * html2canvas embarque son propre parser CSS qui ne supporte pas
- * oklch().  Pour contourner le problème on :
+ * oklch().  Il parse les stylesheets du document ORIGINAL avant
+ * d'appeler onclone — on ne peut donc pas patcher seulement le
+ * clone.
  *
- * 1. Pré-calcule TOUS les styles computed de chaque élément du CV
- *    depuis le DOM vivant (le navigateur résout oklch → rgb).
- * 2. Dans le callback `onclone` de html2canvas, on applique ces
- *    styles en inline sur les éléments clonés, puis on supprime
- *    TOUTES les feuilles de style du clone.
- *
- * Ainsi html2canvas ne parse aucune stylesheet et ne voit jamais
- * oklch().  Le DOM original n'est jamais modifié (sauf la largeur
- * A4 temporaire sur #printable-cv).
+ * Stratégie :
+ * 1. Remplacer le textContent des <style> en remplaçant oklch()
+ *    par les rgb() équivalents (calculés par le navigateur).
+ *    Les stylesheets restent actives et visuellement identiques.
+ * 2. Appeler html2canvas (qui ne voit plus que des rgb()).
+ * 3. Restaurer le textContent original des <style>.
  */
 export async function exportNativePdf(): Promise<boolean> {
   const cv = document.getElementById('printable-cv') as HTMLElement | null;
   if (!cv) return false;
 
-  // ── 1. Pre-compute ALL resolved styles from the live DOM ──
-  // getComputedStyle always returns resolved values (oklch → rgb, var() → value).
-  const liveElements = [cv, ...Array.from(cv.querySelectorAll<HTMLElement>('*'))];
-  const allComputedStyles: [string, string][][] = [];
+  // ── 1. Patch <style> elements: oklch → rgb ──
+  const restoreSheets = patchStyleSheetsOklch();
 
-  for (const el of liveElements) {
-    const cs = getComputedStyle(el);
-    const pairs: [string, string][] = [];
-    for (let i = 0; i < cs.length; i++) {
-      const prop = cs[i];
-      const val = cs.getPropertyValue(prop);
-      if (val) pairs.push([prop, val]);
-    }
-    allComputedStyles.push(pairs);
-  }
-
-  // ── 2. Temporarily set A4 width on the live CV element ──
+  // ── 2. Temporarily set A4 width on the CV element ──
   const originalStyle = cv.getAttribute('style') || '';
   const a4WidthPx = 794;
   cv.style.width = `${a4WidthPx}px`;
@@ -56,7 +100,7 @@ export async function exportNativePdf(): Promise<boolean> {
   await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
   try {
-    // ── 3. Rasterise via html2canvas, patching only the clone ──
+    // ── 3. Rasterise via html2canvas ──
     const canvas = await html2canvas(cv, {
       scale: 2,
       useCORS: true,
@@ -65,26 +109,6 @@ export async function exportNativePdf(): Promise<boolean> {
       logging: false,
       width: a4WidthPx,
       windowWidth: a4WidthPx,
-      onclone: (clonedDoc: Document, clonedCv: HTMLElement) => {
-        // 3a. Apply ALL pre-computed inline styles on cloned elements.
-        //     This makes every element fully self-describing — no
-        //     stylesheet needed.
-        const clonedElements = [clonedCv, ...Array.from(clonedCv.querySelectorAll<HTMLElement>('*'))];
-        for (let i = 0; i < clonedElements.length && i < allComputedStyles.length; i++) {
-          const el = clonedElements[i];
-          const styles = allComputedStyles[i];
-          for (const [prop, val] of styles) {
-            el.style.setProperty(prop, val);
-          }
-        }
-
-        // 3b. Remove ALL stylesheets from the clone — everything is
-        //     now inlined.  This prevents html2canvas from ever
-        //     encountering oklch() in its CSS parser.
-        for (const el of Array.from(clonedDoc.querySelectorAll('style, link[rel="stylesheet"]'))) {
-          el.remove();
-        }
-      },
     });
 
     // ── 4. Generate PDF ──
@@ -114,7 +138,8 @@ export async function exportNativePdf(): Promise<boolean> {
     await writeFile(filePath, new Uint8Array(pdfBlob));
     return true;
   } finally {
-    // ── 5. Restore only the sizing on the live element ──
+    // ── 5. Restore everything ──
+    restoreSheets();
     if (originalStyle) {
       cv.setAttribute('style', originalStyle);
     } else {
