@@ -37,9 +37,9 @@ function toRgbString(raw: string): string {
  * Force les couleurs computed en inline (format rgb/hex) sur chaque
  * élément du sous-arbre.
  *
- * WebKit (macOS Tauri) peut retourner oklch() depuis getComputedStyle ;
- * on convertit donc systématiquement vers rgb/hex via canvas 2D avant
- * d'appliquer en inline.
+ * Les moteurs récents (Chromium/WebView2, WebKitGTK) peuvent retourner
+ * oklch() depuis getComputedStyle au lieu de rgb().  On convertit donc
+ * systématiquement vers rgb/hex via canvas 2D avant d'appliquer en inline.
  *
  * Retourne une fonction de restauration des styles inline d'origine.
  */
@@ -73,8 +73,9 @@ function forceInlineColors(root: HTMLElement): () => void {
  * Exporte le CV en PDF via html2canvas + jsPDF.
  *
  * html2canvas v1.4.1 ne supporte que rgb/rgba/hsl/hsla dans son
- * parser CSS interne.  Tailwind v4 utilise oklch() partout, et
- * WebKit (macOS) peut retourner oklch() depuis getComputedStyle().
+ * parser CSS interne.  Tailwind v4 utilise oklch() partout, et les
+ * moteurs récents (WebView2, WebKitGTK) peuvent retourner oklch()
+ * depuis getComputedStyle() au lieu de rgb().
  *
  * On force donc TOUTES les couleurs en rgb/hex inline !important
  * sur les éléments du CV AVANT l'appel à html2canvas.
