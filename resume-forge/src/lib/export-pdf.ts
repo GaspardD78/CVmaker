@@ -17,42 +17,68 @@ const COLOR_PROPS = [
 ] as const;
 
 /**
+ * Force les couleurs computed (rgb) en inline sur chaque élément du
+ * sous-arbre.  Puisque le navigateur résout oklch → rgb dans
+ * getComputedStyle, les valeurs inline sont visuellement identiques.
+ *
+ * Retourne une fonction de restauration des styles inline d'origine.
+ */
+function forceInlineColors(root: HTMLElement): () => void {
+  const saved: { el: HTMLElement; prop: string; prev: string }[] = [];
+  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
+  for (const el of elements) {
+    const cs = getComputedStyle(el);
+    for (const prop of COLOR_PROPS) {
+      const val = (cs as any)[prop] as string;
+      if (!val) continue;
+      const cssProp = prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+      saved.push({ el, prop: cssProp, prev: el.style.getPropertyValue(cssProp) });
+      el.style.setProperty(cssProp, val, 'important');
+    }
+  }
+
+  return () => {
+    for (const { el, prop, prev } of saved) {
+      if (prev) {
+        el.style.setProperty(prop, prev);
+      } else {
+        el.style.removeProperty(prop);
+      }
+    }
+  };
+}
+
+/**
  * Exporte le CV en PDF via html2canvas + jsPDF.
  *
- * html2canvas ne supporte que rgb/rgba/hsl/hsla dans son parser
- * CSS interne.  Les couleurs oklch() (utilisées par Tailwind v4)
- * tombent en transparent grâce au patch html2canvas.
+ * html2canvas ne supporte que rgb/rgba/hsl/hsla dans son parser CSS.
+ * Les oklch() (Tailwind v4) sont patchés pour retourner transparent
+ * (via le plugin Vite).
  *
- * Pour que les couleurs soient correctes dans le PDF, on pré-
- * calcule les couleurs computed (toujours rgb) depuis le DOM vivant
- * et on les applique en inline sur les éléments clonés via onclone.
+ * Pour les couleurs correctes : on force TOUTES les couleurs computed
+ * (rgb) en inline !important sur les éléments du CV AVANT l'appel à
+ * html2canvas.  html2canvas clone le DOM avec ces styles inline et
+ * les utilise directement (getComputedStyle retourne le rgb inline).
+ *
+ * Les valeurs rgb sont visuellement identiques aux oklch d'origine
+ * → pas de flash perceptible.
  */
 export async function exportNativePdf(): Promise<boolean> {
   const cv = document.getElementById('printable-cv') as HTMLElement | null;
   if (!cv) return false;
 
-  // ── 1. Pre-compute resolved (rgb) colours from the live DOM ──
-  const liveElements = [cv, ...Array.from(cv.querySelectorAll<HTMLElement>('*'))];
-  const computedColors: Record<string, string>[] = [];
+  // ── 1. Force inline rgb colours on all CV elements ──
+  const restoreColors = forceInlineColors(cv);
 
-  for (const el of liveElements) {
-    const cs = getComputedStyle(el);
-    const colors: Record<string, string> = {};
-    for (const prop of COLOR_PROPS) {
-      const val = (cs as any)[prop] as string;
-      if (val) colors[prop] = val;
-    }
-    computedColors.push(colors);
-  }
-
-  // ── 2. Temporarily set A4 width on the live CV element ──
+  // ── 2. Temporarily set A4 width ──
   const originalStyle = cv.getAttribute('style') || '';
   const a4WidthPx = 794;
-  cv.style.width = `${a4WidthPx}px`;
-  cv.style.maxWidth = `${a4WidthPx}px`;
-  cv.style.minWidth = `${a4WidthPx}px`;
-  cv.style.boxShadow = 'none';
-  cv.style.margin = '0';
+  cv.style.setProperty('width', `${a4WidthPx}px`, 'important');
+  cv.style.setProperty('max-width', `${a4WidthPx}px`, 'important');
+  cv.style.setProperty('min-width', `${a4WidthPx}px`, 'important');
+  cv.style.setProperty('box-shadow', 'none', 'important');
+  cv.style.setProperty('margin', '0', 'important');
 
   await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
@@ -66,19 +92,6 @@ export async function exportNativePdf(): Promise<boolean> {
       logging: false,
       width: a4WidthPx,
       windowWidth: a4WidthPx,
-      onclone: (_clonedDoc: Document, clonedCv: HTMLElement) => {
-        // Force pre-computed rgb colours on cloned elements so that
-        // html2canvas sees rgb() instead of oklch() (which would
-        // fall back to transparent via our patch).
-        const clonedElements = [clonedCv, ...Array.from(clonedCv.querySelectorAll<HTMLElement>('*'))];
-        for (let i = 0; i < clonedElements.length && i < computedColors.length; i++) {
-          const el = clonedElements[i];
-          const colors = computedColors[i];
-          for (const [prop, val] of Object.entries(colors)) {
-            (el.style as any)[prop] = val;
-          }
-        }
-      },
     });
 
     // ── 4. Generate PDF ──
@@ -108,7 +121,8 @@ export async function exportNativePdf(): Promise<boolean> {
     await writeFile(filePath, new Uint8Array(pdfBlob));
     return true;
   } finally {
-    // ── 5. Restore sizing ──
+    // ── 5. Restore everything ──
+    restoreColors();
     if (originalStyle) {
       cv.setAttribute('style', originalStyle);
     } else {
