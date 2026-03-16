@@ -7,140 +7,45 @@ import { writeFile } from '@tauri-apps/plugin-fs';
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
-/**
- * Convertit une valeur oklch(...) en rgb() via le navigateur.
- */
-function oklchToRgb(oklchValue: string): string {
-  const el = document.createElement('div');
-  el.style.color = oklchValue;
-  el.style.display = 'none';
-  document.body.appendChild(el);
-  const rgb = getComputedStyle(el).color;
-  el.remove();
-  return rgb || 'transparent';
-}
-
-/**
- * Remplace toutes les occurrences oklch(...) dans un texte CSS
- * par leurs équivalents rgb(), avec cache.
- */
-function replaceAllOklch(cssText: string, cache: Map<string, string>): string {
-  return cssText.replace(/oklch\([^)]*\)/gi, (match) => {
-    let rgb = cache.get(match);
-    if (!rgb) {
-      rgb = oklchToRgb(match);
-      cache.set(match, rgb);
-    }
-    return rgb;
-  });
-}
-
-/**
- * Remplace toutes les feuilles de style contenant oklch() par des
- * versions patchées (oklch → rgb).
- *
- * Lit les règles CSS depuis le CSSOM (sheet.cssRules) et non depuis
- * textContent — ce qui couvre les styles injectés par Vite HMR via
- * sheet.insertRule().
- *
- * Gère aussi document.adoptedStyleSheets (constructed stylesheets).
- *
- * Retourne une fonction de restauration.
- */
-function patchAllStyleSheets(): () => void {
-  const cache = new Map<string, string>();
-
-  // ── 1. Patch regular stylesheets (<style> and <link>) ──
-  const swapped: {
-    node: Node;
-    parent: Node;
-    replacement: HTMLStyleElement;
-  }[] = [];
-
-  for (const sheet of Array.from(document.styleSheets)) {
-    let cssText = '';
-    try {
-      cssText = Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
-    } catch {
-      continue; // cross-origin, skip
-    }
-
-    if (!cssText.includes('oklch')) continue;
-
-    const patched = replaceAllOklch(cssText, cache);
-
-    // Create replacement <style> with patched CSS
-    const replacement = document.createElement('style');
-    replacement.setAttribute('data-pdf-export', 'true');
-    replacement.textContent = patched;
-
-    // Remove the original from DOM (reliable disable — sheet becomes
-    // orphaned and html2canvas cannot find it).
-    const ownerNode = sheet.ownerNode;
-    if (ownerNode && ownerNode.parentNode) {
-      const parent = ownerNode.parentNode;
-      const nextSibling = ownerNode.nextSibling;
-      parent.removeChild(ownerNode);
-      // Insert replacement at the same position
-      parent.insertBefore(replacement, nextSibling);
-      swapped.push({ node: ownerNode, parent, replacement });
-    }
-  }
-
-  // ── 2. Patch adopted stylesheets (constructed CSSStyleSheet) ──
-  const adoptedOriginals: { sheet: CSSStyleSheet; text: string }[] = [];
-  if (document.adoptedStyleSheets?.length) {
-    for (const sheet of document.adoptedStyleSheets) {
-      let cssText = '';
-      try {
-        cssText = Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
-      } catch {
-        continue;
-      }
-      if (!cssText.includes('oklch')) continue;
-      adoptedOriginals.push({ sheet, text: cssText });
-      sheet.replaceSync(replaceAllOklch(cssText, cache));
-    }
-  }
-
-  // ── Restore ──
-  return () => {
-    // Restore adopted stylesheets
-    for (const { sheet, text } of adoptedOriginals) {
-      sheet.replaceSync(text);
-    }
-    // Swap back: remove replacement, re-insert original at same position
-    for (const { node, parent, replacement } of swapped) {
-      parent.insertBefore(node, replacement);
-      replacement.remove();
-    }
-  };
-}
+/** CSS colour properties that html2canvas parses with its internal
+ *  color parser (which doesn't support oklch/lab/lch).  We force
+ *  these to their computed rgb() values via inline styles. */
+const COLOR_PROPS = [
+  'color', 'backgroundColor', 'borderColor',
+  'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
+  'outlineColor', 'textDecorationColor',
+] as const;
 
 /**
  * Exporte le CV en PDF via html2canvas + jsPDF.
  *
- * html2canvas embarque un parser CSS qui ne supporte pas oklch().
- * Il parse les stylesheets du document original (pas du clone).
+ * html2canvas ne supporte que rgb/rgba/hsl/hsla dans son parser
+ * CSS interne.  Les couleurs oklch() (utilisées par Tailwind v4)
+ * tombent en transparent grâce au patch html2canvas.
  *
- * Stratégie :
- * 1. Lire les règles CSS depuis le CSSOM (sheet.cssRules).
- * 2. Remplacer chaque oklch() par son équivalent rgb().
- * 3. Remplacer le nœud DOM original par un <style> patché.
- * 4. Appeler html2canvas.
- * 5. Restaurer les nœuds originaux.
- *
- * Les couleurs rgb sont visuellement identiques → pas de flash.
- * Restauration fiable via re-insertion DOM.
+ * Pour que les couleurs soient correctes dans le PDF, on pré-
+ * calcule les couleurs computed (toujours rgb) depuis le DOM vivant
+ * et on les applique en inline sur les éléments clonés via onclone.
  */
 export async function exportNativePdf(): Promise<boolean> {
   const cv = document.getElementById('printable-cv') as HTMLElement | null;
   if (!cv) return false;
 
-  // ── 1. Patch stylesheets: oklch → rgb ──
-  const restoreSheets = patchAllStyleSheets();
+  // ── 1. Pre-compute resolved (rgb) colours from the live DOM ──
+  const liveElements = [cv, ...Array.from(cv.querySelectorAll<HTMLElement>('*'))];
+  const computedColors: Record<string, string>[] = [];
 
-  // ── 2. Temporarily set A4 width ──
+  for (const el of liveElements) {
+    const cs = getComputedStyle(el);
+    const colors: Record<string, string> = {};
+    for (const prop of COLOR_PROPS) {
+      const val = (cs as any)[prop] as string;
+      if (val) colors[prop] = val;
+    }
+    computedColors.push(colors);
+  }
+
+  // ── 2. Temporarily set A4 width on the live CV element ──
   const originalStyle = cv.getAttribute('style') || '';
   const a4WidthPx = 794;
   cv.style.width = `${a4WidthPx}px`;
@@ -152,7 +57,7 @@ export async function exportNativePdf(): Promise<boolean> {
   await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
   try {
-    // ── 3. Rasterise ──
+    // ── 3. Rasterise via html2canvas ──
     const canvas = await html2canvas(cv, {
       scale: 2,
       useCORS: true,
@@ -161,6 +66,19 @@ export async function exportNativePdf(): Promise<boolean> {
       logging: false,
       width: a4WidthPx,
       windowWidth: a4WidthPx,
+      onclone: (_clonedDoc: Document, clonedCv: HTMLElement) => {
+        // Force pre-computed rgb colours on cloned elements so that
+        // html2canvas sees rgb() instead of oklch() (which would
+        // fall back to transparent via our patch).
+        const clonedElements = [clonedCv, ...Array.from(clonedCv.querySelectorAll<HTMLElement>('*'))];
+        for (let i = 0; i < clonedElements.length && i < computedColors.length; i++) {
+          const el = clonedElements[i];
+          const colors = computedColors[i];
+          for (const [prop, val] of Object.entries(colors)) {
+            (el.style as any)[prop] = val;
+          }
+        }
+      },
     });
 
     // ── 4. Generate PDF ──
@@ -190,8 +108,7 @@ export async function exportNativePdf(): Promise<boolean> {
     await writeFile(filePath, new Uint8Array(pdfBlob));
     return true;
   } finally {
-    // ── 5. Restore everything ──
-    restoreSheets();
+    // ── 5. Restore sizing ──
     if (originalStyle) {
       cv.setAttribute('style', originalStyle);
     } else {
