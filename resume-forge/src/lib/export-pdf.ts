@@ -8,49 +8,117 @@ const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
 /**
- * Resolve all oklch() / color-mix() / CSS variable colors that html2canvas
- * cannot parse.  We walk every element inside the subtree, read the
- * *computed* style for the colour-related properties, and set them as
- * inline styles so html2canvas sees plain rgb()/rgba() values only.
+ * Neutralise les couleurs oklch() / color-mix() que html2canvas ne sait
+ * pas parser.  Deux actions :
  *
- * Returns a cleanup function that restores the original inline styles.
+ * 1. Désactive temporairement toutes les <style>/<link> dont le contenu
+ *    brut contient "oklch" (c'est ce qui fait crasher le parser CSS
+ *    interne de html2canvas).
+ * 2. Injecte un <style> de remplacement qui redéclare toutes les
+ *    CSS custom properties de :root avec leurs valeurs *computed*
+ *    (toujours en rgb()/rgba()).
+ * 3. Force les propriétés couleur en inline sur chaque élément du
+ *    sous-arbre pour que html2canvas n'ait jamais besoin de résoudre
+ *    de variable ni de couleur moderne.
+ *
+ * Retourne une fonction de restauration.
  */
-function resolveModernColors(root: HTMLElement): () => void {
+function neutralizeModernColors(root: HTMLElement): () => void {
+  // ── 1. Disable stylesheets containing oklch ──
+  const disabledSheets: { sheet: CSSStyleSheet; el: HTMLStyleElement | HTMLLinkElement }[] = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      // Check if the owning element's text or any rule contains oklch
+      const ownerEl = sheet.ownerNode as HTMLStyleElement | HTMLLinkElement | null;
+      if (!ownerEl) continue;
+
+      let hasOklch = false;
+      if (ownerEl instanceof HTMLStyleElement && ownerEl.textContent?.includes('oklch')) {
+        hasOklch = true;
+      } else {
+        // For <link> stylesheets, check the rules
+        try {
+          for (const rule of Array.from(sheet.cssRules)) {
+            if (rule.cssText.includes('oklch')) { hasOklch = true; break; }
+          }
+        } catch { /* cross-origin, skip */ }
+      }
+
+      if (hasOklch) {
+        sheet.disabled = true;
+        disabledSheets.push({ sheet, el: ownerEl as any });
+      }
+    } catch { /* skip inaccessible sheets */ }
+  }
+
+  // ── 2. Inject replacement <style> with resolved CSS custom properties ──
+  const rootComputed = getComputedStyle(document.documentElement);
+  const overrideRules: string[] = [];
+
+  // Read all custom properties (--xxx) from :root and re-declare them
+  // with their computed rgb() values.
+  // getComputedStyle doesn't enumerate custom properties in all browsers,
+  // so we extract variable names from the disabled sheets' text.
+  const varNames = new Set<string>();
+  for (const { el } of disabledSheets) {
+    if (el instanceof HTMLStyleElement && el.textContent) {
+      const matches = el.textContent.matchAll(/(--[\w-]+)\s*:/g);
+      for (const m of matches) varNames.add(m[1]);
+    }
+  }
+
+  const rootVarRules: string[] = [];
+  for (const varName of varNames) {
+    const val = rootComputed.getPropertyValue(varName).trim();
+    if (val) rootVarRules.push(`  ${varName}: ${val};`);
+  }
+  if (rootVarRules.length > 0) {
+    overrideRules.push(`:root {\n${rootVarRules.join('\n')}\n}`);
+  }
+
+  const overrideStyle = document.createElement('style');
+  overrideStyle.setAttribute('data-pdf-export', 'true');
+  overrideStyle.textContent = overrideRules.join('\n');
+  document.head.appendChild(overrideStyle);
+
+  // ── 3. Force inline computed colors on all elements ──
   const COLOR_PROPS = [
     'color', 'backgroundColor', 'borderColor',
     'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
     'outlineColor', 'textDecorationColor',
   ] as const;
 
-  const saved: { el: HTMLElement; prop: string; prev: string }[] = [];
-
+  const savedInline: { el: HTMLElement; cssProp: string; prev: string }[] = [];
   const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+
   for (const el of elements) {
     const computed = getComputedStyle(el);
     for (const prop of COLOR_PROPS) {
       const val = computed[prop as any] as string;
       if (!val) continue;
-      // Save whatever was previously on the inline style (may be '')
-      saved.push({ el, prop, prev: el.style.getPropertyValue(propToCss(prop)) });
-      // Overwrite with the computed (always rgb/rgba) value
+      const cssProp = prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+      savedInline.push({ el, cssProp, prev: el.style.getPropertyValue(cssProp) });
       (el.style as any)[prop] = val;
     }
   }
 
+  // ── Cleanup function ──
   return () => {
-    for (const { el, prop, prev } of saved) {
+    // Restore inline styles
+    for (const { el, cssProp, prev } of savedInline) {
       if (prev) {
-        (el.style as any)[prop] = prev;
+        el.style.setProperty(cssProp, prev);
       } else {
-        el.style.removeProperty(propToCss(prop));
+        el.style.removeProperty(cssProp);
       }
     }
+    // Remove injected override style
+    overrideStyle.remove();
+    // Re-enable disabled stylesheets
+    for (const { sheet } of disabledSheets) {
+      sheet.disabled = false;
+    }
   };
-}
-
-/** camelCase → kebab-case */
-function propToCss(prop: string): string {
-  return prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
 }
 
 /**
@@ -69,8 +137,8 @@ export async function exportNativePdf(): Promise<boolean> {
   const originalStyle = cv.getAttribute('style') || '';
   const originalClass = cv.getAttribute('class') || '';
 
-  // Resolve oklch/color-mix/var() colors to plain rgb() for html2canvas
-  const restoreColors = resolveModernColors(cv);
+  // Neutralize oklch/color-mix/var() colors for html2canvas compatibility
+  const restoreColors = neutralizeModernColors(cv);
 
   try {
     // Préparer l'élément pour le rendu : forcer une largeur A4 fixe
