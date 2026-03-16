@@ -8,80 +8,115 @@ const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
 /**
- * Neutralise les couleurs oklch() / color-mix() que html2canvas ne sait
- * pas parser.  Deux actions :
+ * Regex matching oklch(...) colour functions (possibly nested in other
+ * functions like color-mix).  Handles optional alpha channel.
+ */
+const OKLCH_RE = /oklch\([^)]*\)/gi;
+
+/**
+ * Neutralise les couleurs oklch() que html2canvas ne sait pas parser.
  *
- * 1. Désactive temporairement toutes les <style>/<link> dont le contenu
- *    brut contient "oklch" (c'est ce qui fait crasher le parser CSS
- *    interne de html2canvas).
- * 2. Injecte un <style> de remplacement qui redéclare toutes les
- *    CSS custom properties de :root avec leurs valeurs *computed*
- *    (toujours en rgb()/rgba()).
- * 3. Force les propriétés couleur en inline sur chaque élément du
- *    sous-arbre pour que html2canvas n'ait jamais besoin de résoudre
- *    de variable ni de couleur moderne.
+ * Stratégie : au lieu de *désactiver* les feuilles de style (ce qui
+ * supprime aussi toutes les classes utilitaires Tailwind de layout,
+ * taille, flexbox, etc.), on *clone* chaque stylesheet problématique
+ * en remplaçant les valeurs oklch(...) par les valeurs computed (rgb)
+ * des custom properties correspondantes.
+ *
+ * Étapes :
+ * 1. Lire les valeurs computed de toutes les CSS custom properties
+ *    déclarées sur :root (elles sont toujours en rgb/rgba).
+ * 2. Pour chaque <style> contenant "oklch" :
+ *    a. Remplacer oklch(...) par la valeur computed de la variable
+ *       parente (ou un fallback transparent).
+ *    b. Créer un <style> clone avec le CSS nettoyé.
+ *    c. Désactiver l'original.
+ * 3. Forcer les couleurs inline sur les éléments du CV (pour les
+ *    propriétés résolues via var()).
  *
  * Retourne une fonction de restauration.
  */
-function neutralizeModernColors(root: HTMLElement): () => void {
-  // ── 1. Disable stylesheets containing oklch ──
-  const disabledSheets: { sheet: CSSStyleSheet; el: HTMLStyleElement | HTMLLinkElement }[] = [];
+function neutralizeOklchColors(root: HTMLElement): () => void {
+  const rootComputed = getComputedStyle(document.documentElement);
+
+  // ── 1. Build a map of CSS custom property name → computed rgb value ──
+  const varMap = new Map<string, string>();
+
+  // Collect variable names from all stylesheets that mention oklch
   for (const sheet of Array.from(document.styleSheets)) {
     try {
-      // Check if the owning element's text or any rule contains oklch
-      const ownerEl = sheet.ownerNode as HTMLStyleElement | HTMLLinkElement | null;
+      const ownerEl = sheet.ownerNode as HTMLElement | null;
+      if (!ownerEl) continue;
+      let cssText = '';
+      if (ownerEl instanceof HTMLStyleElement) {
+        cssText = ownerEl.textContent || '';
+      } else {
+        try {
+          cssText = Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
+        } catch { /* cross-origin */ }
+      }
+      if (!cssText.includes('oklch')) continue;
+
+      const matches = cssText.matchAll(/(--[\w-]+)\s*:\s*[^;]*oklch\([^)]*\)[^;]*/g);
+      for (const m of matches) {
+        const varName = m[1];
+        if (!varMap.has(varName)) {
+          const val = rootComputed.getPropertyValue(varName).trim();
+          varMap.set(varName, val || 'transparent');
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  // ── 2. Clone & patch stylesheets containing oklch ──
+  const swapped: { original: CSSStyleSheet; clone: HTMLStyleElement }[] = [];
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      const ownerEl = sheet.ownerNode as HTMLElement | null;
       if (!ownerEl) continue;
 
-      let hasOklch = false;
-      if (ownerEl instanceof HTMLStyleElement && ownerEl.textContent?.includes('oklch')) {
-        hasOklch = true;
+      let cssText = '';
+      if (ownerEl instanceof HTMLStyleElement) {
+        cssText = ownerEl.textContent || '';
       } else {
-        // For <link> stylesheets, check the rules
         try {
-          for (const rule of Array.from(sheet.cssRules)) {
-            if (rule.cssText.includes('oklch')) { hasOklch = true; break; }
-          }
-        } catch { /* cross-origin, skip */ }
+          cssText = Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
+        } catch { continue; }
       }
 
-      if (hasOklch) {
-        sheet.disabled = true;
-        disabledSheets.push({ sheet, el: ownerEl as any });
+      if (!cssText.includes('oklch')) continue;
+
+      // Replace each "varName: ...oklch(...)..." declaration with the
+      // computed value.  Also replace any bare oklch() references that
+      // aren't inside a variable declaration.
+      let patched = cssText;
+
+      // First: replace variable declarations containing oklch
+      for (const [varName, rgb] of varMap) {
+        // Replace the full declaration value for this variable
+        const declRe = new RegExp(
+          `(${varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*)([^;]*oklch\\([^)]*\\)[^;]*)`,
+          'gi',
+        );
+        patched = patched.replace(declRe, `$1${rgb}`);
       }
-    } catch { /* skip inaccessible sheets */ }
+
+      // Second: replace any remaining oklch() that weren't in variable decls
+      patched = patched.replace(OKLCH_RE, 'transparent');
+
+      // Create the clone
+      const clone = document.createElement('style');
+      clone.setAttribute('data-pdf-export-clone', 'true');
+      clone.textContent = patched;
+      document.head.appendChild(clone);
+
+      // Disable the original
+      sheet.disabled = true;
+      swapped.push({ original: sheet, clone });
+    } catch { /* skip */ }
   }
 
-  // ── 2. Inject replacement <style> with resolved CSS custom properties ──
-  const rootComputed = getComputedStyle(document.documentElement);
-  const overrideRules: string[] = [];
-
-  // Read all custom properties (--xxx) from :root and re-declare them
-  // with their computed rgb() values.
-  // getComputedStyle doesn't enumerate custom properties in all browsers,
-  // so we extract variable names from the disabled sheets' text.
-  const varNames = new Set<string>();
-  for (const { el } of disabledSheets) {
-    if (el instanceof HTMLStyleElement && el.textContent) {
-      const matches = el.textContent.matchAll(/(--[\w-]+)\s*:/g);
-      for (const m of matches) varNames.add(m[1]);
-    }
-  }
-
-  const rootVarRules: string[] = [];
-  for (const varName of varNames) {
-    const val = rootComputed.getPropertyValue(varName).trim();
-    if (val) rootVarRules.push(`  ${varName}: ${val};`);
-  }
-  if (rootVarRules.length > 0) {
-    overrideRules.push(`:root {\n${rootVarRules.join('\n')}\n}`);
-  }
-
-  const overrideStyle = document.createElement('style');
-  overrideStyle.setAttribute('data-pdf-export', 'true');
-  overrideStyle.textContent = overrideRules.join('\n');
-  document.head.appendChild(overrideStyle);
-
-  // ── 3. Force inline computed colors on all elements ──
+  // ── 3. Force inline computed colors on CV elements ──
   const COLOR_PROPS = [
     'color', 'backgroundColor', 'borderColor',
     'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
@@ -102,9 +137,8 @@ function neutralizeModernColors(root: HTMLElement): () => void {
     }
   }
 
-  // ── Cleanup function ──
+  // ── Cleanup ──
   return () => {
-    // Restore inline styles
     for (const { el, cssProp, prev } of savedInline) {
       if (prev) {
         el.style.setProperty(cssProp, prev);
@@ -112,11 +146,9 @@ function neutralizeModernColors(root: HTMLElement): () => void {
         el.style.removeProperty(cssProp);
       }
     }
-    // Remove injected override style
-    overrideStyle.remove();
-    // Re-enable disabled stylesheets
-    for (const { sheet } of disabledSheets) {
-      sheet.disabled = false;
+    for (const { original, clone } of swapped) {
+      clone.remove();
+      original.disabled = false;
     }
   };
 }
@@ -126,23 +158,18 @@ function neutralizeModernColors(root: HTMLElement): () => void {
  * Rasterise le contenu de #printable-cv en canvas haute résolution,
  * puis génère un PDF A4 sans marges supplémentaires.
  * Compatible Windows 11 (WebView2) et Ubuntu (WebKitGTK).
- *
- * Retourne true si le PDF a été sauvegardé, false si annulé ou absent.
  */
 export async function exportNativePdf(): Promise<boolean> {
   const cv = document.getElementById('printable-cv') as HTMLElement | null;
   if (!cv) return false;
 
-  // Sauvegarder les styles originaux pour restauration
   const originalStyle = cv.getAttribute('style') || '';
   const originalClass = cv.getAttribute('class') || '';
 
-  // Neutralize oklch/color-mix/var() colors for html2canvas compatibility
-  const restoreColors = neutralizeModernColors(cv);
+  // Clone stylesheets with oklch replaced, force inline colors
+  const restoreColors = neutralizeOklchColors(cv);
 
   try {
-    // Préparer l'élément pour le rendu : forcer une largeur A4 fixe
-    // en pixels CSS (210mm ≈ 794px à 96 DPI)
     const a4WidthPx = 794;
     cv.style.width = `${a4WidthPx}px`;
     cv.style.maxWidth = `${a4WidthPx}px`;
@@ -150,50 +177,35 @@ export async function exportNativePdf(): Promise<boolean> {
     cv.style.boxShadow = 'none';
     cv.style.margin = '0';
 
-    // Attendre que le reflow soit appliqué
     await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
-    // Rasteriser en haute résolution (scale 2 pour un rendu net)
     const canvas = await html2canvas(cv, {
       scale: 2,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
-      // Capturer la taille exacte du contenu
       width: a4WidthPx,
       windowWidth: a4WidthPx,
     });
 
-    // Calculer les dimensions pour le PDF
     const imgWidth = A4_WIDTH_MM;
     const imgHeight = (canvas.height * A4_WIDTH_MM) / canvas.width;
 
-    // Créer le PDF
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
-
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const imgData = canvas.toDataURL('image/png');
 
-    // Si le contenu dépasse une page A4, on le scale pour tenir sur une page
     if (imgHeight > A4_HEIGHT_MM) {
       const scale = A4_HEIGHT_MM / imgHeight;
       const scaledWidth = imgWidth * scale;
-      const scaledHeight = A4_HEIGHT_MM;
-      // Centrer horizontalement si nécessaire
       const xOffset = (A4_WIDTH_MM - scaledWidth) / 2;
-      pdf.addImage(imgData, 'PNG', xOffset, 0, scaledWidth, scaledHeight);
+      pdf.addImage(imgData, 'PNG', xOffset, 0, scaledWidth, A4_HEIGHT_MM);
     } else {
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
     }
 
-    // Générer le blob PDF
     const pdfBlob = pdf.output('arraybuffer');
 
-    // Demander le chemin de sauvegarde via Tauri
     const filePath = await save({
       defaultPath: 'cv_export.pdf',
       filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
@@ -203,7 +215,6 @@ export async function exportNativePdf(): Promise<boolean> {
     await writeFile(filePath, new Uint8Array(pdfBlob));
     return true;
   } finally {
-    // Toujours restaurer les styles originaux
     restoreColors();
     cv.setAttribute('style', originalStyle);
     cv.setAttribute('class', originalClass);
