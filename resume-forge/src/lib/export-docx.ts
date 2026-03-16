@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
   BorderStyle, LevelFormat, Table, TableRow, TableCell, WidthType,
-  ShadingType, VerticalAlign, ImageRun, ExternalHyperlink, SectionType,
+  ShadingType, VerticalAlign, ImageRun, ExternalHyperlink,
 } from 'docx';
 import { CVDocument, CVBlock } from '../types/cv';
 import { MasterEntry, Profile, EntryType } from '../types/profile';
@@ -249,10 +249,11 @@ export async function generateDocxBlob(
 
   const B = effectiveTemplate.docx.bodySize;
   const F = effectiveTemplate.docx.fonts.body;
-  // Tighter line spacing: use template value but cap it for compactness
-  const lineSpacing = Math.min(effectiveTemplate.docx.lineSpacing, 276);
-  // Reduced section spacing
-  const sectionSpacing = Math.min(effectiveTemplate.docx.sectionSpacing, 200);
+  // Line spacing in TWIPs: 240 = single, 276 ≈ 1.15, 360 = 1.5
+  // Use template value but cap at 240 (single) for compact output
+  const lineSpacing = Math.min(effectiveTemplate.docx.lineSpacing, 240);
+  // Reduced section spacing (before section headers)
+  const sectionSpacing = Math.min(effectiveTemplate.docx.sectionSpacing, 140);
 
   // ── Contact items with Unicode icons ──
   interface ContactItem { icon: string; text: string; href?: string }
@@ -291,12 +292,20 @@ export async function generateDocxBlob(
     });
   };
 
+  // ── Page dimensions (needed for banner bleed calculations) ──
+  const pageWidth = effectiveTemplate.docx.pageSize === 'A4' ? 11906 : 12240;
+  const pageHeight = effectiveTemplate.docx.pageSize === 'A4' ? 16838 : 15840;
+
   // ── Build document sections ──
   const title = cv.targetJob || profile.title;
   const headerChildren: (Paragraph | Table)[] = [];
   const bodyChildren: (Paragraph | Table)[] = [];
 
   // ── Build header ──
+  // For full-bleed banner: use negative table indentation equal to the page
+  // margins so the coloured table extends to the physical page edge, while
+  // the body text stays within normal margins (single section, no
+  // alignment mismatch).
   if (isBanner || finalPhotoData) {
     // ── Table-based header (banner background and/or photo) ──
     const shading = { fill: isBanner ? bannerHex : 'FFFFFF', type: ShadingType.CLEAR, color: 'auto' };
@@ -308,7 +317,7 @@ export async function generateDocxBlob(
         bold: true, size: 32, font: effectiveTemplate.docx.fonts.heading,
         color: textColor || '000000',
       })],
-      spacing: { after: 40 },
+      spacing: { after: 20 },
     });
 
     const titlePara = title ? new Paragraph({
@@ -316,7 +325,7 @@ export async function generateDocxBlob(
         text: title, size: 24, font: F,
         color: textColor ? 'E0E0E0' : '444444',
       })],
-      spacing: { after: 60 },
+      spacing: { after: 40 },
     }) : null;
 
     const contactPara = contactItems.length > 0
@@ -324,11 +333,16 @@ export async function generateDocxBlob(
       : null;
     const contentChildren: Paragraph[] = [namePara, titlePara, contactPara].filter(Boolean) as Paragraph[];
 
+    // For banners, add extra left padding in the content cell to compensate
+    // for the negative indentation so text still aligns with body content.
+    const bannerCellPadLeft = isBanner ? effectiveMargins.left : 80;
+    const bannerCellPadRight = isBanner ? effectiveMargins.right : 80;
+
     const contentCell = new TableCell({
       children: contentChildren,
       shading,
       verticalAlign: VerticalAlign.CENTER,
-      margins: { top: 120, bottom: 120, left: 120, right: 120 },
+      margins: { top: 100, bottom: 100, left: bannerCellPadLeft, right: bannerCellPadRight },
       width: finalPhotoData
         ? { size: 80, type: WidthType.PERCENTAGE }
         : { size: 100, type: WidthType.PERCENTAGE },
@@ -348,15 +362,25 @@ export async function generateDocxBlob(
         children: [photoPara],
         shading,
         verticalAlign: VerticalAlign.CENTER,
-        margins: { top: 120, bottom: 120, left: 120, right: 120 },
+        margins: { top: 100, bottom: 100, left: isBanner ? effectiveMargins.left : 80, right: 40 },
         width: { size: 20, type: WidthType.PERCENTAGE },
       }));
     }
     rowCells.push(contentCell);
 
+    // For banner: use negative indentation to bleed the table to the page edges.
+    // Table total width = page width (content area + left margin + right margin).
+    const tableIndent = isBanner
+      ? { size: -effectiveMargins.left, type: WidthType.DXA }
+      : undefined;
+    const tableWidth = isBanner
+      ? { size: pageWidth - /* just enough for rounding */ 2, type: WidthType.DXA }
+      : { size: 100, type: WidthType.PERCENTAGE };
+
     headerChildren.push(new Table({
       rows: [new TableRow({ children: rowCells })],
-      width: { size: 100, type: WidthType.PERCENTAGE },
+      width: tableWidth as any,
+      indent: tableIndent as any,
       borders: NO_TABLE_BORDERS,
     }));
   } else {
@@ -374,7 +398,7 @@ export async function generateDocxBlob(
         text: title,
         heading: HeadingLevel.HEADING_2,
         alignment: AlignmentType.CENTER,
-        spacing: { after: 200 },
+        spacing: { after: 120 },
       }));
     }
   }
@@ -646,7 +670,7 @@ export async function generateDocxBlob(
 
         bodyChildren.push(new Paragraph({
           children: textRuns,
-          spacing: { before: 80, after: 30 },
+          spacing: { before: 60, after: 20 },
         }));
 
         if (entryData.description && typeof entryData.description === 'string') {
@@ -656,7 +680,7 @@ export async function generateDocxBlob(
             const isBullet = t.startsWith('- ') || t.startsWith('* ');
             bodyChildren.push(new Paragraph({
               children: parseMarkdownText(isBullet ? t.substring(2).trim() : t),
-              spacing: { after: 30, line: lineSpacing },
+              spacing: { after: 10, line: lineSpacing },
               numbering: isBullet ? { reference: 'default-bullet', level: 0 } : undefined,
             }));
           }
@@ -668,55 +692,22 @@ export async function generateDocxBlob(
     }
   }
 
-  // ── Page dimensions ──
-  const pageWidth = effectiveTemplate.docx.pageSize === 'A4' ? 11906 : 12240;
-  const pageHeight = effectiveTemplate.docx.pageSize === 'A4' ? 16838 : 15840;
-
-  // ── Build document with sections ──
-  // If banner, use a first section with zero margins for the header,
-  // then a continuous second section with normal margins for the body.
-  const sections = [];
-
-  if (isBanner) {
-    // Section 1: Header with zero horizontal margins (full-bleed banner)
-    sections.push({
-      properties: {
-        page: {
-          size: { width: pageWidth, height: pageHeight },
-          margin: { top: 0, right: 0, bottom: 0, left: 0 },
-        },
+  // ── Build document with a single section ──
+  // Banner full-bleed is achieved via negative table indentation (see above),
+  // so header and body share the same section and margins — no alignment mismatch.
+  const sections = [{
+    properties: {
+      page: {
+        size: { width: pageWidth, height: pageHeight },
+        margin: effectiveTemplate.docx.margins,
       },
-      children: [...headerChildren] as Paragraph[],
-    });
-
-    // Section 2: Body content with normal margins (continuous)
-    sections.push({
-      properties: {
-        type: SectionType.CONTINUOUS,
-        page: {
-          size: { width: pageWidth, height: pageHeight },
-          margin: effectiveTemplate.docx.margins,
-        },
-      },
-      children: bodyChildren as Paragraph[],
-    });
-  } else {
-    // Single section with normal margins
-    sections.push({
-      properties: {
-        page: {
-          size: { width: pageWidth, height: pageHeight },
-          margin: effectiveTemplate.docx.margins,
-        },
-      },
-      children: [
-        ...headerChildren,
-        // Spacer after header
-        new Paragraph({ text: '', spacing: { after: 120 } }),
-        ...bodyChildren,
-      ] as Paragraph[],
-    });
-  }
+    },
+    children: [
+      ...headerChildren,
+      new Paragraph({ text: '', spacing: { after: 80 } }),
+      ...bodyChildren,
+    ] as Paragraph[],
+  }];
 
   // ── Document ──
   const doc = new Document({
