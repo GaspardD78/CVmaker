@@ -8,6 +8,52 @@ const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
 /**
+ * Resolve all oklch() / color-mix() / CSS variable colors that html2canvas
+ * cannot parse.  We walk every element inside the subtree, read the
+ * *computed* style for the colour-related properties, and set them as
+ * inline styles so html2canvas sees plain rgb()/rgba() values only.
+ *
+ * Returns a cleanup function that restores the original inline styles.
+ */
+function resolveModernColors(root: HTMLElement): () => void {
+  const COLOR_PROPS = [
+    'color', 'backgroundColor', 'borderColor',
+    'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
+    'outlineColor', 'textDecorationColor',
+  ] as const;
+
+  const saved: { el: HTMLElement; prop: string; prev: string }[] = [];
+
+  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+  for (const el of elements) {
+    const computed = getComputedStyle(el);
+    for (const prop of COLOR_PROPS) {
+      const val = computed[prop as any] as string;
+      if (!val) continue;
+      // Save whatever was previously on the inline style (may be '')
+      saved.push({ el, prop, prev: el.style.getPropertyValue(propToCss(prop)) });
+      // Overwrite with the computed (always rgb/rgba) value
+      (el.style as any)[prop] = val;
+    }
+  }
+
+  return () => {
+    for (const { el, prop, prev } of saved) {
+      if (prev) {
+        (el.style as any)[prop] = prev;
+      } else {
+        el.style.removeProperty(propToCss(prop));
+      }
+    }
+  };
+}
+
+/** camelCase → kebab-case */
+function propToCss(prop: string): string {
+  return prop.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+}
+
+/**
  * Exporte le CV en PDF via html2canvas + jsPDF.
  * Rasterise le contenu de #printable-cv en canvas haute résolution,
  * puis génère un PDF A4 sans marges supplémentaires.
@@ -22,6 +68,9 @@ export async function exportNativePdf(): Promise<boolean> {
   // Sauvegarder les styles originaux pour restauration
   const originalStyle = cv.getAttribute('style') || '';
   const originalClass = cv.getAttribute('class') || '';
+
+  // Resolve oklch/color-mix/var() colors to plain rgb() for html2canvas
+  const restoreColors = resolveModernColors(cv);
 
   try {
     // Préparer l'élément pour le rendu : forcer une largeur A4 fixe
@@ -87,6 +136,7 @@ export async function exportNativePdf(): Promise<boolean> {
     return true;
   } finally {
     // Toujours restaurer les styles originaux
+    restoreColors();
     cv.setAttribute('style', originalStyle);
     cv.setAttribute('class', originalClass);
   }
