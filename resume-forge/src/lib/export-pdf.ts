@@ -90,18 +90,38 @@ export async function exportNativePdf(): Promise<boolean> {
   // ── 2. Force inline rgb colours on all CV elements ──
   const restoreColors = forceInlineColors(cv);
 
-  // ── 3. Temporarily set A4 width ──
+  // ── 3. Temporarily set A4 width and ensure full content is visible ──
   const a4WidthPx = 794;
   cv.style.setProperty('width', `${a4WidthPx}px`, 'important');
   cv.style.setProperty('max-width', `${a4WidthPx}px`, 'important');
   cv.style.setProperty('min-width', `${a4WidthPx}px`, 'important');
   cv.style.setProperty('box-shadow', 'none', 'important');
   cv.style.setProperty('margin', '0', 'important');
+  cv.style.setProperty('height', 'auto', 'important');
+  cv.style.setProperty('max-height', 'none', 'important');
+  cv.style.setProperty('overflow', 'visible', 'important');
 
+  // Temporarily force overflow visible on all scrollable ancestors so
+  // html2canvas can see the entire CV content (not just the viewport slice).
+  const overflowRestores: { el: HTMLElement; prev: string }[] = [];
+  let ancestor = cv.parentElement;
+  while (ancestor && ancestor !== document.body) {
+    const cs = getComputedStyle(ancestor);
+    if (cs.overflow !== 'visible' || cs.overflowY !== 'visible') {
+      overflowRestores.push({ el: ancestor, prev: ancestor.getAttribute('style') || '' });
+      ancestor.style.setProperty('overflow', 'visible', 'important');
+      ancestor.style.setProperty('height', 'auto', 'important');
+      ancestor.style.setProperty('max-height', 'none', 'important');
+    }
+    ancestor = ancestor.parentElement;
+  }
+
+  await document.fonts.ready;
   await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
   try {
     // ── 4. Rasterise via html2canvas ──
+    const fullHeight = cv.scrollHeight;
     const canvas = await html2canvas(cv, {
       scale: 2,
       useCORS: true,
@@ -109,10 +129,14 @@ export async function exportNativePdf(): Promise<boolean> {
       backgroundColor: '#ffffff',
       logging: false,
       width: a4WidthPx,
+      height: fullHeight,
       windowWidth: a4WidthPx,
+      windowHeight: fullHeight,
+      scrollX: 0,
+      scrollY: 0,
     });
 
-    // ── 5. Generate PDF ──
+    // ── 5. Generate PDF (multi-page if content exceeds A4 height) ──
     const imgWidth = A4_WIDTH_MM;
     const imgHeight = (canvas.height * A4_WIDTH_MM) / canvas.width;
 
@@ -120,10 +144,13 @@ export async function exportNativePdf(): Promise<boolean> {
     const imgData = canvas.toDataURL('image/png');
 
     if (imgHeight > A4_HEIGHT_MM) {
-      const scale = A4_HEIGHT_MM / imgHeight;
-      const scaledWidth = imgWidth * scale;
-      const xOffset = (A4_WIDTH_MM - scaledWidth) / 2;
-      pdf.addImage(imgData, 'PNG', xOffset, 0, scaledWidth, A4_HEIGHT_MM);
+      // Split across multiple pages at full scale
+      const pageCount = Math.ceil(imgHeight / A4_HEIGHT_MM);
+      for (let page = 0; page < pageCount; page++) {
+        if (page > 0) pdf.addPage();
+        // Shift the image up by page offset so each page shows the right slice
+        pdf.addImage(imgData, 'PNG', 0, -(page * A4_HEIGHT_MM), imgWidth, imgHeight);
+      }
     } else {
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
     }
@@ -145,6 +172,14 @@ export async function exportNativePdf(): Promise<boolean> {
       cv.setAttribute('style', originalStyle);
     } else {
       cv.removeAttribute('style');
+    }
+    // Restore ancestor overflow styles
+    for (const { el, prev } of overflowRestores) {
+      if (prev) {
+        el.setAttribute('style', prev);
+      } else {
+        el.removeAttribute('style');
+      }
     }
   }
 }
