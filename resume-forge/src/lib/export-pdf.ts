@@ -86,17 +86,27 @@ export async function exportNativePdf(): Promise<boolean> {
       background: white !important;
     }
 
-    /* Le CV occupe toute la page, sans décalage */
+    /* Forcer le padding exact du rendu print */
+    /* Annuler la classe Tailwind print:p-0 qui interfère */
+    .print\:p-0 {
+      padding: 8px 10px !important;
+    }
+
+    /* Le CV occupe toute la page avec le padding correct */
     #printable-cv {
       position: static !important;
-      top: auto !important;
-      left: auto !important;
-      margin: 0 !important;
       width: 210mm !important;
       max-width: none !important;
       zoom: 1 !important;
       transform: none !important;
-      overflow: visible !important;
+      margin: 0 !important;
+      padding: 8px 10px !important;
+    }
+
+    /* Header doit compenser le padding avec marges négatives */
+    #printable-cv .cv-header-block {
+      margin: -8px -10px 1.5rem !important;
+      padding: 8px 10px !important;
     }
   </style>
 </head>
