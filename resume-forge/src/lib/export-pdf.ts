@@ -26,7 +26,7 @@ export async function exportNativePdf(): Promise<boolean> {
   // pour que le bleed du header et les marges internes soient corrects
   cvHtml = cvHtml.replace(
     /style="margin:\s*-40px\s*-40px[^"]*"/,
-    'style="margin: -40px -40px 1.5rem; padding: 40px; background-color: rgb(38, 162, 105);"'
+    'style="margin: -28px -32px 0.75rem; padding: 28px 32px; background-color: rgb(38, 162, 105);"'
   );
 
   // Supprimer les règles @media print injectées par le composant dans son <style> inline
@@ -91,21 +91,31 @@ export async function exportNativePdf(): Promise<boolean> {
       background: white !important;
     }
 
-    /* PDF doit ressembler à l'aperçu avec padding 40px (p-10) */
+    /* PDF avec padding optimisé pour tenir sur une page A4 */
     #printable-cv {
       position: static !important;
       width: 210mm !important;
       max-width: none !important;
       margin: 0 !important;
-      padding: 40px !important;
+      padding: 28px 32px !important;
       zoom: 1 !important;
       transform: none !important;
     }
 
-    /* Header compense le padding 40px pour saigner jusqu'aux bords */
+    /* Header compense le padding pour saigner jusqu'aux bords */
     #printable-cv .cv-header-block {
-      margin: -40px -40px 1.5rem !important;
-      padding: 40px !important;
+      margin: -28px -32px 0.75rem !important;
+      padding: 28px 32px !important;
+    }
+
+    /* Éviter les sections orphelines en bas de page */
+    #printable-cv h3 {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    #printable-cv .cv-entry {
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
   </style>
 </head>
