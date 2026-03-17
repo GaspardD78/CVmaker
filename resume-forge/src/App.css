@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @page {
-  size: A4;
-  margin: 0;
+  size: A4 portrait;
+  margin: 0mm 0mm 0mm 0mm;
 }
 
 @media print {

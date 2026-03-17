@@ -121,29 +121,72 @@ export default function PrintView() {
       {/* Print-specific styles — override everything for clean rendering */}
       <style>{`
         @page {
-          size: A4;
-          margin: 0;
+          size: A4 portrait;
+          margin: 0mm 0mm 0mm 0mm;
         }
         html, body {
-          margin: 0;
-          padding: 0;
+          margin: 0 !important;
+          padding: 0 !important;
           width: 210mm;
           background: white;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+          color-adjust: exact;
         }
         body {
           overflow: visible !important;
           height: auto !important;
         }
-        /* Ensure absolutely nothing is hidden */
-        #print-root, #print-root * {
-          visibility: visible !important;
-          overflow: visible !important;
+        #print-root {
+          width: 210mm;
+          margin: 0 auto;
+          background: white;
         }
         @media print {
-          /* Hide the close button when printing */
-          .print-controls { display: none !important; }
+          /* ── Hide EVERYTHING except #print-root ── */
+          body > * {
+            display: none !important;
+          }
+          /* Re-show only the React root that contains #print-root */
+          body > div:first-child {
+            display: block !important;
+          }
+          #print-root {
+            display: block !important;
+            visibility: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 210mm !important;
+          }
+          #print-root * {
+            visibility: visible !important;
+          }
+
+          /*
+           * CRITICAL: Override App.css's position:fixed on #printable-cv.
+           * That rule is for the CV builder page (to escape the scroll container).
+           * Here in /print, the CV is already in an unconstrained page —
+           * position:fixed would cause the content to render TWICE
+           * (once in flow as raw text, once fixed as styled CV).
+           */
+          #printable-cv {
+            position: static !important;
+            width: 210mm !important;
+            max-width: none !important;
+            zoom: unset !important;
+          }
+
+          /* Hide the control toolbar when printing */
+          .print-controls {
+            display: none !important;
+          }
+
+          /* Hide Sonner toaster, Radix portals, and any other floating UI */
+          [data-sonner-toaster],
+          [data-radix-portal],
+          .Toastify {
+            display: none !important;
+          }
         }
       `}</style>
 
@@ -173,7 +216,7 @@ export default function PrintView() {
       </div>
 
       {/* CV render — clean, unconstrained, full width */}
-      <div id="print-root" style={{ width: '210mm', margin: '0 auto', background: 'white' }}>
+      <div id="print-root">
         <PrintableCV
           cv={data.cv}
           profile={data.profile}
