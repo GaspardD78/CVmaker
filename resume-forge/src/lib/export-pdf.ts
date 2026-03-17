@@ -20,7 +20,15 @@ export async function exportNativePdf(): Promise<boolean> {
   }
 
   // 2. Capturer le HTML rendu
-  const cvHtml = cvNode.outerHTML;
+  let cvHtml = cvNode.outerHTML;
+
+  // Corriger le style inline du header pour correspondre au padding print (8px/10px)
+  // Le header a un style inline avec margin: -40px -40px qui est prioritaire sur le CSS
+  // On remplace par margin: -8px -10px pour correspondre au padding réel du conteneur
+  cvHtml = cvHtml.replace(
+    /style="margin:\s*-40px\s*-40px[^"]*"/,
+    'style="margin: -8px -10px 1.5rem; padding: 8px 10px; background-color: rgb(38, 162, 105);"'
+  );
 
   // 3. Collecter UNIQUEMENT les règles CSS qui concernent le CV
   //    Stratégie : prendre toutes les règles de toutes les stylesheets,
@@ -89,17 +97,6 @@ export async function exportNativePdf(): Promise<boolean> {
       zoom: 1 !important;
       transform: none !important;
       overflow: visible !important;
-    }
-
-    /* Correction des marges pour le document autonome */
-    /* Le padding du conteneur et la compensation de marge du header */
-    #printable-cv {
-      padding: 8px 10px !important;
-    }
-
-    #printable-cv .cv-header-block {
-      margin: -8px -10px 1.5rem !important;
-      padding: 8px 10px !important;
     }
   </style>
 </head>
