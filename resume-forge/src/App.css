@@ -24,21 +24,12 @@
   }
 
   #printable-cv {
-    position: fixed;
-    top: 0;
-    left: 0;
-    /* Compense le zoom pour conserver la largeur pleine page */
-    width: calc(100% / var(--pdf-zoom, 1));
+    position: static !important;
+    display: block !important;
+    width: 210mm !important;
+    max-width: none !important;
     height: auto !important;
     max-height: none !important;
-    overflow: visible !important;
-    zoom: var(--pdf-zoom, 1);
-    transform-origin: top left;
-  }
-
-  /* Forcer overflow visible sur TOUS les ancêtres du CV */
-  #printable-cv *,
-  #print-root * {
     overflow: visible !important;
   }
 
@@ -50,6 +41,8 @@
   }
 
   html, body {
+    margin: 0 !important;
+    padding: 0 !important;
     height: auto !important;
     overflow: visible !important;
   }

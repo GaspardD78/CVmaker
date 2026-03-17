@@ -143,11 +143,10 @@ export default function PrintView() {
           background: white;
         }
         @media print {
-          /* ── Hide EVERYTHING except #print-root ── */
+          /* Hide EVERYTHING in body, then selectively re-show */
           body > * {
             display: none !important;
           }
-          /* Re-show only the React root that contains #print-root */
           body > div:first-child {
             display: block !important;
           }
@@ -161,27 +160,15 @@ export default function PrintView() {
           #print-root * {
             visibility: visible !important;
           }
-
-          /*
-           * CRITICAL: Override App.css's position:fixed on #printable-cv.
-           * That rule is for the CV builder page (to escape the scroll container).
-           * Here in /print, the CV is already in an unconstrained page —
-           * position:fixed would cause the content to render TWICE
-           * (once in flow as raw text, once fixed as styled CV).
-           */
           #printable-cv {
-            position: static !important;
+            margin: 0 !important;
+            padding: 0 !important;
             width: 210mm !important;
             max-width: none !important;
-            zoom: unset !important;
           }
-
-          /* Hide the control toolbar when printing */
           .print-controls {
             display: none !important;
           }
-
-          /* Hide Sonner toaster, Radix portals, and any other floating UI */
           [data-sonner-toaster],
           [data-radix-portal],
           .Toastify {
