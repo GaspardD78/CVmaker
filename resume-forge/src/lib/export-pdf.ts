@@ -1,106 +1,95 @@
 /**
  * Exporte le CV en PDF via une page HTML autonome.
  *
- * Stratégie : capturer le HTML déjà rendu par React (#printable-cv) dans
- * la page builder, extraire les styles compilés nécessaires (Tailwind, etc.)
- * en EXCLUANT les règles @media print de App.css (qui causent position:fixed
- * et double-rendu), puis ouvrir une fenêtre standalone avec uniquement ce
- * contenu + des règles print propres.
+ * Stratégie : capturer le HTML déjà rendu par React (#printable-cv),
+ * collecter les styles CSS nécessaires (en excluant @media print de App.css),
+ * et ouvrir un document HTML complet et autonome dans une nouvelle fenêtre.
  *
  * Avantages :
- * - Isolation totale de App.css (@media print n'atteint jamais la page d'export)
+ * - Isolation totale de App.css (aucun @media print ne passe)
  * - Le HTML est déjà rendu par React → pas de re-rendu, pas de sessionStorage
  * - Cross-platform (WebView2 Windows / WebKitGTK Linux)
  * - Pas de html2canvas / jsPDF
  */
 export async function exportNativePdf(): Promise<boolean> {
-  const printableEl = document.getElementById('printable-cv');
-  if (!printableEl) return false;
-
-  // ── 1. Capture the rendered HTML ──
-  const cvHtml = printableEl.outerHTML;
-
-  // ── 2. Extract computed styles from all stylesheets ──
-  // We collect all CSS rules EXCEPT @media print blocks (which contain
-  // the problematic position:fixed from App.css). We'll supply our own
-  // clean @media print rules instead.
-  let collectedCss = '';
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      for (const rule of Array.from(sheet.cssRules)) {
-        // Skip @media print rules entirely — they come from App.css
-        // and contain position:fixed / visibility:hidden that breaks export
-        if (rule instanceof CSSMediaRule && rule.conditionText === 'print') {
-          continue;
-        }
-        // Skip @page rules — we provide our own
-        if (rule instanceof CSSPageRule) {
-          continue;
-        }
-        collectedCss += rule.cssText + '\n';
-      }
-    } catch {
-      // Cross-origin stylesheets throw SecurityError — skip them
-    }
+  // 1. Récupérer le nœud DOM du CV tel qu'il est rendu dans l'aperçu
+  const cvNode = document.getElementById('printable-cv');
+  if (!cvNode) {
+    console.error('exportNativePdf: #printable-cv introuvable');
+    return false;
   }
 
-  // ── 3. Build the standalone HTML document ──
-  const htmlContent = `<!DOCTYPE html>
-<html>
+  // 2. Capturer le HTML rendu
+  const cvHtml = cvNode.outerHTML;
+
+  // 3. Collecter UNIQUEMENT les règles CSS qui concernent le CV
+  //    Stratégie : prendre toutes les règles de toutes les stylesheets,
+  //    mais EXCLURE :
+  //    - les blocs @media print (ils contiennent position:fixed problématique)
+  //    - les règles @page (on les définit nous-mêmes)
+  let collectedCss = '';
+  try {
+    Array.from(document.styleSheets).forEach(sheet => {
+      try {
+        Array.from(sheet.cssRules).forEach(rule => {
+          // Exclure tous les @media print
+          if (rule instanceof CSSMediaRule) {
+            const mq = rule.conditionText || rule.media?.mediaText || '';
+            if (mq.includes('print')) return;
+          }
+          // Exclure les @page (on les définit nous-mêmes)
+          if (rule instanceof CSSPageRule) return;
+
+          collectedCss += rule.cssText + '\n';
+        });
+      } catch {
+        // CORS sur sheets externes — ignorer
+      }
+    });
+  } catch {
+    // Ignorer
+  }
+
+  // 4. Construire un document HTML autonome
+  const doc = `<!DOCTYPE html>
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    /* Reset complet — aucun héritage du layout */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    /* Styles collectés de l'app (sans @media print) */
     ${collectedCss}
-  </style>
-  <style>
-    /* ── Clean print styles — no position:fixed, no visibility:hidden ── */
+
+    /* Overrides print — appliqués en dernier, priorité maximale */
     @page {
       size: A4 portrait;
-      margin: 0mm 0mm 0mm 0mm;
+      margin: 0mm;
     }
+
     html, body {
       margin: 0 !important;
       padding: 0 !important;
-      width: 210mm;
-      background: white !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-      color-adjust: exact;
-    }
-    body {
-      overflow: visible !important;
+      width: 210mm !important;
       height: auto !important;
+      overflow: visible !important;
+      background: white !important;
     }
+
+    /* Le CV occupe toute la page, sans décalage */
     #printable-cv {
       position: static !important;
-      display: block !important;
+      top: auto !important;
+      left: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
       width: 210mm !important;
       max-width: none !important;
-      height: auto !important;
+      zoom: 1 !important;
+      transform: none !important;
       overflow: visible !important;
-      margin: 0 !important;
-    }
-    @media print {
-      html, body {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 210mm !important;
-        height: auto !important;
-        overflow: visible !important;
-      }
-      #printable-cv {
-        position: static !important;
-        display: block !important;
-        width: 210mm !important;
-        max-width: none !important;
-        height: auto !important;
-        overflow: visible !important;
-        margin: 0 !important;
-      }
-      #printable-cv a[href] {
-        text-decoration: underline;
-      }
     }
   </style>
 </head>
@@ -110,26 +99,40 @@ export async function exportNativePdf(): Promise<boolean> {
     document.fonts.ready.then(function() {
       setTimeout(function() {
         window.print();
-        setTimeout(function() { window.close(); }, 500);
-      }, 600);
+        setTimeout(function() { window.close(); }, 1000);
+      }, 800);
     });
   </script>
 </body>
 </html>`;
 
-  // ── 4. Open in a new window via Blob URL ──
-  const blob = new Blob([htmlContent], { type: 'text/html' });
+  // 5. Ouvrir dans une nouvelle fenêtre via Blob URL
+  const blob = new Blob([doc], { type: 'text/html; charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank');
 
-  if (!win) {
-    // Popup blocked — fall back to printing in the current window
-    URL.revokeObjectURL(url);
-    window.print();
-  } else {
-    // Clean up Blob URL after the window has had time to load
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  const printWin = window.open(url, '_blank', 'width=900,height=700');
+
+  if (!printWin) {
+    // Fallback si popup bloqué par Tauri CSP
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+      const { open } = await import('@tauri-apps/plugin-shell');
+
+      const tempPath = await save({
+        defaultPath: 'cv_print.html',
+        filters: [{ name: 'HTML', extensions: ['html'] }],
+      });
+      if (tempPath) {
+        await writeTextFile(tempPath, doc);
+        await open(tempPath);
+      }
+    } catch (e) {
+      console.error('Export PDF fallback échoué:', e);
+    }
   }
+
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 
   return true;
 }

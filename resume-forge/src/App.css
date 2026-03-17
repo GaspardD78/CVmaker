@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @page {
-  size: A4 portrait;
-  margin: 0mm 0mm 0mm 0mm;
+  size: A4;
+  margin: 0;
 }
 
 @media print {
@@ -17,34 +17,25 @@
 
   /* Rendre visible uniquement le contenu du CV */
   #printable-cv,
-  #printable-cv *,
-  #print-root,
-  #print-root * {
-    visibility: visible !important;
+  #printable-cv * {
+    visibility: visible;
   }
 
   #printable-cv {
-    position: static !important;
-    display: block !important;
-    width: 210mm !important;
-    max-width: none !important;
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    /* Compense le zoom pour conserver la largeur pleine page */
+    width: calc(100% / var(--pdf-zoom, 1));
+    height: auto;
+    zoom: var(--pdf-zoom, 1);
+    transform-origin: top left;
   }
 
   body {
     background-color: white !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    color-adjust: exact !important;
-  }
-
-  html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    height: auto !important;
-    overflow: visible !important;
   }
 
   /* Rendre les liens visibles (et cliquables) dans le PDF généré */
