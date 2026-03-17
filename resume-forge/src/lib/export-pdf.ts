@@ -90,6 +90,17 @@ export async function exportNativePdf(): Promise<boolean> {
       transform: none !important;
       overflow: visible !important;
     }
+
+    /* Correction des marges pour le document autonome */
+    /* Le padding du conteneur et la compensation de marge du header */
+    #printable-cv {
+      padding: 8px 10px !important;
+    }
+
+    #printable-cv .cv-header-block {
+      margin: -8px -10px 1.5rem !important;
+      padding: 8px 10px !important;
+    }
   </style>
 </head>
 <body>
