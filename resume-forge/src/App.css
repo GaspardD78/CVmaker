@@ -17,8 +17,10 @@
 
   /* Rendre visible uniquement le contenu du CV */
   #printable-cv,
-  #printable-cv * {
-    visibility: visible;
+  #printable-cv *,
+  #print-root,
+  #print-root * {
+    visibility: visible !important;
   }
 
   #printable-cv {
@@ -27,15 +29,29 @@
     left: 0;
     /* Compense le zoom pour conserver la largeur pleine page */
     width: calc(100% / var(--pdf-zoom, 1));
-    height: auto;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     zoom: var(--pdf-zoom, 1);
     transform-origin: top left;
+  }
+
+  /* Forcer overflow visible sur TOUS les ancêtres du CV */
+  #printable-cv *,
+  #print-root * {
+    overflow: visible !important;
   }
 
   body {
     background-color: white !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    color-adjust: exact !important;
+  }
+
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
   }
 
   /* Rendre les liens visibles (et cliquables) dans le PDF généré */
