@@ -29,6 +29,12 @@ export async function exportNativePdf(): Promise<boolean> {
     'style="margin: -40px -40px 1.5rem; padding: 40px; background-color: rgb(38, 162, 105);"'
   );
 
+  // Supprimer les règles @media print injectées par le composant dans son <style> inline
+  // qui réduisent le padding à 8px/10px et écrasent nos overrides via !important
+  cvHtml = cvHtml
+    .replace(/@media\s+print\s*\{\s*#printable-cv\s*\{[^}]+\}\s*\}/g, '')
+    .replace(/@media\s+print\s*\{\s*#printable-cv\s+\.cv-header-block\s*\{[^}]+\}\s*\}/g, '');
+
   // 3. Collecter UNIQUEMENT les règles CSS qui concernent le CV
   //    Stratégie : prendre toutes les règles de toutes les stylesheets,
   //    mais EXCLURE :
