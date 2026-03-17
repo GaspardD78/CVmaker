@@ -84,7 +84,6 @@ export async function exportNativePdf(): Promise<boolean> {
       top: auto !important;
       left: auto !important;
       margin: 0 !important;
-      padding: 0 !important;
       width: 210mm !important;
       max-width: none !important;
       zoom: 1 !important;
