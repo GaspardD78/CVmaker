@@ -1,9 +1,29 @@
-import { useState } from 'react';
-import { Download, Upload, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
+import { usePromptStore } from '@/stores/promptStore';
 
 export function SettingsPage() {
+  // ── AI Differentiator ───────────────────────────────────────────────────
+  const { differentiator, loadDifferentiator, saveDifferentiator, isLoaded } = usePromptStore();
+  const [localDifferentiator, setLocalDifferentiator] = useState('');
+  const [diffSaved, setDiffSaved] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded) loadDifferentiator();
+  }, [isLoaded, loadDifferentiator]);
+
+  useEffect(() => {
+    if (isLoaded) setLocalDifferentiator(differentiator);
+  }, [isLoaded, differentiator]);
+
+  const handleSaveDifferentiator = async () => {
+    await saveDifferentiator(localDifferentiator);
+    setDiffSaved(true);
+    setTimeout(() => setDiffSaved(false), 2000);
+  };
+
   // ── Export state ──────────────────────────────────────────────────────────
   const [selectedModules, setSelectedModules] = useState<Set<ModuleId>>(
     new Set(MODULES.map(m => m.id))
@@ -67,6 +87,52 @@ export function SettingsPage() {
     <div className="p-8 max-w-2xl">
       <h1 className="text-2xl font-bold mb-1">Paramètres</h1>
       <p className="text-gray-500 text-sm mb-8">Configuration et gestion des données de l'application.</p>
+
+      {/* ── AI Prompt Personalization ── */}
+      <section className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
+        <div className="p-6 border-b">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles size={18} className="text-amber-500" />
+            <h2 className="text-base font-semibold">Personnalisation des prompts IA</h2>
+          </div>
+          <p className="text-sm text-gray-500">
+            Ces paramètres sont utilisés par le générateur de prompts dans le CV builder.
+          </p>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Votre atout différenciant
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              Décrivez en une phrase ce qui vous distingue des autres candidats.
+              Ce texte sera injecté dans les prompts d'entretien et de message de candidature.
+            </p>
+            <textarea
+              value={localDifferentiator}
+              onChange={e => setLocalDifferentiator(e.target.value)}
+              placeholder={"Ex: Jeu de cartes pédagogique conçu pour standardiser l'évaluation technique des candidats"}
+              className="w-full p-2.5 border border-gray-300 rounded-md text-sm resize-y h-20 focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+            />
+          </div>
+
+          <button
+            onClick={handleSaveDifferentiator}
+            className={`flex items-center gap-2 px-4 py-2 text-sm rounded-md transition-colors ${
+              diffSaved
+                ? 'bg-green-100 text-green-700 border border-green-300'
+                : 'bg-amber-500 text-white hover:bg-amber-600'
+            }`}
+          >
+            {diffSaved ? (
+              <><CheckCircle2 size={15} /> Enregistré</>
+            ) : (
+              'Enregistrer'
+            )}
+          </button>
+        </div>
+      </section>
 
       {/* ── Backup section ── */}
       <section className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">

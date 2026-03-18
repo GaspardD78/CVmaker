@@ -4,7 +4,7 @@ import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
-import { ArrowLeft, Download, FileText } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Maximize2, Minimize2 } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
 import { exportNativePdf } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
@@ -16,6 +16,7 @@ export function CVBuilderPage() {
   const { currentCv, currentCvBlocks, fetchCvById, fetchCvBlocks, updateCv } = useCvStore();
   const { profile, entries, fetchProfile } = useProfileStore();
   const [isExporting, setIsExporting] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -85,6 +86,18 @@ export function CVBuilderPage() {
           </h1>
         </div>
         <div className="flex items-center space-x-3">
+           <button
+             onClick={() => setIsFocusMode(!isFocusMode)}
+             className={`px-3 py-2 rounded-md font-medium transition flex items-center shadow-sm text-sm ${
+               isFocusMode
+                 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+             }`}
+             title={isFocusMode ? 'Afficher le panneau' : 'Mode focus'}
+           >
+             {isFocusMode ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
+             {isFocusMode ? 'Panneau' : 'Focus'}
+           </button>
            <select
              value={currentCv.templateId}
              onChange={handleTemplateChange}
@@ -116,13 +129,15 @@ export function CVBuilderPage() {
 
       {/* Main Builder Area */}
       <div className="flex flex-1 overflow-hidden print:overflow-visible print:block print:h-auto">
-        {/* Left Panel - Editing */}
-        <div className="w-1/3 min-w-[300px] max-w-[450px] bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden print:hidden">
-          <LeftPanel cvId={id!} />
-        </div>
+        {/* Left Panel - Editing (hidden in focus mode) */}
+        {!isFocusMode && (
+          <div className="w-1/3 min-w-[300px] max-w-[450px] bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden print:hidden">
+            <LeftPanel cvId={id!} />
+          </div>
+        )}
 
         {/* Right Panel - Preview */}
-        <div className="flex-1 h-full overflow-auto bg-gray-50 p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto">
+        <div className={`flex-1 h-full overflow-auto bg-gray-50 p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto ${isFocusMode ? 'max-w-none' : ''}`}>
           <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
             <RightPanel />
           </div>

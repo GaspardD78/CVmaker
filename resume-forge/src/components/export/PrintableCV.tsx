@@ -2,7 +2,11 @@ import { forwardRef } from 'react';
 import { CVDocument, CVBlock } from '../../types/cv';
 import { MasterEntry, Profile, EntryType } from '../../types/profile';
 import { CVTemplate } from '../../types/template';
-import { MarkdownRenderer } from '../ui/MarkdownRenderer';
+import { CVHeader } from './CVHeader';
+import { CVSectionHeader } from './CVSectionHeader';
+import { CVEntryBlock } from './CVEntryBlock';
+import { CVBadgeGroup } from './CVBadgeGroup';
+import { CVCustomText } from './CVCustomText';
 
 const FONT_STACKS: Record<string, string> = {
   'Calibri': "'Calibri', 'Arial', sans-serif",
@@ -23,90 +27,6 @@ interface PrintableCVProps {
   blocks: CVBlock[];
   entries: MasterEntry[];
   template: CVTemplate;
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return 'Aujourd\'hui';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
-}
-
-function formatDateYear(dateString: string | null): string {
-  if (!dateString) return 'Aujourd\'hui';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { year: 'numeric' }).format(date);
-}
-
-/** Tiny inline SVG icons for contact info (print-safe, no external deps) */
-function MailIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
-      <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.161V6a2 2 0 00-2-2H3z" />
-      <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z" />
-    </svg>
-  );
-}
-function PhoneIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
-      <path fillRule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 15.352V16.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z" clipRule="evenodd" />
-    </svg>
-  );
-}
-function LocationIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
-      <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433a19.695 19.695 0 002.683-2.282c1.944-1.99 3.945-4.995 3.945-8.567a8 8 0 10-16 0c0 3.572 2.001 6.577 3.945 8.567a19.695 19.695 0 002.683 2.282 12.97 12.97 0 001.038.573l.018.008.006.003zM10 11.25a2.75 2.75 0 100-5.5 2.75 2.75 0 000 5.5z" clipRule="evenodd" />
-    </svg>
-  );
-}
-function LinkedInIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
-      <path d="M4.5 2A2.5 2.5 0 002 4.5v11A2.5 2.5 0 004.5 18h11a2.5 2.5 0 002.5-2.5v-11A2.5 2.5 0 0015.5 2h-11zM7 7.5v6H5v-6h2zm-1-1.75a1 1 0 110-2 1 1 0 010 2zM15 13.5h-2v-2.938c0-.789-.6-1.062-1-.1062-.4 0-1 .312-1 1.062V13.5h-2v-6h2v.938s.75-1.188 2-1.188 2 .75 2 2.5v3.75z" />
-    </svg>
-  );
-}
-function GitHubIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
-      <path fillRule="evenodd" d="M10 1.5a8.5 8.5 0 00-2.688 16.568c.425.078.58-.184.58-.41 0-.201-.007-.735-.011-1.442-2.364.514-2.863-1.14-2.863-1.14-.387-.982-.944-1.243-.944-1.243-.771-.527.058-.516.058-.516.853.06 1.302.876 1.302.876.758 1.298 1.988.923 2.473.706.077-.549.297-.923.54-1.135-1.887-.215-3.873-.944-3.873-4.202 0-.928.332-1.687.876-2.281-.088-.214-.38-1.079.083-2.248 0 0 .714-.229 2.339.871A8.159 8.159 0 0110 4.999c.723.004 1.45.098 2.128.286 1.624-1.1 2.337-.871 2.337-.871.464 1.17.172 2.034.084 2.248.546.594.875 1.353.875 2.281 0 3.266-1.989 3.984-3.882 4.195.305.263.578.783.578 1.578 0 1.139-.01 2.057-.01 2.337 0 .228.153.493.585.41A8.502 8.502 0 0010 1.5z" clipRule="evenodd" />
-    </svg>
-  );
-}
-function GlobeIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
-      <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.75 8.25a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 2.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zM8 5a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 018 5zm.75 9.25a.75.75 0 000 1.5h2.5a.75.75 0 000-1.5h-2.5z" />
-    </svg>
-  );
-}
-
-/** Shorten a URL for display: linkedin.com/in/user → in/user, github.com/user → github/user */
-function shortenUrl(url: string): string {
-  try {
-    let clean = url.replace(/^https?:\/\//, '').replace(/^www\./, '');
-    // LinkedIn: linkedin.com/in/xxx → in/xxx
-    const linkedinMatch = clean.match(/linkedin\.com\/(in\/[^/?\s]+)/);
-    if (linkedinMatch) return linkedinMatch[1];
-    // GitHub: github.com/xxx → github/xxx
-    const githubMatch = clean.match(/github\.com\/([^/?\s]+)/);
-    if (githubMatch) return githubMatch[1];
-    // Generic: remove trailing slash
-    clean = clean.replace(/\/$/, '');
-    return clean;
-  } catch {
-    return url;
-  }
-}
-
-/** Ensure a URL has a protocol for href */
-function ensureHref(url: string): string {
-  if (/^https?:\/\//.test(url)) return url;
-  if (url.includes('@')) return `mailto:${url}`;
-  return `https://${url}`;
 }
 
 export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
@@ -238,9 +158,6 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       summaryTextAlign   ? `#printable-cv .cv-summary { text-align: ${summaryTextAlign} !important; }` : '',
       summaryLineHeight  ? `#printable-cv .cv-summary { line-height: ${summaryLineHeight} !important; }` : '',
       pageMargin         ? `#printable-cv { padding: ${pageMargin} !important; }` : '',
-      // En impression : marges minimales (8px/10px par défaut, ou la valeur choisie par l'utilisateur).
-      // Pour les bandeaux, les marges négatives doivent correspondre exactement au padding du conteneur
-      // afin que le fond coloré saigne jusqu'au bord de la page.
       (() => {
         let pv: string, ph: string;
         if (pageMargin) {
@@ -267,150 +184,11 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       contactFontSize   ? `#printable-cv .cv-contact-info { font-size: ${contactFontSize} !important; }` : '',
       primaryColor       ? `#printable-cv .cv-badge { border-color: ${primaryColor}30; background-color: ${primaryColor}10; color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv { border-color: ${primaryColor}; }` : '',
-      // Banner / header background: force all text inside to white
       isBanner ? `#printable-cv .cv-header-block, #printable-cv .cv-header-block * { color: white !important; }` : '',
-      // Keep badges readable inside banners
       isBanner ? `#printable-cv .cv-header-block .cv-badge { background-color: rgba(255,255,255,0.15) !important; border-color: rgba(255,255,255,0.4) !important; color: white !important; }` : '',
     ].filter(Boolean).join('\n');
 
     const hasPhoto = Boolean(profile.photoPath);
-
-    // Build contact items with icons
-    const contactItems: { icon: React.ReactNode; text: string; href?: string }[] = [];
-    if (profile.email) contactItems.push({ icon: <MailIcon />, text: profile.email, href: `mailto:${profile.email}` });
-    if (profile.phone) contactItems.push({ icon: <PhoneIcon />, text: profile.phone, href: `tel:${profile.phone.replace(/\s/g, '')}` });
-    if (profile.city) contactItems.push({ icon: <LocationIcon />, text: profile.city });
-    if (profile.linkedinUrl) contactItems.push({ icon: <LinkedInIcon />, text: shortenUrl(profile.linkedinUrl), href: ensureHref(profile.linkedinUrl) });
-    if (profile.githubUrl) contactItems.push({ icon: <GitHubIcon />, text: shortenUrl(profile.githubUrl), href: ensureHref(profile.githubUrl) });
-    if (profile.portfolioUrl) contactItems.push({ icon: <GlobeIcon />, text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });
-
-    // Parse a description string into badge labels.
-    // Each line starting with "- " or "* " becomes a separate badge.
-    // Free text (no bullets) becomes a single badge label.
-    const parseBadgeLabels = (description: string): string[] => {
-      const lines = description.split('\n').map(l => l.trim()).filter(Boolean);
-      const bulletLines = lines.filter(l => /^[-*]\s/.test(l));
-      if (bulletLines.length > 0) {
-        return bulletLines.map(l => l.replace(/^[-*]\s+/, ''));
-      }
-      // Free text → one badge with the full description
-      return [description.trim()];
-    };
-
-    // Collect all labels for a group of badge-type blocks
-    const collectBadgeLabels = (badgeBlocks: CVBlock[]): string[] => {
-      const labels: string[] = [];
-      badgeBlocks.forEach(block => {
-        const entry = entries.find(e => e.id === block.entryId);
-        if (!entry) return;
-        const entryData = { ...entry, ...block.overrideData };
-        const description = entryData.description as string | null;
-        if (description) {
-          parseBadgeLabels(description).forEach(l => labels.push(l));
-        } else {
-          labels.push(
-            entryData.subtitle
-              ? `${entryData.title} — ${entryData.subtitle}`
-              : (entryData.title as string)
-          );
-        }
-      });
-      return labels;
-    };
-
-    // Collect name + optional level for table format
-    const collectBadgeRows = (badgeBlocks: CVBlock[]): { name: string; level?: string }[] => {
-      const rows: { name: string; level?: string }[] = [];
-      badgeBlocks.forEach(block => {
-        const entry = entries.find(e => e.id === block.entryId);
-        if (!entry) return;
-        const entryData = { ...entry, ...block.overrideData };
-        const description = entryData.description as string | null;
-        if (description) {
-          parseBadgeLabels(description).forEach(l => rows.push({ name: l }));
-        } else {
-          rows.push({
-            name: entryData.title as string,
-            level: (entryData.subtitle as string) || undefined,
-          });
-        }
-      });
-      return rows;
-    };
-
-    // Render a group of badge entries according to the chosen display format
-    const renderBadgeGroup = (badgeBlocks: CVBlock[], format: DisplayFormat = 'badges') => {
-      const labels = collectBadgeLabels(badgeBlocks);
-      const itemClass = template.preview.skillClass || 'text-sm text-gray-800';
-
-      if (format === 'comma') {
-        return (
-          <p className={`cv-desc ${template.preview.descriptionClass}`}>
-            {labels.join(' · ')}
-          </p>
-        );
-      }
-
-      if (format === 'list') {
-        return (
-          <ul className={template.preview.skillsContainerClass || 'list-disc pl-5'}>
-            {labels.map((label, i) => (
-              <li key={i} className={itemClass}>{label}</li>
-            ))}
-          </ul>
-        );
-      }
-
-      if (format === 'columns2') {
-        return (
-          <div className="grid grid-cols-2 gap-x-4">
-            {labels.map((label, i) => (
-              <div key={i} className={`flex items-baseline ${itemClass}`}>
-                <span className="mr-1.5 text-gray-400 select-none">•</span>{label}
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      if (format === 'columns3') {
-        return (
-          <div className="grid grid-cols-3 gap-x-3">
-            {labels.map((label, i) => (
-              <div key={i} className={`flex items-baseline ${itemClass}`}>
-                <span className="mr-1.5 text-gray-400 select-none">•</span>{label}
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      if (format === 'table') {
-        const rows = collectBadgeRows(badgeBlocks);
-        const hasLevels = rows.some(r => r.level);
-        return (
-          <div className={`grid gap-y-0.5 ${hasLevels ? 'grid-cols-2' : 'grid-cols-2'}`}>
-            {rows.map(({ name, level }, i) => (
-              <div key={i} className={`flex justify-between items-baseline col-span-1 ${itemClass}`}>
-                <span>{name}</span>
-                {level && <span className="text-xs text-gray-500 italic ml-3 whitespace-nowrap">{level}</span>}
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      // Default: badges
-      const badgeContainerClass = template.preview.skillBadgeContainerClass || 'flex flex-wrap gap-2 mt-1';
-      const badgeClass = template.preview.skillBadgeClass || 'inline-block px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300 rounded';
-      return (
-        <div className={badgeContainerClass}>
-          {labels.map((label, i) => (
-            <span key={i} className={`cv-badge ${badgeClass}`}>{label}</span>
-          ))}
-        </div>
-      );
-    };
 
     // Pre-process blocks to group badge entries
     type RenderItem =
@@ -426,7 +204,6 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       if (block.blockType === 'entry_ref' && block.entryId) {
         const entry = entries.find(e => e.id === block.entryId);
         if (entry && BADGE_ENTRY_TYPES.includes(entry.entryType)) {
-          // Collect consecutive badge entries (all skill/language/interest)
           const badgeGroup: CVBlock[] = [block];
           let j = i + 1;
           while (j < sortedBlocks.length) {
@@ -438,7 +215,6 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             badgeGroup.push(next);
             j++;
           }
-          // Read display format from the nearest preceding section_header
           let format: DisplayFormat = 'badges';
           for (let k = i - 1; k >= 0; k--) {
             if (sortedBlocks[k].blockType === 'section_header') {
@@ -468,76 +244,22 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         )}
 
         {/* Header Section */}
-        <div
-          className={`cv-header-block ${hasPhoto ? 'flex items-center gap-6' : 'text-center'} ${!isBanner && headerStyle !== 'accent-light' ? 'mb-4 text-black dark:text-black' : ''}`}
-          style={Object.keys(headerBlockStyle).length > 0 ? headerBlockStyle : undefined}
-        >
-          {hasPhoto && (() => {
-            const size = photoSize || '96px';
-            const shapeClass = photoShape || 'rounded-full';
+        <CVHeader
+          profile={profile}
+          title={title}
+          template={template}
+          hasPhoto={hasPhoto}
+          photoShape={photoShape}
+          photoSize={photoSize}
+          photoBorder={photoBorder}
+          primaryColor={primaryColor}
+          isBanner={isBanner}
+          headerStyle={headerStyle}
+          headerBlockStyle={headerBlockStyle}
+          nameLineBreak={nameLineBreak}
+        />
 
-            const borderStyle: React.CSSProperties = {};
-            let borderClass = 'border-2 border-gray-200';
-            let shadowClass = '';
-            if (photoBorder === 'none') {
-              borderClass = 'border-0';
-            } else if (photoBorder === 'accent' && primaryColor) {
-              borderClass = 'border-2';
-              borderStyle.borderColor = primaryColor;
-            } else if (photoBorder === 'thick') {
-              borderClass = 'border-4 border-gray-300';
-            } else if (photoBorder === 'shadow') {
-              borderClass = 'border-0';
-              shadowClass = 'shadow-lg';
-            }
-
-            return (
-              <div
-                className={`${shapeClass} overflow-hidden flex-shrink-0 ${borderClass} ${shadowClass}`}
-                style={{ width: size, height: size, ...borderStyle }}
-              >
-                <img
-                  src={profile.photoPath!}
-                  alt="Photo de profil"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            );
-          })()}
-          <div className={hasPhoto ? 'flex-1' : ''}>
-            <h1 className={`cv-name ${template.preview.nameClass || 'text-3xl font-bold uppercase tracking-wider mb-1'}`}>
-              {nameLineBreak === 'split'
-                ? <>{profile.firstName}<br />{profile.lastName}</>
-                : `${profile.firstName} ${profile.lastName}`}
-            </h1>
-            {title && (
-              <h2 className={`cv-job-title ${template.preview.headerTitleClass || 'text-xl font-semibold text-gray-800'}`}>
-                {title}
-              </h2>
-            )}
-            {contactItems.length > 0 && (
-              <div className={`cv-contact-info mt-2 ${template.preview.contactClass || 'text-sm text-gray-600'}`}>
-                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
-                  {contactItems.map((item, idx) => (
-                    item.href ? (
-                      <a key={idx} href={item.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center whitespace-nowrap hover:underline">
-                        {item.icon}
-                        {item.text}
-                      </a>
-                    ) : (
-                      <span key={idx} className="inline-flex items-center whitespace-nowrap">
-                        {item.icon}
-                        {item.text}
-                      </span>
-                    )
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Separator — hidden for full-width banners (banner's own bottom provides the visual break) */}
+        {/* Separator — hidden for full-width banners */}
         {!isBanner && (
           <hr className="border-t border-gray-300 mb-4 print:border-gray-400" style={primaryColor ? { borderColor: primaryColor } : undefined} />
         )}
@@ -551,65 +273,27 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         {/* Dynamic Blocks */}
         {renderItems.map((item, idx) => {
           if (item.type === 'badge-group') {
-            return <div key={`badge-${idx}`} className="cv-entry mb-3 print:break-inside-avoid">{renderBadgeGroup(item.blocks, item.format)}</div>;
+            return (
+              <div key={`badge-${idx}`} className="cv-entry mb-3 print:break-inside-avoid">
+                <CVBadgeGroup blocks={item.blocks} entries={entries} template={template} format={item.format} />
+              </div>
+            );
           }
 
           const block = item.block;
 
           if (block.blockType === 'section_header') {
-            return (
-              <h3 key={block.id} className={`${template.preview.headingClass} print:break-after-avoid`}>
-                {block.sectionName}
-              </h3>
-            );
+            return <CVSectionHeader key={block.id} sectionName={block.sectionName} template={template} />;
           }
 
           if (block.blockType === 'custom_text') {
-            return (
-              <div key={block.id} className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
-                <div className={`cv-desc ${template.preview.descriptionClass}`}>
-                  <MarkdownRenderer text={block.customContent || ''} />
-                </div>
-              </div>
-            );
+            return <CVCustomText key={block.id} content={block.customContent || ''} template={template} />;
           }
 
           if (block.blockType === 'entry_ref' && block.entryId) {
             const entry = entries.find((e) => e.id === block.entryId);
             if (!entry) return null;
-
-            const entryData = { ...entry, ...block.overrideData };
-            const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
-            const fmtDate = yearOnly ? formatDateYear : formatDate;
-
-            return (
-              <div key={block.id} className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
-                <div className="cv-title-row flex justify-between items-baseline mb-1">
-                  <div>
-                    <span className={`cv-title ${template.preview.titleClass}`}>{entryData.title}</span>
-                    {(entryData.subtitle || entryData.location) && (
-                      <span className={`cv-subtitle ${template.preview.subtitleClass}`}>
-                        {' '}
-                        | {entryData.subtitle}
-                        {entryData.subtitle && entryData.location ? ` — ${entryData.location}` : entryData.location || ''}
-                      </span>
-                    )}
-                  </div>
-                  {(entryData.startDate || entryData.endDate || entryData.isCurrent) && (
-                    <span className={`cv-date ${template.preview.dateClass}`}>
-                      {entryData.startDate ? fmtDate(entryData.startDate) : ''}
-                      {entryData.startDate && (entryData.endDate || entryData.isCurrent) ? ' - ' : ''}
-                      {entryData.isCurrent ? 'Présent' : (entryData.endDate ? fmtDate(entryData.endDate) : '')}
-                    </span>
-                  )}
-                </div>
-                {entryData.description && (
-                  <div className={`cv-desc ${template.preview.descriptionClass}`}>
-                    <MarkdownRenderer text={entryData.description as string} />
-                  </div>
-                )}
-              </div>
-            );
+            return <CVEntryBlock key={block.id} block={block} entry={entry} template={template} />;
           }
 
           return null;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { format, subDays, isBefore, startOfDay, isToday, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Briefcase, FileText, AlertCircle, TrendingUp, Calendar as CalendarIcon, Clock } from 'lucide-react';
@@ -71,6 +71,37 @@ export function Dashboard() {
       };
     }).reverse();
 
+    // Source distribution (non-draft only)
+    const SOURCE_LABELS: Record<string, string> = {
+      job_board: 'Job board',
+      spontaneous: 'Spontanée',
+      network: 'Réseau',
+      recruiter: 'Recruteur',
+      linkedin: 'LinkedIn',
+      other: 'Autre',
+    };
+    const SOURCE_COLORS: Record<string, string> = {
+      job_board: '#3b82f6',
+      spontaneous: '#10b981',
+      network: '#f59e0b',
+      recruiter: '#8b5cf6',
+      linkedin: '#0077b5',
+      other: '#6b7280',
+    };
+    const nonDraft = applications.filter(a => a.status !== 'draft');
+    const sourceCounts: Record<string, number> = {};
+    nonDraft.forEach(a => {
+      const src = a.source || 'other';
+      sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+    });
+    const sourceData = Object.entries(sourceCounts)
+      .map(([key, value]) => ({
+        name: SOURCE_LABELS[key] || key,
+        value,
+        color: SOURCE_COLORS[key] || '#6b7280',
+      }))
+      .sort((a, b) => b.value - a.value);
+
     return {
       activeCount: activeApps.length,
       recentCount: recentApps.length,
@@ -78,7 +109,8 @@ export function Dashboard() {
       needsFollowup,
       interviewsCount: interviews.length,
       chartData: weeks,
-      recentCvs: cvs.slice(0, 3)
+      recentCvs: cvs.slice(0, 3),
+      sourceData,
     };
   }, [applications, cvs]);
 
@@ -147,6 +179,45 @@ export function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Source distribution chart */}
+        {stats.sourceData.length > 0 && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <Briefcase size={20} className="text-purple-500" />
+              Répartition par source
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.sourceData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {stats.sourceData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    formatter={(value: number | undefined) => [`${value ?? 0} candidature${(value ?? 0) > 1 ? 's' : ''}`, '']}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value: string) => <span className="text-xs text-gray-600">{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 

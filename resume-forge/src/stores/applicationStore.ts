@@ -59,7 +59,9 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       );
       await get().fetchApplications();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to create application' });
+      const message = err instanceof Error ? err.message : 'Failed to create application';
+      set({ error: message });
+      throw err;
     }
   },
 
@@ -79,7 +81,9 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       }
       await get().fetchApplications();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to update application' });
+      const message = err instanceof Error ? err.message : 'Failed to update application';
+      set({ error: message });
+      throw err;
     }
   },
 
@@ -91,7 +95,9 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
         applications: state.applications.filter(a => a.id !== id)
       }));
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to delete application' });
+      const message = err instanceof Error ? err.message : 'Failed to delete application';
+      set({ error: message });
+      throw err;
     }
   },
 
@@ -125,7 +131,9 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
       );
       await get().fetchEvents(event.applicationId);
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to create event' });
+      const message = err instanceof Error ? err.message : 'Failed to create event';
+      set({ error: message });
+      throw err;
     }
   },
 
@@ -143,7 +151,9 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
         }));
       }
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to delete event' });
+      const message = err instanceof Error ? err.message : 'Failed to delete event';
+      set({ error: message });
+      throw err;
     }
   },
 

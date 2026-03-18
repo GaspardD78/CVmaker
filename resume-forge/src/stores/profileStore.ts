@@ -113,7 +113,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       // Reload profile entries
       await get().fetchProfile();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to add entry' });
+      const message = err instanceof Error ? err.message : 'Failed to add entry';
+      set({ error: message });
+      throw err;
     }
   },
 
@@ -133,7 +135,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       }
       await get().fetchProfile();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to update entry' });
+      const message = err instanceof Error ? err.message : 'Failed to update entry';
+      set({ error: message });
+      throw err;
     }
   },
 
@@ -145,7 +149,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         entries: state.entries.filter(e => e.id !== id)
       }));
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to delete entry' });
+      const message = err instanceof Error ? err.message : 'Failed to delete entry';
+      set({ error: message });
+      throw err;
     }
   },
 }));
