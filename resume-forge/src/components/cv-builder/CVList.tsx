@@ -2,13 +2,19 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { Plus, Copy, Trash2, Edit } from 'lucide-react';
+import { Plus, Copy, Trash2, Edit, FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { confirm } from '@tauri-apps/plugin-dialog';
+import { exportToDocx } from '@/lib/export-docx';
+import { getTemplate } from '@/templates';
+import { getDb } from '@/lib/db';
+import { keysToCamelCase } from '@/lib/mapping';
+import { CVBlock } from '@/types/cv';
+import { CVDocument } from '@/types/cv';
 
 export function CVList() {
   const { cvs, fetchCvs, createCv, deleteCv, duplicateCv, isLoading } = useCvStore();
-  const { profile, fetchProfile } = useProfileStore();
+  const { profile, entries, fetchProfile } = useProfileStore();
   const [isCreating, setIsCreating] = useState(false);
   const [newCvName, setNewCvName] = useState('');
 
@@ -65,6 +71,35 @@ export function CVList() {
     }
   };
 
+  const loadBlocksForCv = async (cvId: string): Promise<CVBlock[]> => {
+    const db = await getDb();
+    const rawBlocks = await db.select<Record<string, unknown>[]>(
+      'SELECT * FROM cv_blocks WHERE cv_id = ?1 ORDER BY sort_order ASC',
+      [cvId]
+    );
+    return rawBlocks.map(b => keysToCamelCase<CVBlock>(b));
+  };
+
+  const handleQuickExportDocx = async (cv: CVDocument) => {
+    if (!profile) return;
+    try {
+      const blocks = await loadBlocksForCv(cv.id);
+      const template = getTemplate(cv.templateId);
+      const success = await exportToDocx(cv, profile, blocks, entries, template);
+      if (success) toast.success(`DOCX exporté : ${cv.name}`);
+    } catch (err) {
+      toast.error(`Erreur export DOCX: ${err instanceof Error ? err.message : 'Erreur inconnue'}`);
+    }
+  };
+
+  const handleQuickExportPdf = async (cv: CVDocument) => {
+    if (!profile) return;
+    toast.info("Ouverture du CV pour export PDF...");
+    // Navigate to the builder which renders PrintableCV, then trigger export
+    // Since PDF relies on #printable-cv being in the DOM, we redirect to the builder
+    window.location.hash = `/cv/${cv.id}?exportPdf=1`;
+  };
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-8">
@@ -117,6 +152,20 @@ export function CVList() {
                     <Edit className="w-4 h-4 mr-1" /> Éditer
                   </Link>
                   <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleQuickExportDocx(cv)}
+                      className="text-gray-500 hover:text-blue-600 p-1"
+                      title="Exporter DOCX"
+                    >
+                      <FileText className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleQuickExportPdf(cv)}
+                      className="text-gray-500 hover:text-green-600 p-1"
+                      title="Exporter PDF"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => handleDuplicate(cv.id)}
                       className="text-gray-500 hover:text-blue-600 p-1"

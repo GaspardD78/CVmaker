@@ -106,7 +106,9 @@ export const useCvStore = create<CVState>((set, get) => ({
       );
       await get().fetchCvs();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to create CV' });
+      const message = err instanceof Error ? err.message : 'Failed to create CV';
+      set({ error: message });
+      throw err;
     }
   }),
 
@@ -147,7 +149,9 @@ export const useCvStore = create<CVState>((set, get) => ({
 
       await get().fetchCvs();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to duplicate CV' });
+      const message = err instanceof Error ? err.message : 'Failed to duplicate CV';
+      set({ error: message });
+      throw err;
     }
   }),
 
@@ -159,7 +163,9 @@ export const useCvStore = create<CVState>((set, get) => ({
         cvs: state.cvs.filter(c => c.id !== id)
       }));
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to delete CV' });
+      const message = err instanceof Error ? err.message : 'Failed to delete CV';
+      set({ error: message });
+      throw err;
     }
   }),
 
