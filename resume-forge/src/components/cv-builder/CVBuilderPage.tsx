@@ -10,6 +10,7 @@ import { exportNativePdf } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
 import { toast } from 'sonner';
 import { useSaveIndicator } from '@/hooks/useSaveIndicator';
+import { TemplatePickerPopover } from './TemplatePickerPopover';
 
 const PANEL_WIDTH_KEY = 'resumeforge_panel_width';
 const MIN_PANEL = 280;
@@ -117,11 +118,10 @@ export function CVBuilderPage() {
     }
   };
 
-  const handleTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleTemplateChange = async (newTemplateId: string) => {
     if (!currentCv) return;
-    const newTemplateId = e.target.value;
 
-    // Optimistic UI update to prevent the select from snapping back while DB saves
+    // Optimistic UI update
     useCvStore.setState({ currentCv: { ...currentCv, templateId: newTemplateId } });
 
     await updateCv(currentCv.id, { templateId: newTemplateId });
@@ -171,16 +171,10 @@ export function CVBuilderPage() {
              {isFocusMode ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
              {isFocusMode ? 'Panneau' : 'Focus'}
            </button>
-           <select
-             value={currentCv.templateId}
-             onChange={handleTemplateChange}
-             className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-2"
-           >
-             <option value="ats-classic">ATS Classique</option>
-             <option value="ats-modern">ATS Moderne</option>
-             <option value="elegant">Élégant</option>
-             <option value="minimalist">Minimaliste</option>
-           </select>
+           <TemplatePickerPopover
+             currentTemplateId={currentCv.templateId}
+             onSelect={handleTemplateChange}
+           />
            <button
              onClick={handleExportDocx}
              disabled={isExporting}
