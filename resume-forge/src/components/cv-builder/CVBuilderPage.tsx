@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
-import { ArrowLeft, Download, FileText, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Maximize2, Minimize2, Loader2, Check } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
 import { exportNativePdf } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
 import { toast } from 'sonner';
+import { useSaveIndicator } from '@/hooks/useSaveIndicator';
 
 export function CVBuilderPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +18,23 @@ export function CVBuilderPage() {
   const { profile, entries, fetchProfile } = useProfileStore();
   const [isExporting, setIsExporting] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const { status: saveStatus, notifySave } = useSaveIndicator();
+
+  // Detect store writes (updateCv / updateCvBlock) via subscribe
+  const prevCvRef = useRef(useCvStore.getState().currentCv);
+  const prevBlocksRef = useRef(useCvStore.getState().currentCvBlocks);
+  useEffect(() => {
+    const unsub = useCvStore.subscribe((state) => {
+      const cvChanged = state.currentCv !== prevCvRef.current;
+      const blocksChanged = state.currentCvBlocks !== prevBlocksRef.current;
+      if (cvChanged || blocksChanged) {
+        prevCvRef.current = state.currentCv;
+        prevBlocksRef.current = state.currentCvBlocks;
+        notifySave();
+      }
+    });
+    return unsub;
+  }, [notifySave]);
 
   useEffect(() => {
     if (id) {
@@ -84,6 +102,18 @@ export function CVBuilderPage() {
           <h1 className="text-xl font-semibold text-gray-900 truncate max-w-md">
             CV: {currentCv.name}
           </h1>
+          {saveStatus === 'saving' && (
+            <span className="flex items-center text-sm text-gray-400 ml-2">
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              Enregistrement...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="flex items-center text-sm text-green-500 ml-2">
+              <Check className="w-4 h-4 mr-1" />
+              Enregistré
+            </span>
+          )}
         </div>
         <div className="flex items-center space-x-3">
            <button
