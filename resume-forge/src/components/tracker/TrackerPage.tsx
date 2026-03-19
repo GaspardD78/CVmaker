@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { KanbanBoard } from './KanbanBoard';
 import { ApplicationFormModal } from './ApplicationFormModal';
@@ -15,6 +15,31 @@ export function TrackerPage() {
   const [sourceFilter, setSourceFilter] = useState<ApplicationSource | 'all'>('all');
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [editingApplication, setEditingApplication] = useState<Application | null>(null);
+
+  // Scroll indicators
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollIndicators = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', updateScrollIndicators, { passive: true });
+    const ro = new ResizeObserver(updateScrollIndicators);
+    ro.observe(el);
+    updateScrollIndicators();
+    return () => {
+      el.removeEventListener('scroll', updateScrollIndicators);
+      ro.disconnect();
+    };
+  }, [updateScrollIndicators]);
 
   useEffect(() => {
     fetchApplications();
@@ -101,12 +126,20 @@ export function TrackerPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto p-6 bg-gray-50">
-        <KanbanBoard
-          searchTerm={searchTerm}
-          sourceFilter={sourceFilter}
-          onCardClick={(app) => setSelectedApplication(app)}
-        />
+      <div className="flex-1 relative overflow-hidden bg-gray-50">
+        {canScrollLeft && (
+          <div className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-r from-gray-50 to-transparent" />
+        )}
+        {canScrollRight && (
+          <div className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-l from-gray-50 to-transparent" />
+        )}
+        <div ref={scrollRef} className="h-full overflow-x-auto p-6">
+          <KanbanBoard
+            searchTerm={searchTerm}
+            sourceFilter={sourceFilter}
+            onCardClick={(app) => setSelectedApplication(app)}
+          />
+        </div>
       </div>
 
       {/* Details panel rendered at TrackerPage level to avoid overflow clipping */}
