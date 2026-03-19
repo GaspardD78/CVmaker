@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { KanbanBoard } from './KanbanBoard';
 import { ApplicationFormModal } from './ApplicationFormModal';
@@ -8,6 +9,7 @@ import { Search, Filter, Download } from 'lucide-react';
 import { Application, ApplicationSource } from '@/types/application';
 
 export function TrackerPage() {
+  const location = useLocation();
   const { applications, fetchApplications, isLoading, error } = useApplicationStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -44,6 +46,21 @@ export function TrackerPage() {
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
+
+  // Open application panel from Dashboard navigation state
+  const openAppIdHandled = useRef(false);
+  useEffect(() => {
+    const openId = (location.state as { openApplicationId?: string } | null)?.openApplicationId;
+    if (openId && applications.length > 0 && !openAppIdHandled.current) {
+      const app = applications.find(a => a.id === openId);
+      if (app) {
+        setSelectedApplication(app);
+        openAppIdHandled.current = true;
+        // Clear the state to prevent re-opening on back navigation
+        window.history.replaceState({}, '');
+      }
+    }
+  }, [applications, location.state]);
 
   // Keep selectedApplication in sync with the store when it changes (e.g. after edit)
   useEffect(() => {

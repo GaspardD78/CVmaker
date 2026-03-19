@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, subDays, isBefore, startOfDay, isToday, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Briefcase, FileText, AlertCircle, TrendingUp, Calendar as CalendarIcon, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const safeDate = (val: string | null | undefined): Date | null => {
   if (!val) return null;
@@ -13,9 +13,12 @@ const safeDate = (val: string | null | undefined): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
+const TERMINAL_STATUSES = ['accepted', 'rejected', 'withdrawn', 'ghosted'];
+
 export function Dashboard() {
   const { applications, fetchApplications } = useApplicationStore();
   const { cvs, fetchCvs } = useCvStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchApplications();
@@ -102,6 +105,18 @@ export function Dashboard() {
       }))
       .sort((a, b) => b.value - a.value);
 
+    // "À traiter aujourd'hui" — overdue + today, non-terminal
+    const todayItems = applications.filter(a => {
+      if (TERMINAL_STATUSES.includes(a.status)) return false;
+      const d = safeDate(a.nextActionDate);
+      if (!d) return false;
+      return d <= startOfDay(subDays(now, -1)); // today or past
+    }).sort((a, b) => {
+      const da = safeDate(a.nextActionDate)!;
+      const db = safeDate(b.nextActionDate)!;
+      return da.getTime() - db.getTime();
+    });
+
     return {
       activeCount: activeApps.length,
       recentCount: recentApps.length,
@@ -111,6 +126,7 @@ export function Dashboard() {
       chartData: weeks,
       recentCvs: cvs.slice(0, 3),
       sourceData,
+      todayItems,
     };
   }, [applications, cvs]);
 
@@ -136,6 +152,32 @@ export function Dashboard() {
       </div>
 
       <div className="p-6 space-y-6 flex-1 bg-gray-50">
+
+        {/* À traiter aujourd'hui */}
+        {stats.todayItems.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <h3 className="text-sm font-bold text-amber-800 mb-3">⚡ À traiter aujourd'hui</h3>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {stats.todayItems.slice(0, 5).map(app => (
+                <button
+                  key={app.id}
+                  onClick={() => navigate('/tracker', { state: { openApplicationId: app.id } })}
+                  className="flex-shrink-0 px-3 py-1.5 bg-white border border-amber-200 rounded-full text-xs font-medium text-amber-900 hover:bg-amber-100 transition-colors truncate max-w-[250px]"
+                >
+                  {app.companyName} — {app.nextAction || 'Relance'}
+                </button>
+              ))}
+              {stats.todayItems.length > 5 && (
+                <button
+                  onClick={() => navigate('/tracker')}
+                  className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-amber-700 hover:text-amber-900 transition-colors"
+                >
+                  et {stats.todayItems.length - 5} autres → voir le suivi
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
