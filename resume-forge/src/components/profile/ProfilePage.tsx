@@ -267,8 +267,11 @@ export function ProfilePage() {
     setEditingEntryId(null);
   };
 
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error]);
+
   if (isLoading) return <div className="p-4">Chargement...</div>;
-  if (error) return <div className="p-4 text-red-500">Erreur : {error}</div>;
 
   const availableTypes: { value: EntryType; label: string }[] = [
     { value: 'experience', label: 'Expériences' },

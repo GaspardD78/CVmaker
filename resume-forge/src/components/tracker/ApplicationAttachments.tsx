@@ -4,7 +4,7 @@ import { AttachmentLabel } from '@/types/application';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { open as openInShell } from '@tauri-apps/plugin-shell';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
-import { Paperclip, Plus, ExternalLink, Trash2, FileText, FileImage, FileArchive, File, AlertCircle } from 'lucide-react';
+import { Paperclip, Plus, ExternalLink, Trash2, FileText, FileImage, FileArchive, File } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ApplicationAttachmentsProps {
@@ -148,22 +148,9 @@ export function ApplicationAttachments({ applicationId }: ApplicationAttachments
     }
   };
 
-  if (loadError) {
-    return (
-      <div>
-        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3">
-          <Paperclip size={16} /> Documents joints
-        </h3>
-        <div className="flex items-start gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-100">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">Impossible de charger les pièces jointes</p>
-            <p className="text-xs text-red-500 mt-0.5 font-mono break-all">{loadError}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (loadError) toast.error(`Pièces jointes : ${loadError}`);
+  }, [loadError]);
 
   return (
     <div>

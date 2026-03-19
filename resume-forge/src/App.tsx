@@ -8,6 +8,7 @@ import { TrackerPage } from "@/components/tracker/TrackerPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import PrintView from "@/pages/PrintView";
 import { Toaster } from "sonner";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./App.css";
 
 /** Wrap Layout around non-print routes only — /print renders standalone. */
@@ -35,10 +36,12 @@ function AppRoutes() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-      <Toaster position="top-right" />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppRoutes />
+        <Toaster position="top-right" />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

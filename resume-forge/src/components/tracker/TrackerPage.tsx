@@ -6,6 +6,7 @@ import { ApplicationFormModal } from './ApplicationFormModal';
 import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
 import { ExportApplicationsModal } from './ExportApplicationsModal';
 import { Search, Filter, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { Application, ApplicationSource } from '@/types/application';
 
 export function TrackerPage() {
@@ -71,18 +72,14 @@ export function TrackerPage() {
     }
   }, [applications]);
 
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-full">
         <p className="text-gray-500">Chargement des candidatures...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 text-red-600 rounded-md m-4">
-        <p>Erreur: {error}</p>
       </div>
     );
   }
