@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
@@ -11,6 +11,11 @@ import { getTemplate } from '@/templates';
 import { toast } from 'sonner';
 import { useSaveIndicator } from '@/hooks/useSaveIndicator';
 
+const PANEL_WIDTH_KEY = 'resumeforge_panel_width';
+const MIN_PANEL = 280;
+const MAX_PANEL = 520;
+const DEFAULT_PANEL = 380;
+
 export function CVBuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -19,6 +24,44 @@ export function CVBuilderPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const { status: saveStatus, notifySave } = useSaveIndicator();
+
+  // Splitter state
+  const [panelWidth, setPanelWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem(PANEL_WIDTH_KEY);
+      if (saved) {
+        const n = parseInt(saved, 10);
+        if (n >= MIN_PANEL && n <= MAX_PANEL) return n;
+      }
+    } catch { /* ignore */ }
+    return DEFAULT_PANEL;
+  });
+  const isDraggingRef = useRef(false);
+
+  const handleSplitterMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const newWidth = Math.min(MAX_PANEL, Math.max(MIN_PANEL, startWidth + ev.clientX - startX));
+      setPanelWidth(newWidth);
+    };
+
+    const onMouseUp = (ev: MouseEvent) => {
+      const finalWidth = Math.min(MAX_PANEL, Math.max(MIN_PANEL, startWidth + ev.clientX - startX));
+      try { localStorage.setItem(PANEL_WIDTH_KEY, String(finalWidth)); } catch { /* ignore */ }
+      isDraggingRef.current = false;
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [panelWidth]);
 
   // Detect store writes (updateCv / updateCvBlock) via subscribe
   const prevCvRef = useRef(useCvStore.getState().currentCv);
@@ -161,9 +204,19 @@ export function CVBuilderPage() {
       <div className="flex flex-1 overflow-hidden print:overflow-visible print:block print:h-auto">
         {/* Left Panel - Editing (hidden in focus mode) */}
         {!isFocusMode && (
-          <div className="w-1/3 min-w-[300px] max-w-[450px] bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden print:hidden">
-            <LeftPanel cvId={id!} />
-          </div>
+          <>
+            <div
+              style={{ width: panelWidth }}
+              className="bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
+            >
+              <LeftPanel cvId={id!} />
+            </div>
+            {/* Draggable splitter */}
+            <div
+              onMouseDown={handleSplitterMouseDown}
+              className="w-1 hover:w-1.5 bg-gray-200 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
+            />
+          </>
         )}
 
         {/* Right Panel - Preview */}
