@@ -132,9 +132,9 @@ export function CVBuilderPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-100 print:h-auto print:overflow-visible print:bg-white print:block">
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-100 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:block">
       {/* Top Bar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center shadow-sm print:hidden">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center shadow-sm print:hidden">
         <div className="flex items-center space-x-4">
           <button
             onClick={() => navigate('/cv')}
@@ -142,7 +142,7 @@ export function CVBuilderPage() {
           >
             <ArrowLeft className="w-5 h-5 mr-1" /> Retour
           </button>
-          <h1 className="text-xl font-semibold text-gray-900 truncate max-w-md">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate max-w-md">
             CV: {currentCv.name}
           </h1>
           {saveStatus === 'saving' && (
@@ -201,20 +201,20 @@ export function CVBuilderPage() {
           <>
             <div
               style={{ width: panelWidth }}
-              className="bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
+              className="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
             >
               <LeftPanel cvId={id!} />
             </div>
             {/* Draggable splitter */}
             <div
               onMouseDown={handleSplitterMouseDown}
-              className="w-1 hover:w-1.5 bg-gray-200 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
+              className="w-1 hover:w-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
             />
           </>
         )}
 
         {/* Right Panel - Preview */}
-        <div className={`flex-1 h-full overflow-auto bg-gray-50 p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto ${isFocusMode ? 'max-w-none' : ''}`}>
+        <div className={`flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto ${isFocusMode ? 'max-w-none' : ''}`}>
           <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
             <RightPanel />
           </div>

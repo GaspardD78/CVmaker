@@ -82,7 +82,7 @@ export function KanbanCard({ application, onClick }: KanbanCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow relative group overflow-hidden ${
+      className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-shadow relative group overflow-hidden ${
         isDragging ? 'z-50 ring-2 ring-blue-400' : ''
       }`}
       onClick={() => onClick(application)}
@@ -101,7 +101,7 @@ export function KanbanCard({ application, onClick }: KanbanCardProps) {
         </div>
 
         <div className="pr-6">
-          <h3 className="font-semibold text-sm text-gray-900 line-clamp-2 mb-1">
+          <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 mb-1">
             {application.jobTitle}
           </h3>
 

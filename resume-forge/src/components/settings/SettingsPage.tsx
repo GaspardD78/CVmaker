@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor } from 'lucide-react';
 import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
 import { usePromptStore } from '@/stores/promptStore';
+import { useTheme } from '@/hooks/useTheme';
 
 export function SettingsPage() {
   // ── AI Differentiator ───────────────────────────────────────────────────
@@ -23,6 +24,9 @@ export function SettingsPage() {
     setDiffSaved(true);
     setTimeout(() => setDiffSaved(false), 2000);
   };
+
+  // ── Theme ───────────────────────────────────────────────────────────────
+  const { theme, setTheme } = useTheme();
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [selectedModules, setSelectedModules] = useState<Set<ModuleId>>(
@@ -85,15 +89,50 @@ export function SettingsPage() {
 
   return (
     <div className="p-8 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-1">Paramètres</h1>
-      <p className="text-gray-500 text-sm mb-8">Configuration et gestion des données de l'application.</p>
+      <h1 className="text-2xl font-bold mb-1 dark:text-gray-100">Paramètres</h1>
+      <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Configuration et gestion des données de l'application.</p>
+
+      {/* ── Apparence ── */}
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
+          <div className="flex items-center gap-2 mb-1">
+            <Sun size={18} className="text-yellow-500" />
+            <h2 className="text-base font-semibold dark:text-gray-100">Apparence</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Choisissez le thème de l'application.
+          </p>
+        </div>
+        <div className="p-6">
+          <div className="flex gap-3">
+            {([
+              { value: 'light' as const, label: 'Clair', icon: Sun },
+              { value: 'dark' as const, label: 'Sombre', icon: Moon },
+              { value: 'system' as const, label: 'Système', icon: Monitor },
+            ]).map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                onClick={() => setTheme(value)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  theme === value
+                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
+                    : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ── AI Prompt Personalization ── */}
-      <section className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
-        <div className="p-6 border-b">
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
           <div className="flex items-center gap-2 mb-1">
             <Sparkles size={18} className="text-amber-500" />
-            <h2 className="text-base font-semibold">Personnalisation des prompts IA</h2>
+            <h2 className="text-base font-semibold dark:text-gray-100">Personnalisation des prompts IA</h2>
           </div>
           <p className="text-sm text-gray-500">
             Ces paramètres sont utilisés par le générateur de prompts dans le CV builder.
@@ -135,11 +174,11 @@ export function SettingsPage() {
       </section>
 
       {/* ── Backup section ── */}
-      <section className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
-        <div className="p-6 border-b">
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
           <div className="flex items-center gap-2 mb-1">
             <Download size={18} className="text-blue-600" />
-            <h2 className="text-base font-semibold">Sauvegarde des données</h2>
+            <h2 className="text-base font-semibold dark:text-gray-100">Sauvegarde des données</h2>
           </div>
           <p className="text-sm text-gray-500">
             Exporte vos données dans un fichier <code className="bg-gray-100 px-1 rounded text-xs">.cvmaker</code> que vous pouvez stocker ou transférer sur une autre installation.
@@ -204,11 +243,11 @@ export function SettingsPage() {
       </section>
 
       {/* ── Restore section ── */}
-      <section className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="p-6 border-b">
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="p-6 border-b dark:border-gray-700">
           <div className="flex items-center gap-2 mb-1">
             <Upload size={18} className="text-orange-500" />
-            <h2 className="text-base font-semibold">Restauration des données</h2>
+            <h2 className="text-base font-semibold dark:text-gray-100">Restauration des données</h2>
           </div>
           <p className="text-sm text-gray-500">
             Importe un fichier <code className="bg-gray-100 px-1 rounded text-xs">.cvmaker</code> pour restaurer ou fusionner des données.

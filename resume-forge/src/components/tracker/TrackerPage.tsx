@@ -89,9 +89,9 @@ export function TrackerPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="p-6 pb-2 border-b flex justify-between items-center">
+      <div className="p-6 pb-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold">Suivi des candidatures</h1>
+          <h1 className="text-2xl font-bold dark:text-gray-100">Suivi des candidatures</h1>
           <p className="text-gray-500 text-sm mt-1">
             Gérez vos candidatures et leur avancement.
           </p>
@@ -114,7 +114,7 @@ export function TrackerPage() {
         </div>
       </div>
 
-      <div className="bg-white border-b px-6 py-3 flex gap-4 items-center">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex gap-4 items-center">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
           <input
@@ -143,12 +143,12 @@ export function TrackerPage() {
         </div>
       </div>
 
-      <div className="flex-1 relative overflow-hidden bg-gray-50">
+      <div className="flex-1 relative overflow-hidden bg-gray-50 dark:bg-gray-900">
         {canScrollLeft && (
-          <div className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-r from-gray-50 to-transparent" />
+          <div className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-r from-gray-50 dark:from-gray-900 to-transparent" />
         )}
         {canScrollRight && (
-          <div className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-l from-gray-50 to-transparent" />
+          <div className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-l from-gray-50 dark:from-gray-900 to-transparent" />
         )}
         <div ref={scrollRef} className="h-full overflow-x-auto p-6">
           <KanbanBoard
