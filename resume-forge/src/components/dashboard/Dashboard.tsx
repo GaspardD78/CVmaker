@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, subDays, isBefore, startOfDay, isToday, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Briefcase, FileText, AlertCircle, TrendingUp, Calendar as CalendarIcon, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const safeDate = (val: string | null | undefined): Date | null => {
   if (!val) return null;
@@ -13,9 +13,12 @@ const safeDate = (val: string | null | undefined): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
+const TERMINAL_STATUSES = ['accepted', 'rejected', 'withdrawn', 'ghosted'];
+
 export function Dashboard() {
   const { applications, fetchApplications } = useApplicationStore();
   const { cvs, fetchCvs } = useCvStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchApplications();
@@ -102,6 +105,18 @@ export function Dashboard() {
       }))
       .sort((a, b) => b.value - a.value);
 
+    // "À traiter aujourd'hui" — overdue + today, non-terminal
+    const todayItems = applications.filter(a => {
+      if (TERMINAL_STATUSES.includes(a.status)) return false;
+      const d = safeDate(a.nextActionDate);
+      if (!d) return false;
+      return d <= startOfDay(subDays(now, -1)); // today or past
+    }).sort((a, b) => {
+      const da = safeDate(a.nextActionDate)!;
+      const db = safeDate(b.nextActionDate)!;
+      return da.getTime() - db.getTime();
+    });
+
     return {
       activeCount: activeApps.length,
       recentCount: recentApps.length,
@@ -111,14 +126,15 @@ export function Dashboard() {
       chartData: weeks,
       recentCvs: cvs.slice(0, 3),
       sourceData,
+      todayItems,
     };
   }, [applications, cvs]);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="p-6 pb-4 border-b bg-white flex justify-between items-center sticky top-0 z-10">
+      <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-between items-center sticky top-0 z-10">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tableau de bord</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord</h1>
           <p className="text-gray-500 text-sm mt-1">
             Bienvenue ! Voici l'état de vos recherches.
           </p>
@@ -135,11 +151,37 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="p-6 space-y-6 flex-1 bg-gray-50">
+      <div className="p-6 space-y-6 flex-1 bg-gray-50 dark:bg-gray-900">
+
+        {/* À traiter aujourd'hui */}
+        {stats.todayItems.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <h3 className="text-sm font-bold text-amber-800 mb-3">⚡ À traiter aujourd'hui</h3>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {stats.todayItems.slice(0, 5).map(app => (
+                <button
+                  key={app.id}
+                  onClick={() => navigate('/tracker', { state: { openApplicationId: app.id } })}
+                  className="flex-shrink-0 px-3 py-1.5 bg-white border border-amber-200 rounded-full text-xs font-medium text-amber-900 hover:bg-amber-100 transition-colors truncate max-w-[250px]"
+                >
+                  {app.companyName} — {app.nextAction || 'Relance'}
+                </button>
+              ))}
+              {stats.todayItems.length > 5 && (
+                <button
+                  onClick={() => navigate('/tracker')}
+                  className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-amber-700 hover:text-amber-900 transition-colors"
+                >
+                  et {stats.todayItems.length - 5} autres → voir le suivi
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between">
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
               <p className="text-gray-500 text-sm font-medium mb-1">Candidatures actives</p>
               <h3 className="text-3xl font-bold text-gray-900">{stats.activeCount}</h3>
@@ -149,7 +191,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between">
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
               <p className="text-gray-500 text-sm font-medium mb-1">Ce mois-ci</p>
               <h3 className="text-3xl font-bold text-gray-900">{stats.recentCount}</h3>
@@ -159,7 +201,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between">
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
               <p className="text-gray-500 text-sm font-medium mb-1">Taux de réponse</p>
               <h3 className="text-3xl font-bold text-gray-900">{stats.responseRate}%</h3>
@@ -169,7 +211,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between">
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
               <p className="text-gray-500 text-sm font-medium mb-1">Entretiens en cours</p>
               <h3 className="text-3xl font-bold text-gray-900">{stats.interviewsCount}</h3>
@@ -182,7 +224,7 @@ export function Dashboard() {
 
         {/* Source distribution chart */}
         {stats.sourceData.length > 0 && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
               <Briefcase size={20} className="text-purple-500" />
               Répartition par source
@@ -222,7 +264,7 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Main Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 lg:col-span-2">
             <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
               <TrendingUp size={20} className="text-blue-500" />
               Activité des 4 dernières semaines
@@ -245,7 +287,7 @@ export function Dashboard() {
 
           {/* Action Alerts */}
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <AlertCircle size={20} className="text-red-500" />
                 Relances à faire ({stats.needsFollowup.length})
@@ -288,7 +330,7 @@ export function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <FileText size={20} className="text-indigo-500" />
                 Derniers CV modifiés
