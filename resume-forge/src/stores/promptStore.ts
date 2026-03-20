@@ -11,7 +11,7 @@ interface PromptState {
   isLoaded: boolean;
   setJobOffer: (value: string) => void;
   selectTemplate: (id: string) => void;
-  generatePrompt: (context: Omit<ResolverContext, 'jobOffer' | 'differentiator'>) => void;
+  generatePrompt: (context: Omit<ResolverContext, 'jobOffer' | 'differentiator'>) => Promise<void>;
   loadDifferentiator: () => Promise<void>;
   saveDifferentiator: (value: string) => Promise<void>;
 }
@@ -27,9 +27,9 @@ export const usePromptStore = create<PromptState>((set, get) => ({
 
   selectTemplate: (id) => set({ selectedTemplateId: id, generatedPrompt: '' }),
 
-  generatePrompt: (context) => {
+  generatePrompt: async (context) => {
     const { jobOffer, selectedTemplateId, differentiator } = get();
-    const resolved = resolvePrompt(selectedTemplateId, {
+    const resolved = await resolvePrompt(selectedTemplateId, {
       ...context,
       jobOffer,
       differentiator: differentiator || undefined,

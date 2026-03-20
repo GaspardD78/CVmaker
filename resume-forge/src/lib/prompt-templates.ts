@@ -1,8 +1,8 @@
 import { PromptTemplate } from '@/types/ai-prompt';
 
 /**
- * Default differentiator text, used when no custom value is set in settings.
- * The user can override this via Settings → "Atout différenciant".
+ * Seed value — overridden by settings key 'differentiator'.
+ * Used only as the default when no custom value has been saved.
  */
 export const DEFAULT_DIFFERENTIATOR =
   'Jeu de cartes pédagogique conçu pour standardiser l\'évaluation technique des candidats';
@@ -12,7 +12,7 @@ export const PROMPT_TEMPLATES: PromptTemplate[] = [
     id: 'adapt-summary',
     name: 'Adapter l\'accroche',
     description: 'Génère 3 versions d\'accroche adaptées à une annonce spécifique',
-    template: `Tu es expert en rédaction de CV pour les métiers RH et du recrutement spécialisé en cybersécurité.
+    template: `Tu es expert en rédaction de CV dans le domaine : {contexte_métier}.
 
 ## Règles absolues
 - Ne jamais inventer une compétence, une certification ou une expérience absente du profil ci-dessous
@@ -50,7 +50,7 @@ Pour chaque version, indique en une ligne l'angle choisi et pourquoi il est pert
     id: 'ats-keywords',
     name: 'Mots-clés ATS manquants',
     description: 'Analyse les mots-clés ATS manquants par rapport à une annonce',
-    template: `Tu es expert en optimisation ATS pour les CVs du secteur RH/recrutement spécialisé cybersécurité.
+    template: `Tu es expert en optimisation ATS pour les CVs dans le domaine : {contexte_métier}.
 
 ## Règles absolues
 - Ne suggérer d'ajouter un mot-clé que s'il correspond à une réalité du profil (même partielle)
@@ -91,7 +91,7 @@ Score honnête de correspondance profil/annonce (ex: 7/10) avec justification en
     name: 'Reformuler une expérience',
     description: 'Reformule un bloc expérience pour l\'adapter à une annonce',
     requiresBlock: true,
-    template: `Tu es expert en rédaction de CV pour les métiers RH/recrutement cyber.
+    template: `Tu es expert en rédaction de CV dans le domaine : {contexte_métier}.
 
 ## Règles absolues
 - Utiliser uniquement les éléments factuels de la description actuelle
@@ -112,7 +112,7 @@ Entreprise : {entreprise_cible}
 Annonce : {texte_annonce}
 
 ## Ma spécialisation
-Recruteur spécialisé cybersécurité — domaines : IAM, GRC, SOC, Pentest
+Spécialisation : {contexte_métier}
 {certifications}
 
 ## Ta mission
@@ -133,7 +133,7 @@ Si la description actuelle manque d'informations, liste 3-5 questions précises 
     id: 'prepare-interview',
     name: 'Préparer l\'entretien',
     description: 'Prépare les questions probables et stratégie d\'entretien',
-    template: `Tu es coach spécialisé en préparation d'entretiens pour les métiers RH/recrutement en environnement tech et cybersécurité.
+    template: `Tu es coach spécialisé en préparation d'entretiens dans le domaine : {contexte_métier}.
 
 ## Règles absolues
 - Construire les suggestions de réponses uniquement à partir des expériences réelles ci-dessous
@@ -176,7 +176,7 @@ Questions pertinentes et différenciantes à poser en fin d'entretien, adaptées
     name: 'Message de candidature',
     description: 'Génère des messages LinkedIn, email et InMail adaptés',
     requiresContactName: true,
-    template: `Tu es expert en communication professionnelle pour les candidatures dans les métiers RH/recrutement spécialisé cybersécurité.
+    template: `Tu es expert en communication professionnelle pour les candidatures dans le domaine : {contexte_métier}.
 
 ## Règles absolues
 - Maximum 150 mots pour LinkedIn, 200 mots pour l'email
@@ -200,7 +200,7 @@ Contact (si connu) : {contact_name}
 Annonce : {texte_annonce}
 
 ## Analyse préalable (fais-la avant de rédiger)
-- Quel est l'élément le plus distinctif de mon profil par rapport à un recruteur RH classique ?
+- Quel est l'élément le plus distinctif de mon profil par rapport à un candidat classique dans {contexte_métier} ?
 - Quel problème concret cette entreprise cherche-t-elle à résoudre avec ce recrutement ?
 - Y a-t-il un point de connexion naturel entre mon parcours et cette entreprise/ce secteur ?
 

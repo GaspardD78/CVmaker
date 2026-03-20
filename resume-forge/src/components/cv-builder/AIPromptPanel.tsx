@@ -47,7 +47,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     return subtitle ? `${title} — ${subtitle}` : title;
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setError('');
     if (!jobOffer.trim()) {
       setError('Collez d\'abord le texte de l\'annonce');
@@ -64,7 +64,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
       targetBlock = currentCvBlocks.find(b => b.id === selectedBlockId);
     }
 
-    generatePrompt({
+    await generatePrompt({
       profile,
       cv: currentCv,
       blocks: currentCvBlocks,

@@ -1,6 +1,7 @@
 import { Profile, MasterEntry } from '@/types/profile';
 import { CVDocument, CVBlock } from '@/types/cv';
 import { getPromptTemplate, DEFAULT_DIFFERENTIATOR } from './prompt-templates';
+import { getSetting } from './db';
 
 export interface ResolverContext {
   profile: Profile;
@@ -150,12 +151,23 @@ function formatCertifications(blocks: CVBlock[], entries: MasterEntry[]): string
 /**
  * Resolve all placeholders in a prompt template.
  * Returns the fully resolved prompt string.
+ *
+ * Async: loads sector_context and differentiator from settings at resolve time.
  */
-export function resolvePrompt(templateId: string, context: ResolverContext): string {
+export async function resolvePrompt(templateId: string, context: ResolverContext): Promise<string> {
   const template = getPromptTemplate(templateId);
   if (!template) return `(template "${templateId}" introuvable)`;
 
   const { profile, cv, blocks, entries, jobOffer, targetBlock, contactName, differentiator } = context;
+
+  // Load sector settings
+  const sectorContext = await getSetting('sector_context').catch(() => null) ?? '';
+  const settingsDifferentiator = await getSetting('differentiator').catch(() => null);
+
+  // Resolve the effective differentiator: context prop > settings > DEFAULT_DIFFERENTIATOR
+  const effectiveDifferentiator = differentiator
+    || settingsDifferentiator
+    || DEFAULT_DIFFERENTIATOR;
 
   // Build placeholder map
   const placeholders: Record<string, string> = {
@@ -171,8 +183,9 @@ export function resolvePrompt(templateId: string, context: ResolverContext): str
     '{texte_annonce}': jobOffer || '(non renseigné)',
     '{poste_cible}': cv.targetJob || '(non renseigné)',
     '{entreprise_cible}': cv.targetCompany || '(non renseignée)',
-    '{atout_différenciant}': differentiator || DEFAULT_DIFFERENTIATOR,
+    '{atout_différenciant}': effectiveDifferentiator,
     '{contact_name}': contactName || '(non renseigné)',
+    '{contexte_métier}': sectorContext || 'recrutement spécialisé en cybersécurité',
   };
 
   // Block-specific placeholders (for template 'reformulate-experience')
