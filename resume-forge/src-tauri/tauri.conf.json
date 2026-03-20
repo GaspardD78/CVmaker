@@ -24,6 +24,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "shortDescription": "Créez et personnalisez vos CV professionnels",
+    "longDescription": "ResumeForge est une application de bureau pour créer, personnaliser et exporter des CV professionnels. Gérez vos expériences, formations et compétences avec une interface intuitive et moderne.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

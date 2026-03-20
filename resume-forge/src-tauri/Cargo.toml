@@ -1,7 +1,7 @@
 [package]
 name = "resume-forge"
 version = "1.1.0"
-description = "A Tauri App"
+description = "ResumeForge - Créez et personnalisez vos CV professionnels"
 authors = ["you"]
 edition = "2021"
 
