@@ -1,3 +1,7 @@
+// Vite resolves the worker URL at build time via the `?url` query
+// This must be a static import (not dynamic) for Vite to bundle the worker asset
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
 /**
  * Extracts plain text from a PDF ArrayBuffer using PDF.js (WASM, no system deps).
  */
@@ -5,11 +9,7 @@ export async function extractTextFromPdf(arrayBuffer: ArrayBuffer): Promise<stri
   // Dynamic import to avoid loading the heavy WASM bundle upfront
   const pdfjsLib = await import('pdfjs-dist');
 
-  // Point to the bundled worker (Vite will handle the URL resolution)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).href;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
   const pageTexts: string[] = [];
