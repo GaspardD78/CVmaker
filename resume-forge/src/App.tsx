@@ -6,6 +6,7 @@ import { CVBuilderPage } from "@/components/cv-builder/CVBuilderPage";
 import { Dashboard } from "@/components/dashboard/Dashboard";
 import { TrackerPage } from "@/components/tracker/TrackerPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
+import { ImportPage } from "@/components/import/ImportPage";
 import PrintView from "@/pages/PrintView";
 import { Toaster } from "sonner";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
@@ -28,6 +29,7 @@ function AppRoutes() {
         <Route path="/cv" element={<CVList />} />
         <Route path="/cv/:id" element={<CVBuilderPage />} />
         <Route path="/tracker" element={<TrackerPage />} />
+        <Route path="/import" element={<ImportPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Layout>
