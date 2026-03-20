@@ -10,21 +10,71 @@ import type {
 } from '@/types/compatibility';
 
 // ---------------------------------------------------------------------------
+// Tuning constants — adjust here without touching the algorithm
+// ---------------------------------------------------------------------------
+
+/** Minimum token length (chars). Tokens shorter than this are discarded. */
+export const MIN_KEYWORD_LENGTH = 4;
+
+/**
+ * Minimum normalised TF weight for a job-description term to be considered
+ * a keyword. Weight is relative to the most frequent term (0–1 scale).
+ * Increase to be more selective (fewer but stronger keywords).
+ */
+export const MIN_KEYWORD_WEIGHT = 0.25;
+
+// ---------------------------------------------------------------------------
 // Stop words (French + English) — filtered before TF computation
 // ---------------------------------------------------------------------------
 const STOP_WORDS = new Set([
-  // French
+  // ── Déterminants / pronoms français ────────────────────────────────────────
   'le','la','les','de','du','des','un','une','et','en','au','aux','ce','se','sa',
   'ses','son','qui','que','qu','ou','où','à','par','sur','sous','dans','avec',
   'pour','pas','ne','il','ils','elle','elles','nous','vous','je','tu','on',
-  'mais','car','donc','très','plus','bien','tout','tous','toute','toutes',
-  'même','aussi','ainsi','comme','dont','lors','puis','afin','soit','être',
-  'avoir','faire','aller','pouvoir','vouloir','devoir','votre','notre','leurs',
-  'leur','mon','mes','cette','cet','ces','tel','tels','telle','telles',
-  'peu','beaucoup','environ','notamment','notamment','selon','entre','vers',
-  'avant','après','pendant','depuis','jusque','sans','afin','chez','via',
-  'lors','dès','sauf','chaque','tout','plusieurs','quelques','autre','autres',
-  // English
+  'vos','nos','mon','mes','votre','notre','leur','leurs','cette','cet','ces',
+  'tel','tels','telle','telles','tout','tous','toute','toutes',
+  // ── Adverbes / conjonctions / prépositions ──────────────────────────────────
+  'mais','car','donc','très','plus','bien','même','aussi','ainsi','comme',
+  'dont','lors','puis','afin','soit','selon','entre','vers','avant','après',
+  'pendant','depuis','jusque','sans','chez','via','dès','sauf','chaque',
+  'plusieurs','quelques','autre','autres','peu','beaucoup','environ','notamment',
+  'voire','sinon','quand','lorsque','tandis','plutôt','toujours','souvent',
+  'jamais','parfois','encore','déjà','trop','assez','moins','mieux',
+  // ── Être / avoir / faire — formes conjuguées manquantes ────────────────────
+  'être','avoir','faire','aller','pouvoir','vouloir','devoir',
+  'suis','êtes','sommes','sont',
+  'sera','serai','seras','serons','serez','seront',
+  'serais','serait','serions','seriez','seraient',
+  'avez','avons','ayez','ayons','aurez','aurons','aurai','auras','auront',
+  'aurais','aurait','aurions','auriez','auraient',
+  'fais','fait','faites','font','feras','ferez','feront','ferai','ferons',
+  'soient','soions','soit',
+  'étais','était','étions','étiez','étaient',
+  // ── Verbes de formule d'annonce (conjugués) ────────────────────────────────
+  'cherche','cherches','cherchez','cherchons','cherchent',
+  'souhaite','souhaites','souhaitez','souhaitons','souhaitent',
+  'rejoindre','rejoins','rejoint','rejoignez','rejoignons','rejoignent',
+  'propose','proposes','proposez','proposons','proposent',
+  'offrons','offrent','offrez',
+  'recherchez','recherchons','recherchent',
+  'intégrer','intégrez','intégrons','intègrent','intègre',
+  'assurer','assurez','assurons','assurent','assure',
+  'contribuer','contribuez','contribuons','contribuent','contribue',
+  'participer','participez','participons','participent','participe',
+  'collaborer','collaborez','collaborons','collaborent','collabore',
+  'travailler','travaillez','travaillons','travaillent','travaille',
+  'réaliser','réalisez','réalisons','réalisent','réalise',
+  'gérer','gérez','gérons','gèrent','gère',
+  'piloter','pilotez','pilotons','pilotent','pilote',
+  'animer','animez','animons','animent','anime',
+  'définir','définissez','définissons','définissent','définit',
+  'mettre','mettez','mettons','mettent','mets',
+  'permettre','permettez','permettons','permettent',
+  'rejoignant','intégrant','contribuant','travaillant',
+  // ── Mots génériques d'annonce RH (sans valeur de matching) ─────────────────
+  'pleine','poste','profil','candidat','candidature','contexte',
+  'idéal','idéale','idéaux','solent',
+  // ── Anglais ─────────────────────────────────────────────────────────────────
   'the','a','an','and','or','of','to','in','is','it','its','for','on','at',
   'be','this','that','are','as','was','with','by','from','we','you','he','she',
   'they','have','has','had','not','but','if','will','can','may','our','your',
@@ -33,6 +83,8 @@ const STOP_WORDS = new Set([
   'where','when','who','what','which','how','than','then','do','does','did',
   'been','being','would','could','should','up','out','so','no','my','there',
   'these','those','very','well','just','get','one','two','three','year','years',
+  'able','must','shall','need','want','like','good','best','great','make',
+  'sure','help','join','look','take','give','come','know','keep','build',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -49,7 +101,7 @@ function tokenize(text: string): string[] {
     .replace(/[^\w\sàâäéèêëîïôùûüçæœ/-]/g, ' ')
     .split(/[\s]+/)
     .map(t => t.replace(/^[-/]+|[-/]+$/g, ''))
-    .filter(t => t.length > 1 && !STOP_WORDS.has(t));
+    .filter(t => t.length >= MIN_KEYWORD_LENGTH && !STOP_WORDS.has(t));
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +242,7 @@ function scoreAxis(
   jobTerms: Map<string, number>,
   cvText: string,
   cvEntries: CVEntry[],
-  minWeight = 0.18,
+  minWeight = MIN_KEYWORD_WEIGHT,
 ): AxisScore {
   // Build token set for fast lookup (canonicalised)
   const cvTokens = new Set(tokenize(cvText).map(getCanonical));
