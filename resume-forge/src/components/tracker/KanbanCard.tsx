@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Application } from '@/types/application';
 import { Building2, Calendar, GripVertical } from 'lucide-react';
+import { useCompatibilityStore } from '@/stores/compatibilityStore';
 
 interface KanbanCardProps {
   application: Application;
@@ -75,6 +77,13 @@ export function KanbanCard({ application, onClick }: KanbanCardProps) {
     }
   };
 
+  const { scores, fetchScore } = useCompatibilityStore();
+  const score = scores[application.id];
+
+  useEffect(() => {
+    fetchScore(application.id);
+  }, [application.id, fetchScore]);
+
   const urgency = getUrgency(application.nextActionDate);
   const showNextAction = application.nextAction && !TERMINAL_STATUSES.includes(application.status);
 
@@ -125,6 +134,22 @@ export function KanbanCard({ application, onClick }: KanbanCardProps) {
                   month: '2-digit'
                 })}
               </div>
+            )}
+
+            {application.cvId && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium tabular-nums ${
+                score
+                  ? score.scoreGlobal >= 70
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : score.scoreGlobal >= 40
+                    ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                    : 'bg-red-50 text-red-700 border-red-200'
+                  : 'bg-gray-50 text-gray-400 border-gray-200'
+              }`}
+                title={score ? `Score de compatibilité : ${score.scoreGlobal}%` : 'Score non calculé'}
+              >
+                {score ? `${score.scoreGlobal}%` : '—'}
+              </span>
             )}
           </div>
         </div>

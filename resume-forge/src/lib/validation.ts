@@ -84,6 +84,7 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'remote_policy',
     'priority',
     'notes',
+    'job_description',
     'applied_at',
     'next_action',
     'next_action_date',
