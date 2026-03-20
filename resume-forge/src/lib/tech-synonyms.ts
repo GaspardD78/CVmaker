@@ -164,19 +164,16 @@ export const SYNONYM_GROUPS: readonly string[][] = [
   ['ethereum', 'defi'],
 
   // Productivity / Tools
-  ['jira', 'linear', 'asana', 'trello', 'project management'],
+  ['jira', 'linear', 'asana', 'trello'],
   ['confluence', 'notion', 'documentation'],
   ['slack', 'teams', 'discord'],
-  ['figma', 'canva'],
 
   // Methodologies
   ['agile', 'méthodologie agile'],
   ['scrum', 'sprint', 'kanban', 'lean', 'safe'],
-  ['devops', 'dev ops'],
   ['pair programming', 'mob programming', 'code review', 'revue de code'],
   ['clean code', 'solid', 'design patterns', 'patterns de conception'],
   ['ddd', 'domain driven design', 'domain-driven design'],
-  ['tdd', 'test driven development'],
 
   // Soft skills / Management (FR/EN)
   ['management', 'gestion d\'équipe', 'team management', 'encadrement'],
@@ -187,6 +184,29 @@ export const SYNONYM_GROUPS: readonly string[][] = [
   ['gestion de projet', 'project management'],
   ['mentorat', 'mentoring', 'coaching'],
   ['autonomie', 'autonomy', 'initiative'],
+
+  // RH / Recrutement
+  ['recrutement', 'recruter', 'recruteur', 'recruitment', 'hiring', 'talent acquisition'],
+  ['sourcing', 'chasse', 'approche directe', 'headhunting'],
+  ['onboarding', 'intégration', 'integration'],
+  ['entretien', 'interview', 'entretiens'],
+  ['marque employeur', 'employer branding'],
+  ['ressources humaines', 'rh', 'human resources', 'hr'],
+  ['formation', 'training', 'upskilling', 'apprentissage'],
+  ['évaluation', 'assessment', 'evaluation'],
+  ['mobilité', 'mobilité interne', 'internal mobility'],
+  ['gpec', 'gepp', 'gestion des compétences'],
+  ['sirh', 'hris', 'système rh'],
+  ['paie', 'payroll', 'gestion de la paie'],
+
+  // Commerce / Business
+  ['commercial', 'vente', 'sales', 'business development', 'développement commercial'],
+  ['prospection', 'lead generation', 'acquisition client'],
+  ['relation client', 'customer success', 'account management', 'customer relationship'],
+  ['négociation', 'negotiation'],
+  ['stratégie', 'strategy', 'strategic'],
+  ['marketing', 'growth', 'inbound', 'outbound'],
+  ['analyse', 'analysis', 'analytics', 'reporting'],
 
   // Languages (spoken)
   ['anglais', 'english'],
@@ -217,11 +237,29 @@ for (const group of SYNONYM_GROUPS) {
 }
 
 /**
+ * Light French plural normalization: strip trailing -s (length > 4).
+ * "recruteurs" → "recruteur", "techniques" → "technique", "missions" → "mission".
+ * Does not attempt -ment / -eur derivation (handled via synonym groups instead).
+ */
+export function normalizeFrenchPlural(word: string): string {
+  if (word.length > 4 && word.endsWith('s') && !word.endsWith('ss')) {
+    return word.slice(0, -1);
+  }
+  return word;
+}
+
+/**
  * Returns the canonical form of a term (lowercase).
- * Falls back to the input itself if no synonym is known.
+ * 1. Exact synonym lookup
+ * 2. Plural-normalised synonym lookup
+ * 3. Falls back to plural-normalised form for consistent cross-token matching.
  */
 export function getCanonical(term: string): string {
-  return SYNONYM_MAP.get(term.toLowerCase()) ?? term.toLowerCase();
+  const lower = term.toLowerCase();
+  if (SYNONYM_MAP.has(lower)) return SYNONYM_MAP.get(lower)!;
+  const normalized = normalizeFrenchPlural(lower);
+  if (SYNONYM_MAP.has(normalized)) return SYNONYM_MAP.get(normalized)!;
+  return normalized;
 }
 
 /**
