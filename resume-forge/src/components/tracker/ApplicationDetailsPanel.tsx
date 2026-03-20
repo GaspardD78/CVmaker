@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
 import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase, Pencil, CalendarPlus } from 'lucide-react';
+import { CompatibilityScorePanel } from './CompatibilityScorePanel';
 import { ApplicationTimeline } from './ApplicationTimeline';
 import { ApplicationAttachments } from './ApplicationAttachments';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
@@ -271,6 +272,9 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
             </div>
           </div>
         </div>
+
+        {/* Compatibility score */}
+        <CompatibilityScorePanel application={application} />
 
         {/* Notes */}
         <div>

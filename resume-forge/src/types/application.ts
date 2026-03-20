@@ -49,6 +49,7 @@ export interface Application {
   remotePolicy: string | null;
   priority: 1 | 2 | 3;
   notes: string | null;
+  jobDescription: string | null;
   appliedAt: string | null;
   nextAction: string | null;
   nextActionDate: string | null;
