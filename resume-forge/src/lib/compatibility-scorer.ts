@@ -107,13 +107,13 @@ const STOP_WORDS = new Set([
  * Split text into lowercase tokens, stripping punctuation and stop words.
  * Returns individual words only (multi-word synonyms are handled separately).
  */
-function tokenize(text: string): string[] {
+function tokenize(text: string, minKeywordLength = MIN_KEYWORD_LENGTH): string[] {
   return text
     .toLowerCase()
     .replace(/[^\w\sàâäéèêëîïôùûüçæœ/-]/g, ' ')
     .split(/[\s]+/)
     .map(t => t.replace(/^[-/]+|[-/]+$/g, ''))
-    .filter(t => t.length >= MIN_KEYWORD_LENGTH && !STOP_WORDS.has(t));
+    .filter(t => t.length >= minKeywordLength && !STOP_WORDS.has(t));
 }
 
 // ---------------------------------------------------------------------------
@@ -142,14 +142,18 @@ export function hashString(str: string): string {
  * (they are more likely to be in the title / lead paragraph).
  * Returns a map of canonical-term → normalised weight ∈ (0, 1].
  */
-function computeWeightedTF(text: string): Map<string, number> {
-  const words = tokenize(text);
+function computeWeightedTF(
+  text: string,
+  synonymMap?: Map<string, string>,
+  minKeywordLength = MIN_KEYWORD_LENGTH,
+): Map<string, number> {
+  const words = tokenize(text, minKeywordLength);
   const third = Math.floor(words.length / 3);
   const freq = new Map<string, number>();
 
   // Unigrams
   for (let i = 0; i < words.length; i++) {
-    const canonical = getCanonical(words[i]);
+    const canonical = getCanonical(words[i], synonymMap);
     const boost = i < third ? 1.5 : 1.0;
     freq.set(canonical, (freq.get(canonical) ?? 0) + boost);
   }
@@ -157,7 +161,7 @@ function computeWeightedTF(text: string): Map<string, number> {
   // Bigrams (for two-word synonyms like "machine learning", "deep learning"…)
   for (let i = 0; i < words.length - 1; i++) {
     const bigram = `${words[i]} ${words[i + 1]}`;
-    const canonical = getCanonical(bigram);
+    const canonical = getCanonical(bigram, synonymMap);
     if (canonical !== bigram) {
       // Only count bigrams that are known synonyms to avoid noise
       const boost = i < third ? 1.5 : 1.0;
@@ -256,20 +260,24 @@ export function extractCVContent(blocks: CVBlock[], entries: MasterEntry[]): CVC
  * the given CV text. Builds matched / missing lists and computes a 0–100 score.
  *
  * @param minWeight  Terms below this threshold are ignored (noise filter).
+ * @param synonymMap Optional user synonym map to use instead of the global one.
+ * @param minKeywordLength Minimum token length for tokenisation.
  */
 function scoreAxis(
   jobTerms: Map<string, number>,
   cvText: string,
   cvEntries: CVEntry[],
   minWeight = MIN_KEYWORD_WEIGHT,
+  synonymMap?: Map<string, string>,
+  minKeywordLength = MIN_KEYWORD_LENGTH,
 ): AxisScore {
   // Build token set for fast lookup (canonicalised)
-  const cvTokens = new Set(tokenize(cvText).map(getCanonical));
+  const cvTokens = new Set(tokenize(cvText, minKeywordLength).map(t => getCanonical(t, synonymMap)));
   // Also add bigrams from CV text for multi-word synonym matching
-  const cvWords = tokenize(cvText);
+  const cvWords = tokenize(cvText, minKeywordLength);
   for (let i = 0; i < cvWords.length - 1; i++) {
     const bigram = `${cvWords[i]} ${cvWords[i + 1]}`;
-    const canonical = getCanonical(bigram);
+    const canonical = getCanonical(bigram, synonymMap);
     if (canonical !== bigram) cvTokens.add(canonical);
   }
 
@@ -282,16 +290,16 @@ function scoreAxis(
     if (weight < minWeight) continue;
     totalWeight += weight;
 
-    const variants = getAllVariants(term);
+    const variants = getAllVariants(term, synonymMap);
     let found = false;
 
     for (const variant of variants) {
-      const canonicalVariant = getCanonical(variant);
+      const canonicalVariant = getCanonical(variant, synonymMap);
       if (cvTokens.has(canonicalVariant)) {
         // Identify which entry contains this match
         let cvRef: MatchedKeyword['cvRef'];
         for (const entry of cvEntries) {
-          const entryTokens = new Set(tokenize(entry.text).map(getCanonical));
+          const entryTokens = new Set(tokenize(entry.text, minKeywordLength).map(t => getCanonical(t, synonymMap)));
           if (entryTokens.has(canonicalVariant)) {
             cvRef = { entryId: entry.entryId, entryTitle: entry.title };
             break;
@@ -329,6 +337,7 @@ function buildAdvice(
   experienceAxis: AxisScore,
   educationAxis:  AxisScore,
   keywordsAxis:   AxisScore,
+  synonymMap?: Map<string, string>,
 ): Advice[] {
   const advice: Advice[] = [];
 
@@ -383,7 +392,7 @@ function buildAdvice(
       axis === 'experience' ? 'tes expériences' :
       axis === 'education'  ? 'ta formation'    : 'ton CV';
 
-    const actionable = getAllVariants(jobTerm).length > 1;
+    const actionable = getAllVariants(jobTerm, synonymMap).length > 1;
     const message = actionable
       ? `«${jobTerm}» est absent de ${axisLabel} — tu peux le couvrir en ajoutant une de ses variantes connues.`
       : `«${jobTerm}» est mentionné dans l'annonce mais absent de ${axisLabel} (terme spécifique sans équivalent connu dans ton CV).`;
@@ -423,6 +432,13 @@ export interface ScoringResult {
   jobDescriptionHash: string;
 }
 
+export interface ScoringOptions {
+  /** Override the minimum token length for tokenisation (default: MIN_KEYWORD_LENGTH = 4) */
+  minKeywordLength?: number;
+  /** Optional user synonym map built via buildSynonymMap() */
+  synonymMap?: Map<string, string>;
+}
+
 /**
  * Compute a full compatibility score between a job description and a CV.
  *
@@ -436,20 +452,24 @@ export function computeCompatibilityScore(
   jobDescription: string,
   blocks: CVBlock[],
   entries: MasterEntry[],
+  options?: ScoringOptions,
 ): ScoringResult {
+  const minKeywordLength = options?.minKeywordLength ?? MIN_KEYWORD_LENGTH;
+  const synonymMap = options?.synonymMap;
+
   const cvContent  = extractCVContent(blocks, entries);
-  const jobTerms   = computeWeightedTF(jobDescription);
+  const jobTerms   = computeWeightedTF(jobDescription, synonymMap, minKeywordLength);
   const wordCount  = jobDescription.split(/\s+/).length;
   const minWeight  = adaptiveMinWeight(wordCount);
 
-  const skillsAxis     = scoreAxis(jobTerms, cvContent.skillEntries.map(e => e.text).join(' '),      cvContent.skillEntries,     minWeight);
-  const experienceAxis = scoreAxis(jobTerms, cvContent.experienceEntries.map(e => e.text).join(' '), cvContent.experienceEntries, minWeight);
-  const educationAxis  = scoreAxis(jobTerms, cvContent.educationEntries.map(e => e.text).join(' '),  cvContent.educationEntries,  minWeight);
+  const skillsAxis     = scoreAxis(jobTerms, cvContent.skillEntries.map(e => e.text).join(' '),      cvContent.skillEntries,     minWeight, synonymMap, minKeywordLength);
+  const experienceAxis = scoreAxis(jobTerms, cvContent.experienceEntries.map(e => e.text).join(' '), cvContent.experienceEntries, minWeight, synonymMap, minKeywordLength);
+  const educationAxis  = scoreAxis(jobTerms, cvContent.educationEntries.map(e => e.text).join(' '),  cvContent.educationEntries,  minWeight, synonymMap, minKeywordLength);
   const keywordsAxis   = scoreAxis(jobTerms, cvContent.allText, [
     ...cvContent.skillEntries,
     ...cvContent.experienceEntries,
     ...cvContent.educationEntries,
-  ], minWeight);
+  ], minWeight, synonymMap, minKeywordLength);
 
   const scoreGlobal = Math.round(
     skillsAxis.score     * 0.35 +
@@ -465,7 +485,7 @@ export function computeCompatibilityScore(
       education:  educationAxis,
       keywords:   keywordsAxis,
     },
-    advice: buildAdvice(skillsAxis, experienceAxis, educationAxis, keywordsAxis),
+    advice: buildAdvice(skillsAxis, experienceAxis, educationAxis, keywordsAxis, synonymMap),
   };
 
   return {
