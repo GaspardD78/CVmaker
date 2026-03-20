@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor, Briefcase } from 'lucide-react';
 import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
 import { usePromptStore } from '@/stores/promptStore';
 import { useTheme } from '@/hooks/useTheme';
+import { getSetting, setSetting } from '@/lib/db';
+import { DEFAULT_DIFFERENTIATOR } from '@/lib/prompt-templates';
 
 export function SettingsPage() {
   // ── AI Differentiator ───────────────────────────────────────────────────
@@ -23,6 +25,49 @@ export function SettingsPage() {
     await saveDifferentiator(localDifferentiator);
     setDiffSaved(true);
     setTimeout(() => setDiffSaved(false), 2000);
+  };
+
+  // ── Profil métier settings ───────────────────────────────────────────────
+  const [sectorContext, setSectorContext] = useState('');
+  const [profDifferentiator, setProfDifferentiator] = useState('');
+  const [minKeywordLength, setMinKeywordLength] = useState('4');
+  const [profSaved, setProfSaved] = useState(false);
+  const profDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      getSetting('sector_context'),
+      getSetting('differentiator'),
+      getSetting('min_keyword_length'),
+    ]).then(([sc, diff, mkl]) => {
+      setSectorContext(sc ?? '');
+      setProfDifferentiator(diff ?? DEFAULT_DIFFERENTIATOR);
+      setMinKeywordLength(mkl ?? '4');
+    }).catch(() => {});
+  }, []);
+
+  const saveProfSetting = (key: string, value: string) => {
+    if (profDebounceRef.current) clearTimeout(profDebounceRef.current);
+    profDebounceRef.current = setTimeout(async () => {
+      await setSetting(key, value);
+      setProfSaved(true);
+      setTimeout(() => setProfSaved(false), 2000);
+    }, 500);
+  };
+
+  const handleSectorContextChange = (value: string) => {
+    setSectorContext(value);
+    saveProfSetting('sector_context', value);
+  };
+
+  const handleProfDifferentiatorChange = (value: string) => {
+    setProfDifferentiator(value);
+    saveProfSetting('differentiator', value);
+  };
+
+  const handleMinKeywordLengthChange = (value: string) => {
+    setMinKeywordLength(value);
+    saveProfSetting('min_keyword_length', value);
   };
 
   // ── Theme ───────────────────────────────────────────────────────────────
@@ -123,6 +168,78 @@ export function SettingsPage() {
                 {label}
               </button>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Profil métier ── */}
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
+          <div className="flex items-center gap-2 mb-1">
+            <Briefcase size={18} className="text-indigo-500" />
+            <h2 className="text-base font-semibold dark:text-gray-100">Profil métier</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Configurez le contexte sectoriel utilisé dans les prompts IA et le scoring.
+            {profSaved && <span className="ml-2 text-green-600 font-medium">✓ Enregistré</span>}
+          </p>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+              Secteur / contexte métier
+            </label>
+            <input
+              type="text"
+              value={sectorContext}
+              onChange={e => handleSectorContextChange(e.target.value)}
+              placeholder="ex: Technique spectacle, Fonction publique territoriale"
+              className="w-full p-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Injecté dans les prompts IA via le placeholder <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{'`contexte_métier`{'}'}</code>.
+              Laissez vide pour le comportement par défaut (cybersécurité/RH).
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+              Atout différenciant
+            </label>
+            <textarea
+              value={profDifferentiator}
+              onChange={e => handleProfDifferentiatorChange(e.target.value)}
+              placeholder={DEFAULT_DIFFERENTIATOR}
+              className="w-full p-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm resize-y h-20 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Phrase unique qui vous distingue. Injectée dans les prompts d'entretien et de message de candidature.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+              Longueur minimale des mots-clés
+            </label>
+            <div className="flex gap-3">
+              {['3', '4', '5'].map(val => (
+                <button
+                  key={val}
+                  onClick={() => handleMinKeywordLengthChange(val)}
+                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                    minKeywordLength === val
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300'
+                      : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {val} caractères
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Les tokens plus courts sont ignorés lors du scoring de compatibilité.
+            </p>
           </div>
         </div>
       </section>
