@@ -17,6 +17,12 @@ pub fn run() {
             sql: include_str!("../migrations/002_application_attachments.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "add_compatibility_scoring",
+            sql: include_str!("../migrations/003_compatibility_scoring.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
