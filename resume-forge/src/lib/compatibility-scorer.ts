@@ -19,9 +19,21 @@ export const MIN_KEYWORD_LENGTH = 4;
 /**
  * Minimum normalised TF weight for a job-description term to be considered
  * a keyword. Weight is relative to the most frequent term (0–1 scale).
- * Increase to be more selective (fewer but stronger keywords).
+ * Used as default in scoreAxis; prefer adaptiveMinWeight() at call sites.
  */
 export const MIN_KEYWORD_WEIGHT = 0.25;
+
+/**
+ * Returns a minWeight threshold adapted to the number of words in the job
+ * description. Short ads are nosier (higher threshold); long ads contain
+ * rare-but-important terms (lower threshold).
+ */
+export function adaptiveMinWeight(jobDescriptionLength: number): number {
+  if (jobDescriptionLength < 150) return 0.40;
+  if (jobDescriptionLength < 300) return 0.30;
+  if (jobDescriptionLength < 500) return 0.20;
+  return 0.15;
+}
 
 // ---------------------------------------------------------------------------
 // Stop words (French + English) — filtered before TF computation
@@ -157,7 +169,14 @@ function computeWeightedTF(text: string): Map<string, number> {
   const max = Math.max(...freq.values(), 1);
   const normalised = new Map<string, number>();
   for (const [term, count] of freq) {
-    normalised.set(term, count / max);
+    let weight = count / max;
+    // Floor for rare (≤ 2 occurrences) but long (≥ 6 chars) terms: these are
+    // likely specific technical keywords (e.g. "CyberArk", "EBIOS", "SailPoint")
+    // that must not fall below the adaptive threshold just because they appear once.
+    if (count <= 2 && term.length >= 6 && weight < 0.30) {
+      weight = 0.30;
+    }
+    normalised.set(term, weight);
   }
   return normalised;
 }
@@ -318,13 +337,20 @@ function buildAdvice(
     ...skillsAxis.matched.map(m => ({ ...m, axis: 'skills' as const })),
     ...experienceAxis.matched.map(m => ({ ...m, axis: 'experience' as const })),
     ...educationAxis.matched.map(m => ({ ...m, axis: 'education' as const })),
-  ];
+  ].sort((a, b) => b.weight - a.weight); // highest-weight first
+
+  const seenSynonymTerms = new Set<string>();
+  let synonymExpansionCount = 0;
 
   for (const m of allMatched) {
     if (!m.isSynonym) continue;
-    const context = m.cvRef
-      ? ` dans "${m.cvRef.entryTitle}"`
-      : '';
+    if (seenSynonymTerms.has(m.jobTerm)) continue;
+    if (synonymExpansionCount >= 5) break;
+
+    seenSynonymTerms.add(m.jobTerm);
+    synonymExpansionCount++;
+
+    const context = m.cvRef ? ` dans "${m.cvRef.entryTitle}"` : '';
     advice.push({
       type: 'synonym_expansion',
       severity: 'low',
@@ -357,11 +383,17 @@ function buildAdvice(
       axis === 'experience' ? 'tes expériences' :
       axis === 'education'  ? 'ta formation'    : 'ton CV';
 
+    const actionable = getAllVariants(jobTerm).length > 1;
+    const message = actionable
+      ? `«${jobTerm}» est absent de ${axisLabel} — tu peux le couvrir en ajoutant une de ses variantes connues.`
+      : `«${jobTerm}» est mentionné dans l'annonce mais absent de ${axisLabel} (terme spécifique sans équivalent connu dans ton CV).`;
+
     advice.push({
       type: 'missing_keyword',
       severity,
       axis,
-      message: `"${jobTerm}" est mentionné dans l'annonce mais absent de ${axisLabel}.`,
+      actionable,
+      message,
     });
   }
 
@@ -405,17 +437,19 @@ export function computeCompatibilityScore(
   blocks: CVBlock[],
   entries: MasterEntry[],
 ): ScoringResult {
-  const cvContent = extractCVContent(blocks, entries);
-  const jobTerms  = computeWeightedTF(jobDescription);
+  const cvContent  = extractCVContent(blocks, entries);
+  const jobTerms   = computeWeightedTF(jobDescription);
+  const wordCount  = jobDescription.split(/\s+/).length;
+  const minWeight  = adaptiveMinWeight(wordCount);
 
-  const skillsAxis     = scoreAxis(jobTerms, cvContent.skillEntries.map(e => e.text).join(' '),      cvContent.skillEntries);
-  const experienceAxis = scoreAxis(jobTerms, cvContent.experienceEntries.map(e => e.text).join(' '), cvContent.experienceEntries);
-  const educationAxis  = scoreAxis(jobTerms, cvContent.educationEntries.map(e => e.text).join(' '),  cvContent.educationEntries);
+  const skillsAxis     = scoreAxis(jobTerms, cvContent.skillEntries.map(e => e.text).join(' '),      cvContent.skillEntries,     minWeight);
+  const experienceAxis = scoreAxis(jobTerms, cvContent.experienceEntries.map(e => e.text).join(' '), cvContent.experienceEntries, minWeight);
+  const educationAxis  = scoreAxis(jobTerms, cvContent.educationEntries.map(e => e.text).join(' '),  cvContent.educationEntries,  minWeight);
   const keywordsAxis   = scoreAxis(jobTerms, cvContent.allText, [
     ...cvContent.skillEntries,
     ...cvContent.experienceEntries,
     ...cvContent.educationEntries,
-  ]);
+  ], minWeight);
 
   const scoreGlobal = Math.round(
     skillsAxis.score     * 0.35 +

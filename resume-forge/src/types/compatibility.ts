@@ -32,6 +32,12 @@ export interface Advice {
   severity: AdviceSeverity;
   axis: AdviceAxis;
   message: string;
+  /**
+   * For missing_keyword: true when at least one known synonym variant exists
+   * (the user can concretely add it to their CV). False for highly specific
+   * terms with no known equivalent — informative only.
+   */
+  actionable?: boolean;
   /** Present for synonym_expansion: which CV entry uses the non-canonical form */
   cvRef?: { entryId: string; entryTitle: string };
 }
