@@ -106,6 +106,7 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
         await createApplication({
           profileId: profile.id,
           notes: null,
+          jobDescription: null,
           appliedAt: status !== 'draft' ? new Date().toISOString() : null,
           ...fields,
         });
