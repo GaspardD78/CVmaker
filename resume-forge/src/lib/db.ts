@@ -30,6 +30,28 @@ export async function getDb(): Promise<Database> {
     await db.execute(
       `CREATE INDEX IF NOT EXISTS idx_attachments_app ON application_attachments(application_id)`
     );
+
+    // Fallback: ensure migration 003 columns/tables exist
+    await db.execute(`ALTER TABLE applications ADD COLUMN job_description TEXT`).catch(() => {/* already exists */});
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS compatibility_scores (
+        id                   TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        application_id       TEXT NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
+        cv_id                TEXT NOT NULL,
+        score_global         INTEGER NOT NULL,
+        score_skills         INTEGER NOT NULL,
+        score_experience     INTEGER NOT NULL,
+        score_education      INTEGER NOT NULL,
+        score_keywords       INTEGER NOT NULL,
+        details              TEXT NOT NULL,
+        cv_content_hash      TEXT NOT NULL,
+        job_description_hash TEXT NOT NULL,
+        computed_at          TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute(
+      `CREATE INDEX IF NOT EXISTS idx_compat_scores_app ON compatibility_scores(application_id)`
+    );
   }
   return db;
 }
