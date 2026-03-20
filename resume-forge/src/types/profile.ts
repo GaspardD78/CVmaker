@@ -24,6 +24,7 @@ export interface Profile {
   photoPath: string | null;
   title: string | null;
   summary: string | null;
+  sector?: string;
   createdAt: string;
   updatedAt: string;
 }

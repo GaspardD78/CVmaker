@@ -1,4 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
+import { DEFAULT_DIFFERENTIATOR } from './prompt-templates';
 
 let db: Database | null = null;
 
@@ -52,8 +53,43 @@ export async function getDb(): Promise<Database> {
     await db.execute(
       `CREATE INDEX IF NOT EXISTS idx_compat_scores_app ON compatibility_scores(application_id)`
     );
+
+    // Fallback: ensure migration 004 columns/tables exist
+    await db.execute(`ALTER TABLE profiles ADD COLUMN sector TEXT`).catch(() => {});
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS user_synonyms (
+        id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        canonical  TEXT NOT NULL,
+        variants   TEXT NOT NULL,
+        sector     TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Seed default settings if not already set
+    await _seedDefaultSettings(db);
   }
   return db;
+}
+
+async function _seedDefaultSettings(database: Database): Promise<void> {
+  const seeds: Array<[string, string]> = [
+    ['differentiator', DEFAULT_DIFFERENTIATOR],
+    ['sector_context', ''],
+    ['min_keyword_length', '4'],
+  ];
+  for (const [key, defaultValue] of seeds) {
+    const rows = await database.select<{ value: string }[]>(
+      'SELECT value FROM settings WHERE key = ?1',
+      [key]
+    );
+    if (rows.length === 0) {
+      await database.execute(
+        `INSERT INTO settings (key, value) VALUES (?1, ?2)`,
+        [key, defaultValue]
+      );
+    }
+  }
 }
 
 /**
