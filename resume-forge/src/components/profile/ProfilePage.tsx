@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { PhotoCropModal } from './PhotoCropModal';
+import { AiEnrichModal } from './AiEnrichModal';
 
 function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
   const [selectedType, setSelectedType] = useState(entryToEdit?.entryType || (defaultTab !== 'all' ? defaultTab : 'experience'));
@@ -131,6 +132,7 @@ export function ProfilePage() {
   const { profile, entries, fetchProfile, updateProfile, addEntry, updateEntry, deleteEntry, isLoading, error } = useProfileStore();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isAddingEntry, setIsAddingEntry] = useState(false);
+  const [isEnrichModalOpen, setIsEnrichModalOpen] = useState(false);
 
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
@@ -333,13 +335,22 @@ export function ProfilePage() {
       <section>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Profil Maître</h1>
-          <Button
-            variant="ghost"
-            onClick={() => setIsEditingProfile(!isEditingProfile)}
-            className="text-blue-600 hover:text-blue-800"
-          >
-            {isEditingProfile ? 'Annuler' : 'Modifier'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsEnrichModalOpen(true)}
+              className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-400"
+            >
+              ✨ Enrichir avec l'IA
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setIsEditingProfile(!isEditingProfile)}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              {isEditingProfile ? 'Annuler' : 'Modifier'}
+            </Button>
+          </div>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-sm border space-y-4">
@@ -611,6 +622,10 @@ export function ProfilePage() {
           onConfirm={handleCropConfirm}
           onCancel={handleCropCancel}
         />
+      )}
+
+      {isEnrichModalOpen && (
+        <AiEnrichModal onClose={() => setIsEnrichModalOpen(false)} />
       )}
     </div>
   );
