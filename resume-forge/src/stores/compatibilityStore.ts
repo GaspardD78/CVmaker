@@ -1,40 +1,45 @@
 import { create } from 'zustand';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase } from '@/lib/mapping';
-import { computeCompatibilityScore, extractCVContent, hashString } from '@/lib/compatibility-scorer';
-import type { CompatibilityScore } from '@/types/compatibility';
-import type { CVBlock } from '@/types/cv';
-import type { MasterEntry } from '@/types/profile';
+import type { AIAnalysis, CompatibilityScore, CompatibilityScoreDetails } from '@/types/compatibility';
+
+/** Raw JSON returned by the AI, pasted by the user. */
+export interface AIAnalysisRaw {
+  score_global: number;
+  scores: {
+    competences: number;
+    experience: number;
+    formation: number;
+    couverture: number;
+  };
+  points_forts: string[];
+  points_friction: string[];
+  recommandations: string[];
+  mots_cles_manquants: string[];
+  mots_cles_presents: string[];
+  synthese: string;
+}
 
 interface CompatibilityState {
   /** Keyed by applicationId */
   scores: Record<string, CompatibilityScore>;
-  computing: Record<string, boolean>;
+  saving: Record<string, boolean>;
   error: string | null;
 
   /** Load a persisted score for a given application (if one exists). */
   fetchScore: (applicationId: string) => Promise<void>;
 
   /**
-   * Compute and persist a new score.
-   * Requires the job description text + resolved CV data.
+   * Parse an AI-generated JSON analysis and persist it as a CompatibilityScore.
    */
-  computeAndSave: (
+  saveFromAI: (
     applicationId: string,
     cvId: string,
-    jobDescription: string,
-    blocks: CVBlock[],
-    entries: MasterEntry[],
+    raw: AIAnalysisRaw,
   ) => Promise<void>;
 
-  /** Remove a score from store and DB (e.g. when job description is cleared). */
+  /** Remove a score from store and DB. */
   deleteScore: (applicationId: string) => Promise<void>;
-
-  /**
-   * Return true when the stored score is stale — i.e. the CV content or job
-   * description has changed since the score was computed.
-   */
-  isStale: (applicationId: string, jobDescription: string, blocks: CVBlock[], entries: MasterEntry[]) => boolean;
 }
 
 function rowToScore(row: Record<string, unknown>): CompatibilityScore {
@@ -45,9 +50,9 @@ function rowToScore(row: Record<string, unknown>): CompatibilityScore {
   } as CompatibilityScore;
 }
 
-export const useCompatibilityStore = create<CompatibilityState>((set, get) => ({
+export const useCompatibilityStore = create<CompatibilityState>((set) => ({
   scores: {},
-  computing: {},
+  saving: {},
   error: null,
 
   fetchScore: async (applicationId) => {
@@ -66,20 +71,38 @@ export const useCompatibilityStore = create<CompatibilityState>((set, get) => ({
     }
   },
 
-  computeAndSave: async (applicationId, cvId, jobDescription, blocks, entries) => {
-    set(state => ({ computing: { ...state.computing, [applicationId]: true }, error: null }));
+  saveFromAI: async (applicationId, cvId, raw) => {
+    set(state => ({ saving: { ...state.saving, [applicationId]: true }, error: null }));
     try {
-      const result = computeCompatibilityScore(jobDescription, blocks, entries);
+      const emptyAxis = { score: 0, matched: [], missing: [] };
 
-      const detailsJson = JSON.stringify(result.details);
+      const aiAnalysis: AIAnalysis = {
+        source: 'ai',
+        strengths: raw.points_forts ?? [],
+        frictionPoints: raw.points_friction ?? [],
+        recommendations: raw.recommandations ?? [],
+        missingKeywords: raw.mots_cles_manquants ?? [],
+        presentKeywords: raw.mots_cles_presents ?? [],
+        summary: raw.synthese ?? '',
+      };
+
+      const details: CompatibilityScoreDetails = {
+        axes: {
+          skills:     { ...emptyAxis, score: raw.scores.competences },
+          experience: { ...emptyAxis, score: raw.scores.experience },
+          education:  { ...emptyAxis, score: raw.scores.formation },
+          keywords:   { ...emptyAxis, score: raw.scores.couverture },
+        },
+        advice: [],
+        aiAnalysis,
+      };
+
       const db = await getDb();
-
-      // Upsert (application_id is UNIQUE)
       await db.execute(
         `INSERT INTO compatibility_scores
            (application_id, cv_id, score_global, score_skills, score_experience,
             score_education, score_keywords, details, cv_content_hash, job_description_hash, computed_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'ai', 'ai', datetime('now'))
          ON CONFLICT(application_id) DO UPDATE SET
            cv_id                = excluded.cv_id,
            score_global         = excluded.score_global,
@@ -94,14 +117,12 @@ export const useCompatibilityStore = create<CompatibilityState>((set, get) => ({
         [
           applicationId,
           cvId,
-          result.scoreGlobal,
-          result.scoreSkills,
-          result.scoreExperience,
-          result.scoreEducation,
-          result.scoreKeywords,
-          detailsJson,
-          result.cvContentHash,
-          result.jobDescriptionHash,
+          raw.score_global,
+          raw.scores.competences,
+          raw.scores.experience,
+          raw.scores.formation,
+          raw.scores.couverture,
+          JSON.stringify(details),
         ],
       );
 
@@ -115,10 +136,10 @@ export const useCompatibilityStore = create<CompatibilityState>((set, get) => ({
         set(state => ({ scores: { ...state.scores, [applicationId]: score } }));
       }
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to compute score' });
+      set({ error: err instanceof Error ? err.message : 'Failed to save AI analysis' });
       throw err;
     } finally {
-      set(state => ({ computing: { ...state.computing, [applicationId]: false } }));
+      set(state => ({ saving: { ...state.saving, [applicationId]: false } }));
     }
   },
 
@@ -134,13 +155,5 @@ export const useCompatibilityStore = create<CompatibilityState>((set, get) => ({
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to delete score' });
     }
-  },
-
-  isStale: (applicationId, jobDescription, blocks, entries) => {
-    const score = get().scores[applicationId];
-    if (!score) return false;
-    const { contentHash } = extractCVContent(blocks, entries);
-    const jobHash = hashString(jobDescription);
-    return score.cvContentHash !== contentHash || score.jobDescriptionHash !== jobHash;
   },
 }));
