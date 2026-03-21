@@ -221,6 +221,48 @@ Pour chaque version : note en italique ce que tu as choisi de mettre en avant et
   },
 ];
 
+export const CV_ANALYSIS_TEMPLATE: PromptTemplate = {
+  id: 'cv-analysis',
+  name: 'Analyse adéquation CV / Offre',
+  description: 'Analyse la correspondance entre le CV et l\'annonce, retourne un JSON structuré',
+  template: `Tu es expert en recrutement et optimisation de CV. Analyse la correspondance entre le CV ci-dessous et l'offre d'emploi, puis retourne UNIQUEMENT un objet JSON valide (sans texte autour, sans markdown, sans \`\`\`json).
+
+## CV
+Candidat : {prénom} {nom}
+Titre : {titre}
+Résumé : {résumé}
+
+{liste_blocs_cv}
+
+## Offre d'emploi
+{texte_annonce}
+
+## Format de réponse OBLIGATOIRE
+Retourne uniquement ce JSON, en remplissant chaque champ honnêtement :
+
+{
+  "score_global": <entier 0-100>,
+  "scores": {
+    "competences": <entier 0-100>,
+    "experience": <entier 0-100>,
+    "formation": <entier 0-100>,
+    "couverture": <entier 0-100>
+  },
+  "points_forts": [<liste de 3 à 5 chaînes de caractères>],
+  "points_friction": [<liste de 2 à 4 chaînes de caractères>],
+  "recommandations": [<liste de 3 à 5 actions concrètes>],
+  "mots_cles_manquants": [<liste des mots-clés importants absents du CV>],
+  "mots_cles_presents": [<liste des mots-clés de l'annonce présents dans le CV>],
+  "synthese": "<2-3 phrases résumant l'adéquation globale>"
+}
+
+Règles absolues :
+- Ne jamais inventer une compétence ou expérience absente du CV
+- Les scores doivent être honnêtes et justifiés par le contenu réel du CV
+- Retourner UNIQUEMENT le JSON, sans aucun texte avant ou après`,
+};
+
 export function getPromptTemplate(id: string): PromptTemplate | undefined {
+  if (id === CV_ANALYSIS_TEMPLATE.id) return CV_ANALYSIS_TEMPLATE;
   return PROMPT_TEMPLATES.find(t => t.id === id);
 }

@@ -42,6 +42,17 @@ export interface Advice {
   cvRef?: { entryId: string; entryTitle: string };
 }
 
+export interface AIAnalysis {
+  /** Source marker to distinguish from local scoring */
+  source: 'ai';
+  strengths: string[];
+  frictionPoints: string[];
+  recommendations: string[];
+  missingKeywords: string[];
+  presentKeywords: string[];
+  summary: string;
+}
+
 export interface CompatibilityScoreDetails {
   axes: {
     skills: AxisScore;
@@ -50,6 +61,8 @@ export interface CompatibilityScoreDetails {
     keywords: AxisScore;
   };
   advice: Advice[];
+  /** Present when the score was computed via AI analysis */
+  aiAnalysis?: AIAnalysis;
 }
 
 export interface CompatibilityScore {
