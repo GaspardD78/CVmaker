@@ -60,8 +60,15 @@ pub fn run() {
         },
     ];
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.plugin(tauri_plugin_shell::init());
+    }
+
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(

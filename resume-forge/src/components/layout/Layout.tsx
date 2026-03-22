@@ -27,10 +27,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isActive = (to: string, exact?: boolean) =>
     exact ? location.pathname === to : location.pathname.startsWith(to);
 
+  const mobileNavItems = [
+    { to: '/', icon: LayoutDashboard, label: 'Accueil', exact: true },
+    { to: '/profile', icon: User, label: 'Profil' },
+    { to: '/cv', icon: FileText, label: 'CVs' },
+    { to: '/tracker', icon: Briefcase, label: 'Suivi' },
+    { to: '/settings', icon: Settings, label: 'Config' },
+  ];
+
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900 print:h-auto print:bg-white print:overflow-visible print:block">
+      {/* Sidebar – desktop only */}
       <aside
-        className={`${collapsed ? 'w-12' : 'w-64'} bg-white dark:bg-gray-800 shadow-md flex flex-col justify-between print:hidden transition-all duration-200 overflow-hidden`}
+        className={`${collapsed ? 'w-12' : 'w-64'} hidden sm:flex bg-white dark:bg-gray-800 shadow-md flex-col justify-between print:hidden transition-all duration-200 overflow-hidden`}
       >
         <div className={collapsed ? 'px-1 pt-4' : 'p-4'}>
           {!collapsed && <h2 className="text-xl font-bold mb-8 dark:text-gray-100">ResumeForge</h2>}
@@ -87,9 +96,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block">
+
+      {/* Main content */}
+      <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block pb-16 sm:pb-0">
         {children}
       </main>
+
+      {/* Bottom navigation bar – mobile only */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 print:hidden">
+        {mobileNavItems.map(({ to, icon: Icon, label, exact }) => {
+          const active = isActive(to, exact);
+          return (
+            <Link
+              key={to}
+              to={to}
+              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs transition-colors ${
+                active
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="leading-tight">{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
