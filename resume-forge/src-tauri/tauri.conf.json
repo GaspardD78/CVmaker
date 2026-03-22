@@ -36,5 +36,15 @@
     "android": {
       "minSdkVersion": 24
     }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["com.jules.resume-forge"]
+      },
+      "mobile": {
+        "schemes": ["com.jules.resume-forge"]
+      }
+    }
   }
 }

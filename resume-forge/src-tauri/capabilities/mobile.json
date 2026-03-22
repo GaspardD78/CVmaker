@@ -9,6 +9,7 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "deep-link:default",
     "sql:default",
     "fs:default",
     "dialog:default",

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { CVList } from "@/components/cv-builder/CVList";
@@ -36,7 +37,43 @@ function AppRoutes() {
   );
 }
 
+/**
+ * Forward Android deep-link OAuth callbacks to the in-app event bus.
+ * On desktop the Rust local server emits the event directly.
+ * On Android, tauri-plugin-deep-link fires onOpenUrl which we convert here.
+ */
+function useDeepLinkOAuthForward() {
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      try {
+        const { onOpenUrl } = await import('@tauri-apps/plugin-deep-link');
+        const { emit } = await import('@tauri-apps/api/event');
+        unlisten = await onOpenUrl((urls) => {
+          for (const url of urls) {
+            if (url.includes('/oauth/callback') || url.includes('oauth/callback')) {
+              try {
+                const u = new URL(url);
+                void emit('oauth://callback', u.search);
+              } catch {
+                // URL may use custom scheme — extract query string manually
+                const qs = url.includes('?') ? url.substring(url.indexOf('?')) : '';
+                if (qs) void emit('oauth://callback', qs);
+              }
+            }
+          }
+        });
+      } catch {
+        // Plugin not available on this platform — no-op
+      }
+    })();
+    return () => { unlisten?.(); };
+  }, []);
+}
+
 function App() {
+  useDeepLinkOAuthForward();
+
   return (
     <ErrorBoundary>
       <BrowserRouter>

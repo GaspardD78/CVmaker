@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor } from 'lucide-react';
 import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
+import { GoogleDriveSync } from './GoogleDriveSync';
 import { usePromptStore } from '@/stores/promptStore';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -172,6 +173,9 @@ export function SettingsPage() {
           </button>
         </div>
       </section>
+
+      {/* ── Google Drive Sync ── */}
+      <GoogleDriveSync />
 
       {/* ── Backup section ── */}
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
