@@ -1,4 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
+import { invoke } from '@tauri-apps/api/core';
 
 let db: Database | null = null;
 
@@ -9,7 +10,10 @@ export async function getDb(): Promise<Database> {
   }
 
   if (!db) {
-    db = await Database.load('sqlite:resumeforge.db');
+    // In portable mode (.portable marker next to exe), the backend returns
+    // an absolute sqlite: URI pointing to a data/ folder beside the executable.
+    const dbUri = await invoke<string>('get_db_uri');
+    db = await Database.load(dbUri);
 
     // Fallback: ensure migration 002 is applied even if the SQLx migration
     // system failed silently on an existing database (checksum mismatch, etc.)
