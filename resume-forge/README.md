@@ -1,128 +1,231 @@
 # ResumeForge
 
-ResumeForge est un outil de bureau **local, rapide et sans cloud**, conçu pour aider les professionnels à gérer efficacement leur recherche d'emploi. Il vous permet de centraliser vos expériences, de générer des CV optimisés pour les systèmes de suivi des candidatures (ATS) et de suivre vos candidatures de bout en bout grâce à un tableau de bord Kanban intégré.
+ResumeForge est un outil **local, rapide et multiplateforme** pour gérer sa recherche d'emploi. Il permet de centraliser ses expériences, générer des CV optimisés pour les systèmes ATS et suivre ses candidatures via un tableau Kanban intégré.
 
-L'application est construite avec Tauri, React, et TypeScript, offrant une expérience native très performante tout en garantissant la confidentialité absolue de vos données, qui ne quittent jamais votre ordinateur.
+Disponible sur **Windows, macOS, Linux** et **Android** (APK).
 
-## Fonctionnalités Principales
+---
 
-*   **Profil Maître Unique :** Un système centralisé pour toutes vos expériences, formations, compétences et autres informations. Vous piochez dans ce "Master Profile" pour créer vos CV.
-*   **CV Builder (ATS-Ready) :** Un éditeur de CV visuel permettant d'assembler et de réordonner les blocs (via drag-and-drop). Il propose des templates spécialement conçus pour être lus sans erreur par les robots ATS.
-*   **Export DOCX et PDF :** Exportez vos CV au format DOCX (avec un formatage parfait, sans colonnes ni tableaux, respectant les styles Word standards) ou en PDF via un moteur de rendu optimisé.
-*   **Tracker de Candidatures (Kanban) :** Un tableau visuel pour suivre l'état de chaque candidature, du premier contact jusqu'à l'offre finale.
-*   **Tableau de bord et Statistiques :** Un aperçu rapide de vos actions en cours, relances à effectuer, et de votre activité (graphiques, taux de réponse, etc.).
-*   **100% Local :** Toutes vos données sont stockées localement dans une base de données SQLite. Pas de cloud, pas d'inscription.
+## Fonctionnalités
 
-## Captures d'écran
+| Fonctionnalité | Description |
+|---|---|
+| **Profil Maître** | Réservoir centralisé de toutes vos expériences, formations, compétences, langues, projets |
+| **CV Builder ATS** | Éditeur visuel drag-and-drop, 4 templates ATS-ready |
+| **Export DOCX / PDF** | DOCX sans tableau ni colonne (compatible ATS), PDF via moteur de rendu optimisé |
+| **Tracker Kanban** | Suivi des candidatures : brouillon → entretien → offre, avec timeline d'événements |
+| **Score de compatibilité** | Analyse automatique CV vs offre d'emploi |
+| **Import** | LinkedIn, PDF, DOCX, CSV, JSON |
+| **Synchronisation Drive** | Sauvegarde et restauration via Google Drive (PC ↔ Android) |
+| **100 % local** | SQLite embarqué, aucune inscription, aucun cloud obligatoire |
+| **Mode Portable** | Fonctionne depuis une clé USB (marqueur `.portable` à côté de l'exécutable) |
 
-*(Insérez ici des captures d'écran de l'application)*
+---
 
-*   **Tableau de bord :** Vue d'ensemble de vos statistiques et candidatures.
-*   **Profil Maître :** Formulaires pour vos expériences, compétences, etc.
-*   **Éditeur de CV :** Drag-and-drop des blocs pour construire un CV ciblé.
-*   **Tracker Kanban :** Suivi visuel des statuts de candidature.
-
-## Guide d'installation
-
-Ce projet utilise Tauri (v2) pour le backend (Rust) et le système natif, ainsi que React/Vite/TypeScript pour l'interface utilisateur.
+## Installation (desktop)
 
 ### Prérequis
 
-Avant de pouvoir lancer ou compiler ResumeForge, vous devez installer les dépendances système requises pour le développement avec Tauri.
-
-1.  **Node.js** (version 18 ou supérieure) : Recommandé via `nvm`.
-2.  **Rust et Cargo** : Installez-les via `rustup` :
+- **Node.js** 18+
+- **Rust** via `rustup` :
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  ```
+- **Dépendances système :**
+  - **Windows** : Build Tools for Visual Studio 2022 (module C++)
+  - **macOS** : `xcode-select --install`
+  - **Linux (Ubuntu/Debian)** :
     ```bash
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    ```
-3.  **Dépendances Système OS :**
-    *   **Sur Windows :** Installez les *Build Tools for Visual Studio 2022* (incluant le module C++). Tauri recommande d'utiliser le [WebView2 runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (généralement préinstallé sur Windows 10/11).
-    *   **Sur macOS :** Xcode Command Line Tools (tapez `xcode-select --install` dans le terminal).
-    *   **Sur Linux (ex: Ubuntu/Debian) :** Exécutez le script de setup fourni (il installe les bibliothèques GTK/WebKit et les dépendances Node en une seule commande) :
-        ```bash
-        bash setup-ubuntu.sh
-        ```
-        Ou manuellement :
-        ```bash
-        sudo apt-get update
-        sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-        npm install
-        ```
-        > **Note :** Sans ces dépendances, la compilation Rust échoue avec `gdk-sys` introuvable, et l'application ne crée jamais `resumeforge.db`.
-
-### Installation du projet
-
-1.  **Clonez ce dépôt :**
-    ```bash
-    git clone https://github.com/votre-compte/resumeforge.git
-    cd resumeforge/resume-forge
+    sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+      build-essential curl wget file libxdo-dev libssl-dev \
+      libayatana-appindicator3-dev librsvg2-dev
     ```
 
-2.  **Installez les dépendances Node.js :**
-    ```bash
-    npm install
-    ```
-    *(Ou utilisez `bun install` / `pnpm install` selon votre gestionnaire).*
+### Lancement
 
-3.  **Lancez l'environnement de développement :**
-    Pour démarrer à la fois le serveur React (Vite) et la fenêtre Tauri native, utilisez :
-    ```bash
-    npm run tauri dev
-    ```
-    *(La première compilation de Rust peut prendre quelques minutes).*
+```bash
+git clone https://github.com/GaspardD78/CVmaker.git
+cd CVmaker/resume-forge
+npm install
+npm run tauri dev
+```
 
-### Procédure de Re-Build après correction
-
-Si vous avez modifié le code (frontend ou backend) pour corriger un bug, suivez ces étapes pour re-compiler proprement l'application :
-
-1.  **Nettoyer les anciens builds (Optionnel mais recommandé) :**
-    Sur macOS / Linux (Bash) :
-    ```bash
-    rm -rf dist
-    cd src-tauri
-    cargo clean
-    cd ..
-    ```
-    Sur Windows (PowerShell) :
-    ```powershell
-    Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
-    cd src-tauri
-    cargo clean
-    cd ..
-    ```
-
-2.  **Vérifier le typage strict TypeScript :**
-    ```bash
-    npx tsc --noEmit
-    ```
-
-3.  **Compiler le frontend (Vite) :**
-    ```bash
-    npm run build
-    ```
-
-4.  **Re-compiler et lancer l'application Tauri :**
-    ```bash
-    npm run tauri dev
-    ```
-
-### Compilation (Build pour la production)
-
-Pour générer un exécutable autonome (.exe, .dmg, .app, ou .deb/.AppImage selon votre OS) :
+### Compilation desktop (production)
 
 ```bash
 npm run tauri build
 ```
 
-Le fichier compilé se trouvera dans le dossier `src-tauri/target/release/bundle/`.
+L'exécutable se trouve dans `src-tauri/target/release/bundle/`.
 
-## Architecture Technique
+---
 
-*   **Frontend :** React 18, TypeScript, Tailwind CSS v4, shadcn/ui, Zustand (pour la gestion d'état), et `@dnd-kit` pour le drag & drop.
-*   **Backend / Pont Natif :** Tauri v2 (Rust minimaliste, utilisé uniquement pour charger les plugins).
-*   **Base de données :** SQLite intégré géré directement depuis le frontend via `@tauri-apps/plugin-sql` pour éviter de maintenir un ORM Rust complexe.
-*   **Export :** L'export DOCX est géré par la librairie `docx` coté client, respectant strictement les règles des ATS.
+## Build Android (APK)
+
+### Prérequis supplémentaires
+
+- **Android Studio** avec le SDK Android et le NDK installés
+- Variables d'environnement configurées :
+  ```bash
+  export ANDROID_HOME=$HOME/Android/Sdk
+  export NDK_HOME=$ANDROID_HOME/ndk/$(ls $ANDROID_HOME/ndk)
+  ```
+- Cibles Rust pour Android :
+  ```bash
+  rustup target add aarch64-linux-android armv7-linux-androideabi \
+    i686-linux-android x86_64-linux-android
+  ```
+
+### Générer et compiler le projet Android
+
+```bash
+# 1. Initialiser le projet Android (une seule fois)
+npm run tauri android init
+
+# 2. Développement sur émulateur ou appareil connecté
+npm run tauri android dev
+
+# 3. Compiler l'APK de release
+npm run tauri android build
+```
+
+L'APK se trouve dans `src-tauri/gen/android/app/build/outputs/apk/`.
+
+> **SDK minimum** : Android 7.0 (API 24)
+
+---
+
+## Synchronisation Google Drive
+
+La synchronisation est optionnelle et utilise votre propre projet Google Cloud. Les données restent dans votre Drive personnel.
+
+### Configuration (une seule fois)
+
+1. Aller sur [console.cloud.google.com](https://console.cloud.google.com)
+2. Créer un projet → activer l'**API Google Drive**
+3. Créer des identifiants OAuth 2.0 → type **"Application de bureau"**
+4. Ajouter les **URI de redirection autorisées** :
+   - `http://127.0.0.1` *(PC — Google accepte tous les ports loopback)*
+   - `com.jules.resume-forge:/oauth/callback` *(Android)*
+5. Copier le **Client ID** dans l'application : **Paramètres → Synchronisation Google Drive**
+
+### Utilisation
+
+- **"Sauvegarder vers Drive"** : exporte toutes les données au format `.cvmaker` dans un dossier *"ResumeForge Backups"* de votre Drive
+- **"Restaurer"** : télécharge un fichier de sauvegarde et fusionne les données (stratégie merge)
+- Le token OAuth est stocké localement dans la base SQLite ; il se rafraîchit automatiquement
+
+### Flux OAuth2 par plateforme
+
+| Plateforme | Mécanisme |
+|---|---|
+| **PC** | Serveur HTTP local temporaire (port aléatoire), capture la redirection Google |
+| **Android** | Deep-link `com.jules.resume-forge:/oauth/callback` géré par `tauri-plugin-deep-link` |
+
+---
+
+## Architecture technique
+
+### Stack
+
+| Couche | Technologie |
+|---|---|
+| Shell natif | Tauri 2 (Rust) |
+| Frontend | React 19, TypeScript strict, Vite 7 |
+| UI | Tailwind CSS 4, shadcn/ui, Radix UI |
+| État | Zustand 5 |
+| Drag & Drop | @dnd-kit/core + sortable |
+| Base de données | SQLite via `tauri-plugin-sql` |
+| Export DOCX | `docx` (côté client) |
+| Export PDF | html2canvas + jsPDF |
+| Import | mammoth, pdfjs-dist, jszip |
+| Graphiques | Recharts |
+| Notifications | Sonner |
+| Sync cloud | Google Drive REST API + OAuth2 PKCE |
+
+### Plugins Tauri
+
+| Plugin | Usage | Plateformes |
+|---|---|---|
+| `tauri-plugin-sql` | SQLite | Toutes |
+| `tauri-plugin-fs` | Lecture/écriture fichiers | Toutes |
+| `tauri-plugin-dialog` | Sélection de fichiers, confirmations | Toutes |
+| `tauri-plugin-opener` | Ouvrir URLs et fichiers | Toutes |
+| `tauri-plugin-deep-link` | Callback OAuth2 Android | Toutes (actif sur Android) |
+| `tauri-plugin-shell` | Ouvrir fichiers via le shell OS | Desktop uniquement |
+
+### Structure des fichiers
+
+```
+resume-forge/
+├── src/
+│   ├── components/
+│   │   ├── cv-builder/       # CV Builder (éditeur, templates, design)
+│   │   ├── tracker/          # Kanban candidatures
+│   │   ├── profile/          # Profil maître
+│   │   ├── export/           # Rendu imprimable
+│   │   ├── import/           # Import multi-format
+│   │   ├── dashboard/        # Tableau de bord
+│   │   ├── settings/         # Paramètres + sync Drive
+│   │   └── layout/           # Navigation (sidebar desktop, bottom bar mobile)
+│   ├── stores/               # Zustand (profile, cv, application, compatibility, prompt)
+│   ├── lib/
+│   │   ├── db.ts             # Couche SQLite (getDb, getSetting, setSetting)
+│   │   ├── backup.ts         # Export/import .cvmaker (buildBackupData, importBackup)
+│   │   ├── gdrive.ts         # Sync Google Drive (OAuth2 PKCE + REST API)
+│   │   ├── export-docx.ts    # Moteur DOCX ATS
+│   │   ├── export-pdf.ts     # Moteur PDF
+│   │   └── import/           # Parseurs (LinkedIn, PDF, DOCX, CSV)
+│   ├── types/                # Interfaces TypeScript
+│   └── templates/            # Templates CV (ats-classic, ats-modern, elegant, minimalist)
+├── src-tauri/
+│   ├── src/lib.rs            # Configuration Tauri, migrations, commandes Rust
+│   ├── migrations/           # SQL (001_init, 002_attachments, 003_compatibility)
+│   ├── capabilities/
+│   │   ├── default.json      # Permissions desktop (Linux, Windows, macOS)
+│   │   └── mobile.json       # Permissions Android/iOS
+│   └── tauri.conf.json       # Config app + deep-link schemes
+├── index.html
+├── package.json
+└── vite.config.ts
+```
+
+### Modèle de données
+
+```
+profiles (1) ──< master_entries (N)
+    │
+    └──< cv_documents (N) ──< cv_blocks (N)
+    │
+    └──< applications (N) ──< application_events (N)
+                          └──< application_attachments (N)
+settings (key/value)
+```
+
+---
+
+## Développement
+
+### Commandes utiles
+
+```bash
+npm run dev          # Frontend seul (Vite)
+npm run tauri dev    # App Tauri complète (frontend + backend Rust)
+npm run build        # Build frontend (TypeScript + Vite)
+npm run tauri build  # Build desktop (exécutable natif)
+bun test             # Tests unitaires
+```
+
+### Nettoyage après erreur de build
+
+```bash
+rm -rf dist
+cd src-tauri && cargo clean && cd ..
+npm run tauri dev
+```
+
+---
 
 ## Licence
 
-*(Ajoutez les détails de la licence ici, ex: MIT License)*
+*(À définir)*
