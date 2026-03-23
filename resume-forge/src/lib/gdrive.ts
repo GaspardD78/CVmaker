@@ -73,6 +73,15 @@ export async function isConnected(): Promise<boolean> {
   return t !== null;
 }
 
+// ── OAuth state (module-level — survives Android background/foreground) ───────
+// sessionStorage is unreliable on Android: the WebView can be paused/recreated
+// by the OS while the external browser is open, wiping sessionStorage.
+// Module-level variables persist as long as the JS runtime is alive.
+
+let _oauthVerifier = '';
+let _oauthState = '';
+let _oauthRedirectUri = '';
+
 // ── OAuth2 flow ───────────────────────────────────────────────────────────────
 
 /**
@@ -85,8 +94,8 @@ export async function startOAuthFlow(clientId: string): Promise<void> {
   const challenge = await sha256Base64Url(verifier);
   const state = randomString(16);
 
-  sessionStorage.setItem('gdrive_verifier', verifier);
-  sessionStorage.setItem('gdrive_state', state);
+  _oauthVerifier = verifier;
+  _oauthState = state;
 
   let redirectUri: string;
   try {
@@ -97,7 +106,7 @@ export async function startOAuthFlow(clientId: string): Promise<void> {
     // Mobile: use deep-link URI
     redirectUri = MOBILE_REDIRECT;
   }
-  sessionStorage.setItem('gdrive_redirect_uri', redirectUri);
+  _oauthRedirectUri = redirectUri;
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -141,7 +150,7 @@ export function waitForOAuthCallback(timeoutMs = 120_000): Promise<string | null
       const qs = payload.includes('?') ? payload.substring(payload.indexOf('?')) : payload;
       const params = new URLSearchParams(qs);
 
-      if (params.get('state') !== sessionStorage.getItem('gdrive_state')) {
+      if (params.get('state') !== _oauthState) {
         settle(null);
         return;
       }
@@ -155,8 +164,8 @@ export function waitForOAuthCallback(timeoutMs = 120_000): Promise<string | null
 
 /** Exchange the auth code for tokens and persist them. */
 export async function exchangeCode(code: string, clientId: string, clientSecret: string): Promise<void> {
-  const verifier = sessionStorage.getItem('gdrive_verifier') ?? '';
-  const redirectUri = sessionStorage.getItem('gdrive_redirect_uri') ?? '';
+  const verifier = _oauthVerifier;
+  const redirectUri = _oauthRedirectUri;
 
   const resp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -180,9 +189,9 @@ export async function exchangeCode(code: string, clientId: string, clientSecret:
     expiresAt: Date.now() + (data.expires_in - 60) * 1000,
   });
 
-  sessionStorage.removeItem('gdrive_verifier');
-  sessionStorage.removeItem('gdrive_state');
-  sessionStorage.removeItem('gdrive_redirect_uri');
+  _oauthVerifier = '';
+  _oauthState = '';
+  _oauthRedirectUri = '';
 }
 
 async function refreshAccessToken(clientId: string, clientSecret: string, tokens: GDriveTokens): Promise<GDriveTokens> {
