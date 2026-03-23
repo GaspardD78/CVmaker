@@ -2,6 +2,17 @@
 
 @plugin "tailwindcss-animate";
 
+/* Android / notch safe-area support */
+.mobile-header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.mobile-main-content {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem); /* 3rem = h-12 */
+}
+.mobile-drawer-top {
+  top: calc(env(safe-area-inset-top, 0px) + 3rem);
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @page {

@@ -102,19 +102,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile top header – mobile only */}
-      <header className="sm:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-12 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 print:hidden">
-        <span className="text-base font-bold dark:text-gray-100">ResumeForge</span>
-        <button
-          onClick={() => setDrawerOpen(o => !o)}
-          className="p-1.5 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-          aria-label="Menu"
-        >
-          {drawerOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+      <header className="sm:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 print:hidden mobile-header">
+        <div className="flex items-center justify-between px-4 h-12">
+          <span className="text-base font-bold dark:text-gray-100">ResumeForge</span>
+          <button
+            onClick={() => setDrawerOpen(o => !o)}
+            className="p-1.5 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            aria-label="Menu"
+          >
+            {drawerOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </header>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block pt-12 sm:pt-0">
+      <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block mobile-main-content sm:pt-0">
         {children}
       </main>
 
@@ -128,7 +130,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Drawer – mobile only */}
       <aside
-        className={`sm:hidden fixed top-12 right-0 bottom-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col print:hidden transition-transform duration-200 ${
+        className={`sm:hidden fixed right-0 bottom-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col print:hidden transition-transform duration-200 mobile-drawer-top ${
           drawerOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

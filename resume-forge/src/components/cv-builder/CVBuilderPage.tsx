@@ -132,65 +132,64 @@ export function CVBuilderPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-100 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:block">
+    <div className="flex flex-col h-full overflow-hidden bg-gray-100 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:block">
       {/* Top Bar */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center shadow-sm print:hidden">
-        <div className="flex items-center space-x-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-2 sm:px-4 py-2 sm:py-3 flex items-center gap-2 overflow-x-auto shadow-sm print:hidden shrink-0">
+        <button
+          onClick={() => navigate('/cv')}
+          className="text-gray-500 hover:text-gray-900 transition flex items-center shrink-0"
+        >
+          <ArrowLeft className="w-5 h-5 mr-1" />
+          <span className="hidden sm:inline">Retour</span>
+        </button>
+        <h1 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1">
+          CV: {currentCv.name}
+        </h1>
+        {saveStatus === 'saving' && (
+          <span className="flex items-center text-sm text-gray-400 shrink-0">
+            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            <span className="hidden sm:inline">Enregistrement...</span>
+          </span>
+        )}
+        {saveStatus === 'saved' && (
+          <span className="flex items-center text-sm text-green-500 shrink-0">
+            <Check className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Enregistré</span>
+          </span>
+        )}
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
-            onClick={() => navigate('/cv')}
-            className="text-gray-500 hover:text-gray-900 transition flex items-center"
+            onClick={() => setIsFocusMode(!isFocusMode)}
+            className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-md font-medium transition flex items-center shadow-sm text-sm ${
+              isFocusMode
+                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+            title={isFocusMode ? 'Afficher le panneau' : 'Mode focus'}
           >
-            <ArrowLeft className="w-5 h-5 mr-1" /> Retour
+            {isFocusMode ? <Minimize2 className="w-4 h-4 sm:mr-1" /> : <Maximize2 className="w-4 h-4 sm:mr-1" />}
+            <span className="hidden sm:inline">{isFocusMode ? 'Panneau' : 'Focus'}</span>
           </button>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate max-w-md">
-            CV: {currentCv.name}
-          </h1>
-          {saveStatus === 'saving' && (
-            <span className="flex items-center text-sm text-gray-400 ml-2">
-              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-              Enregistrement...
-            </span>
-          )}
-          {saveStatus === 'saved' && (
-            <span className="flex items-center text-sm text-green-500 ml-2">
-              <Check className="w-4 h-4 mr-1" />
-              Enregistré
-            </span>
-          )}
-        </div>
-        <div className="flex items-center space-x-3">
-           <button
-             onClick={() => setIsFocusMode(!isFocusMode)}
-             className={`px-3 py-2 rounded-md font-medium transition flex items-center shadow-sm text-sm ${
-               isFocusMode
-                 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-             }`}
-             title={isFocusMode ? 'Afficher le panneau' : 'Mode focus'}
-           >
-             {isFocusMode ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
-             {isFocusMode ? 'Panneau' : 'Focus'}
-           </button>
-           <TemplatePickerPopover
-             currentTemplateId={currentCv.templateId}
-             onSelect={handleTemplateChange}
-           />
-           <button
-             onClick={handleExportDocx}
-             disabled={isExporting}
-             className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition flex items-center shadow-sm disabled:opacity-50"
-           >
-             <FileText className="w-4 h-4 mr-2" />
-             {isExporting ? 'Export...' : 'Exporter DOCX'}
-           </button>
-           <button
-             onClick={handleExportPdf}
-             disabled={isExporting}
-             className="bg-gray-800 text-white px-4 py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm disabled:opacity-50"
-           >
-             <Download className="w-4 h-4 mr-2" />
-             {isExporting ? 'Export...' : 'Exporter PDF'}
-           </button>
+          <TemplatePickerPopover
+            currentTemplateId={currentCv.templateId}
+            onSelect={handleTemplateChange}
+          />
+          <button
+            onClick={handleExportDocx}
+            disabled={isExporting}
+            className="bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-blue-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm"
+          >
+            <FileText className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter DOCX'}</span>
+          </button>
+          <button
+            onClick={handleExportPdf}
+            disabled={isExporting}
+            className="bg-gray-800 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm"
+          >
+            <Download className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter PDF'}</span>
+          </button>
         </div>
       </div>
 
@@ -214,7 +213,7 @@ export function CVBuilderPage() {
         )}
 
         {/* Right Panel - Preview */}
-        <div className={`flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto ${isFocusMode ? 'max-w-none' : ''}`}>
+        <div className={`flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-2 sm:p-8 sm:flex sm:justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto ${isFocusMode ? 'max-w-none' : ''}`}>
           <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
             <RightPanel />
           </div>
