@@ -22,6 +22,7 @@ import { getSetting, setSetting } from '@/lib/db';
 
 // Official ResumeForge Google Client ID for the Approved App (OAuth2 PKCE)
 const CLIENT_ID = import.meta.env.VITE_GDRIVE_CLIENT_ID || '318662236943-ta2c54f7mordbupr7n9dkccnficq0b55.apps.googleusercontent.com';
+const CLIENT_SECRET = import.meta.env.VITE_GDRIVE_CLIENT_SECRET || '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';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const MOBILE_REDIRECT = 'com.jules.resume-forge:/oauth/callback';
 const FOLDER_NAME = 'ResumeForge Backups';
@@ -174,6 +175,7 @@ export async function exchangeCode(code: string): Promise<void> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
       code,
       code_verifier: verifier,
       grant_type: 'authorization_code',
@@ -201,6 +203,7 @@ async function refreshAccessToken(tokens: GDriveTokens): Promise<GDriveTokens> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
       refresh_token: tokens.refreshToken,
       grant_type: 'refresh_token',
     }),
