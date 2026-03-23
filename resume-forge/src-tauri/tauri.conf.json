@@ -42,9 +42,11 @@
       "desktop": {
         "schemes": ["com.jules.resume-forge"]
       },
-      "mobile": {
-        "schemes": ["com.jules.resume-forge"]
-      }
+      "mobile": [
+        {
+          "scheme": "com.jules.resume-forge"
+        }
+      ]
     }
   }
 }
