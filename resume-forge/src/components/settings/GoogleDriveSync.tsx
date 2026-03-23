@@ -1,24 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Cloud, CloudOff, Upload, Download, Loader2, CheckCircle2,
-  AlertCircle, Unlink, ChevronDown, ChevronUp, Key,
+  AlertCircle, Unlink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
 import {
   startOAuthFlow, waitForOAuthCallback, exchangeCode,
   isConnected, clearTokens, listDriveBackups, uploadToDrive, downloadFromDrive,
-  loadClientId, saveClientId, loadClientSecret, saveClientSecret,
   type DriveFile,
 } from '@/lib/gdrive';
 import { buildBackupData, importBackup, MODULES, type BackupData, type ImportPlan } from '@/lib/backup';
 
 export function GoogleDriveSync() {
-  const [clientId, setClientId] = useState('');
-  const [clientIdInput, setClientIdInput] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
-  const [clientSecretInput, setClientSecretInput] = useState('');
-  const [showClientIdForm, setShowClientIdForm] = useState(false);
   const [connected, setConnected] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -30,11 +24,10 @@ export function GoogleDriveSync() {
     setConnected(await isConnected());
   }, []);
 
-  const fetchFiles = useCallback(async (id: string, secret: string) => {
-    if (!id || !secret) return;
+  const fetchFiles = useCallback(async () => {
     setLoadingFiles(true);
     try {
-      setFiles(await listDriveBackups(id, secret));
+      setFiles(await listDriveBackups());
     } catch {
       setConnected(false);
     } finally {
@@ -43,43 +36,24 @@ export function GoogleDriveSync() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const id = await loadClientId();
-      const secret = await loadClientSecret();
-      if (id) { setClientId(id); setClientIdInput(id); }
-      if (secret) { setClientSecret(secret); setClientSecretInput(secret); }
-      await checkConnection();
-    })();
+    checkConnection();
   }, [checkConnection]);
 
   useEffect(() => {
-    if (connected && clientId && clientSecret) fetchFiles(clientId, clientSecret);
-  }, [connected, clientId, clientSecret, fetchFiles]);
-
-  const handleSaveClientId = async () => {
-    const trimmedId = clientIdInput.trim();
-    const trimmedSecret = clientSecretInput.trim();
-    if (!trimmedId || !trimmedSecret) return;
-    await saveClientId(trimmedId);
-    await saveClientSecret(trimmedSecret);
-    setClientId(trimmedId);
-    setClientSecret(trimmedSecret);
-    setShowClientIdForm(false);
-    toast.success('Identifiants enregistrés');
-  };
+    if (connected) fetchFiles();
+  }, [connected, fetchFiles]);
 
   const handleConnect = async () => {
-    if (!clientId || !clientSecret) { setShowClientIdForm(true); return; }
     if (working) return;
     setWorking('connect');
     setStatus(null);
     try {
-      await startOAuthFlow(clientId);
+      await startOAuthFlow();
       const code = await waitForOAuthCallback();
       if (!code) throw new Error('Authentification annulée ou délai dépassé.');
-      await exchangeCode(code, clientId, clientSecret);
+      await exchangeCode(code);
       await checkConnection();
-      await fetchFiles(clientId, clientSecret);
+      await fetchFiles();
       setStatus({ ok: true, message: 'Connecté à Google Drive !' });
     } catch (e) {
       setStatus({ ok: false, message: e instanceof Error ? e.message : 'Erreur de connexion.' });
@@ -96,15 +70,15 @@ export function GoogleDriveSync() {
   };
 
   const handleUpload = async () => {
-    if (!clientId || !clientSecret || working) return;
+    if (working) return;
     setWorking('upload');
     setStatus(null);
     try {
       const backup = await buildBackupData(MODULES.map(m => m.id));
       const json = JSON.stringify(backup, null, 2);
       const date = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', 'h');
-      await uploadToDrive(clientId, clientSecret, json, `resumeforge_backup_${date}.cvmaker`);
-      await fetchFiles(clientId, clientSecret);
+      await uploadToDrive(json, `resumeforge_backup_${date}.cvmaker`);
+      await fetchFiles();
       setStatus({ ok: true, message: 'Sauvegarde envoyée vers Google Drive.' });
     } catch (e) {
       setStatus({ ok: false, message: e instanceof Error ? e.message : "Échec de l'envoi." });
@@ -114,7 +88,7 @@ export function GoogleDriveSync() {
   };
 
   const handleDownload = async (file: DriveFile) => {
-    if (!clientId || downloadingId) return;
+    if (downloadingId) return;
 
     let confirmed = false;
     try {
@@ -129,7 +103,7 @@ export function GoogleDriveSync() {
 
     setDownloadingId(file.id);
     try {
-      const raw = await downloadFromDrive(clientId, clientSecret, file.id);
+      const raw = await downloadFromDrive(file.id);
       const backup = JSON.parse(raw) as BackupData;
       if (!backup.__cvmaker_backup) throw new Error('Fichier invalide.');
       const plan: ImportPlan = Object.fromEntries(MODULES.map(m => [m.id, 'merge'])) as ImportPlan;
@@ -155,55 +129,6 @@ export function GoogleDriveSync() {
       </div>
 
       <div className="p-6 space-y-4">
-        {/* Client ID config */}
-        <div>
-          <button
-            onClick={() => setShowClientIdForm(v => !v)}
-            className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          >
-            <Key size={13} />
-            {clientId && clientSecret ? 'Modifier les identifiants' : 'Configurer les identifiants Google'}
-            {showClientIdForm ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </button>
-
-          {showClientIdForm && (
-            <div className="mt-3 space-y-2">
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md text-xs text-blue-800 dark:text-blue-300 space-y-1">
-                <p className="font-medium">Configuration Google Cloud (une seule fois) :</p>
-                <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-400">
-                  <li>Créer un projet sur console.cloud.google.com</li>
-                  <li>Activer l'API Google Drive</li>
-                  <li>Créer des identifiants OAuth 2.0 → "Application de bureau"</li>
-                  <li>Copier le <strong>Client ID</strong> et le <strong>Code secret du client</strong> ci-dessous</li>
-                </ol>
-              </div>
-              <input
-                type="text"
-                value={clientIdInput}
-                onChange={e => setClientIdInput(e.target.value)}
-                placeholder="Client ID — 1234567890-xxxx.apps.googleusercontent.com"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={clientSecretInput}
-                  onChange={e => setClientSecretInput(e.target.value)}
-                  placeholder="Code secret du client"
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none"
-                />
-                <button
-                  onClick={handleSaveClientId}
-                  disabled={!clientIdInput.trim() || !clientSecretInput.trim()}
-                  className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                  Enregistrer
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Status feedback */}
         {status && (
           <div className={`flex items-center gap-2 p-3 rounded-md text-sm ${
@@ -219,19 +144,14 @@ export function GoogleDriveSync() {
         {/* Connect / Disconnect */}
         {!connected ? (
           <div className="space-y-2">
-            {(!clientId || !clientSecret) && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                <AlertCircle size={12} /> Configurez d'abord vos identifiants Google ci-dessus.
-              </p>
-            )}
             <button
               onClick={handleConnect}
-              disabled={working === 'connect' || !clientId || !clientSecret}
+              disabled={working === 'connect'}
               className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {working === 'connect'
                 ? <><Loader2 size={15} className="animate-spin" /> Connexion en cours…</>
-                : <><Cloud size={15} /> Connecter Google Drive</>}
+                : <><Cloud size={15} /> Se connecter à Google Drive</>}
             </button>
           </div>
         ) : (
@@ -265,7 +185,7 @@ export function GoogleDriveSync() {
                   Sauvegardes dans Drive
                 </p>
                 <button
-                  onClick={() => fetchFiles(clientId, clientSecret)}
+                  onClick={() => fetchFiles()}
                   className="text-xs text-blue-600 hover:underline"
                 >
                   Actualiser
