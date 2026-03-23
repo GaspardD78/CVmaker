@@ -9,3 +9,7 @@
 /gen/android/app/build/
 /gen/android/build/
 /gen/android/.gradle/
+# Signing secrets - never commit
+/gen/android/keystore.properties
+/*.keystore
+/*.jks
