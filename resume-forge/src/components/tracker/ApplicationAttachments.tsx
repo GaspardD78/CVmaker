@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { AttachmentLabel } from '@/types/application';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
-import { open as openInShell } from '@tauri-apps/plugin-shell';
+import { openPath } from '@tauri-apps/plugin-opener';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
 import { Paperclip, Plus, ExternalLink, Trash2, FileText, FileImage, FileArchive, File } from 'lucide-react';
 import { toast } from 'sonner';
@@ -113,7 +113,7 @@ export function ApplicationAttachments({ applicationId }: ApplicationAttachments
 
   const handleOpen = async (filePath: string, fileName: string) => {
     try {
-      await openInShell(filePath);
+      await openPath(filePath);
     } catch {
       toast.error(`Impossible d'ouvrir "${fileName}"`);
     }

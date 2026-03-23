@@ -1,4 +1,4 @@
-import { open } from '@tauri-apps/plugin-shell';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { EventType } from '@/types/application';
 
 function formatGCalDate(date: Date): string {
@@ -73,5 +73,5 @@ export function buildEventGoogleCalendarUrl(
 }
 
 export async function openInGoogleCalendar(url: string): Promise<void> {
-  await open(url);
+  await openUrl(url);
 }

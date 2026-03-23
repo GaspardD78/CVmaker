@@ -743,3 +743,189 @@ Avant de considérer la V1 comme "terminée" :
 - [ ] Le drag-and-drop fonctionne sans bugs visuels
 - [ ] Les migrations SQL s'exécutent sans erreur sur une base vide ET sur une base existante
 - [ ] L'app fonctionne sur Windows, macOS et Linux (tester le build sur chaque OS)
+
+---
+
+## Support Android (v1.1)
+
+### Principe
+
+Tauri 2 supporte nativement Android via le même codebase React/Rust. Le frontend est un WebView Android standard ; le backend Rust est compilé en bibliothèque native (`.so`) via NDK.
+
+### Prérequis supplémentaires
+
+- Android Studio + NDK
+- Cibles Rust cross-compilation :
+  ```bash
+  rustup target add aarch64-linux-android armv7-linux-androideabi \
+    i686-linux-android x86_64-linux-android
+  ```
+- Variables d'environnement :
+  ```bash
+  export ANDROID_HOME=$HOME/Android/Sdk
+  export NDK_HOME=$ANDROID_HOME/ndk/$(ls $ANDROID_HOME/ndk)
+  ```
+
+### Commandes
+
+```bash
+npm run tauri android init   # Génère src-tauri/gen/android/ (une seule fois)
+npm run tauri android dev    # Lance sur émulateur ou appareil
+npm run tauri android build  # Compile l'APK
+```
+
+### Adaptations apportées
+
+#### `tauri-plugin-shell` non disponible sur Android
+
+Ce plugin n'est pas supporté sur Android. Toutes les ouvertures d'URL et de fichiers ont été migrées vers `tauri-plugin-opener` qui est cross-platform.
+
+**Fichiers modifiés :**
+- `src/lib/googleCalendar.ts` : `open()` → `openUrl()` de `plugin-opener`
+- `src/components/tracker/ApplicationAttachments.tsx` : `openInShell()` → `openPath()`
+- `src/lib/export-pdf.ts` : fallback PDF → `openPath()`
+
+**Rust (`Cargo.toml`) :**
+```toml
+[target.'cfg(not(target_os = "android"))'.dependencies]
+tauri-plugin-shell = "2"
+```
+
+**Rust (`lib.rs`) :**
+```rust
+#[cfg(not(target_os = "android"))]
+{
+    builder = builder.plugin(tauri_plugin_shell::init());
+}
+```
+
+#### Configuration Android (`tauri.conf.json`)
+
+```json
+{
+  "bundle": {
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}
+```
+
+#### Capabilities séparées
+
+| Fichier | Plateformes | Différences |
+|---|---|---|
+| `capabilities/default.json` | linux, windows, macOS | Inclut `shell:default` |
+| `capabilities/mobile.json` | android, iOS | Sans `shell:default`, avec `deep-link:default` |
+
+#### Navigation mobile
+
+`Layout.tsx` : la sidebar desktop est masquée sur mobile (`hidden sm:flex`). Une **barre de navigation fixe en bas** (bottom bar) avec 5 onglets s'affiche à la place (`sm:hidden`).
+
+Le contenu principal reçoit `pb-16 sm:pb-0` pour ne pas être masqué par la barre.
+
+---
+
+## Synchronisation Google Drive (v1.2)
+
+### Objectif
+
+Permettre à l'utilisateur de sauvegarder et restaurer ses données entre son PC et son Android via Google Drive. Les données transitent dans le format `.cvmaker` (JSON) déjà utilisé par le système de backup local.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Flux OAuth2 PKCE                         │
+│                                                             │
+│  Desktop                         Android                    │
+│  ────────                         ───────                   │
+│  1. start_oauth_server (Rust)     1. Deep-link URI          │
+│     → port aléatoire                 com.jules.resume-forge │
+│  2. Ouvre navigateur système      2. Ouvre navigateur       │
+│  3. Google redirige →             3. Google redirige →      │
+│     http://127.0.0.1:PORT/cb         custom URI scheme      │
+│  4. Rust émet                     4. App.tsx détecte        │
+│     "oauth://callback"               onOpenUrl() et         │
+│                                      émet "oauth://callback"│
+│  5. Frontend échange code → tokens (commun)                 │
+│  6. Tokens stockés dans SQLite settings (commun)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Fichier `src/lib/gdrive.ts`
+
+Responsabilités :
+- **PKCE** : génération du verifier + challenge SHA-256 Base64URL
+- **`startOAuthFlow(clientId)`** : détecte desktop vs mobile, lance le bon mécanisme
+- **`waitForOAuthCallback()`** : écoute l'événement Tauri `oauth://callback`, timeout 2 min
+- **`exchangeCode(code, clientId)`** : échange le code contre tokens, persiste dans SQLite
+- **`listDriveBackups(clientId)`** : liste les `.cvmaker` dans le dossier Drive
+- **`uploadToDrive(clientId, json, fileName)`** : upload multipart vers Drive
+- **`downloadFromDrive(clientId, fileId)`** : télécharge le contenu d'un fichier
+
+### Commande Rust `start_oauth_server` (desktop uniquement)
+
+```rust
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+fn start_oauth_server(app: tauri::AppHandle) -> Result<u16, String> {
+    // Bind sur 127.0.0.1:0 (port aléatoire)
+    // Thread qui attend une connexion HTTP
+    // Quand callback reçu → app.emit("oauth://callback", path)
+    // Retourne le port pour construire le redirect_uri
+}
+```
+
+Appel frontend :
+```typescript
+try {
+  const port = await invoke<number>('start_oauth_server');
+  redirectUri = `http://127.0.0.1:${port}/callback`;
+} catch {
+  redirectUri = 'com.jules.resume-forge:/oauth/callback'; // Android
+}
+```
+
+### Deep-link Android (`tauri-plugin-deep-link`)
+
+**`tauri.conf.json` :**
+```json
+{
+  "plugins": {
+    "deep-link": {
+      "desktop": { "schemes": ["com.jules.resume-forge"] },
+      "mobile":  { "schemes": ["com.jules.resume-forge"] }
+    }
+  }
+}
+```
+
+**`App.tsx` :** écoute `onOpenUrl()`, extrait la query string, et émet `oauth://callback` vers le listener de `gdrive.ts`.
+
+### Scope Google Drive
+
+`https://www.googleapis.com/auth/drive.file` — accès uniquement aux fichiers créés par l'application, sans accès au reste du Drive de l'utilisateur.
+
+### Stockage des tokens
+
+Les tokens OAuth2 sont sérialisés en JSON et stockés dans la table `settings` (clé `gdrive_tokens`). Le Client ID de l'utilisateur est stocké sous la clé `gdrive_client_id`. Aucune donnée ne quitte l'appareil en dehors des appels API Google.
+
+### Configuration utilisateur requise
+
+L'utilisateur doit créer son propre projet Google Cloud et enregistrer les URI de redirection :
+- `http://127.0.0.1` (PC — Google accepte tous les ports loopback pour les apps desktop)
+- `com.jules.resume-forge:/oauth/callback` (Android)
+
+---
+
+## Checklist de Qualité — Android & Drive
+
+- [ ] L'APK se compile sans erreur (`npm run tauri android build`)
+- [ ] L'app démarre sur Android 7+ (API 24)
+- [ ] La navigation bottom bar est fonctionnelle sur petit écran
+- [ ] Le drag-and-drop fonctionne avec le tactile (à valider avec @dnd-kit touch sensors)
+- [ ] La synchronisation Drive fonctionne sur PC (serveur local OAuth)
+- [ ] La synchronisation Drive fonctionne sur Android (deep-link OAuth)
+- [ ] Les tokens expirent et se rafraîchissent automatiquement
+- [ ] Une sauvegarde exportée depuis PC est restaurable sur Android (et vice-versa)

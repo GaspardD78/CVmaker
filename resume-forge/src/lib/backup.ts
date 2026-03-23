@@ -72,7 +72,8 @@ export interface BackupData {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export async function exportBackup(selectedModules: ModuleId[]): Promise<void> {
+/** Collect backup data for the given modules without saving to a file. */
+export async function buildBackupData(selectedModules: ModuleId[]): Promise<BackupData> {
   const db = await getDb();
   const modules: BackupData['modules'] = {};
   const counts: BackupData['counts'] = {};
@@ -88,13 +89,17 @@ export async function exportBackup(selectedModules: ModuleId[]): Promise<void> {
     counts[moduleId] = totalRows;
   }
 
-  const backup: BackupData = {
+  return {
     __cvmaker_backup: true,
     version: '1.0',
     exportDate: new Date().toISOString(),
     modules,
     counts,
   };
+}
+
+export async function exportBackup(selectedModules: ModuleId[]): Promise<void> {
+  const backup = await buildBackupData(selectedModules);
 
   const dateSlug = new Date().toISOString().slice(0, 10);
   const savePath = await save({

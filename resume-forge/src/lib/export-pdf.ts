@@ -143,7 +143,7 @@ export async function exportNativePdf(): Promise<boolean> {
     try {
       const { save } = await import('@tauri-apps/plugin-dialog');
       const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-      const { open } = await import('@tauri-apps/plugin-shell');
+      const { openPath } = await import('@tauri-apps/plugin-opener');
 
       const tempPath = await save({
         defaultPath: 'cv_print.html',
@@ -151,7 +151,7 @@ export async function exportNativePdf(): Promise<boolean> {
       });
       if (tempPath) {
         await writeTextFile(tempPath, doc);
-        await open(tempPath);
+        await openPath(tempPath);
       }
     } catch (e) {
       console.error('Export PDF fallback échoué:', e);
