@@ -1,4 +1,5 @@
 use std::sync::OnceLock;
+#[cfg(not(target_os = "android"))]
 use tauri::Emitter;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
