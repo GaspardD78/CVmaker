@@ -21,7 +21,7 @@ import { getSetting, setSetting } from '@/lib/db';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 // Official ResumeForge Google Client ID for the Approved App (OAuth2 PKCE)
-const CLIENT_ID = import.meta.env.VITE_GDRIVE_CLIENT_ID || '1044716768393-27gqj2u0g497b7t5g1u6s9n6k2n5e6c7.apps.googleusercontent.com';
+const CLIENT_ID = import.meta.env.VITE_GDRIVE_CLIENT_ID || '318662236943-ta2c54f7mordbupr7n9dkccnficq0b55.apps.googleusercontent.com';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const MOBILE_REDIRECT = 'com.jules.resume-forge:/oauth/callback';
 const FOLDER_NAME = 'ResumeForge Backups';
