@@ -44,7 +44,7 @@
       },
       "mobile": [
         {
-          "scheme": "com.jules.resume-forge"
+          "scheme": ["com.jules.resume-forge"]
         }
       ]
     }
