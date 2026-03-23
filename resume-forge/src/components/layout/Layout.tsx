@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, Download } from 'lucide-react';
+import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, Download, Menu, X } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 
 const STORAGE_KEY = 'resumeforge_sidebar_collapsed';
@@ -17,12 +17,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
   useTheme(); // Apply theme class on mount
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, String(collapsed)); } catch { /* ignore */ }
   }, [collapsed]);
+
+  // Close drawer on route change
+  useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
   const isActive = (to: string, exact?: boolean) =>
     exact ? location.pathname === to : location.pathname.startsWith(to);
@@ -97,31 +101,57 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* Mobile top header – mobile only */}
+      <header className="sm:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-12 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 print:hidden">
+        <span className="text-base font-bold dark:text-gray-100">ResumeForge</span>
+        <button
+          onClick={() => setDrawerOpen(o => !o)}
+          className="p-1.5 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          aria-label="Menu"
+        >
+          {drawerOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </header>
+
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block pb-16 sm:pb-0">
+      <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block pt-12 sm:pt-0">
         {children}
       </main>
 
-      {/* Bottom navigation bar – mobile only */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 print:hidden">
-        {mobileNavItems.map(({ to, icon: Icon, label, exact }) => {
-          const active = isActive(to, exact);
-          return (
-            <Link
-              key={to}
-              to={to}
-              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs transition-colors ${
-                active
-                  ? 'text-blue-600 dark:text-blue-400'
-                  : 'text-gray-500 dark:text-gray-400'
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="leading-tight">{label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Drawer overlay – mobile only */}
+      {drawerOpen && (
+        <div
+          className="sm:hidden fixed inset-0 z-40 bg-black/40 print:hidden"
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
+      {/* Drawer – mobile only */}
+      <aside
+        className={`sm:hidden fixed top-12 right-0 bottom-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col print:hidden transition-transform duration-200 ${
+          drawerOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <nav className="flex flex-col p-3 space-y-1 flex-1 overflow-y-auto">
+          {mobileNavItems.map(({ to, icon: Icon, label, exact }) => {
+            const active = isActive(to, exact);
+            return (
+              <Link
+                key={to}
+                to={to}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  active
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span>{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
     </div>
   );
 }
