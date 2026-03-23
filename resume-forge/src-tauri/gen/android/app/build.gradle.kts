@@ -54,6 +54,12 @@ android {
             )
         }
     }
+    packaging {
+        jniLibs {
+            excludes += "**/desktop.ini"
+            excludes += "**/*.ini"
+        }
+    }
     kotlinOptions {
         jvmTarget = "1.8"
     }
