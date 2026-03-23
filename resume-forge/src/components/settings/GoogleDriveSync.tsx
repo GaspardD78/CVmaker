@@ -8,7 +8,7 @@ import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
 import {
   startOAuthFlow, waitForOAuthCallback, exchangeCode,
   isConnected, clearTokens, listDriveBackups, uploadToDrive, downloadFromDrive,
-  loadClientId, saveClientId,
+  loadClientId, saveClientId, loadClientSecret, saveClientSecret,
   type DriveFile,
 } from '@/lib/gdrive';
 import { buildBackupData, importBackup, MODULES, type BackupData, type ImportPlan } from '@/lib/backup';
@@ -16,6 +16,8 @@ import { buildBackupData, importBackup, MODULES, type BackupData, type ImportPla
 export function GoogleDriveSync() {
   const [clientId, setClientId] = useState('');
   const [clientIdInput, setClientIdInput] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [clientSecretInput, setClientSecretInput] = useState('');
   const [showClientIdForm, setShowClientIdForm] = useState(false);
   const [connected, setConnected] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
@@ -28,11 +30,11 @@ export function GoogleDriveSync() {
     setConnected(await isConnected());
   }, []);
 
-  const fetchFiles = useCallback(async (id: string) => {
-    if (!id) return;
+  const fetchFiles = useCallback(async (id: string, secret: string) => {
+    if (!id || !secret) return;
     setLoadingFiles(true);
     try {
-      setFiles(await listDriveBackups(id));
+      setFiles(await listDriveBackups(id, secret));
     } catch {
       setConnected(false);
     } finally {
@@ -43,26 +45,31 @@ export function GoogleDriveSync() {
   useEffect(() => {
     (async () => {
       const id = await loadClientId();
+      const secret = await loadClientSecret();
       if (id) { setClientId(id); setClientIdInput(id); }
+      if (secret) { setClientSecret(secret); setClientSecretInput(secret); }
       await checkConnection();
     })();
   }, [checkConnection]);
 
   useEffect(() => {
-    if (connected && clientId) fetchFiles(clientId);
-  }, [connected, clientId, fetchFiles]);
+    if (connected && clientId && clientSecret) fetchFiles(clientId, clientSecret);
+  }, [connected, clientId, clientSecret, fetchFiles]);
 
   const handleSaveClientId = async () => {
-    const trimmed = clientIdInput.trim();
-    if (!trimmed) return;
-    await saveClientId(trimmed);
-    setClientId(trimmed);
+    const trimmedId = clientIdInput.trim();
+    const trimmedSecret = clientSecretInput.trim();
+    if (!trimmedId || !trimmedSecret) return;
+    await saveClientId(trimmedId);
+    await saveClientSecret(trimmedSecret);
+    setClientId(trimmedId);
+    setClientSecret(trimmedSecret);
     setShowClientIdForm(false);
-    toast.success('Client ID enregistré');
+    toast.success('Identifiants enregistrés');
   };
 
   const handleConnect = async () => {
-    if (!clientId) { setShowClientIdForm(true); return; }
+    if (!clientId || !clientSecret) { setShowClientIdForm(true); return; }
     if (working) return;
     setWorking('connect');
     setStatus(null);
@@ -70,9 +77,9 @@ export function GoogleDriveSync() {
       await startOAuthFlow(clientId);
       const code = await waitForOAuthCallback();
       if (!code) throw new Error('Authentification annulée ou délai dépassé.');
-      await exchangeCode(code, clientId);
+      await exchangeCode(code, clientId, clientSecret);
       await checkConnection();
-      await fetchFiles(clientId);
+      await fetchFiles(clientId, clientSecret);
       setStatus({ ok: true, message: 'Connecté à Google Drive !' });
     } catch (e) {
       setStatus({ ok: false, message: e instanceof Error ? e.message : 'Erreur de connexion.' });
@@ -89,15 +96,15 @@ export function GoogleDriveSync() {
   };
 
   const handleUpload = async () => {
-    if (!clientId || working) return;
+    if (!clientId || !clientSecret || working) return;
     setWorking('upload');
     setStatus(null);
     try {
       const backup = await buildBackupData(MODULES.map(m => m.id));
       const json = JSON.stringify(backup, null, 2);
       const date = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', 'h');
-      await uploadToDrive(clientId, json, `resumeforge_backup_${date}.cvmaker`);
-      await fetchFiles(clientId);
+      await uploadToDrive(clientId, clientSecret, json, `resumeforge_backup_${date}.cvmaker`);
+      await fetchFiles(clientId, clientSecret);
       setStatus({ ok: true, message: 'Sauvegarde envoyée vers Google Drive.' });
     } catch (e) {
       setStatus({ ok: false, message: e instanceof Error ? e.message : "Échec de l'envoi." });
@@ -122,7 +129,7 @@ export function GoogleDriveSync() {
 
     setDownloadingId(file.id);
     try {
-      const raw = await downloadFromDrive(clientId, file.id);
+      const raw = await downloadFromDrive(clientId, clientSecret, file.id);
       const backup = JSON.parse(raw) as BackupData;
       if (!backup.__cvmaker_backup) throw new Error('Fichier invalide.');
       const plan: ImportPlan = Object.fromEntries(MODULES.map(m => [m.id, 'merge'])) as ImportPlan;
@@ -155,7 +162,7 @@ export function GoogleDriveSync() {
             className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             <Key size={13} />
-            {clientId ? 'Modifier le Client ID' : 'Configurer le Client ID Google'}
+            {clientId && clientSecret ? 'Modifier les identifiants' : 'Configurer les identifiants Google'}
             {showClientIdForm ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
 
@@ -167,26 +174,27 @@ export function GoogleDriveSync() {
                   <li>Créer un projet sur console.cloud.google.com</li>
                   <li>Activer l'API Google Drive</li>
                   <li>Créer des identifiants OAuth 2.0 → "Application de bureau"</li>
-                  <li>
-                    Ajouter les URIs de redirection autorisées :{' '}
-                    <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">http://127.0.0.1</code>
-                    {' '}(PC) et{' '}
-                    <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">com.jules.resume-forge:/oauth/callback</code>
-                    {' '}(Android)
-                  </li>
+                  <li>Copier le <strong>Client ID</strong> et le <strong>Code secret du client</strong> ci-dessous</li>
                 </ol>
               </div>
+              <input
+                type="text"
+                value={clientIdInput}
+                onChange={e => setClientIdInput(e.target.value)}
+                placeholder="Client ID — 1234567890-xxxx.apps.googleusercontent.com"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none"
+              />
               <div className="flex gap-2">
                 <input
-                  type="text"
-                  value={clientIdInput}
-                  onChange={e => setClientIdInput(e.target.value)}
-                  placeholder="1234567890-xxxx.apps.googleusercontent.com"
+                  type="password"
+                  value={clientSecretInput}
+                  onChange={e => setClientSecretInput(e.target.value)}
+                  placeholder="Code secret du client"
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none"
                 />
                 <button
                   onClick={handleSaveClientId}
-                  disabled={!clientIdInput.trim()}
+                  disabled={!clientIdInput.trim() || !clientSecretInput.trim()}
                   className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   Enregistrer
@@ -211,14 +219,14 @@ export function GoogleDriveSync() {
         {/* Connect / Disconnect */}
         {!connected ? (
           <div className="space-y-2">
-            {!clientId && (
+            {(!clientId || !clientSecret) && (
               <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                <AlertCircle size={12} /> Configurez d'abord votre Client ID Google ci-dessus.
+                <AlertCircle size={12} /> Configurez d'abord vos identifiants Google ci-dessus.
               </p>
             )}
             <button
               onClick={handleConnect}
-              disabled={working === 'connect' || !clientId}
+              disabled={working === 'connect' || !clientId || !clientSecret}
               className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {working === 'connect'
@@ -257,7 +265,7 @@ export function GoogleDriveSync() {
                   Sauvegardes dans Drive
                 </p>
                 <button
-                  onClick={() => fetchFiles(clientId)}
+                  onClick={() => fetchFiles(clientId, clientSecret)}
                   className="text-xs text-blue-600 hover:underline"
                 >
                   Actualiser

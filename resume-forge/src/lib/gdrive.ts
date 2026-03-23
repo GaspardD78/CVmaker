@@ -154,7 +154,7 @@ export function waitForOAuthCallback(timeoutMs = 120_000): Promise<string | null
 }
 
 /** Exchange the auth code for tokens and persist them. */
-export async function exchangeCode(code: string, clientId: string): Promise<void> {
+export async function exchangeCode(code: string, clientId: string, clientSecret: string): Promise<void> {
   const verifier = sessionStorage.getItem('gdrive_verifier') ?? '';
   const redirectUri = sessionStorage.getItem('gdrive_redirect_uri') ?? '';
 
@@ -163,6 +163,7 @@ export async function exchangeCode(code: string, clientId: string): Promise<void
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: clientId,
+      client_secret: clientSecret,
       code,
       code_verifier: verifier,
       grant_type: 'authorization_code',
@@ -184,12 +185,13 @@ export async function exchangeCode(code: string, clientId: string): Promise<void
   sessionStorage.removeItem('gdrive_redirect_uri');
 }
 
-async function refreshAccessToken(clientId: string, tokens: GDriveTokens): Promise<GDriveTokens> {
+async function refreshAccessToken(clientId: string, clientSecret: string, tokens: GDriveTokens): Promise<GDriveTokens> {
   const resp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: clientId,
+      client_secret: clientSecret,
       refresh_token: tokens.refreshToken,
       grant_type: 'refresh_token',
     }),
@@ -210,11 +212,11 @@ async function refreshAccessToken(clientId: string, tokens: GDriveTokens): Promi
   return updated;
 }
 
-async function getValidToken(clientId: string): Promise<string> {
+async function getValidToken(clientId: string, clientSecret: string): Promise<string> {
   const tokens = await loadTokens();
   if (!tokens) throw new Error('Non connecté à Google Drive.');
   if (Date.now() >= tokens.expiresAt) {
-    const refreshed = await refreshAccessToken(clientId, tokens);
+    const refreshed = await refreshAccessToken(clientId, clientSecret, tokens);
     return refreshed.accessToken;
   }
   return tokens.accessToken;
@@ -251,8 +253,8 @@ export interface DriveFile {
   size: string;
 }
 
-export async function listDriveBackups(clientId: string): Promise<DriveFile[]> {
-  const token = await getValidToken(clientId);
+export async function listDriveBackups(clientId: string, clientSecret: string): Promise<DriveFile[]> {
+  const token = await getValidToken(clientId, clientSecret);
   const folderId = await getOrCreateFolder(token);
   const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
   const resp = await fetch(
@@ -265,10 +267,11 @@ export async function listDriveBackups(clientId: string): Promise<DriveFile[]> {
 
 export async function uploadToDrive(
   clientId: string,
+  clientSecret: string,
   jsonContent: string,
   fileName: string
 ): Promise<void> {
-  const token = await getValidToken(clientId);
+  const token = await getValidToken(clientId, clientSecret);
   const folderId = await getOrCreateFolder(token);
 
   const boundary = '-------ResumeForge314159';
@@ -299,8 +302,8 @@ export async function uploadToDrive(
   if (!resp.ok) throw new Error(`Échec de l'envoi : ${await resp.text()}`);
 }
 
-export async function downloadFromDrive(clientId: string, fileId: string): Promise<string> {
-  const token = await getValidToken(clientId);
+export async function downloadFromDrive(clientId: string, clientSecret: string, fileId: string): Promise<string> {
+  const token = await getValidToken(clientId, clientSecret);
   const resp = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
     { headers: { Authorization: `Bearer ${token}` } }
@@ -317,4 +320,14 @@ export async function loadClientId(): Promise<string> {
 /** Save the client ID to settings. */
 export async function saveClientId(id: string): Promise<void> {
   await setSetting('gdrive_client_id', id);
+}
+
+/** Load the stored client secret from settings. */
+export async function loadClientSecret(): Promise<string> {
+  return (await getSetting('gdrive_client_secret')) ?? '';
+}
+
+/** Save the client secret to settings. */
+export async function saveClientSecret(secret: string): Promise<void> {
+  await setSetting('gdrive_client_secret', secret);
 }
