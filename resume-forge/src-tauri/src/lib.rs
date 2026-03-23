@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::sync::OnceLock;
+use tauri::Emitter;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// Resolved database URI, computed once at startup.
