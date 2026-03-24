@@ -2,79 +2,34 @@
  * Exporte le CV en PDF.
  *
  * Stratégie hybride selon la plateforme :
- *  - Android (Tauri WebView) : html2canvas → jsPDF → save via plugin-dialog/plugin-fs
- *    window.open/window.print() étant bloqués dans la WebView Android.
- *  - Desktop (Windows/macOS/Linux) : page HTML autonome ouverte dans une nouvelle
- *    fenêtre et impression native (qualité vectorielle, gestion @page A4).
+ *  - Android (Tauri WebView) : window.print() natif.
+ *    Le CSS @media print dans App.css positionne #printable-cv à 210 mm
+ *    et masque tout le reste. Le dialogue d'impression Android offre
+ *    « Enregistrer en PDF ».
+ *  - Desktop (Windows/macOS/Linux) : page HTML autonome ouverte dans une
+ *    nouvelle fenêtre et impression native (qualité vectorielle).
  */
 
 function isAndroid(): boolean {
   return /android/i.test(navigator.userAgent);
 }
 
-// ─── Chemin Android : html2canvas + jsPDF ────────────────────────────────────
+// ─── Chemin Android : window.print() natif ───────────────────────────────────
 
-async function exportPdfAndroid(): Promise<boolean> {
+function exportPdfAndroid(): boolean {
   const cvNode = document.getElementById('printable-cv');
   if (!cvNode) {
     console.error('exportPdfAndroid: #printable-cv introuvable');
     return false;
   }
 
-  try {
-    const html2canvas = (await import('html2canvas')).default;
-    const { jsPDF } = await import('jspdf');
-
-    // Capture haute résolution du CV rendu (scale:2 ≈ 192 dpi)
-    const canvas = await html2canvas(cvNode, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-    });
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
-
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageW = pdf.internal.pageSize.getWidth();  // 210 mm
-    const pageH = pdf.internal.pageSize.getHeight(); // 297 mm
-
-    // Hauteur de l'image en mm (proportionnelle à la largeur A4)
-    const imgHeightMm = (canvas.height / canvas.width) * pageW;
-
-    if (imgHeightMm <= pageH) {
-      // CV tient sur une seule page
-      pdf.addImage(imgData, 'JPEG', 0, 0, pageW, imgHeightMm);
-    } else {
-      // CV multi-pages : on découpe l'image par tranches de pageH
-      const numPages = Math.ceil(imgHeightMm / pageH);
-      for (let i = 0; i < numPages; i++) {
-        if (i > 0) pdf.addPage();
-        // Décaler l'image vers le haut pour afficher la tranche correcte
-        pdf.addImage(imgData, 'JPEG', 0, -(i * pageH), pageW, imgHeightMm);
-      }
-    }
-
-    const pdfBytes = pdf.output('arraybuffer');
-
-    // Sauvegarder via les plugins Tauri (Storage Access Framework sur Android)
-    const { save } = await import('@tauri-apps/plugin-dialog');
-    const { writeFile } = await import('@tauri-apps/plugin-fs');
-
-    const savePath = await save({
-      defaultPath: 'cv.pdf',
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-    });
-
-    if (savePath) {
-      await writeFile(savePath, new Uint8Array(pdfBytes));
-      return true;
-    }
-    return false;
-  } catch (e) {
-    console.error('exportPdfAndroid: échec', e);
-    return false;
-  }
+  // Le CSS @media print (App.css) gère :
+  //   - body * { visibility: hidden }
+  //   - #printable-cv, #printable-cv * { visibility: visible }
+  //   - #printable-cv { position: fixed; width: 210mm; ... }
+  // Le dialogue d'impression Android inclut « Enregistrer en PDF ».
+  window.print();
+  return true;
 }
 
 // ─── Chemin Desktop : HTML autonome + window.print() ─────────────────────────

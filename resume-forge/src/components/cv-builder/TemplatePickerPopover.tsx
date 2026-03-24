@@ -117,13 +117,20 @@ const TEMPLATE_SVGS: Record<string, () => React.ReactElement> = {
 
 export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplatePickerPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
     if (!isOpen) return;
-    // pointerdown unifie mouse + touch, plus fiable que mousedown sur Android WebView
+    // pointerdown unifie mouse + touch, fiable sur Android WebView
     const handlePointerOutside = (e: PointerEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -131,12 +138,26 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
     return () => document.removeEventListener('pointerdown', handlePointerOutside);
   }, [isOpen]);
 
+  const handleToggle = () => {
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 8,
+        right: Math.max(8, window.innerWidth - rect.right),
+        zIndex: 100,
+      });
+    }
+    setIsOpen(v => !v);
+  };
+
   const currentName = TEMPLATES.find(t => t.id === currentTemplateId)?.name || currentTemplateId;
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div ref={containerRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={buttonRef}
+        onClick={handleToggle}
         className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 px-3 py-2 flex items-center gap-1.5 hover:bg-gray-100 transition-colors min-h-[44px]"
       >
         {currentName}
@@ -144,7 +165,11 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-50">
+        <div
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-3"
+        >
           {/* Grille 2x2 sur mobile, rangée unique sur desktop */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {TEMPLATES.map(template => {

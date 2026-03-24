@@ -37,8 +37,9 @@
     position: fixed;
     top: 0;
     left: 0;
-    /* Compense le zoom pour conserver la largeur pleine page */
-    width: calc(100% / var(--pdf-zoom, 1));
+    /* Largeur A4 fixe — fonctionne sur mobile (viewport étroit) comme sur desktop */
+    width: 210mm !important;
+    max-width: none !important;
     height: auto;
     zoom: var(--pdf-zoom, 1);
     transform-origin: top left;
