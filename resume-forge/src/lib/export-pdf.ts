@@ -84,14 +84,17 @@ async function exportPdfAndroid(): Promise<boolean> {
   // au plugin-opener de partager le fichier via content:// URI.
   const { writeFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
   const { appCacheDir, join } = await import('@tauri-apps/api/path');
-  const { openPath } = await import('@tauri-apps/plugin-opener');
+  const { invoke } = await import('@tauri-apps/api/core');
 
   const filename = 'cv_export.pdf';
   await writeFile(filename, pdfData, { baseDir: BaseDirectory.AppCache });
 
   const cacheDir = await appCacheDir();
   const fullPath = await join(cacheDir, filename);
-  await openPath(fullPath);
+
+  // Custom command qui appelle OpenerExt::open_path depuis Rust,
+  // contournant le bug de sérialisation du bridge IPC → Kotlin.
+  await invoke('open_cached_file', { path: fullPath });
 
   return true;
 }
