@@ -6,20 +6,6 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 /// Resolved database URI, computed once at startup.
 static DB_URI: OnceLock<String> = OnceLock::new();
 
-/// Open a file path using the system viewer.
-///
-/// This custom command bypasses the plugin-opener IPC bridge which has a
-/// serialisation bug on Android (the Kotlin `OpenArgs` class receives a
-/// raw String instead of a JSON object).  Calling `OpenerExt::open_path`
-/// from Rust goes through `run_mobile_plugin` with correct serialisation.
-#[tauri::command]
-fn open_cached_file(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    app.opener()
-        .open_path(&path, None::<&str>)
-        .map_err(|e| e.to_string())
-}
-
 /// Determine the database URI.
 ///
 /// **Portable mode**: if a `.portable` marker file exists next to the
@@ -140,7 +126,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_db_uri,
-            open_cached_file,
             #[cfg(not(target_os = "android"))]
             start_oauth_server,
         ])
