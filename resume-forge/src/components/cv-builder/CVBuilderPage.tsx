@@ -117,14 +117,24 @@ export function CVBuilderPage() {
     }
   };
 
-  const handleExportPdf = async () => {
-    // Sur mobile, basculer sur l'onglet aperçu avant l'export pour s'assurer
-    // que #printable-cv est dans le DOM
+  /** Attend que #printable-cv soit dans le DOM (bascule sur Aperçu si besoin). */
+  const ensurePrintableInDom = async () => {
     if (isMobile && activeTab !== 'preview') {
       setActiveTab('preview');
-      // Laisser React re-render puis lancer l'export
-      await new Promise(r => setTimeout(r, 300));
     }
+    if (document.getElementById('printable-cv')) return;
+    await new Promise<void>((resolve) => {
+      const check = () => {
+        if (document.getElementById('printable-cv')) return resolve();
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+      setTimeout(resolve, 3000); // sécurité
+    });
+  };
+
+  const handleExportPdf = async () => {
+    await ensurePrintableInDom();
     setIsExporting(true);
     try {
       const success = await exportNativePdf();
@@ -155,7 +165,7 @@ export function CVBuilderPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-100 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:block">
       {/* Top Bar */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-2 sm:px-4 py-2 sm:py-3 flex items-center gap-2 overflow-x-auto shadow-sm print:hidden shrink-0">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-2 sm:px-4 py-2 sm:py-3 flex items-center gap-2 shadow-sm print:hidden shrink-0">
         <button
           onClick={() => navigate('/cv')}
           className="text-gray-500 hover:text-gray-900 transition flex items-center shrink-0 min-h-[44px] px-1"
