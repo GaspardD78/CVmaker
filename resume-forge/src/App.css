@@ -7,10 +7,11 @@
   padding-top: env(safe-area-inset-top, 0px);
 }
 .mobile-main-content {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem); /* 3rem = h-12 */
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem); /* 3rem = h-12 header */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem); /* 4rem = bottom nav */
 }
-.mobile-drawer-top {
-  top: calc(env(safe-area-inset-top, 0px) + 3rem);
+.mobile-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @custom-variant dark (&:is(.dark *));

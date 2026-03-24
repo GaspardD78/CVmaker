@@ -71,8 +71,39 @@ function useDeepLinkOAuthForward() {
   }, []);
 }
 
+/**
+ * Sur Android, le bouton physique/gestuel "Retour" appelle history.back().
+ * Si la pile d'historique est vide (on est sur la page d'accueil), la WebView
+ * ferme l'application. On injecte un état gardien pour absorber ce premier
+ * "retour" et garder l'utilisateur dans l'app — pattern "double back to exit".
+ */
+function useAndroidBackGuard() {
+  useEffect(() => {
+    if (!/android/i.test(navigator.userAgent)) return;
+
+    // Ajoute une entrée supplémentaire dans l'historique du navigateur.
+    // Quand back est pressé depuis la racine, on revient à cet état au lieu
+    // de fermer l'app. React Router ne réagit pas (même URL), l'app reste.
+    if (!window.history.state?.androidGuardian) {
+      window.history.pushState({ androidGuardian: true }, '');
+    }
+
+    const onPopState = (e: PopStateEvent) => {
+      // L'utilisateur vient de consommer l'entrée gardienne → on la remet
+      // pour absorber le prochain "retour" depuis la racine.
+      if (e.state?.androidGuardian) {
+        window.history.pushState({ androidGuardian: true }, '');
+      }
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+}
+
 function App() {
   useDeepLinkOAuthForward();
+  useAndroidBackGuard();
 
   return (
     <ErrorBoundary>

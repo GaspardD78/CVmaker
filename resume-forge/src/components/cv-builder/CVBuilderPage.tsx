@@ -4,7 +4,7 @@ import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
-import { ArrowLeft, Download, FileText, Maximize2, Minimize2, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Loader2, Check } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
 import { exportNativePdf } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
@@ -23,10 +23,23 @@ export function CVBuilderPage() {
   const { currentCv, currentCvBlocks, fetchCvById, fetchCvBlocks, updateCv } = useCvStore();
   const { profile, entries, fetchProfile } = useProfileStore();
   const [isExporting, setIsExporting] = useState(false);
-  const [isFocusMode, setIsFocusMode] = useState(false);
   const { status: saveStatus, notifySave } = useSaveIndicator();
 
-  // Splitter state
+  // Onglet actif sur mobile : 'edit' | 'preview'
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+
+  // Détection mobile via matchMedia (évite d'appliquer panelWidth sur petit écran)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handle = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handle);
+    return () => mq.removeEventListener('change', handle);
+  }, []);
+
+  // Splitter state (desktop uniquement)
   const [panelWidth, setPanelWidth] = useState(() => {
     try {
       const saved = localStorage.getItem(PANEL_WIDTH_KEY);
@@ -105,6 +118,13 @@ export function CVBuilderPage() {
   };
 
   const handleExportPdf = async () => {
+    // Sur mobile, basculer sur l'onglet aperçu avant l'export pour s'assurer
+    // que #printable-cv est dans le DOM
+    if (isMobile && activeTab !== 'preview') {
+      setActiveTab('preview');
+      // Laisser React re-render puis lancer l'export
+      await new Promise(r => setTimeout(r, 300));
+    }
     setIsExporting(true);
     try {
       const success = await exportNativePdf();
@@ -120,10 +140,7 @@ export function CVBuilderPage() {
 
   const handleTemplateChange = async (newTemplateId: string) => {
     if (!currentCv) return;
-
-    // Optimistic UI update
     useCvStore.setState({ currentCv: { ...currentCv, templateId: newTemplateId } });
-
     await updateCv(currentCv.id, { templateId: newTemplateId });
   };
 
@@ -131,13 +148,17 @@ export function CVBuilderPage() {
     return <div className="p-8 text-center text-gray-500">Chargement du CV...</div>;
   }
 
+  // Visibilité des panneaux selon le contexte (mobile = onglets, desktop = split)
+  const showLeftPanel = !isMobile || activeTab === 'edit';
+  const showRightPanel = isMobile ? activeTab === 'preview' : true;
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-100 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:block">
       {/* Top Bar */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-2 sm:px-4 py-2 sm:py-3 flex items-center gap-2 overflow-x-auto shadow-sm print:hidden shrink-0">
         <button
           onClick={() => navigate('/cv')}
-          className="text-gray-500 hover:text-gray-900 transition flex items-center shrink-0"
+          className="text-gray-500 hover:text-gray-900 transition flex items-center shrink-0 min-h-[44px] px-1"
         >
           <ArrowLeft className="w-5 h-5 mr-1" />
           <span className="hidden sm:inline">Retour</span>
@@ -158,18 +179,6 @@ export function CVBuilderPage() {
           </span>
         )}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          <button
-            onClick={() => setIsFocusMode(!isFocusMode)}
-            className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-md font-medium transition flex items-center shadow-sm text-sm ${
-              isFocusMode
-                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-            title={isFocusMode ? 'Afficher le panneau' : 'Mode focus'}
-          >
-            {isFocusMode ? <Minimize2 className="w-4 h-4 sm:mr-1" /> : <Maximize2 className="w-4 h-4 sm:mr-1" />}
-            <span className="hidden sm:inline">{isFocusMode ? 'Panneau' : 'Focus'}</span>
-          </button>
           <TemplatePickerPopover
             currentTemplateId={currentCv.templateId}
             onSelect={handleTemplateChange}
@@ -177,7 +186,7 @@ export function CVBuilderPage() {
           <button
             onClick={handleExportDocx}
             disabled={isExporting}
-            className="bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-blue-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm"
+            className="bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-blue-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm min-h-[44px]"
           >
             <FileText className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter DOCX'}</span>
@@ -185,7 +194,7 @@ export function CVBuilderPage() {
           <button
             onClick={handleExportPdf}
             disabled={isExporting}
-            className="bg-gray-800 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm"
+            className="bg-gray-800 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm min-h-[44px]"
           >
             <Download className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter PDF'}</span>
@@ -193,31 +202,59 @@ export function CVBuilderPage() {
         </div>
       </div>
 
-      {/* Main Builder Area */}
+      {/* Onglets mobile — masqués sur desktop */}
+      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 print:hidden shrink-0">
+        <button
+          onClick={() => setActiveTab('edit')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
+            activeTab === 'edit'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+          }`}
+        >
+          Éditer
+        </button>
+        <button
+          onClick={() => setActiveTab('preview')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
+            activeTab === 'preview'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+          }`}
+        >
+          Aperçu
+        </button>
+      </div>
+
+      {/* Zone principale */}
       <div className="flex flex-1 overflow-hidden print:overflow-visible print:block print:h-auto">
-        {/* Left Panel - Editing (hidden in focus mode) */}
-        {!isFocusMode && (
+        {/* Panneau gauche – édition */}
+        {showLeftPanel && (
           <>
             <div
-              style={{ width: panelWidth }}
-              className="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
+              style={!isMobile ? { width: panelWidth } : undefined}
+              className="w-full sm:w-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
             >
               <LeftPanel cvId={id!} />
             </div>
-            {/* Draggable splitter */}
-            <div
-              onMouseDown={handleSplitterMouseDown}
-              className="w-1 hover:w-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
-            />
+            {/* Splitter draggable — desktop uniquement */}
+            {!isMobile && (
+              <div
+                onMouseDown={handleSplitterMouseDown}
+                className="w-1 hover:w-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
+              />
+            )}
           </>
         )}
 
-        {/* Right Panel - Preview */}
-        <div className={`flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-2 sm:p-8 sm:flex sm:justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto ${isFocusMode ? 'max-w-none' : ''}`}>
-          <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
-            <RightPanel />
+        {/* Panneau droit – aperçu */}
+        {showRightPanel && (
+          <div className="flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-2 sm:p-8 sm:flex sm:justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto">
+            <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
+              <RightPanel />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

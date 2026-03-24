@@ -132,26 +132,26 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-between items-center sticky top-0 z-10">
+      <div className="p-4 sm:p-6 pb-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-wrap gap-3 justify-between items-center sticky top-0 z-10">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord</h1>
           <p className="text-gray-500 text-sm mt-1">
             Bienvenue ! Voici l'état de vos recherches.
           </p>
         </div>
-        <div className="flex gap-3">
-          <Link to="/cv" className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors font-medium flex items-center gap-2">
+        <div className="flex gap-2 sm:gap-3">
+          <Link to="/cv" className="min-h-[44px] px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors font-medium flex items-center gap-2 text-sm">
             <FileText size={16} />
             Mes CV
           </Link>
-          <Link to="/tracker" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center gap-2">
+          <Link to="/tracker" className="min-h-[44px] px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 text-sm">
             <Briefcase size={16} />
             Suivi
           </Link>
         </div>
       </div>
 
-      <div className="p-6 space-y-6 flex-1 bg-gray-50 dark:bg-gray-900">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 flex-1 bg-gray-50 dark:bg-gray-900">
 
         {/* À traiter aujourd'hui */}
         {stats.todayItems.length > 0 && (
@@ -180,44 +180,44 @@ export function Dashboard() {
         )}
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
-              <p className="text-gray-500 text-sm font-medium mb-1">Candidatures actives</p>
-              <h3 className="text-3xl font-bold text-gray-900">{stats.activeCount}</h3>
+              <p className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Candidatures actives</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.activeCount}</h3>
             </div>
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-              <Briefcase size={24} />
+            <div className="p-2 sm:p-3 bg-blue-50 text-blue-600 rounded-lg">
+              <Briefcase size={20} />
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
-              <p className="text-gray-500 text-sm font-medium mb-1">Ce mois-ci</p>
-              <h3 className="text-3xl font-bold text-gray-900">{stats.recentCount}</h3>
+              <p className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Ce mois-ci</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.recentCount}</h3>
             </div>
-            <div className="p-3 bg-green-50 text-green-600 rounded-lg">
-              <TrendingUp size={24} />
+            <div className="p-2 sm:p-3 bg-green-50 text-green-600 rounded-lg">
+              <TrendingUp size={20} />
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
-              <p className="text-gray-500 text-sm font-medium mb-1">Taux de réponse</p>
-              <h3 className="text-3xl font-bold text-gray-900">{stats.responseRate}%</h3>
+              <p className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Taux de réponse</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.responseRate}%</h3>
             </div>
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
-              <FileText size={24} />
+            <div className="p-2 sm:p-3 bg-purple-50 text-purple-600 rounded-lg">
+              <FileText size={20} />
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
+          <div className="bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-start justify-between">
             <div>
-              <p className="text-gray-500 text-sm font-medium mb-1">Entretiens en cours</p>
-              <h3 className="text-3xl font-bold text-gray-900">{stats.interviewsCount}</h3>
+              <p className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Entretiens en cours</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.interviewsCount}</h3>
             </div>
-            <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
-              <CalendarIcon size={24} />
+            <div className="p-2 sm:p-3 bg-orange-50 text-orange-600 rounded-lg">
+              <CalendarIcon size={20} />
             </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ export function Dashboard() {
               <Briefcase size={20} className="text-purple-500" />
               Répartition par source
             </h3>
-            <div className="h-64">
+            <div className="h-48 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -269,7 +269,7 @@ export function Dashboard() {
               <TrendingUp size={20} className="text-blue-500" />
               Activité des 4 dernières semaines
             </h3>
-            <div className="h-64">
+            <div className="h-48 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
