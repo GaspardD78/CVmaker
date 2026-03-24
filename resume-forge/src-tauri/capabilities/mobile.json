@@ -9,7 +9,13 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "$APPCACHE/**" },
+        { "path": "$APPDATA/**" }
+      ]
+    },
     "deep-link:default",
     "sql:default",
     "fs:default",
