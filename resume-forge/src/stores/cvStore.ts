@@ -306,11 +306,6 @@ export const useCvStore = create<CVState>((set, get) => ({
         );
       }
 
-      const currentBlocks = get().currentCvBlocks;
-      const block = currentBlocks.find(b => b.id === id);
-      if(block) {
-          await get().fetchCvBlocks(block.cvId);
-      }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to update block' });
     }
