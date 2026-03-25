@@ -156,15 +156,15 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   }),
 
   updateEntry: (id, entryUpdates) => enqueueWrite(async () => {
-    const SECTION_LABELS: Record<string, string> = {
-      experience: 'Expériences Professionnelles',
-      education: 'Formations',
-      skill: 'Compétences',
-      certification: 'Certifications',
-      language: 'Langues',
-      project: 'Projets',
-      interest: 'Centres d\'intérêt',
-      volunteer: 'Bénévolat',
+    const SECTION_LABELS: Record<string, string[]> = {
+      experience: ['Expériences Professionnelles', 'Expérience professionnelle', 'Expériences'],
+      education: ['Formations', 'Formation', 'Éducation'],
+      skill: ['Compétences', 'Compétence', 'Skills'],
+      certification: ['Certifications', 'Certification'],
+      language: ['Langues', 'Langue', 'Languages'],
+      project: ['Projets', 'Projet', 'Projects'],
+      interest: ['Centres d\'intérêt', 'Centres d’intérêt', 'Loisirs', 'Intérêts'],
+      volunteer: ['Bénévolat', 'Engagement associatif'],
     };
 
     try {
@@ -204,12 +204,16 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           );
 
           // Find target section header for the new type (by name match)
-          const defaultLabel = SECTION_LABELS[newType as string] ?? null;
+          const possibleLabels = SECTION_LABELS[newType as string] || [];
+          const defaultLabel = possibleLabels.length > 0 ? possibleLabels[0] : null;
           let targetSectionIdx = -1;
           for (let k = 0; k < allBlocks.length; k++) {
             const b = allBlocks[k];
             if (b.block_type !== 'section_header') continue;
-            if (b.section_name === defaultLabel) {
+
+            // Compare case insensitive to find matching section
+            const bName = (b.section_name || '').toLowerCase();
+            if (possibleLabels.some(l => bName === l.toLowerCase() || bName.includes(l.toLowerCase()))) {
               targetSectionIdx = k;
               break;
             }
@@ -222,10 +226,22 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
               `INSERT INTO cv_blocks (cv_id, entry_id, block_type, section_name, custom_content, sort_order, is_visible, override_data) VALUES (?1, NULL, 'section_header', ?2, NULL, ?3, 1, '{}')`,
               [cvId, defaultLabel, maxSortOrder + 1]
             );
-            await db.execute(
-              'UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2',
-              [maxSortOrder + 2, entryBlock.id]
-            );
+
+            // We need to move the entry block to the end as well
+            const blockCurrentIdx = allBlocks.findIndex(b => b.id === entryBlock.id);
+            if (blockCurrentIdx !== -1) {
+                const reordered = allBlocks.filter(b => b.id !== entryBlock.id);
+                reordered.push(allBlocks[blockCurrentIdx]); // Move to end
+
+                for (let k = 0; k < reordered.length; k++) {
+                  await db.execute('UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2', [k, reordered[k].id]);
+                }
+            } else {
+                await db.execute(
+                  'UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2',
+                  [maxSortOrder + 2, entryBlock.id]
+                );
+            }
           } else {
             // Find the last entry_ref in the target section
             let insertAfterIdx = targetSectionIdx;

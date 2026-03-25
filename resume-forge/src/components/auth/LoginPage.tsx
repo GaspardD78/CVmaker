@@ -1,6 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { useProfileStore } from '@/stores/profileStore';
 import { Profile } from '@/types/profile';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase } from '@/lib/mapping';
