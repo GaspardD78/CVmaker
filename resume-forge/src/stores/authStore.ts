@@ -38,6 +38,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.setItem(STORAGE_KEY, profileId);
       localStorage.removeItem(LOGOUT_FLAG_KEY);
     } catch { /* ignore */ }
+    // Reset all stores so the new user starts with clean state
+    Promise.all([
+      import('@/stores/profileStore').then(m => m.useProfileStore.getState().reset()),
+      import('@/stores/cvStore').then(m => m.useCvStore.getState().reset()),
+      import('@/stores/applicationStore').then(m => m.useApplicationStore.getState().reset()),
+    ]).catch(() => {});
     set({ currentUserId: profileId, isAuthenticated: true, hasExplicitlyLoggedOut: false });
   },
 
@@ -46,6 +52,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem(STORAGE_KEY);
       localStorage.setItem(LOGOUT_FLAG_KEY, 'true');
     } catch { /* ignore */ }
+    // Clear all stores on logout
+    Promise.all([
+      import('@/stores/profileStore').then(m => m.useProfileStore.getState().reset()),
+      import('@/stores/cvStore').then(m => m.useCvStore.getState().reset()),
+      import('@/stores/applicationStore').then(m => m.useApplicationStore.getState().reset()),
+    ]).catch(() => {});
     set({ currentUserId: null, isAuthenticated: false, hasExplicitlyLoggedOut: true });
   },
 }));

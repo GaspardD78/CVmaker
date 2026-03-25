@@ -26,6 +26,7 @@ interface CVState {
   currentCvBlocks: CVBlock[];
   isLoading: boolean;
   error: string | null;
+  reset: () => void;
   fetchCvs: () => Promise<void>;
   fetchCvById: (id: string) => Promise<void>;
   fetchCvBlocks: (cvId: string) => Promise<void>;
@@ -43,6 +44,7 @@ export const useCvStore = create<CVState>((set, get) => ({
   cvs: [],
   currentCv: null,
   currentCvBlocks: [],
+  reset: () => set({ cvs: [], currentCv: null, currentCvBlocks: [], isLoading: false, error: null }),
   isLoading: false,
   error: null,
 
