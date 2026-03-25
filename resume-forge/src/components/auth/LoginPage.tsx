@@ -7,7 +7,7 @@ import { keysToCamelCase } from '@/lib/mapping';
 import { User, Plus } from 'lucide-react';
 
 export function LoginPage() {
-  const { login } = useAuthStore();
+  const { login, hasExplicitlyLoggedOut } = useAuthStore();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -26,8 +26,8 @@ export function LoginPage() {
       const allProfiles = rawProfiles.map(p => keysToCamelCase<Profile>(p));
       setProfiles(allProfiles);
 
-      // Auto-login if there's exactly one profile and no explicit logout
-      if (allProfiles.length === 1) {
+      // Auto-login if there's exactly one profile and user didn't explicitly log out
+      if (allProfiles.length === 1 && !hasExplicitlyLoggedOut) {
         login(allProfiles[0].id);
         return;
       }
