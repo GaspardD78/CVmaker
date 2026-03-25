@@ -41,7 +41,7 @@ export function CVEntryBlock({ block, entry, template }: CVEntryBlockProps) {
             </span>
           )}
         </div>
-        {(entryData.startDate || entryData.endDate || entryData.isCurrent) && (
+        {!!(entryData.startDate || entryData.endDate || entryData.isCurrent) && (
           <span className={`cv-date ${template.preview.dateClass}`}>
             {entryData.startDate ? fmtDate(entryData.startDate) : ''}
             {entryData.startDate && (entryData.endDate || entryData.isCurrent) ? ' - ' : ''}

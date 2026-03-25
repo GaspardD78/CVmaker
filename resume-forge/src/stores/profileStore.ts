@@ -4,12 +4,24 @@ import { getDb } from '@/lib/db';
 import { keysToCamelCase, keysToSnakeCase } from '@/lib/mapping';
 import { filterAllowedColumns } from '@/lib/validation';
 
+/**
+ * Serializes all DB write operations to prevent concurrent SQLite writes.
+ * Same pattern as cvStore to avoid "database is locked" errors.
+ */
+let writeQueue: Promise<unknown> = Promise.resolve();
+function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+  const task = writeQueue.then(() => fn(), () => fn());
+  writeQueue = task.then(() => {}, () => {});
+  return task as Promise<T>;
+}
+
 interface ProfileState {
   profile: Profile | null;
   entries: MasterEntry[];
   isLoading: boolean;
   error: string | null;
-  fetchProfile: () => Promise<void>;
+  fetchProfile: (profileId?: string) => Promise<void>;
+  fetchAllProfiles: () => Promise<Profile[]>;
   updateProfile: (profile: Partial<Profile>) => Promise<void>;
   addEntry: (entry: Omit<MasterEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateEntry: (id: string, entry: Partial<MasterEntry>) => Promise<void>;
@@ -22,27 +34,38 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchProfile: async () => {
+  fetchProfile: async (profileId?: string) => {
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      let rawProfiles = await db.select<Record<string, unknown>[]>('SELECT * FROM profiles LIMIT 1');
+
+      // If a specific profileId is provided, use it; otherwise try authStore or fallback to LIMIT 1
+      let rawProfiles: Record<string, unknown>[];
+      if (profileId) {
+        rawProfiles = await db.select<Record<string, unknown>[]>('SELECT * FROM profiles WHERE id = ?1', [profileId]);
+      } else {
+        // Try to get currentUserId from authStore (lazy import to avoid circular deps)
+        const { useAuthStore } = await import('@/stores/authStore');
+        const currentUserId = useAuthStore.getState().currentUserId;
+        if (currentUserId) {
+          rawProfiles = await db.select<Record<string, unknown>[]>('SELECT * FROM profiles WHERE id = ?1', [currentUserId]);
+        } else {
+          rawProfiles = await db.select<Record<string, unknown>[]>('SELECT * FROM profiles LIMIT 1');
+        }
+      }
 
       if (rawProfiles.length === 0) {
-        // Remove automatic creation of default user here. Handle it in UI.
         set({ profile: null, entries: [] });
         return;
       }
 
-      if (rawProfiles.length > 0) {
-        const rawProfile = rawProfiles[0];
-        const profile = keysToCamelCase<Profile>(rawProfile);
+      const rawProfile = rawProfiles[0];
+      const profile = keysToCamelCase<Profile>(rawProfile);
 
-        const rawEntries = await db.select<Record<string, unknown>[]>('SELECT * FROM master_entries WHERE profile_id = ?1 ORDER BY sort_order ASC', [rawProfile.id as string]);
-        const entries = rawEntries.map(e => keysToCamelCase<MasterEntry>(e));
+      const rawEntries = await db.select<Record<string, unknown>[]>('SELECT * FROM master_entries WHERE profile_id = ?1 ORDER BY sort_order ASC', [rawProfile.id as string]);
+      const entries = rawEntries.map(e => keysToCamelCase<MasterEntry>(e));
 
-        set({ profile, entries });
-      }
+      set({ profile, entries });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to fetch profile' });
     } finally {
@@ -50,7 +73,17 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
-  updateProfile: async (updates) => {
+  fetchAllProfiles: async () => {
+    try {
+      const db = await getDb();
+      const rawProfiles = await db.select<Record<string, unknown>[]>('SELECT * FROM profiles ORDER BY first_name ASC');
+      return rawProfiles.map(p => keysToCamelCase<Profile>(p));
+    } catch {
+      return [];
+    }
+  },
+
+  updateProfile: (updates) => enqueueWrite(async () => {
     const current = get().profile;
 
     try {
@@ -93,9 +126,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       set({ error: errorMessage });
       throw err;
     }
-  },
+  }),
 
-  addEntry: async (entry) => {
+  addEntry: (entry) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       const snakeEntry = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entry));
@@ -117,9 +150,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       set({ error: message });
       throw err;
     }
-  },
+  }),
 
-  updateEntry: async (id, entryUpdates) => {
+  updateEntry: (id, entryUpdates) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entryUpdates));
@@ -133,15 +166,23 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           [...values, id]
         );
       }
+
+      // Optimistic local update before re-fetching
+      set(state => ({
+        entries: state.entries.map(e =>
+          e.id === id ? { ...e, ...entryUpdates } : e
+        )
+      }));
+
       await get().fetchProfile();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update entry';
       set({ error: message });
       throw err;
     }
-  },
+  }),
 
-  deleteEntry: async (id) => {
+  deleteEntry: (id) => enqueueWrite(async () => {
     try {
       const db = await getDb();
       await db.execute('DELETE FROM master_entries WHERE id = ?1', [id]);
@@ -153,5 +194,5 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       set({ error: message });
       throw err;
     }
-  },
+  }),
 }));

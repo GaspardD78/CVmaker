@@ -49,6 +49,24 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
           <input type="hidden" name="startDate" value="" />
           <input type="hidden" name="endDate" value="" />
         </>
+      ) : selectedType === 'language' ? (
+        <>
+          <div>
+            <Label>Langue *</Label>
+            <Input name="title" type="text" className="mt-1" defaultValue={entryToEdit?.title || ''} required placeholder="Ex: Anglais, Espagnol..." />
+          </div>
+          <div>
+            <Label>Niveau (Optionnel)</Label>
+            <Input name="subtitle" type="text" className="mt-1" defaultValue={entryToEdit?.subtitle || ''} placeholder="Ex: B2, Courant, Natif..." />
+          </div>
+          <div className="col-span-2">
+            <Label>Description / Détails (Optionnel)</Label>
+            <textarea name="description" className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm" rows={2} defaultValue={entryToEdit?.description || ''} placeholder="Ex: TOEIC 950, usage quotidien en contexte professionnel..."></textarea>
+          </div>
+          <input type="hidden" name="location" value="" />
+          <input type="hidden" name="startDate" value="" />
+          <input type="hidden" name="endDate" value="" />
+        </>
       ) : selectedType === 'education' ? (
         <>
           <div>
