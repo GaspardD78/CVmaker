@@ -26,7 +26,11 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
   const { reorderCvBlocks } = useCvStore();
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -35,9 +39,11 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (active.id !== over?.id) {
+    if (!over) return;
+
+    if (active.id !== over.id) {
       const oldIndex = blocks.findIndex((item) => item.id === active.id);
-      const newIndex = blocks.findIndex((item) => item.id === over?.id);
+      const newIndex = blocks.findIndex((item) => item.id === over.id);
 
       const draggedBlock = blocks[oldIndex];
       let newArray: CVBlock[];
