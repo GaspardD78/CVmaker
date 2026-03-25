@@ -138,14 +138,14 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       h3Rules ? `#printable-cv h3 { ${h3Rules} }` : '',
       headerFontFamily   ? `#printable-cv h3 { font-family: ${headerFontFamily} !important; }` : '',
       fontSize !== '11px'
-        ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${fontSize} !important; }`
+        ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc, #printable-cv .cv-badge-item { font-size: ${fontSize} !important; }`
         : '',
       subtitleFontFamily ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-family: ${subtitleFontFamily} !important; }` : '',
       subtitleFontSize   ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-size: ${subtitleFontSize} !important; }` : '',
       subtitleFontStyle  ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-style: ${subtitleFontStyle} !important; }` : '',
       subtitleFontWeight ? `#printable-cv .cv-title, #printable-cv .cv-subtitle, #printable-cv .cv-date { font-weight: ${subtitleFontWeight} !important; }` : '',
       bodyFontFamily     ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-family: ${bodyFontFamily} !important; }` : '',
-      bodyFontSize       ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc { font-size: ${bodyFontSize} !important; }` : '',
+      bodyFontSize       ? `#printable-cv p, #printable-cv li, #printable-cv .cv-desc, #printable-cv .cv-badge-item { font-size: ${bodyFontSize} !important; }` : '',
       bodyTextAlign      ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { text-align: ${bodyTextAlign} !important; }` : '',
       bodyLineHeight     ? `#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: ${bodyLineHeight} !important; }` : '',
       entrySpacing       ? `#printable-cv .cv-entry { margin-bottom: ${entrySpacing} !important; }` : '',

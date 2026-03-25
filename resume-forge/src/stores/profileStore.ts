@@ -156,8 +156,25 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   }),
 
   updateEntry: (id, entryUpdates) => enqueueWrite(async () => {
+    const SECTION_LABELS: Record<string, string> = {
+      experience: 'Expériences Professionnelles',
+      education: 'Formations',
+      skill: 'Compétences',
+      certification: 'Certifications',
+      language: 'Langues',
+      project: 'Projets',
+      interest: 'Centres d\'intérêt',
+      volunteer: 'Bénévolat',
+    };
+
     try {
       const db = await getDb();
+
+      // Detect entry type change before writing
+      const currentEntry = get().entries.find(e => e.id === id);
+      const newType = entryUpdates.entryType;
+      const typeIsChanging = !!newType && !!currentEntry && newType !== currentEntry.entryType;
+
       const snakeUpdates = filterAllowedColumns('master_entries', keysToSnakeCase<Record<string, unknown>>(entryUpdates));
       const keys = Object.keys(snakeUpdates);
       const values = [...Object.values(snakeUpdates)];
@@ -168,6 +185,79 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           `UPDATE master_entries SET ${setString}, updated_at = datetime('now') WHERE id = ?${keys.length + 1}`,
           [...values, id]
         );
+      }
+
+      // If entry type changed, move the entry_ref blocks to the correct section in each CV
+      if (typeIsChanging && newType) {
+        const affectedBlocks = await db.select<{ id: string; cv_id: string }[]>(
+          'SELECT id, cv_id FROM cv_blocks WHERE entry_id = ?1',
+          [id]
+        );
+
+        for (const entryBlock of affectedBlocks) {
+          const cvId = entryBlock.cv_id;
+
+          type RawBlock = { id: string; block_type: string; section_name: string | null; sort_order: number; override_data: string };
+          const allBlocks = await db.select<RawBlock[]>(
+            'SELECT id, block_type, section_name, sort_order, override_data FROM cv_blocks WHERE cv_id = ?1 ORDER BY sort_order ASC',
+            [cvId]
+          );
+
+          // Find target section header for the new type (by name match)
+          const defaultLabel = SECTION_LABELS[newType as string] ?? null;
+          let targetSectionIdx = -1;
+          for (let k = 0; k < allBlocks.length; k++) {
+            const b = allBlocks[k];
+            if (b.block_type !== 'section_header') continue;
+            if (b.section_name === defaultLabel) {
+              targetSectionIdx = k;
+              break;
+            }
+          }
+
+          if (targetSectionIdx === -1) {
+            // No matching section — create one at the end of the CV
+            const maxSortOrder = allBlocks.length > 0 ? allBlocks[allBlocks.length - 1].sort_order : -1;
+            await db.execute(
+              `INSERT INTO cv_blocks (cv_id, entry_id, block_type, section_name, custom_content, sort_order, is_visible, override_data) VALUES (?1, NULL, 'section_header', ?2, NULL, ?3, 1, '{}')`,
+              [cvId, defaultLabel, maxSortOrder + 1]
+            );
+            await db.execute(
+              'UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2',
+              [maxSortOrder + 2, entryBlock.id]
+            );
+          } else {
+            // Find the last entry_ref in the target section
+            let insertAfterIdx = targetSectionIdx;
+            for (let k = targetSectionIdx + 1; k < allBlocks.length; k++) {
+              if (allBlocks[k].block_type === 'section_header') break;
+              insertAfterIdx = k;
+            }
+
+            const blockCurrentIdx = allBlocks.findIndex(b => b.id === entryBlock.id);
+            if (blockCurrentIdx === insertAfterIdx + 1 || blockCurrentIdx === insertAfterIdx) continue;
+
+            // Rebuild sort_order: remove from current position, insert after target section's last entry
+            const reordered = allBlocks.filter(b => b.id !== entryBlock.id);
+            const adjustedInsert = blockCurrentIdx < insertAfterIdx ? insertAfterIdx - 1 : insertAfterIdx;
+            reordered.splice(adjustedInsert + 1, 0, allBlocks[blockCurrentIdx]);
+
+            for (let k = 0; k < reordered.length; k++) {
+              await db.execute('UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2', [k, reordered[k].id]);
+            }
+          }
+        }
+
+        // Refresh currently open CV blocks so the builder reflects the change immediately
+        try {
+          const { useCvStore } = await import('@/stores/cvStore');
+          const currentCv = useCvStore.getState().currentCv;
+          if (currentCv) {
+            await useCvStore.getState().fetchCvBlocks(currentCv.id);
+          }
+        } catch {
+          // Non-critical — the builder will refresh on next load
+        }
       }
 
       // Optimistic local update before re-fetching

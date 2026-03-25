@@ -88,7 +88,7 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
     return (
       <div className="grid grid-cols-2 gap-x-4">
         {labels.map((label, i) => (
-          <div key={i} className={`flex items-baseline ${itemClass}`}>
+          <div key={i} className={`flex items-baseline cv-badge-item ${itemClass}`}>
             <span className="mr-1.5 text-gray-400 select-none">•</span>{label}
           </div>
         ))}
@@ -100,7 +100,7 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
     return (
       <div className="grid grid-cols-3 gap-x-3">
         {labels.map((label, i) => (
-          <div key={i} className={`flex items-baseline ${itemClass}`}>
+          <div key={i} className={`flex items-baseline cv-badge-item ${itemClass}`}>
             <span className="mr-1.5 text-gray-400 select-none">•</span>{label}
           </div>
         ))}
@@ -110,13 +110,12 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
 
   if (format === 'table') {
     const rows = collectBadgeRows(blocks, entries);
-    const hasLevels = rows.some(r => r.level);
     return (
-      <div className={`grid gap-y-0.5 ${hasLevels ? 'grid-cols-2' : 'grid-cols-2'}`}>
+      <div className="grid gap-y-0.5 grid-cols-2">
         {rows.map(({ name, level }, i) => (
-          <div key={i} className={`flex justify-between items-baseline col-span-1 ${itemClass}`}>
+          <div key={i} className={`flex justify-between items-baseline col-span-1 cv-badge-item ${itemClass}`}>
             <span>{name}</span>
-            {level && <span className="text-xs text-gray-500 italic ml-3 whitespace-nowrap">{level}</span>}
+            {level && <span className="cv-badge-item text-gray-500 italic ml-3 whitespace-nowrap">{level}</span>}
           </div>
         ))}
       </div>
@@ -129,7 +128,7 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
   return (
     <div className={badgeContainerClass}>
       {labels.map((label, i) => (
-        <span key={i} className={`cv-badge ${badgeClass}`}>{label}</span>
+        <span key={i} className={`cv-badge cv-badge-item ${badgeClass}`}>{label}</span>
       ))}
     </div>
   );
