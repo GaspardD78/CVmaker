@@ -39,23 +39,64 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
       const oldIndex = blocks.findIndex((item) => item.id === active.id);
       const newIndex = blocks.findIndex((item) => item.id === over?.id);
 
-      let newArray = arrayMove(blocks, oldIndex, newIndex);
-
-      // If dragging a section_header, bring its associated entries along with it
       const draggedBlock = blocks[oldIndex];
+      let newArray: CVBlock[];
+
       if (draggedBlock.blockType === 'section_header') {
-        const groupEntryIds: string[] = [];
+        // Find all items in the dragged group
+        const groupIds: string[] = [draggedBlock.id];
         for (let i = oldIndex + 1; i < blocks.length; i++) {
           if (blocks[i].blockType === 'section_header') break;
-          groupEntryIds.push(blocks[i].id);
+          groupIds.push(blocks[i].id);
         }
 
-        if (groupEntryIds.length > 0) {
-          const groupEntries = groupEntryIds.map(id => newArray.find(b => b.id === id)!);
-          newArray = newArray.filter(b => !groupEntryIds.includes(b.id));
-          const headerNewIdx = newArray.findIndex(b => b.id === draggedBlock.id);
-          newArray.splice(headerNewIdx + 1, 0, ...groupEntries);
+        const groupItems = groupIds.map((id) => blocks.find((b) => b.id === id)!);
+
+        if (groupIds.includes(over.id as string)) {
+          // If dropped over its own header or entries, do nothing
+          return;
         }
+
+        // Find the section the over element belongs to
+        let targetHeaderIndex = -1;
+        for (let i = newIndex; i >= 0; i--) {
+          if (blocks[i].blockType === 'section_header') {
+            targetHeaderIndex = i;
+            break;
+          }
+        }
+
+        let remainingBlocks = blocks.filter((b) => !groupIds.includes(b.id));
+
+        if (targetHeaderIndex === -1) {
+          // Fallback: dropping outside any valid section (shouldn't happen, but safe default)
+          let insertIndex = remainingBlocks.findIndex((b) => b.id === over.id);
+          if (insertIndex === -1) insertIndex = 0;
+          remainingBlocks.splice(insertIndex, 0, ...groupItems);
+          newArray = remainingBlocks;
+        } else {
+          const targetHeaderId = blocks[targetHeaderIndex].id;
+          let insertIndex = remainingBlocks.findIndex((b) => b.id === targetHeaderId);
+          const isMovingDown = oldIndex < targetHeaderIndex;
+
+          if (isMovingDown) {
+            // When moving down, insert AFTER the entire target section
+            let endOfTargetSection = insertIndex + 1;
+            while (
+              endOfTargetSection < remainingBlocks.length &&
+              remainingBlocks[endOfTargetSection].blockType !== 'section_header'
+            ) {
+              endOfTargetSection++;
+            }
+            insertIndex = endOfTargetSection;
+          }
+
+          remainingBlocks.splice(insertIndex, 0, ...groupItems);
+          newArray = remainingBlocks;
+        }
+      } else {
+        // Normal move for single entries
+        newArray = arrayMove(blocks, oldIndex, newIndex);
       }
 
       const newOrder = newArray.map(item => item.id);
