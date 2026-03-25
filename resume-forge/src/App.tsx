@@ -8,6 +8,8 @@ import { Dashboard } from "@/components/dashboard/Dashboard";
 import { TrackerPage } from "@/components/tracker/TrackerPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { ImportPage } from "@/components/import/ImportPage";
+import { LoginPage } from "@/components/auth/LoginPage";
+import { useAuthStore } from "@/stores/authStore";
 import PrintView from "@/pages/PrintView";
 import { Toaster } from "sonner";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
@@ -16,6 +18,19 @@ import "./App.css";
 /** Wrap Layout around non-print routes only — /print renders standalone. */
 function AppRoutes() {
   const location = useLocation();
+  const { isAuthenticated, isInitialized, initialize } = useAuthStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  if (!isInitialized) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p className="text-gray-500">Chargement...</p></div>;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   // /print route: render outside Layout (no sidebar, no scroll container)
   if (location.pathname === '/print') {

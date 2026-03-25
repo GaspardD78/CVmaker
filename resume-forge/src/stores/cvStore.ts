@@ -3,6 +3,7 @@ import { CVDocument, CVBlock } from '@/types/cv';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase, keysToSnakeCase } from '@/lib/mapping';
 import { filterAllowedColumns } from '@/lib/validation';
+import { EntryType, MasterEntry } from '@/types/profile';
 
 /**
  * Serializes all DB write operations to prevent concurrent SQLite writes.
@@ -49,7 +50,15 @@ export const useCvStore = create<CVState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents ORDER BY updated_at DESC');
+      // Scope by current user's profile
+      const { useAuthStore } = await import('@/stores/authStore');
+      const currentUserId = useAuthStore.getState().currentUserId;
+      let rawCvs: Record<string, unknown>[];
+      if (currentUserId) {
+        rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents WHERE profile_id = ?1 ORDER BY updated_at DESC', [currentUserId]);
+      } else {
+        rawCvs = await db.select<Record<string, unknown>[]>('SELECT * FROM cv_documents ORDER BY updated_at DESC');
+      }
       const cvs = rawCvs.map(cv => keysToCamelCase<CVDocument>(cv));
       set({ cvs });
     } catch (err) {
@@ -100,10 +109,66 @@ export const useCvStore = create<CVState>((set, get) => ({
       const columns = keys.join(', ');
       const placeholders = keys.map((_, i) => `?${i + 1}`).join(', ');
 
-      await db.execute(
-        `INSERT INTO cv_documents (${columns}) VALUES (${placeholders})`,
+      const insertResult = await db.select<{id: string}[]>(
+        `INSERT INTO cv_documents (${columns}) VALUES (${placeholders}) RETURNING id`,
         values
       );
+
+      // Auto-import all master profile entries into the new CV
+      if (insertResult.length > 0) {
+        const newCvId = insertResult[0].id;
+
+        // Lazy import to avoid circular dependency
+        const { useProfileStore } = await import('@/stores/profileStore');
+        const entries = useProfileStore.getState().entries;
+
+        if (entries.length > 0) {
+          const SECTION_LABELS: Record<EntryType, string> = {
+            experience: 'Expériences Professionnelles',
+            education: 'Formations',
+            skill: 'Compétences',
+            certification: 'Certifications',
+            language: 'Langues',
+            project: 'Projets',
+            interest: 'Centres d\'intérêt',
+            volunteer: 'Bénévolat',
+          };
+
+          // Section display order
+          const TYPE_ORDER: EntryType[] = ['experience', 'education', 'skill', 'certification', 'language', 'project', 'interest', 'volunteer'];
+
+          // Group entries by type
+          const grouped = new Map<EntryType, MasterEntry[]>();
+          for (const entry of entries) {
+            const list = grouped.get(entry.entryType) || [];
+            list.push(entry);
+            grouped.set(entry.entryType, list);
+          }
+
+          let sortOrder = 0;
+          for (const type of TYPE_ORDER) {
+            const typeEntries = grouped.get(type);
+            if (!typeEntries || typeEntries.length === 0) continue;
+
+            // Insert section header
+            await db.execute(
+              `INSERT INTO cv_blocks (cv_id, entry_id, block_type, section_name, custom_content, sort_order, is_visible, override_data) VALUES (?1, NULL, 'section_header', ?2, NULL, ?3, 1, '{}')`,
+              [newCvId, SECTION_LABELS[type], sortOrder]
+            );
+            sortOrder++;
+
+            // Insert entry refs
+            for (const entry of typeEntries) {
+              await db.execute(
+                `INSERT INTO cv_blocks (cv_id, entry_id, block_type, section_name, custom_content, sort_order, is_visible, override_data) VALUES (?1, ?2, 'entry_ref', NULL, NULL, ?3, 1, '{}')`,
+                [newCvId, entry.id, sortOrder]
+              );
+              sortOrder++;
+            }
+          }
+        }
+      }
+
       await get().fetchCvs();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create CV';

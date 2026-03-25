@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, Download } from 'lucide-react';
+import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, Download, LogOut } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuthStore } from '@/stores/authStore';
 
 const STORAGE_KEY = 'resumeforge_sidebar_collapsed';
 
@@ -29,6 +30,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
   const location = useLocation();
+  const { logout } = useAuthStore();
   useTheme();
 
   useEffect(() => {
@@ -97,6 +99,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Settings className={`w-4 h-4 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
             {!collapsed && <span>Paramètres</span>}
           </Link>
+          <button
+            onClick={logout}
+            title={collapsed ? 'Déconnexion' : undefined}
+            className={`flex items-center rounded-md transition text-sm ${
+              collapsed ? 'justify-center p-2' : 'px-3 py-2'
+            } text-gray-500 dark:text-gray-400 font-medium hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20`}
+          >
+            <LogOut className={`w-4 h-4 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
+            {!collapsed && <span>Déconnexion</span>}
+          </button>
         </div>
       </aside>
 

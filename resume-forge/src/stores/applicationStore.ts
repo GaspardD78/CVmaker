@@ -33,7 +33,15 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const rawApps = await db.select<Record<string, unknown>[]>('SELECT * FROM applications ORDER BY updated_at DESC');
+      // Scope by current user's profile
+      const { useAuthStore } = await import('@/stores/authStore');
+      const currentUserId = useAuthStore.getState().currentUserId;
+      let rawApps: Record<string, unknown>[];
+      if (currentUserId) {
+        rawApps = await db.select<Record<string, unknown>[]>('SELECT * FROM applications WHERE profile_id = ?1 ORDER BY updated_at DESC', [currentUserId]);
+      } else {
+        rawApps = await db.select<Record<string, unknown>[]>('SELECT * FROM applications ORDER BY updated_at DESC');
+      }
       const applications = rawApps.map(app => keysToCamelCase<Application>(app));
       set({ applications });
     } catch (err) {

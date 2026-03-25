@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { Plus, Copy, Trash2, Edit, FileText, Download } from 'lucide-react';
+import { Plus, Copy, Trash2, FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { exportToDocx } from '@/lib/export-docx';
@@ -136,7 +136,7 @@ export function CVList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cvs.map(cv => (
-            <div key={cv.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
+            <Link key={cv.id} to={`/cv/${cv.id}`} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition block cursor-pointer">
               <div className="p-5">
                 <h3 className="font-semibold text-lg text-gray-900 truncate mb-1" title={cv.name}>
                   {cv.name}
@@ -144,37 +144,31 @@ export function CVList() {
                 <p className="text-sm text-gray-500 mb-4">
                   Dernière modif : {new Date(cv.updatedAt).toLocaleDateString('fr-FR')}
                 </p>
-                <div className="flex justify-between items-center mt-4">
-                  <Link
-                    to={`/cv/${cv.id}`}
-                    className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center"
-                  >
-                    <Edit className="w-4 h-4 mr-1" /> Éditer
-                  </Link>
+                <div className="flex justify-end items-center mt-4">
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => handleQuickExportDocx(cv)}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleQuickExportDocx(cv); }}
                       className="text-gray-500 hover:text-blue-600 p-1"
                       title="Exporter DOCX"
                     >
                       <FileText className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleQuickExportPdf(cv)}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleQuickExportPdf(cv); }}
                       className="text-gray-500 hover:text-green-600 p-1"
                       title="Exporter PDF"
                     >
                       <Download className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDuplicate(cv.id)}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDuplicate(cv.id); }}
                       className="text-gray-500 hover:text-blue-600 p-1"
                       title="Dupliquer"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(cv.id, cv.name)}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(cv.id, cv.name); }}
                       className="text-gray-500 hover:text-red-600 p-1"
                       title="Supprimer"
                     >
@@ -183,7 +177,7 @@ export function CVList() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
