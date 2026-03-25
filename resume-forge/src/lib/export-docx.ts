@@ -588,7 +588,7 @@ export async function generateDocxBlob(
 
   // ── Process blocks ──
   const sortedBlocks = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
-  const BADGE_TYPES: EntryType[] = ['skill', 'language', 'interest'];
+  const BADGE_TYPES: EntryType[] = ['skill', 'language', 'interest', 'certification'];
   let i = 0;
 
   while (i < sortedBlocks.length) {
