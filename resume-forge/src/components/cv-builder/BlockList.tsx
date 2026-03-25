@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -25,6 +26,14 @@ interface BlockListProps {
 export function BlockList({ cvId, blocks }: BlockListProps) {
   const { reorderCvBlocks } = useCvStore();
 
+  // Local state for immediate visual feedback on drag end, independent of the
+  // async store update. Syncs from the parent prop whenever it changes (e.g.
+  // after the DB write confirms the new order or rolls back on error).
+  const [localBlocks, setLocalBlocks] = useState<CVBlock[]>(blocks);
+  useEffect(() => {
+    setLocalBlocks(blocks);
+  }, [blocks]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -42,21 +51,21 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
     if (!over) return;
 
     if (active.id !== over.id) {
-      const oldIndex = blocks.findIndex((item) => item.id === active.id);
-      const newIndex = blocks.findIndex((item) => item.id === over.id);
+      const oldIndex = localBlocks.findIndex((item) => item.id === active.id);
+      const newIndex = localBlocks.findIndex((item) => item.id === over.id);
 
-      const draggedBlock = blocks[oldIndex];
+      const draggedBlock = localBlocks[oldIndex];
       let newArray: CVBlock[];
 
       if (draggedBlock.blockType === 'section_header') {
         // Find all items in the dragged group
         const groupIds: string[] = [draggedBlock.id];
-        for (let i = oldIndex + 1; i < blocks.length; i++) {
-          if (blocks[i].blockType === 'section_header') break;
-          groupIds.push(blocks[i].id);
+        for (let i = oldIndex + 1; i < localBlocks.length; i++) {
+          if (localBlocks[i].blockType === 'section_header') break;
+          groupIds.push(localBlocks[i].id);
         }
 
-        const groupItems = groupIds.map((id) => blocks.find((b) => b.id === id)!);
+        const groupItems = groupIds.map((id) => localBlocks.find((b) => b.id === id)!);
 
         if (groupIds.includes(over.id as string)) {
           // If dropped over its own header or entries, do nothing
@@ -66,13 +75,13 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
         // Find the section the over element belongs to
         let targetHeaderIndex = -1;
         for (let i = newIndex; i >= 0; i--) {
-          if (blocks[i].blockType === 'section_header') {
+          if (localBlocks[i].blockType === 'section_header') {
             targetHeaderIndex = i;
             break;
           }
         }
 
-        let remainingBlocks = blocks.filter((b) => !groupIds.includes(b.id));
+        let remainingBlocks = localBlocks.filter((b) => !groupIds.includes(b.id));
 
         if (targetHeaderIndex === -1) {
           // Fallback: dropping outside any valid section (shouldn't happen, but safe default)
@@ -81,7 +90,7 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
           remainingBlocks.splice(insertIndex, 0, ...groupItems);
           newArray = remainingBlocks;
         } else {
-          const targetHeaderId = blocks[targetHeaderIndex].id;
+          const targetHeaderId = localBlocks[targetHeaderIndex].id;
           let insertIndex = remainingBlocks.findIndex((b) => b.id === targetHeaderId);
           const isMovingDown = oldIndex < targetHeaderIndex;
 
@@ -102,10 +111,10 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
         }
       } else {
         // Normal move for single entries
-        newArray = arrayMove(blocks, oldIndex, newIndex);
+        newArray = arrayMove(localBlocks, oldIndex, newIndex);
       }
 
-      // Update sortOrder for all items in the new array to ensure UI sorting (e.g. PrintableCV) is correct
+      // Update sortOrder for all items in the new array
       const updatedArray = newArray.map((item, index) => ({
         ...item,
         sortOrder: index,
@@ -113,7 +122,11 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
 
       const newOrder = updatedArray.map(item => item.id);
 
-      // Optimistic update to prevent jitter
+      // Update local state immediately so the UI reflects the new order right
+      // away, before the async DB write and re-fetch complete.
+      setLocalBlocks(updatedArray);
+
+      // Also update the store so PrintableCV and other consumers see the new order.
       useCvStore.setState({ currentCvBlocks: updatedArray });
 
       await reorderCvBlocks(cvId, newOrder);
@@ -136,11 +149,11 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
       onDragEnd={handleDragEnd}
     >
       <SortableContext
-        items={blocks.map(b => b.id)}
+        items={localBlocks.map(b => b.id)}
         strategy={verticalListSortingStrategy}
       >
         <div className="space-y-2">
-          {blocks.map((block) => (
+          {localBlocks.map((block) => (
             <SectionItem key={block.id} block={block} />
           ))}
         </div>

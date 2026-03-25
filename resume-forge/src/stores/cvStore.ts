@@ -326,21 +326,20 @@ export const useCvStore = create<CVState>((set, get) => ({
   }),
 
   reorderCvBlocks: (cvId, blockIds) => enqueueWrite(async () => {
-    let db;
     try {
-      db = await getDb();
-      await db.execute('BEGIN TRANSACTION');
+      const db = await getDb();
+      // Run each UPDATE individually (no explicit transaction) so that each
+      // statement is auto-committed. The Tauri SQL plugin uses a sqlx connection
+      // pool that may hand each await a different connection, which would break
+      // BEGIN/COMMIT across multiple execute calls.
       for (let i = 0; i < blockIds.length; i++) {
         await db.execute('UPDATE cv_blocks SET sort_order = ?1 WHERE id = ?2', [i, blockIds[i]]);
       }
-      await db.execute('COMMIT');
-      // Do NOT re-fetch here: the optimistic update in handleDragEnd already applied
-      // the correct order. Re-fetching would race with the write and potentially reset.
+      // Re-fetch to confirm the persisted order matches the optimistic UI state.
+      // This is safe because all UPDATEs are already committed before this runs.
+      await get().fetchCvBlocks(cvId);
     } catch (err) {
-      if (db) {
-        try { await db.execute('ROLLBACK'); } catch (e) { /* ignore rollback errors */ }
-      }
-      // On error: re-fetch to restore the actual DB state
+      // On error: re-fetch to restore whatever the DB actually contains.
       await get().fetchCvBlocks(cvId);
       set({ error: err instanceof Error ? err.message : 'Failed to reorder blocks' });
     }
