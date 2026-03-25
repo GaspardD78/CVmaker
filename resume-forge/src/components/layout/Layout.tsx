@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, Download, LogOut } from 'lucide-react';
+import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, LogOut } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -9,7 +9,6 @@ const STORAGE_KEY = 'resumeforge_sidebar_collapsed';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Tableau de bord', exact: true },
   { to: '/profile', icon: User, label: 'Profil' },
-  { to: '/import', icon: Download, label: 'Importer' },
   { to: '/cv', icon: FileText, label: 'Mes CVs' },
   { to: '/tracker', icon: Briefcase, label: 'Suivi des candidatures' },
 ];

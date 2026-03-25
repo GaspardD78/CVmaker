@@ -1,10 +1,12 @@
 import { useEffect, useState, FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useProfileStore } from '@/stores/profileStore';
 import { EntryType, MasterEntry } from '@/types/profile';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Download } from 'lucide-react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { PhotoCropModal } from './PhotoCropModal';
 import { AiEnrichModal } from './AiEnrichModal';
@@ -147,6 +149,7 @@ function EntryFormFields({ entryToEdit, defaultTab, availableTypes }: any) {
 }
 
 export function ProfilePage() {
+  const navigate = useNavigate();
   const { profile, entries, fetchProfile, updateProfile, addEntry, updateEntry, deleteEntry, isLoading, error } = useProfileStore();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isAddingEntry, setIsAddingEntry] = useState(false);
@@ -354,6 +357,14 @@ export function ProfilePage() {
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Profil Maître</h1>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/import')}
+              className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-400 flex items-center gap-1.5"
+            >
+              <Download className="w-4 h-4" />
+              Importer
+            </Button>
             <Button
               variant="outline"
               onClick={() => setIsEnrichModalOpen(true)}
@@ -568,16 +579,10 @@ export function ProfilePage() {
           ))}
         </div>
 
-        {(isAddingEntry || editingEntryId) && (
+        {isAddingEntry && (
           <form onSubmit={handleAddEntry} className="bg-white p-6 rounded-lg shadow-sm border mb-6 space-y-4">
-            <h3 className="font-semibold mb-2">
-              {editingEntryId ? 'Modifier l\'entrée' : 'Nouvelle entrée'}
-            </h3>
-            {(() => {
-              const entryToEdit = entries.find(e => e.id === editingEntryId);
-              // Use a local state for the form's entry type so fields update immediately when changing the select
-              return <EntryFormFields key={entryToEdit?.id ?? 'new'} entryToEdit={entryToEdit} defaultTab={activeTab} availableTypes={availableTypes} />;
-            })()}
+            <h3 className="font-semibold mb-2">Nouvelle entrée</h3>
+            <EntryFormFields key="new" entryToEdit={undefined} defaultTab={activeTab} availableTypes={availableTypes} />
             <div className="flex justify-end mt-4 space-x-3">
               <Button type="button" variant="outline" onClick={handleCancelEntryForm}>
                 Annuler
@@ -596,38 +601,54 @@ export function ProfilePage() {
         ) : (
           <ul className="space-y-4">
             {filteredEntries.map(entry => (
-              <li key={entry.id} className="bg-white p-4 rounded-lg shadow-sm border flex justify-between items-center group">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600 uppercase">
-                      {availableTypes.find(t => t.value === entry.entryType)?.label || entry.entryType}
-                    </span>
-                    <h3 className="font-semibold text-gray-900">{entry.title}</h3>
+              <li key={entry.id}>
+                <div className="bg-white p-4 rounded-lg shadow-sm border flex justify-between items-center group">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600 uppercase">
+                        {availableTypes.find(t => t.value === entry.entryType)?.label || entry.entryType}
+                      </span>
+                      <h3 className="font-semibold text-gray-900">{entry.title}</h3>
+                    </div>
+                    {(entry.subtitle || entry.location) && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {entry.subtitle} {entry.location ? `— ${entry.location}` : ''}
+                      </p>
+                    )}
                   </div>
-                  {(entry.subtitle || entry.location) && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      {entry.subtitle} {entry.location ? `— ${entry.location}` : ''}
-                    </p>
-                  )}
+                  <div className="text-gray-400 opacity-0 group-hover:opacity-100 transition flex space-x-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditEntryClick(entry)}
+                      className="text-blue-500 hover:text-blue-700 text-sm font-medium"
+                    >
+                      Modifier
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteEntry(entry.id)}
+                      className="text-red-500 hover:text-red-700 text-sm font-medium"
+                    >
+                      Supprimer
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-gray-400 opacity-0 group-hover:opacity-100 transition flex space-x-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditEntryClick(entry)}
-                    className="text-blue-500 hover:text-blue-700 text-sm font-medium"
-                  >
-                    Modifier
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteEntry(entry.id)}
-                    className="text-red-500 hover:text-red-700 text-sm font-medium"
-                  >
-                    Supprimer
-                  </Button>
-                </div>
+                {editingEntryId === entry.id && (
+                  <form onSubmit={handleAddEntry} className="bg-blue-50 border border-blue-200 p-6 rounded-b-lg shadow-sm space-y-4 -mt-1">
+                    <h3 className="font-semibold mb-2 text-blue-800">Modifier l'entrée</h3>
+                    <EntryFormFields key={entry.id} entryToEdit={entry} defaultTab={activeTab} availableTypes={availableTypes} />
+                    <div className="flex justify-end mt-4 space-x-3">
+                      <Button type="button" variant="outline" onClick={handleCancelEntryForm}>
+                        Annuler
+                      </Button>
+                      <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white">
+                        Sauvegarder l'entrée
+                      </Button>
+                    </div>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
