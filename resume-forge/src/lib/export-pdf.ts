@@ -2,10 +2,10 @@
  * Exporte le CV en PDF.
  *
  * Stratégie hybride selon la plateforme :
- *  - Android (Tauri WebView) : html2canvas + jsPDF → écriture dans le cache
- *    de l'app via plugin-fs, puis ouverture automatique avec le viewer PDF
- *    système via plugin-opener. Avant capture, toutes les couleurs oklch
- *    sont résolues en rgb via getComputedStyle dans le callback `onclone`.
+ *  - Android (Tauri WebView) : html2canvas + jsPDF → dialog SAF « Enregistrer
+ *    sous » (plugin-dialog) puis écriture via plugin-fs.  Le plugin-opener est
+ *    volontairement évité car sa v2.5.3 a un bug de sérialisation sur le bridge
+ *    Kotlin (open_path passe un String brut au lieu d'un objet OpenArgs JSON).
  *  - Desktop (Windows/macOS/Linux) : page HTML autonome ouverte dans une
  *    nouvelle fenêtre et impression native (qualité vectorielle).
  */
@@ -14,7 +14,7 @@ function isAndroid(): boolean {
   return /android/i.test(navigator.userAgent);
 }
 
-// ─── Chemin Android : html2canvas + jsPDF → cache + opener ───────────────────
+// ─── Chemin Android : html2canvas + jsPDF → dialog SAF ──────────────────────
 
 async function exportPdfAndroid(): Promise<boolean> {
   const cvNode = document.getElementById('printable-cv');
@@ -34,10 +34,6 @@ async function exportPdfAndroid(): Promise<boolean> {
     backgroundColor: '#ffffff',
     windowWidth: cvNode.scrollWidth,
     onclone: (_clonedDoc: Document, clonedEl: HTMLElement) => {
-      // html2canvas v1 ne gère pas oklch() — le patch Vite transforme
-      // l'erreur en `return 0` (transparent). On résout les couleurs
-      // côté original (le navigateur convertit oklch→rgb via
-      // getComputedStyle) puis on les injecte en inline sur le clone.
       const origAll = cvNode.querySelectorAll('*');
       const clonedAll = clonedEl.querySelectorAll('*');
 
@@ -78,24 +74,18 @@ async function exportPdfAndroid(): Promise<boolean> {
 
   const pdfData = new Uint8Array(pdf.output('arraybuffer'));
 
-  // Écriture dans le cache de l'app (toujours accessible, pas de permissions
-  // Android supplémentaires) puis ouverture avec le viewer PDF système.
-  // Le FileProvider configuré dans AndroidManifest.xml (cache-path) permet
-  // au plugin-opener de partager le fichier via content:// URI.
-  const { writeFile, BaseDirectory } = await import('@tauri-apps/plugin-fs');
-  const { appCacheDir, join } = await import('@tauri-apps/api/path');
-  const { invoke } = await import('@tauri-apps/api/core');
+  // Même pattern que l'export DOCX : dialog SAF « Enregistrer sous » +
+  // writeFile.  Évite le plugin-opener dont le bridge Kotlin est cassé.
+  const { save } = await import('@tauri-apps/plugin-dialog');
+  const { writeFile } = await import('@tauri-apps/plugin-fs');
 
-  const filename = 'cv_export.pdf';
-  await writeFile(filename, pdfData, { baseDir: BaseDirectory.AppCache });
+  const filePath = await save({
+    defaultPath: 'cv_export.pdf',
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (!filePath) return false;
 
-  const cacheDir = await appCacheDir();
-  const fullPath = await join(cacheDir, filename);
-
-  // Custom command qui appelle OpenerExt::open_path depuis Rust,
-  // contournant le bug de sérialisation du bridge IPC → Kotlin.
-  await invoke('open_cached_file', { path: fullPath });
-
+  await writeFile(filePath, pdfData);
   return true;
 }
 
