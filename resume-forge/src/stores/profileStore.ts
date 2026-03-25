@@ -20,6 +20,7 @@ interface ProfileState {
   entries: MasterEntry[];
   isLoading: boolean;
   error: string | null;
+  reset: () => void;
   fetchProfile: (profileId?: string) => Promise<void>;
   fetchAllProfiles: () => Promise<Profile[]>;
   updateProfile: (profile: Partial<Profile>) => Promise<void>;
@@ -33,6 +34,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   entries: [],
   isLoading: false,
   error: null,
+
+  reset: () => set({ profile: null, entries: [], isLoading: false, error: null }),
 
   fetchProfile: async (profileId?: string) => {
     set({ isLoading: true, error: null });

@@ -10,6 +10,7 @@ interface ApplicationState {
   attachments: ApplicationAttachment[];
   isLoading: boolean;
   error: string | null;
+  reset: () => void;
   fetchApplications: () => Promise<void>;
   createApplication: (app: Omit<Application, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateApplication: (id: string, updates: Partial<Application>) => Promise<void>;
@@ -28,6 +29,7 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
   attachments: [],
   isLoading: false,
   error: null,
+  reset: () => set({ applications: [], events: [], attachments: [], isLoading: false, error: null }),
 
   fetchApplications: async () => {
     set({ isLoading: true, error: null });
