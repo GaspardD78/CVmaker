@@ -17,7 +17,7 @@ const FONT_STACKS: Record<string, string> = {
 };
 
 /** Entry types rendered as inline badges instead of full entry blocks */
-const BADGE_ENTRY_TYPES: EntryType[] = ['skill', 'language', 'interest'];
+const BADGE_ENTRY_TYPES: EntryType[] = ['skill', 'language', 'interest', 'certification'];
 
 type DisplayFormat = 'badges' | 'comma' | 'list' | 'columns2' | 'columns3' | 'table';
 
