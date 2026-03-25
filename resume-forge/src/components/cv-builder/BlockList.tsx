@@ -99,10 +99,16 @@ export function BlockList({ cvId, blocks }: BlockListProps) {
         newArray = arrayMove(blocks, oldIndex, newIndex);
       }
 
-      const newOrder = newArray.map(item => item.id);
+      // Update sortOrder for all items in the new array to ensure UI sorting (e.g. PrintableCV) is correct
+      const updatedArray = newArray.map((item, index) => ({
+        ...item,
+        sortOrder: index,
+      }));
+
+      const newOrder = updatedArray.map(item => item.id);
 
       // Optimistic update to prevent jitter
-      useCvStore.setState({ currentCvBlocks: newArray });
+      useCvStore.setState({ currentCvBlocks: updatedArray });
 
       await reorderCvBlocks(cvId, newOrder);
     }

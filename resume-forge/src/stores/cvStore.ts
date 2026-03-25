@@ -286,6 +286,13 @@ export const useCvStore = create<CVState>((set, get) => ({
 
   updateCvBlock: (id, updates) => enqueueWrite(async () => {
     try {
+      // Optimistic update so the UI immediately reflects the new changes (e.g. sectionName)
+      set(state => ({
+        currentCvBlocks: state.currentCvBlocks.map(block =>
+          block.id === id ? { ...block, ...updates } : block
+        )
+      }));
+
       const db = await getDb();
       const snakeUpdates = filterAllowedColumns('cv_blocks', keysToSnakeCase<Record<string, unknown>>(updates));
       const keys = Object.keys(snakeUpdates);
