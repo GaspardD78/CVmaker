@@ -3,7 +3,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { Profile } from '@/types/profile';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase } from '@/lib/mapping';
-import { User, Plus } from 'lucide-react';
+import { User, Plus, Trash2 } from 'lucide-react';
+import { confirm } from '@tauri-apps/plugin-dialog';
+import { useProfileStore } from '@/stores/profileStore';
 
 export function LoginPage() {
   const { login, hasExplicitlyLoggedOut } = useAuthStore();
@@ -74,6 +76,30 @@ export function LoginPage() {
     }
   };
 
+  const handleDeleteProfile = async (e: React.MouseEvent, profileId: string, name: string) => {
+    e.stopPropagation();
+
+    let isConfirmed = false;
+    try {
+      isConfirmed = await confirm(
+        `Êtes-vous sûr de vouloir supprimer le profil "${name}" ? Toutes les données associées (CV, candidatures, entrées) seront définitivement supprimées.`,
+        { title: 'Confirmer la suppression', kind: 'warning' }
+      );
+    } catch {
+      isConfirmed = window.confirm(`Supprimer le profil "${name}" et toutes ses données ?`);
+    }
+
+    if (!isConfirmed) return;
+
+    try {
+      const { deleteProfile } = useProfileStore.getState();
+      await deleteProfile(profileId);
+      await loadProfiles();
+    } catch {
+      setError('Erreur lors de la suppression du profil');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -115,6 +141,13 @@ export function LoginPage() {
                     <p className="font-medium text-gray-900 truncate">{profile.firstName} {profile.lastName}</p>
                     {profile.title && <p className="text-sm text-gray-500 truncate">{profile.title}</p>}
                   </div>
+                  <button
+                    onClick={(e) => handleDeleteProfile(e, profile.id, `${profile.firstName} ${profile.lastName}`)}
+                    className="ml-2 p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
+                    title="Supprimer ce profil"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </button>
               ))}
             </div>

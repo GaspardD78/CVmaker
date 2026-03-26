@@ -27,6 +27,7 @@ interface ProfileState {
   addEntry: (entry: Omit<MasterEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateEntry: (id: string, entry: Partial<MasterEntry>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
+  deleteProfile: (profileId: string) => Promise<void>;
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
@@ -300,6 +301,23 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       }));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete entry';
+      set({ error: message });
+      throw err;
+    }
+  }),
+
+  deleteProfile: (profileId) => enqueueWrite(async () => {
+    try {
+      const db = await getDb();
+      await db.execute('DELETE FROM profiles WHERE id = ?1', [profileId]);
+
+      // If we just deleted the current profile, reset local state
+      const current = get().profile;
+      if (current && current.id === profileId) {
+        set({ profile: null, entries: [] });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete profile';
       set({ error: message });
       throw err;
     }

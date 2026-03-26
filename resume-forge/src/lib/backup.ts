@@ -198,6 +198,37 @@ const DELETE_ORDER: string[] = [
 export async function importBackup(backup: BackupData, plan: ImportPlan): Promise<void> {
   const db = await getDb();
 
+  // ── Profile ID remapping ───────────────────────────────────────────────
+  // The backup may come from a different profile (different id).
+  // Remap the backup's profile ID → current user's profile ID so that
+  // imported data merges into the active profile instead of creating a new one.
+  const { useAuthStore } = await import('@/stores/authStore');
+  const currentUserId = useAuthStore.getState().currentUserId;
+  const backupProfiles = backup.modules['profiles'];
+
+  if (currentUserId && backupProfiles && backupProfiles.length > 0) {
+    const backupProfileId = backupProfiles[0].id as string;
+    if (backupProfileId !== currentUserId) {
+      // Remap profile ID in profiles table
+      for (const row of backupProfiles) {
+        if (row.id === backupProfileId) {
+          row.id = currentUserId;
+        }
+      }
+      // Remap profile_id in FK-linked tables
+      const tablesWithProfileId = ['master_entries', 'cv_documents', 'applications'];
+      for (const table of tablesWithProfileId) {
+        const rows = backup.modules[table];
+        if (!rows) continue;
+        for (const row of rows) {
+          if (row.profile_id === backupProfileId) {
+            row.profile_id = currentUserId;
+          }
+        }
+      }
+    }
+  }
+
   // Build list of (table, strategy) to process, in safe insert order
   const insertOrder: string[] = [
     'profiles',
@@ -218,10 +249,16 @@ export async function importBackup(backup: BackupData, plan: ImportPlan): Promis
     meta.tables.forEach(t => tablesToDelete.add(t));
   }
 
-  // Delete in reverse-FK order
+  // Delete in reverse-FK order, scoped to the current profile where applicable
   if (tablesToDelete.size > 0) {
     for (const table of DELETE_ORDER) {
-      if (tablesToDelete.has(table)) {
+      if (!tablesToDelete.has(table)) continue;
+
+      if (currentUserId && table === 'profiles') {
+        await db.execute('DELETE FROM profiles WHERE id = ?1', [currentUserId]);
+      } else if (currentUserId && ['master_entries', 'cv_documents', 'applications'].includes(table)) {
+        await db.execute(`DELETE FROM ${table} WHERE profile_id = ?1`, [currentUserId]);
+      } else {
         await db.execute(`DELETE FROM ${table}`);
       }
     }
