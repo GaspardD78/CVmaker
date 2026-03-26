@@ -50,6 +50,19 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
     setError(null);
     try {
       await importBackup(backup, plan);
+
+      // Refresh stores so the UI reflects imported data immediately
+      const { useProfileStore } = await import('@/stores/profileStore');
+      await useProfileStore.getState().fetchProfile();
+      if (plan.cvDocuments && plan.cvDocuments !== 'ignore') {
+        const { useCvStore } = await import('@/stores/cvStore');
+        await useCvStore.getState().fetchCvs();
+      }
+      if (plan.applications && plan.applications !== 'ignore') {
+        const { useApplicationStore } = await import('@/stores/applicationStore');
+        await useApplicationStore.getState().fetchApplications();
+      }
+
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de l\'import.');
@@ -66,7 +79,7 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
           <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
           <h2 className="text-lg font-semibold mb-2">Import réussi</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Les données ont été importées. Rechargez l'application pour voir les changements.
+            Les données ont été importées avec succès.
           </p>
           <button
             onClick={onDone}
