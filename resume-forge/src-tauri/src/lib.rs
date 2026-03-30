@@ -3,6 +3,9 @@ use std::sync::OnceLock;
 use tauri::Emitter;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod email;
+pub use email::send_email;
+
 /// Resolved database URI, computed once at startup.
 static DB_URI: OnceLock<String> = OnceLock::new();
 
@@ -104,6 +107,12 @@ pub fn run() {
             sql: include_str!("../migrations/003_compatibility_scoring.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "add_job_watch_module",
+            sql: include_str!("../migrations/004_job_watch.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]
@@ -126,6 +135,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_db_uri,
+            send_email,
             #[cfg(not(target_os = "android"))]
             start_oauth_server,
         ])

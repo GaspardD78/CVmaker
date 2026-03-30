@@ -56,6 +56,75 @@ export async function getDb(): Promise<Database> {
     await db.execute(
       `CREATE INDEX IF NOT EXISTS idx_compat_scores_app ON compatibility_scores(application_id)`
     );
+
+    // Fallback: ensure migration 004 tables exist
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_watch_config (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        source          TEXT NOT NULL,
+        keywords        TEXT NOT NULL DEFAULT '[]',
+        location        TEXT,
+        radius_km       INTEGER DEFAULT 50,
+        contract_types  TEXT DEFAULT '[]',
+        rss_url         TEXT,
+        enabled         INTEGER DEFAULT 1,
+        last_fetched_at TEXT,
+        created_at      TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_offers (
+        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        source               TEXT NOT NULL,
+        url                  TEXT NOT NULL,
+        hash                 TEXT NOT NULL UNIQUE,
+        title                TEXT NOT NULL,
+        company              TEXT,
+        location             TEXT,
+        contract_type        TEXT,
+        description_snippet  TEXT,
+        published_at         TEXT,
+        fetched_at           TEXT DEFAULT (datetime('now')),
+        score                INTEGER DEFAULT 0,
+        commute_minutes      INTEGER,
+        commute_status       TEXT DEFAULT 'pending',
+        is_read              INTEGER DEFAULT 0,
+        is_archived          INTEGER DEFAULT 0,
+        kanban_id            TEXT REFERENCES applications(id) ON DELETE SET NULL
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_hash    ON job_offers(hash)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_source  ON job_offers(source)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_score   ON job_offers(score)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_fetched ON job_offers(fetched_at)`);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_watch_settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT
+      )
+    `);
+    const defaultSettings: Array<[string, string]> = [
+      ['fetch_interval_hours',  '4'],
+      ['email_digest_enabled',  '1'],
+      ['email_digest_time',     '08:00'],
+      ['email_smtp_host',       ''],
+      ['email_smtp_port',       '587'],
+      ['email_smtp_user',       ''],
+      ['email_smtp_password',   ''],
+      ['email_to',              ''],
+      ['positive_keywords',     '[]'],
+      ['negative_keywords',     '[]'],
+      ['navitia_api_key',       ''],
+      ['commute_origin_address',''],
+      ['commute_departure_time','09:00'],
+      ['commute_max_minutes',   '75'],
+    ];
+    for (const [key, value] of defaultSettings) {
+      await db.execute(
+        `INSERT OR IGNORE INTO job_watch_settings (key, value) VALUES (?1, ?2)`,
+        [key, value]
+      );
+    }
   }
   return db;
 }

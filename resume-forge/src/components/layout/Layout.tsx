@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, LogOut } from 'lucide-react';
+import { LayoutDashboard, User, FileText, Briefcase, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Bell } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/authStore';
+import { useJobWatchStore } from '@/stores/jobWatchStore';
 
 const STORAGE_KEY = 'resumeforge_sidebar_collapsed';
 
@@ -11,6 +12,7 @@ const navItems = [
   { to: '/profile', icon: User, label: 'Profil' },
   { to: '/cv', icon: FileText, label: 'Mes CVs' },
   { to: '/tracker', icon: Briefcase, label: 'Suivi des candidatures' },
+  { to: '/job-watch', icon: Bell, label: 'Veille Emploi' },
 ];
 
 // 5 destinations affichées dans la bottom nav mobile
@@ -19,7 +21,7 @@ const mobileNavItems = [
   { to: '/profile', icon: User, label: 'Profil' },
   { to: '/cv', icon: FileText, label: 'CVs' },
   { to: '/tracker', icon: Briefcase, label: 'Suivi' },
-  { to: '/settings', icon: Settings, label: 'Réglages' },
+  { to: '/job-watch', icon: Bell, label: 'Veille' },
 ];
 
 import { useState } from 'react';
@@ -30,6 +32,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   });
   const location = useLocation();
   const { logout } = useAuthStore();
+  const unreadCount = useJobWatchStore(s => s.unreadCount());
   useTheme();
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <nav className="flex flex-col space-y-1">
             {navItems.map(({ to, icon: Icon, label, exact }) => {
               const active = isActive(to, exact);
+              const badge = to === '/job-watch' && unreadCount > 0 ? unreadCount : 0;
               return (
                 <Link
                   key={to}
@@ -64,7 +68,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       : 'text-blue-600 dark:text-blue-400 font-medium hover:text-blue-800 dark:hover:text-blue-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
+                  <span className="relative flex-shrink-0">
+                    <Icon className={`w-5 h-5 ${collapsed ? '' : 'mr-3'}`} />
+                    {badge > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white flex items-center justify-center">
+                        {badge > 9 ? '9+' : badge}
+                      </span>
+                    )}
+                  </span>
                   {!collapsed && <span className="truncate">{label}</span>}
                 </Link>
               );
