@@ -1,7 +1,9 @@
 /**
  * Minimal RSS/Atom feed parser using DOMParser (native Web API, no npm dependency).
  * Handles RSS 2.0 and Atom 1.0 formats.
+ * HTTP requests are routed through tauri-plugin-http to bypass CORS.
  */
+import { tauriFetch } from '../http';
 
 export interface RssItem {
   title: string;
@@ -25,7 +27,7 @@ export async function fetchRssFeed(url: string): Promise<RssItem[]> {
 
   let text: string;
   try {
-    const res = await fetch(url, {
+    const res = await tauriFetch(url, {
       signal: controller.signal,
       headers: { 'User-Agent': 'ResumeForge/1.0' },
     });

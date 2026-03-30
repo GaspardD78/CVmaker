@@ -7,7 +7,7 @@ type Tab = 'offers' | 'config';
 
 export function JobWatchPage() {
   const [activeTab, setActiveTab] = useState<Tab>('offers');
-  const { initialize, isLoading, unreadCount } = useJobWatchStore();
+  const { initialize, unreadCount } = useJobWatchStore();
 
   useEffect(() => {
     initialize();

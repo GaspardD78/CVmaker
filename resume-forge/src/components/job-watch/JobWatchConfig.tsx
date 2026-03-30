@@ -23,10 +23,22 @@ interface SourceRowProps {
 
 function SourceRow({ config, onSave, onDelete, onToggle }: SourceRowProps) {
   const [draft, setDraft] = useState<ConfigType>(config);
+  // Separate raw text state for the keywords input so commas can be typed freely.
+  // Parsed into the array only on blur or save.
+  const [keywordsText, setKeywordsText] = useState(config.keywords.join(', '));
 
-  useEffect(() => { setDraft(config); }, [config]);
+  useEffect(() => {
+    setDraft(config);
+    setKeywordsText(config.keywords.join(', '));
+  }, [config]);
 
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(config);
+  const parsedKeywords = keywordsText.split(',').map(k => k.trim()).filter(Boolean);
+  const isDirty =
+    JSON.stringify({ ...draft, keywords: parsedKeywords }) !== JSON.stringify(config);
+
+  const commitKeywords = () => {
+    setDraft(d => ({ ...d, keywords: parsedKeywords }));
+  };
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
@@ -36,7 +48,7 @@ function SourceRow({ config, onSave, onDelete, onToggle }: SourceRowProps) {
         </span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onToggle(draft)}
+            onClick={() => onToggle({ ...draft, keywords: parsedKeywords })}
             title={draft.enabled ? 'Désactiver' : 'Activer'}
             className="text-gray-400 hover:text-blue-600 transition-colors"
           >
@@ -51,15 +63,16 @@ function SourceRow({ config, onSave, onDelete, onToggle }: SourceRowProps) {
         </div>
       </div>
 
-      {/* Keywords */}
+      {/* Keywords — raw text input, parsed on blur */}
       <div>
         <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
           Mots-clés (séparés par des virgules)
         </label>
         <input
           type="text"
-          value={draft.keywords.join(', ')}
-          onChange={e => setDraft(d => ({ ...d, keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) }))}
+          value={keywordsText}
+          onChange={e => setKeywordsText(e.target.value)}
+          onBlur={commitKeywords}
           className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
           placeholder="recruteur, talent acquisition, RH"
         />
@@ -116,7 +129,7 @@ function SourceRow({ config, onSave, onDelete, onToggle }: SourceRowProps) {
 
       {isDirty && (
         <button
-          onClick={() => onSave(draft)}
+          onClick={() => onSave({ ...draft, keywords: parsedKeywords })}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
         >
           <Save className="w-3.5 h-3.5" /> Sauvegarder

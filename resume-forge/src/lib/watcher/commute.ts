@@ -7,6 +7,8 @@
  *  3. Retour du temps en minutes, ou null si indisponible
  */
 
+import { tauriFetch } from './http';
+
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const NAVITIA_URL   = 'https://api.navitia.io/v1/coverage/fr-idf/journeys';
 const TIMEOUT_MS    = 10_000;
@@ -28,7 +30,7 @@ async function geocodeAddress(address: string): Promise<[number, number] | null>
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await tauriFetch(url, {
       signal:  controller.signal,
       headers: { 'User-Agent': 'ResumeForge/1.0' },
     });
@@ -104,7 +106,7 @@ export async function getCommuteMinutes(
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const res = await fetch(url, {
+    const res = await tauriFetch(url, {
       signal:  controller.signal,
       headers: {
         'Authorization': navitiaApiKey,

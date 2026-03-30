@@ -10,7 +10,11 @@ const SOURCE_LABELS: Record<JobSource, string> = {
 };
 
 export function buildEmailHtml(offers: JobOffer[], date: string): string {
-  const bySource = Object.groupBy(offers, o => o.source) as Partial<Record<JobSource, JobOffer[]>>;
+  const bySource = offers.reduce<Partial<Record<JobSource, JobOffer[]>>>((acc, o) => {
+    const key = o.source as JobSource;
+    (acc[key] ??= []).push(o);
+    return acc;
+  }, {});
   const sources: JobSource[] = ['apec', 'indeed', 'wttj', 'linkedin_rss'];
 
   const summaryRows = sources
