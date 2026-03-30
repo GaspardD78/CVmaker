@@ -5,10 +5,14 @@ import { useJobWatchStore } from '@/stores/jobWatchStore';
 import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource } from '@/types/job-watch';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec: 'APEC', indeed: 'Indeed', wttj: 'Welcome to the Jungle', linkedin_rss: 'LinkedIn (RSS tiers)',
+  apec:          'APEC',
+  indeed:        'Indeed',
+  wttj:          'Welcome to the Jungle',
+  linkedin_rss:  'LinkedIn (RSS tiers)',
+  france_travail:'France Travail',
 };
 
-const ALL_SOURCES: JobSource[] = ['apec', 'indeed', 'wttj', 'linkedin_rss'];
+const ALL_SOURCES: JobSource[] = ['apec', 'indeed', 'wttj', 'linkedin_rss', 'france_travail'];
 const RSS_URL_SOURCES: JobSource[] = ['linkedin_rss'];
 const RSS_URL_OPTIONAL: JobSource[] = ['apec', 'indeed', 'wttj'];
 
@@ -17,7 +21,7 @@ const RSS_URL_OPTIONAL: JobSource[] = ['apec', 'indeed', 'wttj'];
 interface SourceRowProps {
   config: ConfigType;
   onSave:   (c: ConfigType) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
   onToggle: (c: ConfigType) => void;
 }
 
@@ -81,13 +85,15 @@ function SourceRow({ config, onSave, onDelete, onToggle }: SourceRowProps) {
       {/* Location + radius */}
       <div className="flex gap-2">
         <div className="flex-1">
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Localisation</label>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+            {config.source === 'france_travail' ? 'Code commune (INSEE)' : 'Localisation'}
+          </label>
           <input
             type="text"
             value={draft.location ?? ''}
             onChange={e => setDraft(d => ({ ...d, location: e.target.value || null }))}
             className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Paris"
+            placeholder={config.source === 'france_travail' ? '75056 (Paris)' : 'Paris'}
           />
         </div>
         {config.source !== 'wttj' && config.source !== 'linkedin_rss' && (
@@ -104,6 +110,22 @@ function SourceRow({ config, onSave, onDelete, onToggle }: SourceRowProps) {
           </div>
         )}
       </div>
+
+      {/* France Travail: département filter */}
+      {config.source === 'france_travail' && (
+        <div>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+            Département (optionnel)
+          </label>
+          <input
+            type="text"
+            value={draft.ftDeptCode ?? ''}
+            onChange={e => setDraft(d => ({ ...d, ftDeptCode: e.target.value || null }))}
+            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="75, 92, 93…"
+          />
+        </div>
+      )}
 
       {/* RSS URL */}
       {(RSS_URL_SOURCES.includes(config.source) || RSS_URL_OPTIONAL.includes(config.source)) && (
@@ -158,6 +180,7 @@ export function JobWatchConfigView() {
       radiusKm:      50,
       contractTypes: [],
       rssUrl:        null,
+      ftDeptCode:    null,
       enabled:       1,
     });
   };
@@ -172,7 +195,7 @@ export function JobWatchConfigView() {
     await upsertConfig({ ...c, enabled: c.enabled === 1 ? 0 : 1 });
   };
 
-  const handleDeleteConfig = async (id: number) => {
+  const handleDeleteConfig = async (id: string) => {
     await deleteConfig(id);
     toast.success('Source supprimée');
   };
@@ -231,6 +254,38 @@ export function JobWatchConfigView() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* ── France Travail OAuth2 ── */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">France Travail (API officielle)</h3>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+          Créez une application sur{' '}
+          <span className="text-blue-500">francetravail.io</span>{' '}
+          et activez l'API <em>Offres d'emploi v2</em> pour obtenir vos identifiants.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Client ID</label>
+            <input
+              type="text"
+              value={settingsDraft.ftClientId}
+              onChange={e => updateSetting('ftClientId', e.target.value)}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="PAR_resumeforge_xxxxxxxx"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Client Secret</label>
+            <input
+              type="password"
+              value={settingsDraft.ftClientSecret}
+              onChange={e => updateSetting('ftClientSecret', e.target.value)}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="••••••••••••••••"
+            />
+          </div>
+        </div>
       </section>
 
       {/* ── Scoring ── */}

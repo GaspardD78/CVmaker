@@ -43,6 +43,10 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     commuteOriginAddress:  map['commute_origin_address']  ?? '',
     commuteDepartureTime:  map['commute_departure_time']  ?? '09:00',
     commuteMaxMinutes:    parseInt(map['commute_max_minutes'] ?? '75', 10),
+    ftClientId:            map['ft_client_id']            ?? '',
+    ftClientSecret:        map['ft_client_secret']        ?? '',
+    ftAccessToken:         map['ft_access_token']         ?? '',
+    ftTokenExpiresAt:      map['ft_token_expires_at']     ?? '',
   };
 }
 
@@ -63,6 +67,10 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['commute_origin_address', settings.commuteOriginAddress],
     ['commute_departure_time', settings.commuteDepartureTime],
     ['commute_max_minutes',    String(settings.commuteMaxMinutes)],
+    ['ft_client_id',           settings.ftClientId],
+    ['ft_client_secret',       settings.ftClientSecret],
+    ['ft_access_token',        settings.ftAccessToken],
+    ['ft_token_expires_at',    settings.ftTokenExpiresAt],
   ];
   for (const [key, value] of entries) {
     await db.execute(
@@ -91,16 +99,16 @@ interface JobWatchState {
   // Offers
   fetchOffers: () => Promise<void>;
   insertOffer: (offer: Omit<JobOffer, 'id' | 'fetchedAt'>) => Promise<void>;
-  markRead: (id: number) => Promise<void>;
-  markArchived: (id: number, archived: boolean) => Promise<void>;
-  setKanbanId: (offerId: number, kanbanId: string) => Promise<void>;
+  markRead: (id: string) => Promise<void>;
+  markArchived: (id: string, archived: boolean) => Promise<void>;
+  setKanbanId: (offerId: string, kanbanId: string) => Promise<void>;
   deleteArchivedOffers: () => Promise<void>;
 
   // Configs
   fetchConfigs: () => Promise<void>;
-  upsertConfig: (config: Omit<JobWatchConfig, 'id' | 'createdAt' | 'lastFetchedAt'> & { id?: number }) => Promise<void>;
-  deleteConfig: (id: number) => Promise<void>;
-  updateLastFetchedAt: (configId: number) => Promise<void>;
+  upsertConfig: (config: Omit<JobWatchConfig, 'id' | 'createdAt' | 'lastFetchedAt'> & { id?: string }) => Promise<void>;
+  deleteConfig: (id: string) => Promise<void>;
+  updateLastFetchedAt: (configId: string) => Promise<void>;
 
   // Settings
   fetchSettings: () => Promise<void>;
@@ -158,10 +166,12 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const db = await getDb();
     await db.execute(
       `INSERT OR IGNORE INTO job_offers
-        (source, url, hash, title, company, location, contract_type,
-         description_snippet, published_at, score, commute_minutes, commute_status,
+        (source, url, hash, title, company, location, location_lat, location_lon,
+         contract_type, description_snippet, published_at, score,
+         commute_minutes, commute_status,
+         salary_min, salary_max, salary_raw,
          is_read, is_archived, kanban_id)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)`,
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)`,
       [
         offer.source,
         offer.url,
@@ -169,12 +179,17 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         offer.title,
         offer.company ?? null,
         offer.location ?? null,
+        offer.locationLat ?? null,
+        offer.locationLon ?? null,
         offer.contractType ?? null,
         offer.descriptionSnippet ?? null,
         offer.publishedAt ?? null,
         offer.score,
         offer.commuteMinutes ?? null,
         offer.commuteStatus,
+        offer.salaryMin ?? null,
+        offer.salaryMax ?? null,
+        offer.salaryRaw ?? null,
         offer.isRead,
         offer.isArchived,
         offer.kanbanId ?? null,
@@ -248,23 +263,23 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       await db.execute(
         `UPDATE job_watch_config SET
           source=?1, keywords=?2, location=?3, radius_km=?4,
-          contract_types=?5, rss_url=?6, enabled=?7
-         WHERE id=?8`,
+          contract_types=?5, rss_url=?6, ft_dept_code=?7, enabled=?8
+         WHERE id=?9`,
         [
           snake['source'], snake['keywords'], snake['location'] ?? null,
           snake['radius_km'], snake['contract_types'], snake['rss_url'] ?? null,
-          snake['enabled'], config.id,
+          snake['ft_dept_code'] ?? null, snake['enabled'], config.id,
         ]
       );
     } else {
       await db.execute(
         `INSERT INTO job_watch_config
-          (source, keywords, location, radius_km, contract_types, rss_url, enabled)
-         VALUES (?1,?2,?3,?4,?5,?6,?7)`,
+          (source, keywords, location, radius_km, contract_types, rss_url, ft_dept_code, enabled)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`,
         [
           snake['source'], snake['keywords'], snake['location'] ?? null,
           snake['radius_km'], snake['contract_types'], snake['rss_url'] ?? null,
-          snake['enabled'],
+          snake['ft_dept_code'] ?? null, snake['enabled'],
         ]
       );
     }

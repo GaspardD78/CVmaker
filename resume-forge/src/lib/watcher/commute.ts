@@ -136,6 +136,70 @@ export async function getCommuteMinutes(
   }
 }
 
+/**
+ * Compute commute time using GPS coordinates for the destination.
+ * Used for France Travail offers that provide lat/lon directly (skips Nominatim).
+ */
+export async function getCommuteMinutesByCoords(
+  originAddress:   string,
+  destLat:         number,
+  destLon:         number,
+  departureTime:   string,
+  navitiaApiKey:   string
+): Promise<CommuteResult> {
+  const originCoords = await geocodeAddress(originAddress);
+  if (!originCoords) {
+    return { status: 'not_found', minutes: null };
+  }
+
+  const fromPlace = `${originCoords[0]};${originCoords[1]}`;
+  const toPlace   = `${destLon};${destLat}`;
+  const datetime  = nextWeekdayDatetime(departureTime);
+
+  const params = new URLSearchParams({
+    from:                    fromPlace,
+    to:                      toPlace,
+    datetime,
+    count:                   '1',
+    'first_section_mode[]':  'walking',
+    'last_section_mode[]':   'walking',
+  });
+  const url = `${NAVITIA_URL}?${params.toString()}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const res = await tauriFetch(url, {
+      signal:  controller.signal,
+      headers: {
+        'Authorization': navitiaApiKey,
+        'User-Agent':    'ResumeForge/1.0',
+      },
+    });
+
+    if (!res.ok) {
+      return { status: 'error', minutes: null, reason: `HTTP ${res.status}` };
+    }
+
+    const data = await res.json() as { journeys?: Array<{ duration: number }> };
+    const journeys = data.journeys ?? [];
+
+    if (!journeys.length) {
+      return { status: 'not_found', minutes: null };
+    }
+
+    const minutes = Math.round(journeys[0].duration / 60);
+    return { status: 'ok', minutes };
+
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return { status: 'error', minutes: null, reason };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /** Delay helper — used to respect Navitia quota between batch calls */
 export function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));

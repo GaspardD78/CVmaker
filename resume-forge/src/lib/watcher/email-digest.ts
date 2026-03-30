@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { JobOffer, JobWatchSettings, JobSource } from '@/types/job-watch';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec: 'APEC', indeed: 'Indeed', wttj: 'WTTJ', linkedin_rss: 'LinkedIn',
+  apec: 'APEC', indeed: 'Indeed', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
 };
 
 export function buildEmailHtml(offers: JobOffer[], date: string): string {
@@ -30,6 +30,12 @@ export function buildEmailHtml(offers: JobOffer[], date: string): string {
         ? `🚇 ${o.commuteMinutes} min`
         : o.commuteStatus === 'not_found' ? '📍 Non précisé' : '';
 
+      const salaryLabel = o.salaryMin && o.salaryMax && o.salaryMin !== o.salaryMax
+        ? `${Math.round(o.salaryMin / 1000)}k€ – ${Math.round(o.salaryMax / 1000)}k€`
+        : o.salaryMin ? `${Math.round(o.salaryMin / 1000)}k€`
+        : o.salaryRaw ? o.salaryRaw.slice(0, 30)
+        : null;
+
       return `
         <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;background:#fff">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
@@ -43,6 +49,7 @@ export function buildEmailHtml(offers: JobOffer[], date: string): string {
             <span style="background:#eff6ff;color:#1d4ed8;font-size:11px;padding:2px 6px;border-radius:4px">${SOURCE_LABELS[o.source as JobSource] ?? o.source}</span>
             ${o.contractType ? `<span style="background:#f3f4f6;color:#374151;font-size:11px;padding:2px 6px;border-radius:4px">${escapeHtml(o.contractType)}</span>` : ''}
             ${commute ? `<span style="background:#f0fdf4;color:#15803d;font-size:11px;padding:2px 6px;border-radius:4px">${commute}</span>` : ''}
+            ${salaryLabel ? `<span style="background:#fefce8;color:#a16207;font-size:11px;padding:2px 6px;border-radius:4px">💶 ${escapeHtml(salaryLabel)}</span>` : ''}
           </div>
           ${o.descriptionSnippet ? `<p style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.5">${escapeHtml(o.descriptionSnippet.slice(0, 200))}${o.descriptionSnippet.length > 200 ? '…' : ''}</p>` : ''}
           <a href="${o.url}" style="display:inline-block;margin-top:10px;background:#2563eb;color:#fff;font-size:12px;padding:6px 14px;border-radius:6px;text-decoration:none">Voir l'offre →</a>
