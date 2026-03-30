@@ -9,11 +9,19 @@ import { TrackerPage } from "@/components/tracker/TrackerPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { ImportPage } from "@/components/import/ImportPage";
 import { LoginPage } from "@/components/auth/LoginPage";
+import { JobWatchPage } from "@/components/job-watch/JobWatchPage";
 import { useAuthStore } from "@/stores/authStore";
+import { useJobWatcher } from "@/hooks/useJobWatcher";
 import PrintView from "@/pages/PrintView";
 import { Toaster } from "sonner";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./App.css";
+
+/** Mounts the job watcher scheduler when authenticated. */
+function JobWatcherMount() {
+  useJobWatcher();
+  return null;
+}
 
 /** Wrap Layout around non-print routes only — /print renders standalone. */
 function AppRoutes() {
@@ -39,6 +47,7 @@ function AppRoutes() {
 
   return (
     <Layout>
+      <JobWatcherMount />
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/profile" element={<ProfilePage />} />
@@ -47,6 +56,7 @@ function AppRoutes() {
         <Route path="/tracker" element={<TrackerPage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/job-watch" element={<JobWatchPage />} />
       </Routes>
     </Layout>
   );
