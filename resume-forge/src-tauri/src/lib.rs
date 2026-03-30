@@ -113,6 +113,12 @@ pub fn run() {
             sql: include_str!("../migrations/004_job_watch.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "job_watch_v2_text_uuid_salary_coords",
+            sql: include_str!("../migrations/005_job_watch_v2.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]
@@ -124,6 +130,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

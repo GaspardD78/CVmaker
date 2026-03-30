@@ -1,21 +1,23 @@
 import { useState } from 'react';
-import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin } from 'lucide-react';
+import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import type { JobOffer, JobSource } from '@/types/job-watch';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec:         'APEC',
-  indeed:       'Indeed',
-  wttj:         'WTTJ',
-  linkedin_rss: 'LinkedIn',
+  apec:          'APEC',
+  indeed:        'Indeed',
+  wttj:          'WTTJ',
+  linkedin_rss:  'LinkedIn',
+  france_travail:'France Travail',
 };
 
 const SOURCE_COLORS: Record<JobSource, string> = {
-  apec:         'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  indeed:       'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
-  wttj:         'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  linkedin_rss: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
+  apec:          'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  indeed:        'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+  wttj:          'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  linkedin_rss:  'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
+  france_travail:'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
 };
 
 function ScoreBadge({ score }: { score: number }) {
@@ -69,6 +71,27 @@ function CommuteBadge({ minutes, status, maxMinutes }: CommuteBadgeProps) {
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${color}`}>
       <Train className="w-3 h-3" />
       {minutes} min
+    </span>
+  );
+}
+
+function SalaryBadge({ salaryMin, salaryMax, salaryRaw }: Pick<JobOffer, 'salaryMin' | 'salaryMax' | 'salaryRaw'>) {
+  if (!salaryMin && !salaryRaw) return null;
+
+  let label: string;
+  if (salaryMin && salaryMax && salaryMin !== salaryMax) {
+    const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 1000)}k€` : `${v}€`;
+    label = `${fmt(salaryMin)} – ${fmt(salaryMax)}`;
+  } else if (salaryMin) {
+    label = salaryMin >= 1000 ? `${Math.round(salaryMin / 1000)}k€` : `${salaryMin}€`;
+  } else {
+    label = salaryRaw!.slice(0, 30);
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+      <Euro className="w-3 h-3" />
+      {label}
     </span>
   );
 }
@@ -147,6 +170,11 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOf
             minutes={offer.commuteMinutes}
             status={offer.commuteStatus}
             maxMinutes={commuteMaxMinutes}
+          />
+          <SalaryBadge
+            salaryMin={offer.salaryMin}
+            salaryMax={offer.salaryMax}
+            salaryRaw={offer.salaryRaw}
           />
           {offer.contractType && (
             <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">

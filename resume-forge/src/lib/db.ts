@@ -57,16 +57,17 @@ export async function getDb(): Promise<Database> {
       `CREATE INDEX IF NOT EXISTS idx_compat_scores_app ON compatibility_scores(application_id)`
     );
 
-    // Fallback: ensure migration 004 tables exist
+    // Fallback: ensure migration 005 tables exist (v1.2 schema with TEXT UUID PKs)
     await db.execute(`
       CREATE TABLE IF NOT EXISTS job_watch_config (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
         source          TEXT NOT NULL,
         keywords        TEXT NOT NULL DEFAULT '[]',
         location        TEXT,
         radius_km       INTEGER DEFAULT 50,
         contract_types  TEXT DEFAULT '[]',
         rss_url         TEXT,
+        ft_dept_code    TEXT,
         enabled         INTEGER DEFAULT 1,
         last_fetched_at TEXT,
         created_at      TEXT DEFAULT (datetime('now'))
@@ -74,13 +75,15 @@ export async function getDb(): Promise<Database> {
     `);
     await db.execute(`
       CREATE TABLE IF NOT EXISTS job_offers (
-        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        id                   TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
         source               TEXT NOT NULL,
         url                  TEXT NOT NULL,
         hash                 TEXT NOT NULL UNIQUE,
         title                TEXT NOT NULL,
         company              TEXT,
         location             TEXT,
+        location_lat         REAL,
+        location_lon         REAL,
         contract_type        TEXT,
         description_snippet  TEXT,
         published_at         TEXT,
@@ -88,6 +91,9 @@ export async function getDb(): Promise<Database> {
         score                INTEGER DEFAULT 0,
         commute_minutes      INTEGER,
         commute_status       TEXT DEFAULT 'pending',
+        salary_min           INTEGER,
+        salary_max           INTEGER,
+        salary_raw           TEXT,
         is_read              INTEGER DEFAULT 0,
         is_archived          INTEGER DEFAULT 0,
         kanban_id            TEXT REFERENCES applications(id) ON DELETE SET NULL
@@ -118,6 +124,10 @@ export async function getDb(): Promise<Database> {
       ['commute_origin_address',''],
       ['commute_departure_time','09:00'],
       ['commute_max_minutes',   '75'],
+      ['ft_client_id',          ''],
+      ['ft_client_secret',      ''],
+      ['ft_access_token',       ''],
+      ['ft_token_expires_at',   ''],
     ];
     for (const [key, value] of defaultSettings) {
       await db.execute(

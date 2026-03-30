@@ -1,15 +1,17 @@
-export type JobSource = 'apec' | 'indeed' | 'wttj' | 'linkedin_rss';
+export type JobSource = 'apec' | 'indeed' | 'wttj' | 'linkedin_rss' | 'france_travail';
 
 export type CommuteStatus = 'pending' | 'ok' | 'error' | 'not_found';
 
 export interface JobOffer {
-  id: number;
+  id: string;
   source: JobSource;
   url: string;
   hash: string;
   title: string;
   company: string | null;
   location: string | null;
+  locationLat: number | null;
+  locationLon: number | null;
   contractType: string | null;
   descriptionSnippet: string | null;
   publishedAt: string | null;
@@ -17,19 +19,23 @@ export interface JobOffer {
   score: number;
   commuteMinutes: number | null;
   commuteStatus: CommuteStatus;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryRaw: string | null;
   isRead: number;       // 0 | 1
   isArchived: number;   // 0 | 1
   kanbanId: string | null;
 }
 
 export interface JobWatchConfig {
-  id: number;
+  id: string;
   source: JobSource;
   keywords: string[];       // JSON array
   location: string | null;
   radiusKm: number;
   contractTypes: string[];  // JSON array
   rssUrl: string | null;
+  ftDeptCode: string | null;
   enabled: number;          // 0 | 1
   lastFetchedAt: string | null;
   createdAt: string;
@@ -50,6 +56,10 @@ export interface JobWatchSettings {
   commuteOriginAddress: string;
   commuteDepartureTime: string;
   commuteMaxMinutes: number;
+  ftClientId: string;
+  ftClientSecret: string;
+  ftAccessToken: string;
+  ftTokenExpiresAt: string;
 }
 
 export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
@@ -67,6 +77,10 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   commuteOriginAddress: '',
   commuteDepartureTime: '09:00',
   commuteMaxMinutes: 75,
+  ftClientId: '',
+  ftClientSecret: '',
+  ftAccessToken: '',
+  ftTokenExpiresAt: '',
 };
 
 export interface JobWatchFilters {
@@ -79,7 +93,7 @@ export interface JobWatchFilters {
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
-  sources: ['apec', 'indeed', 'wttj', 'linkedin_rss'],
+  sources: ['apec', 'indeed', 'wttj', 'linkedin_rss', 'france_travail'],
   minScore: 0,
   maxCommuteMinutes: null,
   status: 'all',
@@ -94,7 +108,12 @@ export interface RawJobOffer {
   title: string;
   company: string | null;
   location: string | null;
+  locationLat?: number | null;
+  locationLon?: number | null;
   contractType: string | null;
   descriptionSnippet: string | null;
   publishedAt: string | null;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  salaryRaw?: string | null;
 }
