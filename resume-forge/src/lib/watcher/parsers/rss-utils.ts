@@ -3,7 +3,7 @@
  * Handles RSS 2.0 and Atom 1.0 formats.
  * HTTP requests are routed through tauri-plugin-http to bypass CORS.
  */
-import { tauriFetch } from '../http';
+import { tauriFetch, BROWSER_USER_AGENT } from '../http';
 
 export interface RssItem {
   title: string;
@@ -21,24 +21,60 @@ function getAttr(el: Element, tag: string, attr: string): string {
   return el.getElementsByTagName(tag)[0]?.getAttribute(attr) ?? '';
 }
 
-export async function fetchRssFeed(url: string): Promise<RssItem[]> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 1_000;
 
-  let text: string;
-  try {
-    const res = await tauriFetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'ResumeForge/1.0' },
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} pour ${url}`);
+const RSS_HEADERS = {
+  'User-Agent': BROWSER_USER_AGENT,
+  'Accept': 'application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8',
+  'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.5',
+};
+
+export async function fetchRssFeed(url: string): Promise<RssItem[]> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
+    try {
+      const res = await tauriFetch(url, {
+        signal: controller.signal,
+        headers: RSS_HEADERS,
+      });
+
+      if (!res.ok) {
+        // 4xx errors are deterministic — fail fast, no retry
+        if (res.status >= 400 && res.status < 500) {
+          throw new Error(`HTTP ${res.status} pour ${url}`);
+        }
+        // 5xx errors are transient — retry with backoff
+        lastError = new Error(`HTTP ${res.status} pour ${url}`);
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, INITIAL_DELAY_MS * 2 ** attempt));
+          continue;
+        }
+        throw new Error(`HTTP ${res.status} pour ${url} (après ${MAX_RETRIES} tentatives)`);
+      }
+
+      const text = await res.text();
+      return parseXml(text);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Don't retry 4xx or if last attempt
+      if (attempt >= MAX_RETRIES - 1 || lastError.message.startsWith('HTTP 4')) {
+        throw lastError;
+      }
+      await new Promise(r => setTimeout(r, INITIAL_DELAY_MS * 2 ** attempt));
+    } finally {
+      clearTimeout(timeoutId);
     }
-    text = await res.text();
-  } finally {
-    clearTimeout(timeoutId);
   }
 
+  throw lastError ?? new Error(`Échec après ${MAX_RETRIES} tentatives pour ${url}`);
+}
+
+function parseXml(text: string): RssItem[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(text, 'application/xml');
 
