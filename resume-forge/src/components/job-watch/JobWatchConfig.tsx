@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Trash2, Save, ToggleLeft, ToggleRight, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
+import { useProfileStore } from '@/stores/profileStore';
 import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource } from '@/types/job-watch';
 import {
   HelpButton,
@@ -39,21 +40,24 @@ interface SourceRowProps {
 
 function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRowProps) {
   const [draft, setDraft] = useState<ConfigType>(config);
-  // Separate raw text state for the keywords input so commas can be typed freely.
+  // Separate raw text state so commas can be typed freely.
   // Parsed into the array only on blur or save.
   const [keywordsText, setKeywordsText] = useState(config.keywords.join(', '));
+  const [excludeText, setExcludeText] = useState(config.excludeKeywords.join(', '));
 
   useEffect(() => {
     setDraft(config);
     setKeywordsText(config.keywords.join(', '));
+    setExcludeText(config.excludeKeywords.join(', '));
   }, [config]);
 
   const parsedKeywords = keywordsText.split(',').map(k => k.trim()).filter(Boolean);
+  const parsedExclude  = excludeText.split(',').map(k => k.trim()).filter(Boolean);
   const isDirty =
-    JSON.stringify({ ...draft, keywords: parsedKeywords }) !== JSON.stringify(config);
+    JSON.stringify({ ...draft, keywords: parsedKeywords, excludeKeywords: parsedExclude }) !== JSON.stringify(config);
 
   const commitKeywords = () => {
-    setDraft(d => ({ ...d, keywords: parsedKeywords }));
+    setDraft(d => ({ ...d, keywords: parsedKeywords, excludeKeywords: parsedExclude }));
   };
 
   return (
@@ -72,7 +76,7 @@ function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRow
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onToggle({ ...draft, keywords: parsedKeywords })}
+            onClick={() => onToggle({ ...draft, keywords: parsedKeywords, excludeKeywords: parsedExclude })}
             title={draft.enabled ? 'Désactiver' : 'Activer'}
             className="text-gray-400 hover:text-blue-600 transition-colors"
           >
@@ -99,6 +103,22 @@ function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRow
           onBlur={commitKeywords}
           className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
           placeholder="recruteur, talent acquisition, RH"
+        />
+      </div>
+
+      {/* Exclude keywords */}
+      <div>
+        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+          Exclure (séparés par des virgules)
+          <span className="ml-1 text-gray-400">— filtre les résultats contenant ces termes</span>
+        </label>
+        <input
+          type="text"
+          value={excludeText}
+          onChange={e => setExcludeText(e.target.value)}
+          onBlur={commitKeywords}
+          className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="stagiaire, alternance, bénévole"
         />
       </div>
 
@@ -172,7 +192,7 @@ function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRow
 
       {isDirty && (
         <button
-          onClick={() => onSave({ ...draft, keywords: parsedKeywords })}
+          onClick={() => onSave({ ...draft, keywords: parsedKeywords, excludeKeywords: parsedExclude })}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
         >
           <Save className="w-3.5 h-3.5" /> Sauvegarder
@@ -186,24 +206,34 @@ function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRow
 
 export function JobWatchConfigView() {
   const { configs, settings, upsertConfig, deleteConfig, saveSettings, fetchConfigs } = useJobWatchStore();
+  const { profile, entries } = useProfileStore();
   const [settingsDraft, setSettingsDraft] = useState<JobWatchSettings>(settings);
   const [savingSettings, setSavingSettings] = useState(false);
   const [helpModal, setHelpModal] = useState<HelpModal>(null);
 
-  useEffect(() => { setSettingsDraft(settings); }, [settings]);
+  // Local text state for scoring textareas to avoid cursor jumps
+  const [posKwText, setPosKwText] = useState(settings.positiveKeywords.join(', '));
+  const [negKwText, setNegKwText] = useState(settings.negativeKeywords.join(', '));
+
+  useEffect(() => {
+    setSettingsDraft(settings);
+    setPosKwText(settings.positiveKeywords.join(', '));
+    setNegKwText(settings.negativeKeywords.join(', '));
+  }, [settings]);
 
   const unusedSources = ALL_SOURCES.filter(s => !configs.some(c => c.source === s));
 
   const handleAddSource = async (source: JobSource) => {
     await upsertConfig({
       source,
-      keywords:      [],
-      location:      null,
-      radiusKm:      50,
-      contractTypes: [],
-      rssUrl:        null,
-      ftDeptCode:    null,
-      enabled:       1,
+      keywords:        [],
+      excludeKeywords: [],
+      location:        null,
+      radiusKm:        50,
+      contractTypes:   [],
+      rssUrl:          null,
+      ftDeptCode:      null,
+      enabled:         1,
     });
   };
 
@@ -225,7 +255,13 @@ export function JobWatchConfigView() {
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
-      await saveSettings(settingsDraft);
+      // Commit textarea text to settings before saving
+      const toSave: JobWatchSettings = {
+        ...settingsDraft,
+        positiveKeywords: parseKeywordList(posKwText),
+        negativeKeywords: parseKeywordList(negKwText),
+      };
+      await saveSettings(toSave);
       toast.success('Paramètres sauvegardés');
     } catch (err) {
       toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
@@ -322,7 +358,32 @@ export function JobWatchConfigView() {
 
       {/* ── Scoring ── */}
       <section>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Scoring</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Scoring</h3>
+          {profile && (
+            <button
+              onClick={() => {
+                const skills = entries
+                  .filter(e => e.entryType === 'skill')
+                  .map(e => e.title);
+                const titles = [profile.title].filter(Boolean) as string[];
+                const all = [...new Set([...titles, ...skills])];
+                if (all.length === 0) {
+                  toast.info('Aucune compétence ou titre trouvé dans le profil maître');
+                  return;
+                }
+                const existing = parseKeywordList(posKwText);
+                const merged = [...new Set([...existing, ...all])];
+                setPosKwText(merged.join(', '));
+                toast.success(`${all.length} mot(s)-clé(s) importé(s) depuis le profil`);
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
+            >
+              <UserRound className="w-3.5 h-3.5" />
+              Pré-remplir depuis le profil
+            </button>
+          )}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -330,8 +391,9 @@ export function JobWatchConfigView() {
             </label>
             <textarea
               rows={3}
-              value={settingsDraft.positiveKeywords.join(', ')}
-              onChange={e => updateSetting('positiveKeywords', parseKeywordList(e.target.value))}
+              value={posKwText}
+              onChange={e => setPosKwText(e.target.value)}
+              onBlur={() => updateSetting('positiveKeywords', parseKeywordList(posKwText))}
               className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
               placeholder="cybersécurité, IAM, Talent Acquisition"
             />
@@ -342,8 +404,9 @@ export function JobWatchConfigView() {
             </label>
             <textarea
               rows={3}
-              value={settingsDraft.negativeKeywords.join(', ')}
-              onChange={e => updateSetting('negativeKeywords', parseKeywordList(e.target.value))}
+              value={negKwText}
+              onChange={e => setNegKwText(e.target.value)}
+              onBlur={() => updateSetting('negativeKeywords', parseKeywordList(negKwText))}
               className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
               placeholder="stagiaire, alternance, bénévole"
             />

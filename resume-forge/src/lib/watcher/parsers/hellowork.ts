@@ -111,5 +111,14 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
     });
   }
 
+  // Filter out offers matching exclude keywords (local filtering)
+  if (config.excludeKeywords.length > 0) {
+    const excludeLower = config.excludeKeywords.map(k => k.toLowerCase());
+    return offers.filter(o => {
+      const text = `${o.title} ${o.company ?? ''}`.toLowerCase();
+      return !excludeLower.some(ex => text.includes(ex));
+    });
+  }
+
   return offers;
 }

@@ -30,13 +30,14 @@ export interface JobOffer {
 export interface JobWatchConfig {
   id: string;
   source: JobSource;
-  keywords: string[];       // JSON array
+  keywords: string[];           // JSON array
+  excludeKeywords: string[];    // JSON array — mots à exclure de la recherche
   location: string | null;
   radiusKm: number;
-  contractTypes: string[];  // JSON array
+  contractTypes: string[];      // JSON array
   rssUrl: string | null;
   ftDeptCode: string | null;
-  enabled: number;          // 0 | 1
+  enabled: number;              // 0 | 1
   lastFetchedAt: string | null;
   createdAt: string;
 }

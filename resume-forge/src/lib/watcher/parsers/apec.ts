@@ -71,15 +71,21 @@ interface ApecSearchResponse {
 }
 
 /** Build the APEC search request body from config */
-function buildSearchBody(config: Pick<JobWatchConfig, 'keywords' | 'location'>) {
+function buildSearchBody(config: Pick<JobWatchConfig, 'keywords' | 'excludeKeywords' | 'location'>) {
   const lieux: string[] = [];
   if (config.location) {
     const code = locationToDeptCode(config.location);
     if (code) lieux.push(code);
   }
 
+  // APEC supports "ET NON (term1 OU term2)" syntax for exclusions
+  let motsCles = config.keywords.join(' ') || undefined;
+  if (motsCles && config.excludeKeywords.length > 0) {
+    motsCles += ` ET NON (${config.excludeKeywords.join(' OU ')})`;
+  }
+
   return {
-    motsCles: config.keywords.join(' ') || undefined,
+    motsCles,
     lieux,
     typesContrat: [],
     niveauxExperience: [],
