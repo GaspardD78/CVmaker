@@ -71,6 +71,8 @@ export function JobOffersView() {
         priority:    2,
         location:    offer.location ?? undefined,
         notes:       offer.descriptionSnippet ?? undefined,
+        salaryMin:   offer.salaryMin ?? undefined,
+        salaryMax:   offer.salaryMax ?? undefined,
       } as Parameters<typeof createApplication>[0]);
 
       // Retrieve the newly created application id
