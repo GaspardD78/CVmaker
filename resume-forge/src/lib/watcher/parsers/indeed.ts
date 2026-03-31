@@ -24,7 +24,8 @@ export async function parseIndeed(config: JobWatchConfig): Promise<RawJobOffer[]
     items = await fetchRssFeed(url);
   } catch (err) {
     if (err instanceof Error && /HTTP (403|404)/.test(err.message)) {
-      console.warn('[indeed] Le flux RSS Indeed est probablement bloqué ou supprimé. Envisagez de désactiver cette source.');
+      console.warn('[indeed] Le flux RSS Indeed est supprimé (HTTP 403/404). Source ignorée. Envisagez de la désactiver.');
+      return [];
     }
     throw err;
   }
