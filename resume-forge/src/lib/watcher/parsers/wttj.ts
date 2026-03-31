@@ -11,7 +11,7 @@
 import { RawJobOffer } from '@/types/job-watch';
 import { stripHtml, parseDate } from './rss-utils';
 import type { JobWatchConfig } from '@/types/job-watch';
-import { tauriFetch } from '../http';
+import { tauriFetch, BROWSER_USER_AGENT } from '../http';
 
 const WTTJ_SEARCH_URL = 'https://www.welcometothejungle.com/fr/jobs';
 const TIMEOUT_MS = 10_000;
@@ -46,7 +46,7 @@ export async function parseWttj(config: JobWatchConfig): Promise<RawJobOffer[]> 
     const res = await tauriFetch(pageUrl, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'ResumeForge/1.0',
+        'User-Agent': BROWSER_USER_AGENT,
         'Accept': 'text/html,application/xhtml+xml',
         'Accept-Language': 'fr-FR,fr;q=0.9',
       },

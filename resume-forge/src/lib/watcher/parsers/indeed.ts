@@ -19,7 +19,15 @@ export function buildIndeedRssUrl(config: Pick<JobWatchConfig, 'keywords' | 'loc
 
 export async function parseIndeed(config: JobWatchConfig): Promise<RawJobOffer[]> {
   const url = config.rssUrl ?? buildIndeedRssUrl(config);
-  const items = await fetchRssFeed(url);
+  let items;
+  try {
+    items = await fetchRssFeed(url);
+  } catch (err) {
+    if (err instanceof Error && /HTTP (403|404)/.test(err.message)) {
+      console.warn('[indeed] Le flux RSS Indeed est probablement bloqué ou supprimé. Envisagez de désactiver cette source.');
+    }
+    throw err;
+  }
 
   return items.map(item => {
     // Indeed title format: "Intitulé - Entreprise - Ville, Région"
