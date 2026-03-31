@@ -9,19 +9,24 @@ import { RawJobOffer } from '@/types/job-watch';
 import { fetchRssFeed, stripHtml, parseDate } from './rss-utils';
 import type { JobWatchConfig } from '@/types/job-watch';
 
+/** Encode a value for an APEC path segment (spaces as `+`, not `%20`) */
+function encodeApecPath(value: string): string {
+  return encodeURIComponent(value).replace(/%20/g, '+');
+}
+
 /** Build an APEC RSS URL from config keywords and location */
 export function buildApecRssUrl(config: Pick<JobWatchConfig, 'keywords' | 'location'>): string {
   const kw = config.keywords.join(' ');
-  const encodedKw = encodeURIComponent(kw);
   const base = 'https://www.apec.fr/rss/offres-emploi.rss';
-  const parts: string[] = [];
-  if (kw)              parts.push(`motsCles:${encodedKw}`);
-  if (config.location) parts.push(`lieux:${encodeURIComponent(config.location)}`);
-  return parts.length > 0 ? `${base}/${parts.join('/')}` : base;
+  const parts: string[] = ['typeoffre:OFFRE'];
+  if (kw)              parts.push(`motsCles:${encodeApecPath(kw)}`);
+  if (config.location) parts.push(`lieux:${encodeApecPath(config.location)}`);
+  return `${base}/${parts.join('/')}`;
 }
 
 export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> {
   const url = config.rssUrl ?? buildApecRssUrl(config);
+  console.debug('[apec] RSS URL:', url);
   const items = await fetchRssFeed(url);
 
   return items.map(item => {
