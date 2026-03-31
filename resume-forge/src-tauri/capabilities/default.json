@@ -23,6 +23,9 @@
     "fs:allow-read-file",
     "fs:read-all",
     "http:default",
-    "http:allow-fetch-all"
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+    }
   ]
 }
