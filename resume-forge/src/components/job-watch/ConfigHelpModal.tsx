@@ -419,7 +419,7 @@ export function SourcesHelpModal({ onClose }: { onClose: () => void }) {
 
       <div className="space-y-4">
         <div>
-          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">APEC · Indeed · Welcome to the Jungle</h4>
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">APEC · HelloWork · Welcome to the Jungle</h4>
           <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <p>Ces sources sont automatiques. Renseignez simplement :</p>
             <ul className="space-y-1 ml-3 list-disc text-sm">

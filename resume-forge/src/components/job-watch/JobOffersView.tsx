@@ -8,9 +8,9 @@ import { useJobWatcher } from '@/hooks/useJobWatcher';
 import { JobOfferCard } from './JobOfferCard';
 import type { JobOffer, JobSource } from '@/types/job-watch';
 
-const ALL_SOURCES: JobSource[] = ['apec', 'indeed', 'wttj', 'linkedin_rss', 'france_travail'];
+const ALL_SOURCES: JobSource[] = ['apec', 'indeed', 'hellowork', 'wttj', 'linkedin_rss', 'france_travail'];
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec: 'APEC', indeed: 'Indeed', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
+  apec: 'APEC', indeed: 'Indeed', hellowork: 'HelloWork', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
 };
 
 const COMMUTE_OPTIONS: Array<{ label: string; value: number | null }> = [

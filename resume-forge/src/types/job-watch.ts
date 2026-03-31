@@ -1,4 +1,4 @@
-export type JobSource = 'apec' | 'indeed' | 'wttj' | 'linkedin_rss' | 'france_travail';
+export type JobSource = 'apec' | 'indeed' | 'hellowork' | 'wttj' | 'linkedin_rss' | 'france_travail';
 
 export type CommuteStatus = 'pending' | 'ok' | 'error' | 'not_found';
 
@@ -93,7 +93,7 @@ export interface JobWatchFilters {
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
-  sources: ['apec', 'indeed', 'wttj', 'linkedin_rss', 'france_travail'],
+  sources: ['apec', 'indeed', 'hellowork', 'wttj', 'linkedin_rss', 'france_travail'],
   minScore: 0,
   maxCommuteMinutes: null,
   status: 'all',
