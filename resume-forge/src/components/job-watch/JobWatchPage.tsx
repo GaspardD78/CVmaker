@@ -24,7 +24,7 @@ export function JobWatchPage() {
       <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Veille Emploi</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-          Agrégation automatique d'offres depuis APEC, Indeed, WTTJ et LinkedIn
+          Agrégation automatique d'offres depuis APEC, HelloWork, WTTJ et LinkedIn
         </p>
       </div>
 
