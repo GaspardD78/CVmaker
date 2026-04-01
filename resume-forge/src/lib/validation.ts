@@ -117,6 +117,7 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'id',
     'source',
     'keywords',
+    'exclude_keywords',
     'location',
     'radius_km',
     'contract_types',

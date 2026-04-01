@@ -60,17 +60,18 @@ export async function getDb(): Promise<Database> {
     // Fallback: ensure migration 005 tables exist (v1.2 schema with TEXT UUID PKs)
     await db.execute(`
       CREATE TABLE IF NOT EXISTS job_watch_config (
-        id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-        source          TEXT NOT NULL,
-        keywords        TEXT NOT NULL DEFAULT '[]',
-        location        TEXT,
-        radius_km       INTEGER DEFAULT 50,
-        contract_types  TEXT DEFAULT '[]',
-        rss_url         TEXT,
-        ft_dept_code    TEXT,
-        enabled         INTEGER DEFAULT 1,
-        last_fetched_at TEXT,
-        created_at      TEXT DEFAULT (datetime('now'))
+        id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        source           TEXT NOT NULL,
+        keywords         TEXT NOT NULL DEFAULT '[]',
+        exclude_keywords TEXT NOT NULL DEFAULT '[]',
+        location         TEXT,
+        radius_km        INTEGER DEFAULT 50,
+        contract_types   TEXT DEFAULT '[]',
+        rss_url          TEXT,
+        ft_dept_code     TEXT,
+        enabled          INTEGER DEFAULT 1,
+        last_fetched_at  TEXT,
+        created_at       TEXT DEFAULT (datetime('now'))
       )
     `);
     await db.execute(`
@@ -99,6 +100,9 @@ export async function getDb(): Promise<Database> {
         kanban_id            TEXT REFERENCES applications(id) ON DELETE SET NULL
       )
     `);
+    // Fallback: ensure migration 006 column exists
+    await db.execute(`ALTER TABLE job_watch_config ADD COLUMN exclude_keywords TEXT NOT NULL DEFAULT '[]'`).catch(() => {/* already exists */});
+
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_hash    ON job_offers(hash)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_source  ON job_offers(source)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_score   ON job_offers(score)`);

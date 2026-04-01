@@ -190,30 +190,29 @@ export function FranceTravailHelpModal({ onClose }: { onClose: () => void }) {
 
 export function NavitiaHelpModal({ onClose }: { onClose: () => void }) {
   return (
-    <Modal title="🚇 Configurer le calcul de trajet (Navitia)" onClose={onClose}>
+    <Modal title="🚇 Configurer le calcul de trajet (IDFM PRIM)" onClose={onClose}>
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        Navitia calcule automatiquement le temps de trajet en transports en commun
-        vers chaque offre. C'est gratuit jusqu'à 3 000 requêtes/jour.
+        Le portail PRIM d'Île-de-France Mobilités calcule automatiquement le temps de
+        trajet en transports en commun vers chaque offre via l'API Navitia v2.
       </p>
 
       <div className="space-y-3">
         <Step n={1}>
-          Allez sur : <ExtLink href="https://navitia.io/navitia-api/">navitia.io</ExtLink>
+          Allez sur : <ExtLink href="https://prim.iledefrance-mobilites.fr/fr/apis/idfm-navitia-general-v2">prim.iledefrance-mobilites.fr</ExtLink>
           <br />
-          Cliquez sur <strong>« Get your free API key »</strong>.
+          Créez un compte ou connectez-vous.
         </Step>
 
         <Step n={2}>
-          Remplissez le formulaire d'inscription (prénom, e-mail, mot de passe).
-          Confirmez votre e-mail si demandé.
+          Rendez-vous dans <strong>« Mes jetons d'authentification »</strong> &gt; onglet <strong>« API »</strong>.
+          <br />
+          Cliquez sur <strong>« Générer un jeton »</strong>.
         </Step>
 
         <Step n={3}>
-          Une fois connecté, votre <strong>clé API</strong> s'affiche sur votre tableau de bord.
-          Elle ressemble à :<br />
-          <CopyButton text="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+          Copiez immédiatement le jeton affiché (il ne sera plus visible ensuite).
           <br />
-          <span className="text-gray-500 text-xs">Copiez-la et collez-la dans le champ « Clé API Navitia ».</span>
+          <span className="text-gray-500 text-xs">Collez-le dans le champ « Clé API PRIM » ci-dessous.</span>
         </Step>
 
         <Step n={4}>
@@ -228,7 +227,7 @@ export function NavitiaHelpModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <Note>
-        Le calcul de trajet ne fonctionne que pour les offres en Île-de-France (couverture Navitia standard).
+        Le calcul de trajet ne fonctionne que pour les offres en Île-de-France (couverture IDFM).
         Pour d'autres régions, le statut « Non calculé » s'affichera.
       </Note>
     </Modal>

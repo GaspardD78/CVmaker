@@ -417,13 +417,13 @@ export function JobWatchConfigView() {
       {/* ── Temps de trajet ── */}
       <section>
         <div className="flex items-center gap-3 mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Temps de trajet (Navitia)</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Temps de trajet (IDFM PRIM)</h3>
           <HelpButton label="Comment configurer ?" onClick={() => setHelpModal('navitia')} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Clé API Navitia
+              Clé API PRIM
             </label>
             <input
               type="password"
