@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro } from 'lucide-react';
 import { toast } from 'sonner';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import type { JobOffer, JobSource } from '@/types/job-watch';
 
@@ -110,7 +111,7 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOf
 
   const handleOpen = async () => {
     if (offer.isRead === 0) await markRead(offer.id);
-    window.open(offer.url, '_blank', 'noopener,noreferrer');
+    await openUrl(offer.url);
   };
 
   const handleMarkRead = async () => {
