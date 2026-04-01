@@ -1,16 +1,20 @@
 /**
- * Calcul du temps de trajet en transports en commun via l'API Navitia.
+ * Calcul du temps de trajet en transports en commun via l'API IDFM PRIM (Navitia v2).
+ *
+ * Portail PRIM : https://prim.iledefrance-mobilites.fr/fr/apis/idfm-navitia-general-v2
  *
  * Flux :
  *  1. Géocodage de l'adresse via Nominatim (OpenStreetMap, gratuit, sans clé)
- *  2. Appel Navitia journeys endpoint
+ *  2. Appel PRIM Navitia v2 journeys endpoint
  *  3. Retour du temps en minutes, ou null si indisponible
+ *
+ * Authentification : header `apiKey` avec le jeton PRIM.
  */
 
 import { tauriFetch } from './http';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
-const NAVITIA_URL   = 'https://api.navitia.io/v1/coverage/fr-idf/journeys';
+const NAVITIA_URL   = 'https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia/journeys';
 const TIMEOUT_MS    = 10_000;
 
 export type CommuteResult =
@@ -109,7 +113,7 @@ export async function getCommuteMinutes(
     const res = await tauriFetch(url, {
       signal:  controller.signal,
       headers: {
-        'Authorization': navitiaApiKey,
+        'apiKey':     navitiaApiKey,
         'User-Agent':    'ResumeForge/1.0',
       },
     });
@@ -173,7 +177,7 @@ export async function getCommuteMinutesByCoords(
     const res = await tauriFetch(url, {
       signal:  controller.signal,
       headers: {
-        'Authorization': navitiaApiKey,
+        'apiKey':     navitiaApiKey,
         'User-Agent':    'ResumeForge/1.0',
       },
     });
