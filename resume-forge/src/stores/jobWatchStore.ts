@@ -244,8 +244,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       const c = keysToCamelCase<Record<string, unknown>>(r) as Record<string, unknown>;
       return {
         ...c,
-        keywords:      typeof c['keywords']      === 'string' ? JSON.parse(c['keywords']      as string) : (c['keywords']      ?? []),
-        contractTypes: typeof c['contractTypes']  === 'string' ? JSON.parse(c['contractTypes']  as string) : (c['contractTypes']  ?? []),
+        keywords:        typeof c['keywords']        === 'string' ? JSON.parse(c['keywords']        as string) : (c['keywords']        ?? []),
+        excludeKeywords: typeof c['excludeKeywords']  === 'string' ? JSON.parse(c['excludeKeywords']  as string) : (c['excludeKeywords']  ?? []),
+        contractTypes:   typeof c['contractTypes']    === 'string' ? JSON.parse(c['contractTypes']    as string) : (c['contractTypes']    ?? []),
       } as JobWatchConfig;
     });
     set({ configs });
@@ -255,31 +256,33 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const db = await getDb();
     const snake = keysToSnakeCase<Record<string, unknown>>({
       ...config,
-      keywords:      JSON.stringify(config.keywords),
-      contractTypes: JSON.stringify(config.contractTypes),
+      keywords:        JSON.stringify(config.keywords),
+      excludeKeywords: JSON.stringify(config.excludeKeywords),
+      contractTypes:   JSON.stringify(config.contractTypes),
     });
 
     if (config.id) {
       await db.execute(
         `UPDATE job_watch_config SET
-          source=?1, keywords=?2, location=?3, radius_km=?4,
-          contract_types=?5, rss_url=?6, ft_dept_code=?7, enabled=?8
-         WHERE id=?9`,
+          source=?1, keywords=?2, exclude_keywords=?3, location=?4, radius_km=?5,
+          contract_types=?6, rss_url=?7, ft_dept_code=?8, enabled=?9
+         WHERE id=?10`,
         [
-          snake['source'], snake['keywords'], snake['location'] ?? null,
-          snake['radius_km'], snake['contract_types'], snake['rss_url'] ?? null,
-          snake['ft_dept_code'] ?? null, snake['enabled'], config.id,
+          snake['source'], snake['keywords'], snake['exclude_keywords'] ?? '[]',
+          snake['location'] ?? null, snake['radius_km'], snake['contract_types'],
+          snake['rss_url'] ?? null, snake['ft_dept_code'] ?? null, snake['enabled'],
+          config.id,
         ]
       );
     } else {
       await db.execute(
         `INSERT INTO job_watch_config
-          (source, keywords, location, radius_km, contract_types, rss_url, ft_dept_code, enabled)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`,
+          (source, keywords, exclude_keywords, location, radius_km, contract_types, rss_url, ft_dept_code, enabled)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`,
         [
-          snake['source'], snake['keywords'], snake['location'] ?? null,
-          snake['radius_km'], snake['contract_types'], snake['rss_url'] ?? null,
-          snake['ft_dept_code'] ?? null, snake['enabled'],
+          snake['source'], snake['keywords'], snake['exclude_keywords'] ?? '[]',
+          snake['location'] ?? null, snake['radius_km'], snake['contract_types'],
+          snake['rss_url'] ?? null, snake['ft_dept_code'] ?? null, snake['enabled'],
         ]
       );
     }

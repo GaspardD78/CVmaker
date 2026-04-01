@@ -158,7 +158,14 @@ export async function parseFranceTravail(
 
   for (let page = 0; page < 2; page++) {
     const params = new URLSearchParams();
-    if (config.keywords.length > 0) params.set('motsCles', config.keywords.join(' '));
+    // France Travail motsCles supports boolean operators
+    if (config.keywords.length > 0) {
+      let kw = config.keywords.join(' ');
+      if (config.excludeKeywords?.length > 0) {
+        kw += ' ' + config.excludeKeywords.map(ex => `-${ex}`).join(' ');
+      }
+      params.set('motsCles', kw);
+    }
     if (config.location)            params.set('commune', config.location);
     if (config.ftDeptCode)          params.set('departement', config.ftDeptCode);
     if (config.radiusKm)            params.set('distance', String(config.radiusKm));

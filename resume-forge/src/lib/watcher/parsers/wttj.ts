@@ -129,5 +129,14 @@ export async function parseWttj(config: JobWatchConfig): Promise<RawJobOffer[]> 
     }
   }
 
+  // Filter out offers matching exclude keywords (local filtering)
+  if (config.excludeKeywords?.length > 0) {
+    const excludeLower = config.excludeKeywords.map(k => k.toLowerCase());
+    return offers.filter(o => {
+      const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`.toLowerCase();
+      return !excludeLower.some(ex => text.includes(ex));
+    });
+  }
+
   return offers;
 }
