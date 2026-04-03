@@ -24,6 +24,37 @@ function isAndroid(): boolean {
   return /android/i.test(navigator.userAgent);
 }
 
+// ─── Suppression temporaire du clipping CSS des ancêtres ─────────────────────
+//
+// Le panneau droit a `overflow-auto h-full`, ce qui crée un contexte de
+// découpe CSS. html2canvas respecte ce clip et ne capture que la portion
+// visible à l'écran — le contenu scrollé (expériences, formations…) est absent.
+// On neutralise temporairement tous les overflow contraignants jusqu'à <body>,
+// le temps de la capture, puis on restaure l'état d'origine.
+
+function disableAncestorOverflow(el: HTMLElement): () => void {
+  const snapshots: Array<{ node: HTMLElement; prev: string }> = [];
+
+  let cur = el.parentElement;
+  while (cur && cur !== document.body) {
+    const cs = getComputedStyle(cur);
+    const hasClip =
+      ['auto', 'scroll', 'hidden'].includes(cs.overflowX) ||
+      ['auto', 'scroll', 'hidden'].includes(cs.overflowY);
+    if (hasClip) {
+      snapshots.push({ node: cur, prev: cur.style.cssText });
+      cur.style.setProperty('overflow', 'visible', 'important');
+    }
+    cur = cur.parentElement;
+  }
+
+  return () => {
+    for (const { node, prev } of snapshots) {
+      node.style.cssText = prev;
+    }
+  };
+}
+
 // ─── Résolution oklch → rgb dans le clone html2canvas ────────────────────────
 
 function resolveOklchColors(cvNode: HTMLElement) {
@@ -193,14 +224,18 @@ async function exportPdfAndroid(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
+  // Neutraliser le clipping CSS des conteneurs parents avant la capture
+  const restoreOverflow = disableAncestorOverflow(cvNode);
   const canvas = await html2canvas(cvNode, {
     scale: 2,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
     windowWidth: cvNode.scrollWidth,
+    windowHeight: cvNode.scrollHeight,
     onclone: resolveOklchColors(cvNode),
   });
+  restoreOverflow();
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
@@ -242,14 +277,18 @@ async function exportPdfDesktop(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
+  // Neutraliser le clipping CSS des conteneurs parents avant la capture
+  const restoreOverflow = disableAncestorOverflow(cvNode);
   const canvas = await html2canvas(cvNode, {
     scale: 3,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
     windowWidth: cvNode.scrollWidth,
+    windowHeight: cvNode.scrollHeight,
     onclone: resolveOklchColors(cvNode),
   });
+  restoreOverflow();
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
