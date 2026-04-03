@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { RefreshCw, Trash2 } from 'lucide-react';
+import { RefreshCw, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useApplicationStore } from '@/stores/applicationStore';
@@ -193,7 +193,7 @@ export function JobOffersView() {
         {/* Status */}
         <div>
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Statut</p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 items-center">
             {(['all', 'unread', 'archived'] as const).map(s => (
               <button
                 key={s}
@@ -207,6 +207,14 @@ export function JobOffersView() {
                 {s === 'all' ? 'Toutes' : s === 'unread' ? 'Non lues' : 'Archivées'}
               </button>
             ))}
+            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+            <button
+              onClick={() => setFilters({ minScore: 70, status: 'unread' })}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium transition-colors bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800"
+            >
+              <UserRound className="w-3 h-3" />
+              Top Match Profil
+            </button>
           </div>
         </div>
       </div>
