@@ -29,6 +29,9 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "tokio1", "tokio1-native-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
+headless_chrome = "1.0.21"
+tempfile = "3.27.0"
+url = "2.5.8"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 tauri-plugin-shell = "2"
