@@ -224,15 +224,25 @@ async function exportPdfAndroid(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
-  // Neutraliser le clipping CSS des conteneurs parents avant la capture
+  // html2canvas mesure la hauteur via getBoundingClientRect().height qui
+  // renvoie la hauteur clippée (visible) et non la hauteur réelle du contenu.
+  // On lit scrollHeight avant de modifier le DOM, puis on force la valeur.
+  const fullHeight = cvNode.scrollHeight;
+  const fullWidth  = cvNode.scrollWidth;
+
   const restoreOverflow = disableAncestorOverflow(cvNode);
+  // Laisser le navigateur recalculer le layout après le changement d'overflow
+  await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
   const canvas = await html2canvas(cvNode, {
     scale: 2,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
-    windowWidth: cvNode.scrollWidth,
-    windowHeight: cvNode.scrollHeight,
+    width: fullWidth,
+    height: fullHeight,
+    windowWidth: fullWidth,
+    windowHeight: fullHeight,
     onclone: resolveOklchColors(cvNode),
   });
   restoreOverflow();
@@ -277,15 +287,21 @@ async function exportPdfDesktop(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
-  // Neutraliser le clipping CSS des conteneurs parents avant la capture
+  const fullHeight = cvNode.scrollHeight;
+  const fullWidth  = cvNode.scrollWidth;
+
   const restoreOverflow = disableAncestorOverflow(cvNode);
+  await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
   const canvas = await html2canvas(cvNode, {
     scale: 3,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
-    windowWidth: cvNode.scrollWidth,
-    windowHeight: cvNode.scrollHeight,
+    width: fullWidth,
+    height: fullHeight,
+    windowWidth: fullWidth,
+    windowHeight: fullHeight,
     onclone: resolveOklchColors(cvNode),
   });
   restoreOverflow();
