@@ -270,7 +270,7 @@ async function exportPdfAndroid(): Promise<boolean> {
   const canvas = await html2canvas(cvNode, {
     scale: 2,
     useCORS: true,
-    logging: false,
+    logging: true,
     backgroundColor: '#ffffff',
     width: fullWidth,
     height: fullHeight,
@@ -329,7 +329,7 @@ async function exportPdfDesktop(): Promise<boolean> {
   const canvas = await html2canvas(cvNode, {
     scale: 3,
     useCORS: true,
-    logging: false,
+    logging: true,
     backgroundColor: '#ffffff',
     width: fullWidth,
     height: fullHeight,
