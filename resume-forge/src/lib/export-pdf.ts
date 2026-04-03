@@ -61,10 +61,11 @@ function disableAncestorOverflow(el: HTMLElement): () => void {
   };
 }
 
-// ─── Résolution oklch → rgb dans le clone html2canvas ────────────────────────
+// ─── Pre-processing html2canvas (Couleurs oklch + SVGs) ──────────────────────
 
-function resolveOklchColors(cvNode: HTMLElement) {
+function preprocessHtml2Canvas(cvNode: HTMLElement) {
   return (_clonedDoc: Document, clonedEl: HTMLElement) => {
+    // 1. Résolution des couleurs oklch -> rgb (html2canvas ne supporte pas oklch)
     const origAll = cvNode.querySelectorAll('*');
     const clonedAll = clonedEl.querySelectorAll('*');
     const resolve = (orig: Element, clone: HTMLElement) => {
@@ -81,6 +82,38 @@ function resolveOklchColors(cvNode: HTMLElement) {
       const clone = clonedAll[i] as HTMLElement | undefined;
       if (clone?.style) resolve(orig, clone);
     });
+
+    // 2. Remplacement des SVGs par des balises <img> avec la data URI
+    // html2canvas gère mal la position des SVGs (décalages), les convertir en image
+    // fige leur taille et leur rendu.
+    const svgs = clonedEl.querySelectorAll('svg');
+    svgs.forEach((svg) => {
+      const width = svg.getAttribute('width') || svg.style.width || svg.getBoundingClientRect().width + 'px';
+      const height = svg.getAttribute('height') || svg.style.height || svg.getBoundingClientRect().height + 'px';
+
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svg);
+
+      // Assurer la présence du namespace
+      if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      // Convertir en data URL
+      const encodedData = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(source)));
+
+      const img = document.createElement('img');
+      img.src = encodedData;
+      img.style.width = width;
+      img.style.height = height;
+      img.style.display = 'block'; // Empêche les marges par défaut des images inline
+
+      // Copier les classes et styles
+      img.className = svg.className.baseVal || '';
+      if (svg.style.cssText) img.style.cssText += ';' + svg.style.cssText;
+
+      svg.replaceWith(img);
+    });
   };
 }
 
@@ -94,10 +127,6 @@ function addTextLayer(
 ): void {
   const cvRect = cvNode.getBoundingClientRect();
   const pxToMm = pageW / cvNode.offsetWidth;
-
-  // Couleur quasi-blanche : visuellement absente sur fond blanc, et couverte
-  // de toute façon par l'image opaque déposée ensuite.
-  pdf.setTextColor(240, 240, 240);
 
   const walker = document.createTreeWalker(cvNode, NodeFilter.SHOW_TEXT);
   let node: Node | null;
@@ -150,15 +179,14 @@ function addTextLayer(
     pdf.setFontSize(fontSizePt);
 
     try {
-      pdf.text(text, xMm, yOnPage);
+      pdf.text(text, xMm, yOnPage, { renderingMode: "invisible" });
     } catch {
       // Caractère non supporté par la police par défaut — ignorer silencieusement
     }
   }
 
-  // Remettre la page 1 et la couleur noire pour la suite
+  // Remettre la page 1 pour la suite
   pdf.setPage(1);
-  pdf.setTextColor(0, 0, 0);
 }
 
 // ─── Annotations de liens cliquables ─────────────────────────────────────────
@@ -248,7 +276,7 @@ async function exportPdfAndroid(): Promise<boolean> {
     height: fullHeight,
     windowWidth: fullWidth,
     windowHeight: fullHeight,
-    onclone: resolveOklchColors(cvNode),
+    onclone: preprocessHtml2Canvas(cvNode),
   });
   restoreOverflow();
 
@@ -307,7 +335,7 @@ async function exportPdfDesktop(): Promise<boolean> {
     height: fullHeight,
     windowWidth: fullWidth,
     windowHeight: fullHeight,
-    onclone: resolveOklchColors(cvNode),
+    onclone: preprocessHtml2Canvas(cvNode),
   });
   restoreOverflow();
 
