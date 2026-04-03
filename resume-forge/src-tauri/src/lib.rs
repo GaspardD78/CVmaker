@@ -12,7 +12,7 @@ use headless_chrome::{Browser, LaunchOptions};
 use headless_chrome::browser::default_executable;
 use std::io::Write;
 #[cfg(not(target_os = "android"))]
-use tempfile::NamedTempFile;
+use tempfile::Builder;
 
 /// Resolved database URI, computed once at startup.
 static DB_URI: OnceLock<String> = OnceLock::new();
@@ -101,7 +101,10 @@ async fn generate_pdf(html: String) -> Result<Vec<u8>, String> {
         }
 
         // 2. Write the HTML string to a temporary file
-        let mut temp_file = NamedTempFile::new().map_err(|e| e.to_string())?;
+        let mut temp_file = Builder::new()
+            .suffix(".html")
+            .tempfile()
+            .map_err(|e| e.to_string())?;
         temp_file.write_all(html.as_bytes()).map_err(|e| e.to_string())?;
         let temp_path = temp_file.into_temp_path();
 
