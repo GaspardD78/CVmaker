@@ -6,6 +6,14 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 mod email;
 pub use email::send_email;
 
+#[cfg(not(target_os = "android"))]
+use headless_chrome::{Browser, LaunchOptions};
+#[cfg(not(target_os = "android"))]
+use headless_chrome::browser::default_executable;
+use std::io::Write;
+#[cfg(not(target_os = "android"))]
+use tempfile::NamedTempFile;
+
 /// Resolved database URI, computed once at startup.
 static DB_URI: OnceLock<String> = OnceLock::new();
 
@@ -82,6 +90,72 @@ fn get_db_uri() -> String {
     DB_URI.get_or_init(resolve_db_uri).clone()
 }
 
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+async fn generate_pdf(html: String) -> Result<Vec<u8>, String> {
+    // Generate PDF inside a blocking thread so it doesn't freeze the UI or the async runtime.
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        // 1. Check if a browser executable is found
+        if let Err(e) = default_executable() {
+            return Err(format!("Aucun navigateur basé sur Chromium n'a été trouvé sur le système : {}", e));
+        }
+
+        // 2. Write the HTML string to a temporary file
+        let mut temp_file = NamedTempFile::new().map_err(|e| e.to_string())?;
+        temp_file.write_all(html.as_bytes()).map_err(|e| e.to_string())?;
+        let temp_path = temp_file.into_temp_path();
+
+        let file_url = url::Url::from_file_path(&temp_path)
+            .map_err(|_| "Failed to convert temp file path to URL".to_string())?
+            .to_string();
+
+        // 3. Launch headless browser
+        let browser = Browser::new(
+            LaunchOptions::default_builder()
+                .headless(true)
+                .build()
+                .map_err(|e| e.to_string())?
+        ).map_err(|e| e.to_string())?;
+
+        // 4. Navigate to the temporary file
+        let tab = browser.new_tab().map_err(|e| e.to_string())?;
+        tab.navigate_to(&file_url).map_err(|e| e.to_string())?;
+        tab.wait_until_navigated().map_err(|e| e.to_string())?;
+
+        // 5. Generate PDF
+        let pdf_data = tab.print_to_pdf(Some(headless_chrome::types::PrintToPdfOptions {
+            landscape: Some(false),
+            display_header_footer: Some(false),
+            print_background: Some(true),
+            scale: Some(1.0),
+            paper_width: Some(8.27), // A4 width in inches
+            paper_height: Some(11.69), // A4 height in inches
+            margin_top: Some(0.0),
+            margin_bottom: Some(0.0),
+            margin_left: Some(0.0),
+            margin_right: Some(0.0),
+            page_ranges: None,
+            ignore_invalid_page_ranges: None,
+            header_template: None,
+            footer_template: None,
+            prefer_css_page_size: Some(true),
+            transfer_mode: None,
+            generate_document_outline: None,
+            generate_tagged_pdf: None,
+        })).map_err(|e| e.to_string())?;
+
+        Ok(pdf_data)
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))?
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+async fn generate_pdf(_html: String) -> Result<Vec<u8>, String> {
+    Err("L'export PDF vectoriel n'est pas supporté sur Android via cette méthode.".into())
+}
+
 // ── Point d'entrée ────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -143,6 +217,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_db_uri,
             send_email,
+            generate_pdf,
             #[cfg(not(target_os = "android"))]
             start_oauth_server,
         ])
