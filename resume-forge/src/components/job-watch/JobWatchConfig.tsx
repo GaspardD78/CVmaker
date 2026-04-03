@@ -39,6 +39,7 @@ interface SourceRowProps {
 }
 
 function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRowProps) {
+  const { profile, entries } = useProfileStore();
   const [draft, setDraft] = useState<ConfigType>(config);
   // Separate raw text state so commas can be typed freely.
   // Parsed into the array only on blur or save.
@@ -93,9 +94,32 @@ function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRow
 
       {/* Keywords — raw text input, parsed on blur */}
       <div>
-        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-          Mots-clés (séparés par des virgules)
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs text-gray-500 dark:text-gray-400">
+            Mots-clés (séparés par des virgules)
+          </label>
+          {profile && (
+            <button
+              onClick={() => {
+                const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title);
+                const titles = [profile.title].filter(Boolean) as string[];
+                const all = [...new Set([...titles, ...skills])];
+                if (all.length === 0) {
+                  toast.info('Aucune compétence ou titre trouvé dans le profil maître');
+                  return;
+                }
+                const existing = keywordsText.split(',').map(k => k.trim()).filter(Boolean);
+                const merged = [...new Set([...existing, ...all])];
+                setKeywordsText(merged.join(', '));
+                toast.success(`${all.length} mot(s)-clé(s) importé(s) depuis le profil`);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
+            >
+              <UserRound className="w-3 h-3" />
+              Depuis le profil
+            </button>
+          )}
+        </div>
         <input
           type="text"
           value={keywordsText}
@@ -224,11 +248,15 @@ export function JobWatchConfigView() {
   const unusedSources = ALL_SOURCES.filter(s => !configs.some(c => c.source === s));
 
   const handleAddSource = async (source: JobSource) => {
+    const skills = entries.filter(e => e.entryType === 'skill').slice(0, 3).map(e => e.title);
+    const titles = [profile?.title].filter(Boolean) as string[];
+    const initialKeywords = [...new Set([...titles, ...skills])];
+
     await upsertConfig({
       source,
-      keywords:        [],
+      keywords:        initialKeywords,
       excludeKeywords: [],
-      location:        null,
+      location:        profile?.city ?? null,
       radiusKm:        50,
       contractTypes:   [],
       rssUrl:          null,

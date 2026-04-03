@@ -18,6 +18,7 @@ import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource } from '@
 import { computeOfferHash, loadExistingHashes } from './deduplicator';
 import { computeScore } from './scorer';
 import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
+import { useProfileStore } from '@/stores/profileStore';
 import { parseApec } from './parsers/apec';
 import { parseIndeed } from './parsers/indeed';
 import { parseWttj } from './parsers/wttj';
@@ -87,7 +88,14 @@ export async function runFetch(
         if (existingHashes.has(hash)) continue;
 
         // Score
-        const score = computeScore(raw, settings.positiveKeywords, settings.negativeKeywords);
+        const profileStore = useProfileStore.getState();
+        const score = computeScore(
+          raw,
+          settings.positiveKeywords,
+          settings.negativeKeywords,
+          profileStore.profile,
+          profileStore.entries
+        );
 
         // Commute
         let commuteMinutes: number | null = null;
