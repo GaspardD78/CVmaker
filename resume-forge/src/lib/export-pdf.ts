@@ -1,20 +1,144 @@
 /**
- * Exporte le CV en PDF.
+ * Exporte le CV en PDF — stratégie « PDF sandwich » :
  *
- * Stratégie hybride selon la plateforme :
- *  - Android (Tauri WebView) : html2canvas + jsPDF → dialog SAF « Enregistrer
- *    sous » (plugin-dialog) puis écriture via plugin-fs.  Le plugin-opener est
- *    volontairement évité car sa v2.5.3 a un bug de sérialisation sur le bridge
- *    Kotlin (open_path passe un String brut au lieu d'un objet OpenArgs JSON).
- *  - Desktop (Windows/macOS/Linux) : page HTML autonome ouverte dans une
- *    nouvelle fenêtre et impression native (qualité vectorielle).
+ *  1. html2canvas capture le DOM pixel-perfect (graphiques, couleurs oklch,
+ *     fonds colorés) → image PNG intégrée comme couche visuelle.
+ *  2. Une couche texte invisible (mode PDF Tr=3, spec §9.3.1) est superposée
+ *     aux positions exactes des nœuds texte → texte sélectionnable, copiable
+ *     et lisible par les ATS.
+ *  3. Les balises <a href> deviennent des annotations de lien PDF cliquables.
+ *
+ * Résultat : rendu identique à la vue logiciel, 100 % automatique (aucune
+ * boîte de dialogue d'impression), ATS-compatible, liens actifs.
+ *
+ * Différences par plateforme :
+ *  - Android : scale 2×, image JPEG 92 % (plus léger pour le bridge Kotlin).
+ *  - Desktop  : scale 3×, image PNG (netteté maximale).
+ *
+ * Sauvegarde via plugin-dialog + plugin-fs (évite plugin-opener dont le
+ * bridge Kotlin v2.5.3 a un bug de sérialisation).
  */
 
 function isAndroid(): boolean {
   return /android/i.test(navigator.userAgent);
 }
 
-// ─── Chemin Android : html2canvas + jsPDF → dialog SAF ──────────────────────
+// ─── Résolution des couleurs oklch → rgb dans le clone html2canvas ───────────
+
+function resolveOklchColors(cvNode: HTMLElement) {
+  return (_clonedDoc: Document, clonedEl: HTMLElement) => {
+    const origAll = cvNode.querySelectorAll('*');
+    const clonedAll = clonedEl.querySelectorAll('*');
+    const resolve = (orig: Element, clone: HTMLElement) => {
+      const cs = getComputedStyle(orig);
+      clone.style.color = cs.color;
+      clone.style.backgroundColor = cs.backgroundColor;
+      clone.style.borderTopColor = cs.borderTopColor;
+      clone.style.borderRightColor = cs.borderRightColor;
+      clone.style.borderBottomColor = cs.borderBottomColor;
+      clone.style.borderLeftColor = cs.borderLeftColor;
+    };
+    resolve(cvNode, clonedEl);
+    origAll.forEach((orig, i) => {
+      const clone = clonedAll[i] as HTMLElement | undefined;
+      if (clone?.style) resolve(orig, clone);
+    });
+  };
+}
+
+// ─── Couche texte invisible + annotations de liens ───────────────────────────
+
+function addTextAndLinksLayer(
+  pdf: import('jspdf').jsPDF,
+  cvNode: HTMLElement,
+  pageW: number,
+  pageH: number,
+): void {
+  const cvRect = cvNode.getBoundingClientRect();
+  const pxToMm = pageW / cvNode.offsetWidth;
+
+  // Mode texte invisible : Tr=3 dans la spec PDF (ni rempli, ni contouré).
+  // Le texte est présent dans le flux de contenu et donc lisible par les ATS,
+  // mais n'est pas rendu visuellement — la couche image reste seule visible.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (pdf as any).internal.write('3 Tr');
+
+  const walker = document.createTreeWalker(cvNode, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+
+  while ((node = walker.nextNode())) {
+    const text = (node.textContent ?? '').trim();
+    if (!text) continue;
+
+    const parent = node.parentElement;
+    if (!parent) continue;
+
+    // getClientRects() donne une rect par ligne visuelle du nœud texte
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const lineRects = Array.from(range.getClientRects());
+    if (!lineRects.length) continue;
+
+    // Taille de police : px → pt (1 px CSS = 0,75 pt à 96 dpi)
+    const fontSizePt = Math.max(parseFloat(getComputedStyle(parent).fontSize) * 0.75, 4);
+    pdf.setFontSize(fontSizePt);
+
+    // Pour les nœuds multi-lignes, on dépose le texte à la position de la
+    // première ligne seulement (l'ATS lit le contenu, pas la position).
+    const rect = lineRects[0];
+    if (rect.width < 1 || rect.height < 1) continue;
+
+    const xMm = (rect.left - cvRect.left) * pxToMm;
+    const yMm = (rect.bottom - cvRect.top) * pxToMm;
+
+    // Ignorer les nœuds hors page
+    const pageIndex = Math.floor(yMm / pageH);
+    const yOnPage = yMm - pageIndex * pageH;
+    if (xMm < 0 || xMm > pageW || yOnPage < 0) continue;
+
+    if (pageIndex > 0) {
+      // Aller à la bonne page si le CV est multi-page
+      if (pageIndex + 1 > pdf.getNumberOfPages()) continue;
+      pdf.setPage(pageIndex + 1);
+    }
+
+    try {
+      pdf.text(text, xMm, yOnPage);
+    } catch {
+      // Caractère non supporté par la police par défaut — ignorer
+    }
+  }
+
+  // Remettre le mode texte normal avant les annotations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (pdf as any).internal.write('0 Tr');
+  pdf.setPage(1);
+
+  // Annotations de liens cliquables
+  const anchors = cvNode.querySelectorAll<HTMLAnchorElement>('a[href]');
+  for (const anchor of anchors) {
+    const href = anchor.href;
+    if (!href || href.startsWith('javascript:') || href.startsWith('blob:')) continue;
+
+    const rect = anchor.getBoundingClientRect();
+    const xMm = (rect.left - cvRect.left) * pxToMm;
+    const yMm = (rect.top - cvRect.top) * pxToMm;
+    const wMm = rect.width * pxToMm;
+    const hMm = rect.height * pxToMm;
+    if (wMm < 1 || hMm < 1) continue;
+
+    const pageIndex = Math.floor(yMm / pageH);
+    const yOnPage = yMm - pageIndex * pageH;
+    if (pageIndex > 0 && pageIndex + 1 <= pdf.getNumberOfPages()) {
+      pdf.setPage(pageIndex + 1);
+    }
+
+    pdf.link(xMm, yOnPage, wMm, hMm, { url: href });
+    pdf.setPage(1);
+  }
+}
+
+// ─── Chemin Android : html2canvas JPEG + couche texte/liens ─────────────────
 
 async function exportPdfAndroid(): Promise<boolean> {
   const cvNode = document.getElementById('printable-cv');
@@ -26,56 +150,33 @@ async function exportPdfAndroid(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
-  // Capture avec résolution oklch→rgb dans le clone
   const canvas = await html2canvas(cvNode, {
     scale: 2,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
     windowWidth: cvNode.scrollWidth,
-    onclone: (_clonedDoc: Document, clonedEl: HTMLElement) => {
-      const origAll = cvNode.querySelectorAll('*');
-      const clonedAll = clonedEl.querySelectorAll('*');
-
-      const resolveColors = (orig: Element, clone: HTMLElement) => {
-        const cs = getComputedStyle(orig);
-        clone.style.color = cs.color;
-        clone.style.backgroundColor = cs.backgroundColor;
-        clone.style.borderTopColor = cs.borderTopColor;
-        clone.style.borderRightColor = cs.borderRightColor;
-        clone.style.borderBottomColor = cs.borderBottomColor;
-        clone.style.borderLeftColor = cs.borderLeftColor;
-      };
-
-      resolveColors(cvNode, clonedEl);
-      origAll.forEach((orig, i) => {
-        const clone = clonedAll[i] as HTMLElement | undefined;
-        if (clone?.style) resolveColors(orig, clone);
-      });
-    },
+    onclone: resolveOklchColors(cvNode),
   });
 
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
-
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageW = pdf.internal.pageSize.getWidth();  // 210
-  const pageH = pdf.internal.pageSize.getHeight(); // 297
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
   const imgHeightMm = (canvas.height / canvas.width) * pageW;
 
   if (imgHeightMm <= pageH) {
-    pdf.addImage(imgData, 'JPEG', 0, 0, pageW, imgHeightMm);
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, imgHeightMm);
   } else {
     const numPages = Math.ceil(imgHeightMm / pageH);
     for (let i = 0; i < numPages; i++) {
       if (i > 0) pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, -(i * pageH), pageW, imgHeightMm);
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, -(i * pageH), pageW, imgHeightMm);
     }
   }
 
-  const pdfData = new Uint8Array(pdf.output('arraybuffer'));
+  addTextAndLinksLayer(pdf, cvNode, pageW, pageH);
 
-  // Même pattern que l'export DOCX : dialog SAF « Enregistrer sous » +
-  // writeFile.  Évite le plugin-opener dont le bridge Kotlin est cassé.
+  const pdfData = new Uint8Array(pdf.output('arraybuffer'));
   const { save } = await import('@tauri-apps/plugin-dialog');
   const { writeFile } = await import('@tauri-apps/plugin-fs');
 
@@ -89,7 +190,7 @@ async function exportPdfAndroid(): Promise<boolean> {
   return true;
 }
 
-// ─── Chemin Desktop : HTML autonome + window.print() ─────────────────────────
+// ─── Chemin Desktop : html2canvas PNG + couche texte/liens ───────────────────
 
 async function exportPdfDesktop(): Promise<boolean> {
   const cvNode = document.getElementById('printable-cv');
@@ -98,99 +199,46 @@ async function exportPdfDesktop(): Promise<boolean> {
     return false;
   }
 
-  let cvHtml = cvNode.outerHTML;
+  const html2canvas = (await import('html2canvas')).default;
+  const { jsPDF } = await import('jspdf');
 
-  cvHtml = cvHtml.replace(
-    /style="margin:\s*-40px\s*-40px[^"]*"/,
-    'style="margin: -28px -32px 0.75rem; padding: 28px 32px; background-color: rgb(38, 162, 105);"'
-  );
+  const canvas = await html2canvas(cvNode, {
+    scale: 3,
+    useCORS: true,
+    logging: false,
+    backgroundColor: '#ffffff',
+    windowWidth: cvNode.scrollWidth,
+    onclone: resolveOklchColors(cvNode),
+  });
 
-  cvHtml = cvHtml
-    .replace(/@media\s+print\s*\{\s*#printable-cv\s*\{[^}]+\}\s*\}/g, '')
-    .replace(/@media\s+print\s*\{\s*#printable-cv\s+\.cv-header-block\s*\{[^}]+\}\s*\}/g, '');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const imgHeightMm = (canvas.height / canvas.width) * pageW;
 
-  let collectedCss = '';
-  try {
-    Array.from(document.styleSheets).forEach(sheet => {
-      try {
-        Array.from(sheet.cssRules).forEach(rule => {
-          if (rule instanceof CSSMediaRule) {
-            const mq = rule.conditionText || rule.media?.mediaText || '';
-            if (mq.includes('print')) return;
-          }
-          if (rule instanceof CSSPageRule) return;
-          collectedCss += rule.cssText + '\n';
-        });
-      } catch {
-        // CORS sur sheets externes — ignorer
-      }
-    });
-  } catch { /* ignorer */ }
-
-  const doc = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    ${collectedCss}
-    @page { size: A4 portrait; margin: 0mm; }
-    html, body {
-      margin: 0 !important; padding: 0 !important;
-      width: 210mm !important; height: auto !important;
-      overflow: visible !important; background: white !important;
-    }
-    #printable-cv {
-      position: static !important; width: 210mm !important;
-      max-width: none !important; margin: 0 !important;
-      padding: 28px 32px !important; zoom: 1 !important; transform: none !important;
-    }
-    #printable-cv .cv-header-block {
-      margin: -28px -32px 0.75rem !important; padding: 28px 32px !important;
-    }
-    #printable-cv h3 { break-after: avoid; page-break-after: avoid; }
-    #printable-cv .cv-entry { break-inside: avoid; page-break-inside: avoid; }
-  </style>
-</head>
-<body>
-  ${cvHtml}
-  <script>
-    document.fonts.ready.then(function() {
-      setTimeout(function() {
-        window.print();
-        setTimeout(function() { window.close(); }, 1000);
-      }, 800);
-    });
-  </script>
-</body>
-</html>`;
-
-  const blob = new Blob([doc], { type: 'text/html; charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const printWin = window.open(url, '_blank', 'width=900,height=700');
-
-  if (!printWin) {
-    // Fallback si popup bloqué par Tauri CSP (desktop)
-    try {
-      const { save } = await import('@tauri-apps/plugin-dialog');
-      const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-
-      const tempPath = await save({
-        defaultPath: 'cv_print.html',
-        filters: [{ name: 'HTML', extensions: ['html'] }],
-      });
-      if (tempPath) {
-        await writeTextFile(tempPath, doc);
-        await openPath(tempPath);
-      }
-    } catch (e) {
-      console.error('Export PDF fallback échoué:', e);
+  if (imgHeightMm <= pageH) {
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, imgHeightMm);
+  } else {
+    const numPages = Math.ceil(imgHeightMm / pageH);
+    for (let i = 0; i < numPages; i++) {
+      if (i > 0) pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, -(i * pageH), pageW, imgHeightMm);
     }
   }
 
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  addTextAndLinksLayer(pdf, cvNode, pageW, pageH);
+
+  const pdfData = new Uint8Array(pdf.output('arraybuffer'));
+  const { save } = await import('@tauri-apps/plugin-dialog');
+  const { writeFile } = await import('@tauri-apps/plugin-fs');
+
+  const filePath = await save({
+    defaultPath: 'cv_export.pdf',
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (!filePath) return false;
+
+  await writeFile(filePath, pdfData);
   return true;
 }
 
