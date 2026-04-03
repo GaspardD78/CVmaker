@@ -41,9 +41,15 @@ function disableAncestorOverflow(el: HTMLElement): () => void {
     const hasClip =
       ['auto', 'scroll', 'hidden'].includes(cs.overflowX) ||
       ['auto', 'scroll', 'hidden'].includes(cs.overflowY);
+
     if (hasClip) {
       snapshots.push({ node: cur, prev: cur.style.cssText });
+      // overflow:auto + height:fixed = contexte de clip que html2canvas
+      // respecte. On doit neutraliser les deux pour que le rendu s'étende
+      // au-delà du viewport.
       cur.style.setProperty('overflow', 'visible', 'important');
+      cur.style.setProperty('height', 'auto', 'important');
+      cur.style.setProperty('max-height', 'none', 'important');
     }
     cur = cur.parentElement;
   }
@@ -224,15 +230,14 @@ async function exportPdfAndroid(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
-  // html2canvas mesure la hauteur via getBoundingClientRect().height qui
-  // renvoie la hauteur clippée (visible) et non la hauteur réelle du contenu.
-  // On lit scrollHeight avant de modifier le DOM, puis on force la valeur.
+  // Débloquer les ancêtres AVANT de mesurer — sinon getBoundingClientRect
+  // et scrollHeight reflètent la hauteur clippée du viewport.
+  const restoreOverflow = disableAncestorOverflow(cvNode);
+  await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+  // Mesurer APRÈS le relayout pour obtenir les vraies dimensions
   const fullHeight = cvNode.scrollHeight;
   const fullWidth  = cvNode.scrollWidth;
-
-  const restoreOverflow = disableAncestorOverflow(cvNode);
-  // Laisser le navigateur recalculer le layout après le changement d'overflow
-  await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
   const canvas = await html2canvas(cvNode, {
     scale: 2,
@@ -287,11 +292,11 @@ async function exportPdfDesktop(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
-  const fullHeight = cvNode.scrollHeight;
-  const fullWidth  = cvNode.scrollWidth;
-
   const restoreOverflow = disableAncestorOverflow(cvNode);
   await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+  const fullHeight = cvNode.scrollHeight;
+  const fullWidth  = cvNode.scrollWidth;
 
   const canvas = await html2canvas(cvNode, {
     scale: 3,
