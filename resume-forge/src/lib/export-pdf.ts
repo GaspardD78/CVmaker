@@ -1,29 +1,61 @@
 /**
- * Exporte le CV en PDF — stratégie « PDF sandwich » :
+ * Exporte le CV en PDF — stratégie « PDF sandwich » (modèle OCR) :
  *
- *  1. html2canvas capture le DOM pixel-perfect (graphiques, couleurs oklch,
- *     fonds colorés) → image PNG intégrée comme couche visuelle.
- *  2. Une couche texte invisible (mode PDF Tr=3, spec §9.3.1) est superposée
- *     aux positions exactes des nœuds texte → texte sélectionnable, copiable
- *     et lisible par les ATS.
- *  3. Les balises <a href> deviennent des annotations de lien PDF cliquables.
+ *  1. Couche texte invisible : les nœuds texte du DOM sont ajoutés en premier
+ *     dans le flux PDF (couleur quasi-blanche → visuellement absente).
+ *     ATS et copier-coller fonctionnent car le texte est bien dans le flux.
+ *  2. Image opaque par-dessus : html2canvas capture le DOM pixel-perfect
+ *     (graphiques, couleurs oklch, fonds) et est déposée sur le texte.
+ *     L'image couvre tout visuellement ; les visionneuses PDF permettent
+ *     quand même la sélection du texte sous-jacent (comme les scans OCR).
+ *  3. Annotations de liens : les <a href> deviennent des zones cliquables PDF.
  *
- * Résultat : rendu identique à la vue logiciel, 100 % automatique (aucune
- * boîte de dialogue d'impression), ATS-compatible, liens actifs.
+ * Ce modèle est standard et fiable : pas de mode Tr=3, pas d'API interne
+ * jsPDF, compatible avec tous les visionneuses et ATS.
  *
  * Différences par plateforme :
- *  - Android : scale 2×, image JPEG 92 % (plus léger pour le bridge Kotlin).
- *  - Desktop  : scale 3×, image PNG (netteté maximale).
+ *  - Android : scale 2×, JPEG 92 % (bande passante réduite).
+ *  - Desktop  : scale 3×, PNG (netteté maximale).
  *
- * Sauvegarde via plugin-dialog + plugin-fs (évite plugin-opener dont le
- * bridge Kotlin v2.5.3 a un bug de sérialisation).
+ * Sauvegarde via plugin-dialog + plugin-fs.
  */
 
 function isAndroid(): boolean {
   return /android/i.test(navigator.userAgent);
 }
 
-// ─── Résolution des couleurs oklch → rgb dans le clone html2canvas ───────────
+// ─── Suppression temporaire du clipping CSS des ancêtres ─────────────────────
+//
+// Le panneau droit a `overflow-auto h-full`, ce qui crée un contexte de
+// découpe CSS. html2canvas respecte ce clip et ne capture que la portion
+// visible à l'écran — le contenu scrollé (expériences, formations…) est absent.
+// On neutralise temporairement tous les overflow contraignants jusqu'à <body>,
+// le temps de la capture, puis on restaure l'état d'origine.
+
+function disableAncestorOverflow(el: HTMLElement): () => void {
+  const snapshots: Array<{ node: HTMLElement; prev: string }> = [];
+
+  let cur = el.parentElement;
+  while (cur && cur !== document.body) {
+    const cs = getComputedStyle(cur);
+    const hasClip =
+      ['auto', 'scroll', 'hidden'].includes(cs.overflowX) ||
+      ['auto', 'scroll', 'hidden'].includes(cs.overflowY);
+    if (hasClip) {
+      snapshots.push({ node: cur, prev: cur.style.cssText });
+      cur.style.setProperty('overflow', 'visible', 'important');
+    }
+    cur = cur.parentElement;
+  }
+
+  return () => {
+    for (const { node, prev } of snapshots) {
+      node.style.cssText = prev;
+    }
+  };
+}
+
+// ─── Résolution oklch → rgb dans le clone html2canvas ────────────────────────
 
 function resolveOklchColors(cvNode: HTMLElement) {
   return (_clonedDoc: Document, clonedEl: HTMLElement) => {
@@ -46,9 +78,9 @@ function resolveOklchColors(cvNode: HTMLElement) {
   };
 }
 
-// ─── Couche texte invisible + annotations de liens ───────────────────────────
+// ─── Couche texte (déposée AVANT l'image, couverte visuellement par elle) ────
 
-function addTextAndLinksLayer(
+function addTextLayer(
   pdf: import('jspdf').jsPDF,
   cvNode: HTMLElement,
   pageW: number,
@@ -57,14 +89,13 @@ function addTextAndLinksLayer(
   const cvRect = cvNode.getBoundingClientRect();
   const pxToMm = pageW / cvNode.offsetWidth;
 
-  // Mode texte invisible : Tr=3 dans la spec PDF (ni rempli, ni contouré).
-  // Le texte est présent dans le flux de contenu et donc lisible par les ATS,
-  // mais n'est pas rendu visuellement — la couche image reste seule visible.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (pdf as any).internal.write('3 Tr');
+  // Couleur quasi-blanche : visuellement absente sur fond blanc, et couverte
+  // de toute façon par l'image opaque déposée ensuite.
+  pdf.setTextColor(240, 240, 240);
 
   const walker = document.createTreeWalker(cvNode, NodeFilter.SHOW_TEXT);
   let node: Node | null;
+  let currentPdfPage = 1;
 
   while ((node = walker.nextNode())) {
     const text = (node.textContent ?? '').trim();
@@ -73,48 +104,68 @@ function addTextAndLinksLayer(
     const parent = node.parentElement;
     if (!parent) continue;
 
-    // getClientRects() donne une rect par ligne visuelle du nœud texte
+    // Exclure les éléments SVG (icônes) — leur contenu textuel n'est pas
+    // pertinent pour l'ATS et causerait des artefacts de position.
+    if (parent.closest('svg')) continue;
+
+    const style = getComputedStyle(parent);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+
     const range = document.createRange();
     range.selectNodeContents(node);
     const lineRects = Array.from(range.getClientRects());
     if (!lineRects.length) continue;
 
-    // Taille de police : px → pt (1 px CSS = 0,75 pt à 96 dpi)
-    const fontSizePt = Math.max(parseFloat(getComputedStyle(parent).fontSize) * 0.75, 4);
-    pdf.setFontSize(fontSizePt);
+    // On utilise le premier rect (première ligne du nœud texte).
+    const r = lineRects[0];
+    if (r.width < 1 || r.height < 1) continue;
 
-    // Pour les nœuds multi-lignes, on dépose le texte à la position de la
-    // première ligne seulement (l'ATS lit le contenu, pas la position).
-    const rect = lineRects[0];
-    if (rect.width < 1 || rect.height < 1) continue;
+    const xMm = (r.left - cvRect.left) * pxToMm;
+    // rect.bottom = bas de la boîte de texte ≈ ligne de base + descendantes
+    const yMm = (r.bottom - cvRect.top) * pxToMm;
 
-    const xMm = (rect.left - cvRect.left) * pxToMm;
-    const yMm = (rect.bottom - cvRect.top) * pxToMm;
+    if (xMm < 0 || xMm > pageW || yMm < 0) continue;
 
-    // Ignorer les nœuds hors page
-    const pageIndex = Math.floor(yMm / pageH);
-    const yOnPage = yMm - pageIndex * pageH;
-    if (xMm < 0 || xMm > pageW || yOnPage < 0) continue;
+    // Page cible et position relative sur cette page
+    const targetPage = Math.floor(yMm / pageH) + 1;
+    const yOnPage = yMm - (targetPage - 1) * pageH;
 
-    if (pageIndex > 0) {
-      // Aller à la bonne page si le CV est multi-page
-      if (pageIndex + 1 > pdf.getNumberOfPages()) continue;
-      pdf.setPage(pageIndex + 1);
+    // Marge de sécurité de 2 mm en bas de chaque page pour éviter
+    // qu'un texte trop proche du bord ne génère une page supplémentaire.
+    if (yOnPage < 1 || yOnPage > pageH - 2) continue;
+    if (targetPage > pdf.getNumberOfPages()) continue;
+
+    if (targetPage !== currentPdfPage) {
+      pdf.setPage(targetPage);
+      currentPdfPage = targetPage;
     }
+
+    const fontSizePt = Math.max(parseFloat(style.fontSize) * 0.75, 4);
+    pdf.setFontSize(fontSizePt);
 
     try {
       pdf.text(text, xMm, yOnPage);
     } catch {
-      // Caractère non supporté par la police par défaut — ignorer
+      // Caractère non supporté par la police par défaut — ignorer silencieusement
     }
   }
 
-  // Remettre le mode texte normal avant les annotations
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (pdf as any).internal.write('0 Tr');
+  // Remettre la page 1 et la couleur noire pour la suite
   pdf.setPage(1);
+  pdf.setTextColor(0, 0, 0);
+}
 
-  // Annotations de liens cliquables
+// ─── Annotations de liens cliquables ─────────────────────────────────────────
+
+function addLinksLayer(
+  pdf: import('jspdf').jsPDF,
+  cvNode: HTMLElement,
+  pageW: number,
+  pageH: number,
+): void {
+  const cvRect = cvNode.getBoundingClientRect();
+  const pxToMm = pageW / cvNode.offsetWidth;
+
   const anchors = cvNode.querySelectorAll<HTMLAnchorElement>('a[href]');
   for (const anchor of anchors) {
     const href = anchor.href;
@@ -125,20 +176,43 @@ function addTextAndLinksLayer(
     const yMm = (rect.top - cvRect.top) * pxToMm;
     const wMm = rect.width * pxToMm;
     const hMm = rect.height * pxToMm;
-    if (wMm < 1 || hMm < 1) continue;
 
-    const pageIndex = Math.floor(yMm / pageH);
-    const yOnPage = yMm - pageIndex * pageH;
-    if (pageIndex > 0 && pageIndex + 1 <= pdf.getNumberOfPages()) {
-      pdf.setPage(pageIndex + 1);
-    }
+    if (wMm < 1 || hMm < 1 || xMm < 0 || yMm < 0 || yMm > pageH) continue;
 
-    pdf.link(xMm, yOnPage, wMm, hMm, { url: href });
-    pdf.setPage(1);
+    pdf.link(xMm, yMm, wMm, hMm, { url: href });
   }
 }
 
-// ─── Chemin Android : html2canvas JPEG + couche texte/liens ─────────────────
+// ─── Placement de l'image (gestion 1 page / multi-pages) ─────────────────────
+
+function addImageLayer(
+  pdf: import('jspdf').jsPDF,
+  imgData: string,
+  format: 'JPEG' | 'PNG',
+  pageW: number,
+  pageH: number,
+  imgHeightMm: number,
+): void {
+  if (imgHeightMm <= pageH) {
+    // Contenu inférieur à 1 page A4 : placement direct
+    pdf.addImage(imgData, format, 0, 0, pageW, imgHeightMm);
+  } else if (imgHeightMm <= pageH * 1.05) {
+    // Léger dépassement (≤ 5 % ≈ 15 mm) : on force sur 1 page.
+    // Arrive quand l'élément a un min-height ou un padding qui pousse
+    // quelques millimètres au-delà de 297 mm alors que le contenu réel
+    // tient sur une page.
+    pdf.addImage(imgData, format, 0, 0, pageW, pageH);
+  } else {
+    // Contenu réellement multi-pages
+    const numPages = Math.ceil(imgHeightMm / pageH);
+    for (let i = 0; i < numPages; i++) {
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, format, 0, -(i * pageH), pageW, imgHeightMm);
+    }
+  }
+}
+
+// ─── Chemin Android ───────────────────────────────────────────────────────────
 
 async function exportPdfAndroid(): Promise<boolean> {
   const cvNode = document.getElementById('printable-cv');
@@ -150,31 +224,32 @@ async function exportPdfAndroid(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
+  // Neutraliser le clipping CSS des conteneurs parents avant la capture
+  const restoreOverflow = disableAncestorOverflow(cvNode);
   const canvas = await html2canvas(cvNode, {
     scale: 2,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
     windowWidth: cvNode.scrollWidth,
+    windowHeight: cvNode.scrollHeight,
     onclone: resolveOklchColors(cvNode),
   });
+  restoreOverflow();
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   const imgHeightMm = (canvas.height / canvas.width) * pageW;
 
-  if (imgHeightMm <= pageH) {
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, imgHeightMm);
-  } else {
-    const numPages = Math.ceil(imgHeightMm / pageH);
-    for (let i = 0; i < numPages; i++) {
-      if (i > 0) pdf.addPage();
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, -(i * pageH), pageW, imgHeightMm);
-    }
-  }
+  // 1. Texte en dessous
+  addTextLayer(pdf, cvNode, pageW, pageH);
 
-  addTextAndLinksLayer(pdf, cvNode, pageW, pageH);
+  // 2. Image par-dessus (couvre le texte visuellement)
+  addImageLayer(pdf, canvas.toDataURL('image/jpeg', 0.92), 'JPEG', pageW, pageH, imgHeightMm);
+
+  // 3. Liens cliquables
+  addLinksLayer(pdf, cvNode, pageW, pageH);
 
   const pdfData = new Uint8Array(pdf.output('arraybuffer'));
   const { save } = await import('@tauri-apps/plugin-dialog');
@@ -190,7 +265,7 @@ async function exportPdfAndroid(): Promise<boolean> {
   return true;
 }
 
-// ─── Chemin Desktop : html2canvas PNG + couche texte/liens ───────────────────
+// ─── Chemin Desktop ───────────────────────────────────────────────────────────
 
 async function exportPdfDesktop(): Promise<boolean> {
   const cvNode = document.getElementById('printable-cv');
@@ -202,31 +277,32 @@ async function exportPdfDesktop(): Promise<boolean> {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
+  // Neutraliser le clipping CSS des conteneurs parents avant la capture
+  const restoreOverflow = disableAncestorOverflow(cvNode);
   const canvas = await html2canvas(cvNode, {
     scale: 3,
     useCORS: true,
     logging: false,
     backgroundColor: '#ffffff',
     windowWidth: cvNode.scrollWidth,
+    windowHeight: cvNode.scrollHeight,
     onclone: resolveOklchColors(cvNode),
   });
+  restoreOverflow();
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   const imgHeightMm = (canvas.height / canvas.width) * pageW;
 
-  if (imgHeightMm <= pageH) {
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, imgHeightMm);
-  } else {
-    const numPages = Math.ceil(imgHeightMm / pageH);
-    for (let i = 0; i < numPages; i++) {
-      if (i > 0) pdf.addPage();
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, -(i * pageH), pageW, imgHeightMm);
-    }
-  }
+  // 1. Texte en dessous
+  addTextLayer(pdf, cvNode, pageW, pageH);
 
-  addTextAndLinksLayer(pdf, cvNode, pageW, pageH);
+  // 2. Image par-dessus (couvre le texte visuellement)
+  addImageLayer(pdf, canvas.toDataURL('image/png'), 'PNG', pageW, pageH, imgHeightMm);
+
+  // 3. Liens cliquables
+  addLinksLayer(pdf, cvNode, pageW, pageH);
 
   const pdfData = new Uint8Array(pdf.output('arraybuffer'));
   const { save } = await import('@tauri-apps/plugin-dialog');
