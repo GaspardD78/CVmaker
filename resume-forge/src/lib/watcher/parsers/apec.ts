@@ -119,9 +119,7 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
 
   let data: ApecSearchResponse;
   try {
-    // Convertir explicitement en tableau numérique pour que Tauri IPC (Rust)
-    // ne plante pas sur la sérialisation UTF-8 des chaînes avec accents.
-    const reqBodyBytes = Array.from(new TextEncoder().encode(JSON.stringify(body)));
+    const reqBodyBytes = new TextEncoder().encode(JSON.stringify(body));
 
     const res = await tauriFetch(APEC_SEARCH_URL, {
       method: 'POST',
@@ -133,7 +131,7 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
         'Referer': 'https://www.apec.fr/candidat/recherche-emploi.html/emploi',
         'Origin': 'https://www.apec.fr',
       },
-      body: new Uint8Array(reqBodyBytes), // Repasser en Uint8Array pour le tauriFetch
+      body: reqBodyBytes,
     });
 
     if (!res.ok) {
