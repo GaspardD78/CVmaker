@@ -119,17 +119,19 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
 
   let data: ApecSearchResponse;
   try {
+    const reqBodyBytes = new TextEncoder().encode(JSON.stringify(body));
+
     const res = await tauriFetch(APEC_SEARCH_URL, {
       method: 'POST',
       signal: controller.signal,
       headers: {
         'User-Agent': BROWSER_USER_AGENT,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
         'Accept': 'application/json',
         'Referer': 'https://www.apec.fr/candidat/recherche-emploi.html/emploi',
         'Origin': 'https://www.apec.fr',
       },
-      body: JSON.stringify(body),
+      body: reqBodyBytes,
     });
 
     if (!res.ok) {
@@ -137,7 +139,9 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
       throw new Error(`APEC API HTTP ${res.status}: ${text.slice(0, 200)}`);
     }
 
-    data = await res.json() as ApecSearchResponse;
+    const buffer = await res.arrayBuffer();
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+    data = JSON.parse(text) as ApecSearchResponse;
   } finally {
     clearTimeout(timeoutId);
   }

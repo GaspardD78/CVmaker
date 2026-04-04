@@ -354,6 +354,20 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       ) return false;
       if (filters.dateFrom && o.fetchedAt < filters.dateFrom) return false;
       if (filters.dateTo   && o.fetchedAt > filters.dateTo)   return false;
+
+      if (filters.contractTypes && filters.contractTypes.length > 0) {
+        const textToSearch = `${o.contractType || ''} ${o.title || ''}`.toLowerCase();
+        const hasMatch = filters.contractTypes.some(type => {
+          const t = type.toLowerCase();
+          if (t === 'cdi') return textToSearch.includes('cdi');
+          if (t === 'cdd') return textToSearch.includes('cdd');
+          if (t === 'freelance') return textToSearch.includes('freelance') || textToSearch.includes('indépendant') || textToSearch.includes('contractor');
+          if (t === 'stage/alternance') return textToSearch.includes('stage') || textToSearch.includes('alternance') || textToSearch.includes('apprentissage') || textToSearch.includes('internship') || textToSearch.includes('professionnalisation');
+          return false;
+        });
+        if (!hasMatch) return false;
+      }
+
       return true;
     });
   },
