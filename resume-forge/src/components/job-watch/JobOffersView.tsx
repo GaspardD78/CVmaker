@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { RefreshCw, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -41,7 +41,20 @@ export function JobOffersView() {
 
   const offers = filteredOffers();
 
+  const [savedFilters, setSavedFilters] = useState<{ minScore: number; status: typeof filters.status } | null>(null);
+  const isTopMatchActive = savedFilters !== null;
+
   // ── Filters ────────────────────────────────────────────────────────────────
+
+  const toggleTopMatch = () => {
+    if (isTopMatchActive) {
+      setFilters(savedFilters);
+      setSavedFilters(null);
+    } else {
+      setSavedFilters({ minScore: filters.minScore, status: filters.status });
+      setFilters({ minScore: 60 });
+    }
+  };
 
   const toggleSource = (source: JobSource) => {
     const current = filters.sources;
@@ -154,16 +167,32 @@ export function JobOffersView() {
 
         {/* Score min slider */}
         <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-            Score min : <span className="text-gray-800 dark:text-gray-100 font-semibold">{filters.minScore}</span>
-          </p>
+          <div className="flex items-center gap-3 mb-1.5">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Score min : <span className="text-gray-800 dark:text-gray-100 font-semibold">{filters.minScore}</span>
+            </p>
+            <button
+              onClick={toggleTopMatch}
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                isTopMatchActive
+                  ? 'bg-purple-600 text-white shadow-inner'
+                  : 'border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 dark:border-purple-800 dark:text-purple-300 dark:bg-purple-900/30'
+              }`}
+            >
+              <UserRound className="w-3 h-3" />
+              {isTopMatchActive ? 'Top Match (Actif)' : 'Top Match'}
+            </button>
+          </div>
           <input
             type="range"
             min={0}
             max={100}
             step={5}
             value={filters.minScore}
-            onChange={e => setFilters({ minScore: Number(e.target.value) })}
+            onChange={e => {
+              if (isTopMatchActive) setSavedFilters(null);
+              setFilters({ minScore: Number(e.target.value) });
+            }}
             className="w-32 accent-blue-600"
           />
         </div>
@@ -207,14 +236,6 @@ export function JobOffersView() {
                 {s === 'all' ? 'Toutes' : s === 'unread' ? 'Non lues' : 'Archivées'}
               </button>
             ))}
-            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
-            <button
-              onClick={() => setFilters({ minScore: 70, status: 'unread' })}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium transition-colors bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800"
-            >
-              <UserRound className="w-3 h-3" />
-              Top Match Profil
-            </button>
           </div>
         </div>
       </div>
