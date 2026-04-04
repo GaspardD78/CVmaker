@@ -291,6 +291,61 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
   return PROMPT_TEMPLATES.find(t => t.id === id);
 }
 
+import { Profile, MasterEntry } from '@/types/profile';
+
+export function generateFullCVMatchPrompt(profile: Profile, entries: MasterEntry[], jobOfferText: string): string {
+  // Extract text representation of profile
+  const title = profile?.title || 'Non renseigné';
+  const summary = profile?.summary || 'Non renseigné';
+
+  // Format entries
+  const entriesText = entries.map(e => {
+    let text = `[${e.entryType.toUpperCase()}] ${e.title}`;
+    if (e.subtitle) text += ` chez ${e.subtitle}`;
+    if (e.startDate || e.endDate) text += ` (${e.startDate || '?'} - ${e.endDate || 'Présent'})`;
+    if (e.description) text += `\nDescription: ${e.description}`;
+    return text;
+  }).join('\n\n');
+
+  const profileDataText = `Titre: ${title}\nRésumé: ${summary}\n\nExpériences et Compétences:\n${entriesText}`;
+
+  return `Agis comme un expert en rédaction de CV ATS et un recruteur de haut niveau.
+Voici mon Profil Maître brut (toutes mes expériences et compétences) :
+${profileDataText}
+
+Voici l'annonce à laquelle je postule :
+${jobOfferText}
+
+Ton objectif : Rédiger le contenu complet de mon CV pour qu'il corresponde parfaitement à cette annonce, en sélectionnant et réécrivant UNIQUEMENT mes vraies expériences et compétences.
+
+RÈGLES STRICTES (ANTI-IA ET RÉALISME) :
+1. AUCUNE invention, aucune exagération, aucune hallucination. Ne me donne pas de compétences que je n'ai pas.
+2. Style humain, direct, factuel et naturel. Refus absolu du jargon 'bullshit' (ex: 'passionné', 'synergie', 'catalyseur').
+3. AUCUN emoji, aucun tiret fantaisiste. Utilise des puces classiques (•).
+4. Mets en **gras** (avec les astérisques markdown) les mots-clés importants (technologies, résultats, compétences) pour faciliter la lecture humaine et ATS.
+5. Calibre la longueur pour tenir sur UNE SEULE PAGE (environ 3 à 4 expériences max, 3 à 4 bullet points par expérience).
+6. Ne retiens QUE ce qui est pertinent pour l'annonce.
+
+Format de sortie EXIGÉ :
+Tu DOIS renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après, sans balises markdown de bloc de code.
+Structure du JSON attendu :
+{
+  "title": "Titre du CV (ex: Développeur React - 3 ans d'xp)",
+  "summary": "Accroche de 2-3 lignes très percutante",
+  "experiences": [
+    {
+      "title": "Titre du poste",
+      "subtitle": "Entreprise",
+      "date": "Période",
+      "description": "• point 1\\n• point 2 (avec mots en **gras**)"
+    }
+  ],
+  "skills": [
+    { "title": "Catégorie (ex: Frontend)", "description": "Comp1, Comp2..." }
+  ]
+}`;
+}
+
 export function generateSourceConfigPrompt(
   source: string,
   profile: { title: string | null } | null,
