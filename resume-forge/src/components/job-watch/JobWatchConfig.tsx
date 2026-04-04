@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, ToggleLeft, ToggleRight, UserRound } from 'lucide-react';
+import { Plus, Trash2, Save, ToggleLeft, ToggleRight, UserRound, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource } from '@/types/job-watch';
+import { generateSourceConfigPrompt } from '@/lib/prompt-templates';
 import {
   HelpButton,
   FranceTravailHelpModal,
@@ -61,6 +62,17 @@ function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRow
     setDraft(d => ({ ...d, keywords: parsedKeywords, excludeKeywords: parsedExclude }));
   };
 
+  const handlePromptGenerate = () => {
+    if (!profile) {
+      toast.error('Profil introuvable');
+      return;
+    }
+    const prompt = generateSourceConfigPrompt(SOURCE_LABELS[config.source], profile, entries);
+    navigator.clipboard.writeText(prompt)
+      .then(() => toast.success("Prompt d'optimisation copié ! Collez-le dans votre IA."))
+      .catch(() => toast.error('Erreur lors de la copie du prompt'));
+  };
+
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -74,6 +86,14 @@ function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRow
           {config.source === 'france_travail' && (
             <HelpButton label="Comment faire ?" onClick={() => onOpenHelp('ft')} />
           )}
+          <button
+            onClick={handlePromptGenerate}
+            title="Générer un prompt d'optimisation"
+            className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-1 rounded text-xs font-medium transition-colors ml-1"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            Optimiser via IA
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <button
