@@ -64,6 +64,12 @@ export function JobOffersView() {
     setFilters({ sources: next.length > 0 ? next : current });
   };
 
+  const toggleContract = (type: string) => {
+    const current = filters.contractTypes || [];
+    const next = current.includes(type) ? current.filter(t => t !== type) : [...current, type];
+    setFilters({ contractTypes: next });
+  };
+
   // ── Import Kanban ──────────────────────────────────────────────────────────
 
   const handleImportKanban = useCallback(async (offer: JobOffer) => {
@@ -161,6 +167,26 @@ export function JobOffersView() {
                 />
                 <span className="text-xs text-gray-600 dark:text-gray-300">{SOURCE_LABELS[source]}</span>
               </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Type de contrat */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Contrats</p>
+          <div className="flex flex-wrap gap-2">
+            {['CDI', 'CDD', 'Freelance', 'Stage/Alternance'].map(ct => (
+              <button
+                key={ct}
+                onClick={() => toggleContract(ct)}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  (filters.contractTypes || []).includes(ct)
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {ct}
+              </button>
             ))}
           </div>
         </div>

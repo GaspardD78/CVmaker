@@ -342,6 +342,19 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const { offers, filters } = get();
     return offers.filter(o => {
       if (!filters.sources.includes(o.source as JobSource)) return false;
+
+      if (filters.contractTypes && filters.contractTypes.length > 0) {
+        const textToSearch = (o.contractType || o.title || '').toLowerCase();
+        const matches = filters.contractTypes.some(ct => {
+          if (ct === 'CDI') return textToSearch.includes('cdi');
+          if (ct === 'CDD') return textToSearch.includes('cdd');
+          if (ct === 'Freelance') return textToSearch.includes('freelance') || textToSearch.includes('indépendant') || textToSearch.includes('contractor');
+          if (ct === 'Stage/Alternance') return textToSearch.includes('stage') || textToSearch.includes('alternance') || textToSearch.includes('apprentissage') || textToSearch.includes('internship') || textToSearch.includes('professionnalisation');
+          return false;
+        });
+        if (!matches) return false;
+      }
+
       if (o.score < filters.minScore) return false;
       if (filters.status === 'unread'   && (o.isRead === 1 || o.isArchived === 1)) return false;
       if (filters.status === 'archived' && o.isArchived === 0) return false;
