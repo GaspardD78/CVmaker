@@ -316,32 +316,36 @@ ${profileDataText}
 Voici l'annonce à laquelle je postule :
 ${jobOfferText}
 
-Ton objectif : Rédiger le contenu complet de mon CV pour qu'il corresponde parfaitement à cette annonce, en sélectionnant et réécrivant UNIQUEMENT mes vraies expériences et compétences.
+Ton objectif : Rédiger le contenu de mon CV pour qu'il corresponde à cette annonce, en respectant SCRUPULEUSEMENT la structure de mon profil.
 
 RÈGLES STRICTES (ANTI-IA ET RÉALISME) :
-1. AUCUNE invention, aucune exagération, aucune hallucination. Ne me donne pas de compétences que je n'ai pas.
-2. Style humain, direct, factuel et naturel. Refus absolu du jargon 'bullshit' (ex: 'passionné', 'synergie', 'catalyseur').
-3. AUCUN emoji, aucun tiret fantaisiste. Utilise des puces classiques (•).
-4. Mets en **gras** (avec les astérisques markdown) les mots-clés importants (technologies, résultats, compétences) pour faciliter la lecture humaine et ATS.
-5. Calibre la longueur pour tenir sur UNE SEULE PAGE (environ 3 à 4 expériences max, 3 à 4 bullet points par expérience).
-6. Ne retiens QUE ce qui est pertinent pour l'annonce.
+1. RESPECT DES TITRES : Tu ne DOIS PAS modifier les 'title', 'subtitle' et 'date' de mes expériences. Reprends EXACTEMENT ceux de mon profil maître. Ton seul travail de réécriture concerne le champ 'description' (les puces).
+2. RESPECT DES COMPÉTENCES : Tu ne DOIS PAS inventer de catégories de compétences. Reprends la liste EXACTE de mes compétences pertinentes une par une.
+3. AUCUNE invention, aucune exagération, aucune hallucination.
+4. Style humain, direct, factuel. Refus absolu du jargon 'bullshit' (ex: 'passionné', 'synergie').
+5. AUCUN emoji. Utilise des puces classiques (•).
+6. Mets en **gras** (avec les astérisques markdown) les mots-clés importants dans les descriptions.
+7. Ne retiens QUE ce qui est pertinent pour l'annonce (supprime les expériences ou compétences hors sujet pour tenir sur UNE page).
 
 Format de sortie EXIGÉ :
-Tu DOIS renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après, sans balises markdown de bloc de code.
-Structure du JSON attendu :
+Renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après.
+Structure attendue :
 {
-  "title": "Titre du CV (ex: Développeur React - 3 ans d'xp)",
+  "title": "Titre du CV (ex: le nom du poste de l'annonce)",
   "summary": "Accroche de 2-3 lignes très percutante",
   "experiences": [
     {
-      "title": "Titre du poste",
-      "subtitle": "Entreprise",
-      "date": "Période",
+      "title": "[TITRE EXACT DU PROFIL MAITRE]",
+      "subtitle": "[SOUS-TITRE EXACT DU PROFIL MAITRE]",
+      "date": "[DATE EXACTE DU PROFIL MAITRE]",
       "description": "• point 1\\n• point 2 (avec mots en **gras**)"
     }
   ],
   "skills": [
-    { "title": "Catégorie (ex: Frontend)", "description": "Comp1, Comp2..." }
+    {
+      "title": "[NOM EXACT DE LA COMPETENCE DU PROFIL]",
+      "description": "[Optionnel : détail court ou vide]"
+    }
   ]
 }`;
 }
