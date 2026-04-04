@@ -290,3 +290,30 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
   if (id === CV_ANALYSIS_TEMPLATE.id) return CV_ANALYSIS_TEMPLATE;
   return PROMPT_TEMPLATES.find(t => t.id === id);
 }
+
+export function generateSourceConfigPrompt(
+  source: string,
+  profile: { title: string | null } | null,
+  entries: { entryType: string; title: string }[]
+): string {
+  const titleStr = profile?.title ? profile.title : 'Non renseigné';
+  const skills = entries
+    .filter(e => e.entryType === 'skill')
+    .map(e => e.title)
+    .join(', ');
+
+  const skillsStr = skills ? skills : 'Aucune compétence renseignée';
+
+  return `Agis comme un expert en recrutement technique et sourcing.
+Je configure une veille d'emploi automatisée sur la plateforme : ${source}.
+Voici mon profil :
+- Titre : ${titleStr}
+- Compétences : ${skillsStr}
+
+Le moteur de recherche de cette plateforme a ses propres spécificités. Pour m'aider à configurer mon outil de veille, fournis-moi :
+1. Une liste de 5 à 10 mots-clés POSITIFS très précis (séparés par des virgules) qui maximiseront la pertinence sur CETTE plateforme spécifiquement.
+2. Une liste de 5 mots-clés NÉGATIFS (à exclure) pour filtrer le bruit (ex: stage, alternance, etc.) (séparés par des virgules).
+3. (Si pertinent) La requête de recherche exacte (ex: booléenne) que je pourrais utiliser.
+
+Réponds de manière très concise pour que je puisse facilement copier-coller les listes de mots-clés.`;
+}
