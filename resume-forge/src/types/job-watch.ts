@@ -91,6 +91,7 @@ export interface JobWatchFilters {
   status: 'all' | 'unread' | 'archived';
   dateFrom: string | null;
   dateTo: string | null;
+  contractTypes?: string[];
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
@@ -100,6 +101,7 @@ export const DEFAULT_FILTERS: JobWatchFilters = {
   status: 'all',
   dateFrom: null,
   dateTo: null,
+  contractTypes: [],
 };
 
 /** Raw offer coming out of a parser, before dedup/scoring/commute enrichment */
