@@ -294,57 +294,69 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
 import { Profile, MasterEntry } from '@/types/profile';
 
 export function generateFullCVMatchPrompt(profile: Profile, entries: MasterEntry[], jobOfferText: string): string {
-  // Extract text representation of profile
-  const title = profile?.title || 'Non renseigné';
-  const summary = profile?.summary || 'Non renseigné';
+  // 1. Extraction stricte des listes autorisées
+  const exactSkills = entries
+    .filter(e => e.entryType === 'skill')
+    .map(e => `- "${e.title}"`)
+    .join('\n');
 
-  // Format entries
-  const entriesText = entries.map(e => {
-    let text = `[${e.entryType.toUpperCase()}] ${e.title}`;
-    if (e.subtitle) text += ` chez ${e.subtitle}`;
-    if (e.startDate || e.endDate) text += ` (${e.startDate || '?'} - ${e.endDate || 'Présent'})`;
-    if (e.description) text += `\nDescription: ${e.description}`;
-    return text;
-  }).join('\n\n');
+  const exactExperiences = entries
+    .filter(e => e.entryType === 'experience')
+    .map(e => {
+      const dates = (e.startDate || e.endDate) ? `${e.startDate || '?'} - ${e.endDate || 'Présent'}` : 'Non précisée';
+      return `- Titre: "${e.title}" | Entreprise: "${e.subtitle}" | Dates: "${dates}"`;
+    })
+    .join('\n');
 
-  const profileDataText = `Titre: ${title}\nRésumé: ${summary}\n\nExpériences et Compétences:\n${entriesText}`;
+  const profileDataText = JSON.stringify({ profile, entries }, null, 2);
 
+  // 2. Construction du prompt verrouillé
   return `Agis comme un expert en rédaction de CV ATS et un recruteur de haut niveau.
-Voici mon Profil Maître brut (toutes mes expériences et compétences) :
+
+Voici mon Profil Maître brut (toutes mes données) :
 ${profileDataText}
 
 Voici l'annonce à laquelle je postule :
 ${jobOfferText}
 
-Ton objectif : Rédiger le contenu de mon CV pour qu'il corresponde à cette annonce, en respectant SCRUPULEUSEMENT la structure de mon profil.
+Ton objectif : Rédiger le contenu de mon CV pour qu'il corresponde à cette annonce, en agissant UNIQUEMENT comme un filtre et un reformulateur de puces. Tu ne dois RIEN inventer ni catégoriser.
 
-RÈGLES STRICTES (ANTI-IA ET RÉALISME) :
-1. RESPECT DES TITRES : Tu ne DOIS PAS modifier les 'title', 'subtitle' et 'date' de mes expériences. Reprends EXACTEMENT ceux de mon profil maître. Ton seul travail de réécriture concerne le champ 'description' (les puces).
-2. RESPECT DES COMPÉTENCES : Tu ne DOIS PAS inventer de catégories de compétences. Reprends la liste EXACTE de mes compétences pertinentes une par une.
-3. AUCUNE invention, aucune exagération, aucune hallucination.
-4. Style humain, direct, factuel. Refus absolu du jargon 'bullshit' (ex: 'passionné', 'synergie').
-5. AUCUN emoji. Utilise des puces classiques (•).
-6. Mets en **gras** (avec les astérisques markdown) les mots-clés importants dans les descriptions.
-7. Ne retiens QUE ce qui est pertinent pour l'annonce (supprime les expériences ou compétences hors sujet pour tenir sur UNE page).
+⚠️ RÈGLES DE VERROUILLAGE ABSOLU (À RESPECTER SOUS PEINE D'ÉCHEC) :
+
+1. EXPÉRIENCES (MÉTADONNÉES INTOUCHABLES) :
+Tu dois piocher parmi ces expériences exactes :
+${exactExperiences}
+Dans ton JSON, les champs 'title', 'subtitle' et 'date' de chaque expérience DOIVENT être des copiés-collés stricts de cette liste. Seul le champ 'description' (les puces avec •) doit être réécrit pour l'annonce.
+
+2. COMPÉTENCES (PAS DE CATÉGORIES) :
+Voici la liste STRICTE et UNIQUE des compétences autorisées :
+${exactSkills}
+Il t'est STRICTEMENT INTERDIT de créer des catégories (ex: ne crée pas "Gestion administrative", "Outils", etc.). Le champ 'title' de chaque objet skill dans ton JSON DOIT être l'une des chaînes de caractères de la liste ci-dessus, au mot et à la majuscule près. Si tu veux retenir 5 compétences, tu fais 5 objets séparés avec ces noms exacts.
+
+3. STYLE DES PUCES :
+- Humain, factuel, sans jargon 'bullshit'.
+- Puces classiques (•).
+- Mets en **gras** (avec les astérisques markdown) les mots-clés de l'annonce retrouvés dans mes expériences.
+- Sélectionne uniquement ce qui est pertinent pour tenir sur UNE page.
 
 Format de sortie EXIGÉ :
-Renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après.
+Renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après (ni balise markdown \`\`\`json).
 Structure attendue :
 {
   "title": "Titre du CV (ex: le nom du poste de l'annonce)",
-  "summary": "Accroche de 2-3 lignes très percutante",
+  "summary": "Accroche de 2-3 lignes percutante",
   "experiences": [
     {
-      "title": "[TITRE EXACT DU PROFIL MAITRE]",
-      "subtitle": "[SOUS-TITRE EXACT DU PROFIL MAITRE]",
-      "date": "[DATE EXACTE DU PROFIL MAITRE]",
-      "description": "• point 1\\n• point 2 (avec mots en **gras**)"
+      "title": "[TITRE EXACT DE LA LISTE]",
+      "subtitle": "[ENTREPRISE EXACTE DE LA LISTE]",
+      "date": "[DATE EXACTE DE LA LISTE]",
+      "description": "• action 1\\n• action 2 avec mot en **gras**"
     }
   ],
   "skills": [
     {
-      "title": "[NOM EXACT DE LA COMPETENCE DU PROFIL]",
-      "description": "[Optionnel : détail court ou vide]"
+      "title": "[NOM EXACT DE LA LISTE DES COMPÉTENCES AUTORISÉES]",
+      "description": ""
     }
   ]
 }`;
