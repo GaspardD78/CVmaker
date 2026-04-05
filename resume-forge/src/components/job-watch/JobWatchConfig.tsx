@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Save, ToggleLeft, ToggleRight, UserRound, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource } from '@/types/job-watch';
 import { generateSourceConfigPrompt } from '@/lib/prompt-templates';
+import { getDb } from '@/lib/db';
+import { getKeywordSuggestions, LearnedDictionary } from '@/lib/watcher/learning-engine';
 import {
   HelpButton,
   FranceTravailHelpModal,
@@ -259,6 +261,8 @@ export function JobWatchConfigView() {
   const [posKwText, setPosKwText] = useState(settings.positiveKeywords.join(', '));
   const [negKwText, setNegKwText] = useState(settings.negativeKeywords.join(', '));
   const [blacklistText, setBlacklistText] = useState(settings.blacklistedCompanies.join(', '));
+  const [learnedDict, setLearnedDict] = useState<LearnedDictionary>({ positive: {}, negative: {} });
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setSettingsDraft(settings);
@@ -266,6 +270,24 @@ export function JobWatchConfigView() {
     setNegKwText(settings.negativeKeywords.join(', '));
     setBlacklistText(settings.blacklistedCompanies.join(', '));
   }, [settings]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const db = await getDb();
+        const posRaw = await db.select<{ value: string }[]>(
+          `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_positive'`
+        );
+        const negRaw = await db.select<{ value: string }[]>(
+          `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_negative'`
+        );
+        setLearnedDict({
+          positive: posRaw[0] ? JSON.parse(posRaw[0].value) : {},
+          negative: negRaw[0] ? JSON.parse(negRaw[0].value) : {},
+        });
+      } catch { /* Non-critical — suggestions simply won't appear */ }
+    })();
+  }, []);
 
   const unusedSources = ALL_SOURCES.filter(s => !configs.some(c => c.source === s));
 
@@ -326,6 +348,44 @@ export function JobWatchConfigView() {
 
   const parseKeywordList = (raw: string): string[] =>
     raw.split(',').map(k => k.trim()).filter(Boolean);
+
+  const rawSuggestions = useMemo(() => getKeywordSuggestions(learnedDict), [learnedDict]);
+
+  const currentPosTerms = useMemo(
+    () => new Set(posKwText.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)),
+    [posKwText],
+  );
+  const currentNegTerms = useMemo(
+    () => new Set(negKwText.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)),
+    [negKwText],
+  );
+
+  const suggestions = useMemo(() => ({
+    positive: rawSuggestions.positive.filter(
+      t => !currentPosTerms.has(t.toLowerCase()) && !currentNegTerms.has(t.toLowerCase()) && !dismissedSuggestions.has(t),
+    ),
+    negative: rawSuggestions.negative.filter(
+      t => !currentNegTerms.has(t.toLowerCase()) && !currentPosTerms.has(t.toLowerCase()) && !dismissedSuggestions.has(t),
+    ),
+  }), [rawSuggestions, currentPosTerms, currentNegTerms, dismissedSuggestions]);
+
+  const hasSuggestions = suggestions.positive.length > 0 || suggestions.negative.length > 0;
+
+  const handleAcceptPosSuggestion = (term: string) => {
+    const existing = parseKeywordList(posKwText);
+    if (!existing.map(k => k.toLowerCase()).includes(term.toLowerCase())) {
+      setPosKwText([...existing, term].join(', '));
+    }
+    setDismissedSuggestions(prev => new Set(prev).add(term));
+  };
+
+  const handleAcceptNegSuggestion = (term: string) => {
+    const existing = parseKeywordList(negKwText);
+    if (!existing.map(k => k.toLowerCase()).includes(term.toLowerCase())) {
+      setNegKwText([...existing, term].join(', '));
+    }
+    setDismissedSuggestions(prev => new Set(prev).add(term));
+  };
 
   const closeHelp = () => setHelpModal(null);
 
@@ -434,6 +494,49 @@ export function JobWatchConfigView() {
             </button>
           )}
         </div>
+        {hasSuggestions && (
+          <div className="mb-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3 bg-gray-50 dark:bg-gray-800/50">
+            <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
+              Suggestions basées sur votre activité
+            </p>
+            <div className="flex flex-col gap-2">
+              {suggestions.positive.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium text-green-600 dark:text-green-400 mb-1">À ajouter ✅</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggestions.positive.map(term => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => handleAcceptPosSuggestion(term)}
+                        className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
+                      >
+                        + {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {suggestions.negative.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium text-red-600 dark:text-red-400 mb-1">À exclure ❌</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggestions.negative.map(term => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => handleAcceptNegSuggestion(term)}
+                        className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                      >
+                        − {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">

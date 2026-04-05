@@ -70,3 +70,20 @@ export function computeScore(
 
   return Math.max(0, Math.min(100, score));
 }
+
+/**
+ * Lightweight profile-match signal for display purposes only.
+ * Returns 0-100: what percentage of the user's skills appear in the offer text.
+ * Pure function — no scoring side-effects.
+ */
+export function computeLightProfileMatch(
+  offerSnippet: string,
+  profileSkills: string[],
+): number {
+  if (profileSkills.length === 0) return 0;
+  const text = offerSnippet.toLowerCase();
+  const matched = profileSkills.filter(
+    skill => skill.trim() && text.includes(skill.trim().toLowerCase()),
+  ).length;
+  return Math.round((matched / profileSkills.length) * 100);
+}

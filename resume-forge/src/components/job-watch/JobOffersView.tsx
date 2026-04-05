@@ -1,10 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { RefreshCw, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useJobWatcher } from '@/hooks/useJobWatcher';
+import { useProfileStore } from '@/stores/profileStore';
 import { JobOfferCard } from './JobOfferCard';
 import type { JobOffer, JobSource } from '@/types/job-watch';
 
@@ -46,6 +47,12 @@ export function JobOffersView() {
   const { createApplication } = useApplicationStore();
   const { currentUserId } = useAuthStore();
   const { triggerFetch, isFetching } = useJobWatcher();
+
+  const { entries } = useProfileStore();
+  const profileSkills = useMemo(
+    () => entries.filter(e => e.entryType === 'skill').map(e => e.title),
+    [entries],
+  );
 
   const offers = filteredOffers();
 
@@ -318,6 +325,7 @@ export function JobOffersView() {
               offer={offer}
               commuteMaxMinutes={settings.commuteMaxMinutes}
               onImportKanban={handleImportKanban}
+              profileSkills={profileSkills}
             />
           ))}
         </div>

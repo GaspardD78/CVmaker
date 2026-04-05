@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import type { JobOffer, JobSource } from '@/types/job-watch';
+import { computeLightProfileMatch } from '@/lib/watcher/scorer';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
   apec:          'APEC',
@@ -99,13 +100,22 @@ function SalaryBadge({ salaryMin, salaryMax, salaryRaw }: Pick<JobOffer, 'salary
   );
 }
 
+function ProfileMatchBadge({ match }: { match: number }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+      Match : {match}%
+    </span>
+  );
+}
+
 interface JobOfferCardProps {
   offer: JobOffer;
   commuteMaxMinutes: number | null;
   onImportKanban: (offer: JobOffer) => void;
+  profileSkills?: string[];
 }
 
-export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOfferCardProps) {
+export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profileSkills = [] }: JobOfferCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { markRead, markArchived, submitFeedback } = useJobWatchStore();
 
@@ -136,9 +146,26 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOf
 
   const handleImport = () => onImportKanban(offer);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      submitFeedback(offer.id, 'quick_archive');
+      toast.info('Offre archivée (← raccourci)');
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      onImportKanban(offer);
+    }
+  };
+
   const isUnread    = offer.isRead === 0;
   const isArchived  = offer.isArchived === 1;
   const hasKanban   = offer.kanbanId !== null;
+  const isPepite    = offer.score > 85;
+
+  const profileMatch = useMemo(
+    () => computeLightProfileMatch(`${offer.title} ${offer.descriptionSnippet ?? ''}`, profileSkills),
+    [offer.title, offer.descriptionSnippet, profileSkills],
+  );
 
   const fetchedDate = new Date(offer.fetchedAt).toLocaleDateString('fr-FR', {
     day: '2-digit', month: 'short',
@@ -146,10 +173,14 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOf
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm transition-all ${
-        isUnread
-          ? 'border-blue-200 dark:border-blue-700'
-          : 'border-gray-200 dark:border-gray-700'
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+        isPepite
+          ? 'border-yellow-400 dark:border-yellow-500'
+          : isUnread
+            ? 'border-blue-200 dark:border-blue-700'
+            : 'border-gray-200 dark:border-gray-700'
       } ${isArchived ? 'opacity-60' : ''}`}
     >
       {/* Header */}
@@ -198,6 +229,14 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOf
             <span className="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
               Dans le Kanban
             </span>
+          )}
+          {isPepite && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+              ⭐ Pépite
+            </span>
+          )}
+          {profileSkills.length > 0 && profileMatch > 0 && (
+            <ProfileMatchBadge match={profileMatch} />
           )}
         </div>
 
