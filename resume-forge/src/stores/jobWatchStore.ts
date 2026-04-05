@@ -6,7 +6,9 @@ import {
   JobWatchConfig,
   JobWatchSettings,
   JobWatchFilters,
+  SearchIntent,
   DEFAULT_JOB_WATCH_SETTINGS,
+  DEFAULT_SEARCH_INTENT,
   DEFAULT_FILTERS,
   JobSource,
 } from '@/types/job-watch';
@@ -29,6 +31,22 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     try { return JSON.parse(v) as T; } catch { return fallback; }
   };
 
+  // Resolve SearchIntent — prefer the structured key; fall back to migrating
+  // legacy flat keyword arrays for installations upgrading from Sprint 1.
+  let searchIntent: SearchIntent = parseJson<SearchIntent>(map['search_intent'], DEFAULT_SEARCH_INTENT);
+  if (
+    !map['search_intent'] &&
+    (map['positive_keywords'] || map['negative_keywords'])
+  ) {
+    searchIntent = {
+      ...DEFAULT_SEARCH_INTENT,
+      role: {
+        primary:     parseJson<string[]>(map['positive_keywords'], []),
+        mustExclude: parseJson<string[]>(map['negative_keywords'], []),
+      },
+    };
+  }
+
   return {
     fetchIntervalHours:   parseInt(map['fetch_interval_hours']  ?? '4', 10),
     emailDigestEnabled:   (map['email_digest_enabled']  ?? '1') === '1',
@@ -38,8 +56,7 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     emailSmtpUser:         map['email_smtp_user']        ?? '',
     emailSmtpPassword:     map['email_smtp_password']    ?? '',
     emailTo:               map['email_to']               ?? '',
-    positiveKeywords:     parseJson<string[]>(map['positive_keywords'], []),
-    negativeKeywords:     parseJson<string[]>(map['negative_keywords'], []),
+    searchIntent,
     navitiaApiKey:         map['navitia_api_key']         ?? '',
     commuteOriginAddress:  map['commute_origin_address']  ?? '',
     commuteDepartureTime:  map['commute_departure_time']  ?? '09:00',
@@ -63,8 +80,7 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['email_smtp_user',        settings.emailSmtpUser],
     ['email_smtp_password',    settings.emailSmtpPassword],
     ['email_to',               settings.emailTo],
-    ['positive_keywords',      JSON.stringify(settings.positiveKeywords)],
-    ['negative_keywords',      JSON.stringify(settings.negativeKeywords)],
+    ['search_intent',          JSON.stringify(settings.searchIntent)],
     ['navitia_api_key',        settings.navitiaApiKey],
     ['commute_origin_address', settings.commuteOriginAddress],
     ['commute_departure_time', settings.commuteDepartureTime],
@@ -106,7 +122,12 @@ interface JobWatchState {
   markArchived: (id: string, archived: boolean) => Promise<void>;
   setKanbanId: (offerId: string, kanbanId: string) => Promise<void>;
   deleteArchivedOffers: () => Promise<void>;
-  submitFeedback: (offerId: string, action: string) => Promise<void>;
+  /**
+   * Record a user feedback action on an offer.
+   * @param timeToAction - seconds the user took to act (measured from card display).
+   *   If omitted the store falls back to time-since-fetch.
+   */
+  submitFeedback: (offerId: string, action: string, timeToAction?: number) => Promise<void>;
 
   // Configs
   fetchConfigs: () => Promise<void>;
@@ -240,17 +261,21 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     set(state => ({ offers: state.offers.filter(o => o.isArchived === 0) }));
   },
 
-  submitFeedback: async (offerId, action) => {
+  submitFeedback: async (offerId, action, timeToAction) => {
     const db = await getDb();
     const offer = get().offers.find(o => o.id === offerId);
-    const timeToAction = offer
-      ? Math.floor((Date.now() - new Date(offer.fetchedAt).getTime()) / 1000)
-      : null;
+    // Use caller-supplied timeToAction when available (measured from card display);
+    // otherwise fall back to time-since-fetch as a coarse approximation.
+    const resolvedTimeToAction = timeToAction !== undefined
+      ? timeToAction
+      : offer
+        ? Math.floor((Date.now() - new Date(offer.fetchedAt).getTime()) / 1000)
+        : null;
 
     // 1. Persist the feedback row
     await db.execute(
       `INSERT INTO job_offer_feedback (offer_id, action, time_to_action) VALUES (?1, ?2, ?3)`,
-      [offerId, action, timeToAction]
+      [offerId, action, resolvedTimeToAction]
     );
 
     // 2. Side-effects on the offer state

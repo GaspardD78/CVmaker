@@ -114,7 +114,13 @@ export const SYNONYM_GROUPS: readonly string[][] = [
   ['pentest', 'penetration testing', 'ethical hacking', 'test d\'intrusion'],
   ['oauth', 'oauth2', 'openid', 'saml', 'sso', 'single sign-on'],
   ['jwt', 'json web token'],
-  ['authentication', 'authorization', 'authentification', 'autorisation', 'iam'],
+  ['authentication', 'authorization', 'authentification', 'autorisation'],
+  // IAM / PAM / IGA — dedicated cluster (iam extracted from authentication group)
+  ['iam', 'identity and access management', 'gestion des identités', 'pam', 'iga',
+   'privileged access management', 'identity governance'],
+  // GRC
+  ['grc', 'gouvernance risques conformité', 'risk compliance', 'iso 27001',
+   'governance risk compliance', 'conformité réglementaire'],
 
   // Data / ML / AI
   ['machine learning', 'ml', 'apprentissage automatique', 'apprentissage machine'],
@@ -186,7 +192,8 @@ export const SYNONYM_GROUPS: readonly string[][] = [
   ['autonomie', 'autonomy', 'initiative'],
 
   // RH / Recrutement
-  ['recrutement', 'recruter', 'recruteur', 'recruitment', 'hiring', 'talent acquisition'],
+  ['recruteur', 'recruter', 'recrutement', 'recruitment', 'hiring',
+   'talent acquisition', 'talent partner', 'recruiter', 'chargé de recrutement'],
   ['sourcing', 'chasse', 'approche directe', 'headhunting'],
   ['onboarding', 'intégration', 'integration'],
   ['entretien', 'interview', 'entretiens'],

@@ -1,5 +1,38 @@
 export type JobSource = 'apec' | 'indeed' | 'hellowork' | 'wttj' | 'linkedin_rss' | 'france_travail';
 
+/**
+ * Structured search intent replacing flat positiveKeywords / negativeKeywords.
+ *
+ * Scoring layers:
+ *   role.primary      → +15/match, capped +30   (strong role signal)
+ *   domain.required   → +10/match, capped +20   (mandatory domain match)
+ *   domain.preferred  → +5/match,  capped +10   (nice-to-have signal)
+ *
+ * Disqualifiers (score = 0):
+ *   role.mustExclude + domain.excluded
+ */
+export interface SearchIntent {
+  role: {
+    primary:     string[];   // target role keywords
+    mustExclude: string[];   // role keywords that disqualify the offer
+  };
+  domain: {
+    required:  string[];    // must-have domain / tech terms
+    preferred: string[];    // preferred domain / tech terms
+    excluded:  string[];    // domain / tech terms to disqualify
+  };
+  salary: {
+    target:      number | null;  // target annual salary (€)
+    hideIfBelow: number | null;  // penalise offers whose salary is below this
+  };
+}
+
+export const DEFAULT_SEARCH_INTENT: SearchIntent = {
+  role:   { primary: [], mustExclude: [] },
+  domain: { required: [], preferred: [], excluded: [] },
+  salary: { target: null, hideIfBelow: null },
+};
+
 export type CommuteStatus = 'pending' | 'ok' | 'error' | 'not_found';
 
 export interface JobOffer {
@@ -60,8 +93,8 @@ export interface JobWatchSettings {
   emailSmtpUser: string;
   emailSmtpPassword: string;
   emailTo: string;
-  positiveKeywords: string[];
-  negativeKeywords: string[];
+  /** Structured scoring intent — replaces the old flat positiveKeywords / negativeKeywords. */
+  searchIntent: SearchIntent;
   navitiaApiKey: string;
   commuteOriginAddress: string;
   commuteDepartureTime: string;
@@ -82,8 +115,7 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   emailSmtpUser: '',
   emailSmtpPassword: '',
   emailTo: '',
-  positiveKeywords: [],
-  negativeKeywords: [],
+  searchIntent: DEFAULT_SEARCH_INTENT,
   navitiaApiKey: '',
   commuteOriginAddress: '',
   commuteDepartureTime: '09:00',

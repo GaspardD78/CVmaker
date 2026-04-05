@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -119,6 +119,10 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
   const [expanded, setExpanded] = useState(false);
   const { markRead, markArchived, submitFeedback } = useJobWatchStore();
 
+  // Track when this card was rendered to compute accurate time-to-action
+  const displayedAt = useRef<number>(Date.now());
+  const getTimeToAction = () => Math.floor((Date.now() - displayedAt.current) / 1000);
+
   const handleOpen = async () => {
     if (offer.isRead === 0) await markRead(offer.id);
     await openUrl(offer.url);
@@ -135,27 +139,43 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
   };
 
   const handleThumbsUp = async () => {
-    await submitFeedback(offer.id, 'thumbs_up');
+    await submitFeedback(offer.id, 'thumbs_up', getTimeToAction());
     toast.success('Offre appréciée');
   };
 
   const handleThumbsDown = async () => {
-    await submitFeedback(offer.id, 'thumbs_down');
+    await submitFeedback(offer.id, 'thumbs_down', getTimeToAction());
     toast.success('Offre ignorée');
   };
 
-  const handleImport = () => onImportKanban(offer);
+  const handleImportKanban = async () => {
+    await submitFeedback(offer.id, 'kanban_import', getTimeToAction());
+    onImportKanban(offer);
+  };
+
+  const handleQuickArchive = () => {
+    submitFeedback(offer.id, 'quick_archive', getTimeToAction());
+    toast.info('Offre archivée');
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'ArrowLeft') {
+    // Only act on the card element itself — ignore events bubbling from inputs
+    if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
+
+    if (e.key === 'ArrowRight') {
       e.preventDefault();
-      submitFeedback(offer.id, 'quick_archive');
-      toast.info('Offre archivée (← raccourci)');
-    } else if (e.key === 'ArrowRight') {
+      handleThumbsUp();                          // → Thumbs up
+    } else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
       e.preventDefault();
-      onImportKanban(offer);
+      handleQuickArchive();                      // ← or A → quick archive
+    } else if (e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      handleImportKanban();                      // K → Import Kanban
     }
   };
+
+  // Alias kept for clarity in JSX
+  const handleImport = handleImportKanban;
 
   const isUnread    = offer.isRead === 0;
   const isArchived  = offer.isArchived === 1;
