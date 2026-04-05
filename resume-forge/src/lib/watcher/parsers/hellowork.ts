@@ -71,33 +71,52 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
     clearTimeout(timeoutId);
   }
 
-  // Split on data-cy="serpCard" to isolate each job card
-  const cardChunks = html.split('data-cy="serpCard"');
-  // First chunk is before any card, skip it
   const offers: RawJobOffer[] = [];
 
-  for (let i = 1; i < cardChunks.length; i++) {
-    const card = cardChunks[i];
+  // Use DOMParser instead of string splitting for more resilient scraping
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
 
-    // Job link & title: href="/fr-fr/emplois/12345.html" ... title="Poste H/F - Entreprise"
-    const linkMatch = card.match(/href="(\/fr-fr\/emplois\/\d+\.html)"[^>]*title="([^"]+)"/);
-    if (!linkMatch) continue;
+  // Select all offer cards
+  const cards = doc.querySelectorAll('[data-cy="serpCard"], li > div[class*="tw-flex-col"]');
 
-    const url = `${HELLOWORK_BASE}${linkMatch[1]}`;
-    const rawTitle = decodeEntities(linkMatch[2]);
+  for (const card of cards) {
+    // Find the main link element
+    const linkEl = card.querySelector('a[href^="/fr-fr/emplois/"]') as HTMLAnchorElement;
+    if (!linkEl) continue;
+
+    const rawUrl = linkEl.getAttribute('href');
+    if (!rawUrl) continue;
+
+    const url = `${HELLOWORK_BASE}${rawUrl}`;
+
+    // Attempt to extract title and company from the link title attribute or the DOM
+    let rawTitle = linkEl.getAttribute('title') || linkEl.textContent?.trim() || '';
+    rawTitle = decodeEntities(rawTitle);
+
+    let title = rawTitle;
+    let company: string | null = null;
 
     // Title format: "Poste H/F - Entreprise"
     const lastDash = rawTitle.lastIndexOf(' - ');
-    const title = lastDash !== -1 ? rawTitle.slice(0, lastDash).trim() : rawTitle;
-    const company = lastDash !== -1 ? rawTitle.slice(lastDash + 3).trim() : null;
+    if (lastDash !== -1) {
+      title = rawTitle.slice(0, lastDash).trim();
+      company = rawTitle.slice(lastDash + 3).trim();
+    } else {
+      // Sometimes company is in a separate element
+      const companyEl = card.querySelector('[data-cy="offerCompany"], h3 p:last-child');
+      if (companyEl) {
+         company = companyEl.textContent?.trim() || null;
+      }
+    }
 
-    // Location: data-cy="localisationCard">Paris - 75</...>
-    const locMatch = card.match(/data-cy="localisationCard"[^>]*>([^<]+)/);
-    const location = locMatch ? decodeEntities(locMatch[1].trim()) : null;
+    // Location
+    const locEl = card.querySelector('[data-cy="localisationCard"], [data-cy="location"]');
+    const location = locEl ? locEl.textContent?.trim() || null : null;
 
-    // Contract type: data-cy="contractCard">CDI</...>
-    const contractMatch = card.match(/data-cy="contractCard"[^>]*>([^<]+)/);
-    const contractType = contractMatch ? normalizeContract(decodeEntities(contractMatch[1])) : null;
+    // Contract type
+    const contractEl = card.querySelector('[data-cy="contractCard"], [data-cy="contractType"]');
+    const contractType = contractEl ? normalizeContract(contractEl.textContent?.trim() || '') : null;
 
     offers.push({
       source:             'hellowork',
@@ -109,6 +128,10 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
       descriptionSnippet: null, // Not available on search page
       publishedAt:        null, // Relative dates only ("il y a 3 jours")
     });
+  }
+
+  if (offers.length === 0) {
+    console.warn(`[hellowork] 0 offres récupérées. DOM potentiellement changé ou page bloquée. HTML snippet:`, html.slice(0, 1000));
   }
 
   // Filter out offers matching exclude keywords (local filtering)
