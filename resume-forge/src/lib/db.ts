@@ -103,6 +103,19 @@ export async function getDb(): Promise<Database> {
     // Fallback: ensure migration 006 column exists
     await db.execute(`ALTER TABLE job_watch_config ADD COLUMN exclude_keywords TEXT NOT NULL DEFAULT '[]'`).catch(() => {/* already exists */});
 
+    // Fallback: ensure migration 007 table and column exist
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_offer_feedback (
+        id             TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        offer_id       TEXT NOT NULL,
+        action         TEXT NOT NULL,
+        time_to_action INTEGER,
+        created_at     DATETIME DEFAULT (datetime('now'))
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_offer ON job_offer_feedback(offer_id)`);
+    await db.execute(`ALTER TABLE job_offers ADD COLUMN archived_at TEXT`).catch(() => {/* already exists */});
+
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_hash    ON job_offers(hash)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_source  ON job_offers(source)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_score   ON job_offers(score)`);

@@ -10,6 +10,7 @@ import {
   DEFAULT_FILTERS,
   JobSource,
 } from '@/types/job-watch';
+import { processFeedback, LearnedDictionary } from '@/lib/watcher/learning-engine';
 
 // ── Settings helpers ────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ interface JobWatchState {
   markArchived: (id: string, archived: boolean) => Promise<void>;
   setKanbanId: (offerId: string, kanbanId: string) => Promise<void>;
   deleteArchivedOffers: () => Promise<void>;
+  submitFeedback: (offerId: string, action: string) => Promise<void>;
 
   // Configs
   fetchConfigs: () => Promise<void>;
@@ -209,12 +211,15 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   markArchived: async (id, archived) => {
     const db = await getDb();
+    const archivedAt = archived ? new Date().toISOString() : null;
     await db.execute(
-      `UPDATE job_offers SET is_archived = ?1 WHERE id = ?2`,
-      [archived ? 1 : 0, id]
+      `UPDATE job_offers SET is_archived = ?1, archived_at = ?2 WHERE id = ?3`,
+      [archived ? 1 : 0, archivedAt, id]
     );
     set(state => ({
-      offers: state.offers.map(o => o.id === id ? { ...o, isArchived: archived ? 1 : 0 } : o),
+      offers: state.offers.map(o =>
+        o.id === id ? { ...o, isArchived: archived ? 1 : 0, archivedAt } : o
+      ),
     }));
   },
 
@@ -233,6 +238,56 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const db = await getDb();
     await db.execute(`DELETE FROM job_offers WHERE is_archived = 1`);
     set(state => ({ offers: state.offers.filter(o => o.isArchived === 0) }));
+  },
+
+  submitFeedback: async (offerId, action) => {
+    const db = await getDb();
+    const offer = get().offers.find(o => o.id === offerId);
+    const timeToAction = offer
+      ? Math.floor((Date.now() - new Date(offer.fetchedAt).getTime()) / 1000)
+      : null;
+
+    // 1. Persist the feedback row
+    await db.execute(
+      `INSERT INTO job_offer_feedback (offer_id, action, time_to_action) VALUES (?1, ?2, ?3)`,
+      [offerId, action, timeToAction]
+    );
+
+    // 2. Side-effects on the offer state
+    if (action === 'thumbs_down' || action === 'quick_archive') {
+      await get().markArchived(offerId, true);
+    } else if (action === 'thumbs_up') {
+      await get().markRead(offerId);
+    }
+
+    // 3. Update the learned dictionary in the background (fire & forget)
+    if (offer?.title) {
+      (async () => {
+        try {
+          const posRaw = await db.select<{ value: string }[]>(
+            `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_positive'`
+          );
+          const negRaw = await db.select<{ value: string }[]>(
+            `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_negative'`
+          );
+          const currentDict: LearnedDictionary = {
+            positive: posRaw[0] ? JSON.parse(posRaw[0].value) : {},
+            negative: negRaw[0] ? JSON.parse(negRaw[0].value) : {},
+          };
+          const updated = processFeedback(offer.title, action, currentDict);
+          await db.execute(
+            `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_positive', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = ?1`,
+            [JSON.stringify(updated.positive)]
+          );
+          await db.execute(
+            `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_negative', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = ?1`,
+            [JSON.stringify(updated.negative)]
+          );
+        } catch { /* silent — learning dict update is non-critical */ }
+      })();
+    }
   },
 
   // ── Configs ───────────────────────────────────────────────────────────────

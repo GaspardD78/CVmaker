@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro } from 'lucide-react';
+import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -107,7 +107,7 @@ interface JobOfferCardProps {
 
 export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOfferCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { markRead, markArchived } = useJobWatchStore();
+  const { markRead, markArchived, submitFeedback } = useJobWatchStore();
 
   const handleOpen = async () => {
     if (offer.isRead === 0) await markRead(offer.id);
@@ -122,6 +122,16 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOf
   const handleArchive = async () => {
     await markArchived(offer.id, true);
     toast.success('Offre archivée');
+  };
+
+  const handleThumbsUp = async () => {
+    await submitFeedback(offer.id, 'thumbs_up');
+    toast.success('Offre appréciée');
+  };
+
+  const handleThumbsDown = async () => {
+    await submitFeedback(offer.id, 'thumbs_down');
+    toast.success('Offre ignorée');
   };
 
   const handleImport = () => onImportKanban(offer);
@@ -240,13 +250,29 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban }: JobOf
         )}
 
         {!isArchived && (
-          <button
-            onClick={handleArchive}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <Archive className="w-3.5 h-3.5" />
-            Archiver
-          </button>
+          <>
+            <button
+              onClick={handleArchive}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              Archiver
+            </button>
+            <button
+              onClick={handleThumbsUp}
+              title="J'aime cette offre"
+              className="inline-flex items-center px-2 py-1.5 text-xs rounded-md border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+            >
+              <ThumbsUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleThumbsDown}
+              title="Je n'aime pas cette offre"
+              className="inline-flex items-center px-2 py-1.5 text-xs rounded-md border border-red-200 dark:border-red-700 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <ThumbsDown className="w-3.5 h-3.5" />
+            </button>
+          </>
         )}
       </div>
     </div>
