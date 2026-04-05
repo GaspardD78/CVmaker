@@ -1,8 +1,10 @@
 /**
  * learning-engine.ts
  *
- * Pure functions for behavioral learning from job offer feedback.
- * No DB or Store access — fully unit-testable.
+ * Two concerns:
+ *  1. Pure functions for processing individual feedback events (no I/O — fully unit-testable).
+ *  2. analyzeFeedback() — async DB query that aggregates historical feedback to surface
+ *     actionable exclusion/bonus-term suggestions.
  */
 
 export interface LearnedDictionary {
@@ -96,5 +98,86 @@ export function getKeywordSuggestions(
   return {
     positive: filter(dict.positive),
     negative: filter(dict.negative),
+  };
+}
+
+// ── Aggregate feedback analysis ──────────────────────────────────────────────
+
+export interface LearningResult {
+  /** Terms appearing in > 30 % of rejected offers. */
+  suggestedExclusions: string[];
+  /** Terms appearing in > 30 % of Kanban-imported offers. */
+  suggestedBonusTerms: string[];
+  /** Number of negative feedback events analysed. */
+  totalNegative: number;
+  /** Number of positive (kanban_import) feedback events analysed. */
+  totalPositive: number;
+}
+
+/**
+ * Queries the DB, aggregates feedback and returns term-frequency suggestions.
+ *
+ * Each term is counted at most once per offer (Set dedup per row) so a single
+ * verbose snippet cannot inflate the frequency of a term artificially.
+ *
+ * Suggestions are only emitted when there are ≥ 3 data-points in that group
+ * to avoid noisy recommendations at the start of usage.
+ *
+ * This function is intentionally async and should be called off the critical
+ * rendering path (e.g. inside a useEffect, never during render).
+ */
+export async function analyzeFeedback(): Promise<LearningResult> {
+  // Dynamic import avoids pulling the Tauri SQL plugin into unit-test bundles
+  // while still sharing this file between app and tests.
+  const { getDb } = await import('@/lib/db');
+  const db = await getDb();
+
+  const rows = await db.select<{
+    action: string;
+    title: string;
+    description_snippet: string | null;
+  }[]>(`
+    SELECT f.action, o.title, o.description_snippet
+    FROM job_offer_feedback f
+    JOIN job_offers o ON o.id = f.offer_id
+    WHERE f.action IN ('thumbs_down', 'quick_archive', 'kanban_import')
+  `);
+
+  const negativeTexts: string[] = [];
+  const positiveTexts: string[] = [];
+
+  for (const row of rows) {
+    const text = `${row.title} ${row.description_snippet ?? ''}`.trim();
+    if (row.action === 'thumbs_down' || row.action === 'quick_archive') {
+      negativeTexts.push(text);
+    } else if (row.action === 'kanban_import') {
+      positiveTexts.push(text);
+    }
+  }
+
+  /**
+   * For each text, extract unique terms (Set per offer).
+   * Then count across offers and keep those above the 30 % threshold.
+   */
+  const computeSuggestions = (texts: string[]): string[] => {
+    if (texts.length < 3) return [];
+    const termCounts = new Map<string, number>();
+    for (const text of texts) {
+      for (const term of new Set(extractSignificantTerms(text))) {
+        termCounts.set(term, (termCounts.get(term) ?? 0) + 1);
+      }
+    }
+    const minCount = texts.length * 0.3;
+    return [...termCounts.entries()]
+      .filter(([, count]) => count > minCount)
+      .sort(([, a], [, b]) => b - a)
+      .map(([term]) => term);
+  };
+
+  return {
+    suggestedExclusions: computeSuggestions(negativeTexts),
+    suggestedBonusTerms: computeSuggestions(positiveTexts),
+    totalNegative: negativeTexts.length,
+    totalPositive: positiveTexts.length,
   };
 }

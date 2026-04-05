@@ -180,7 +180,13 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
   const isUnread    = offer.isRead === 0;
   const isArchived  = offer.isArchived === 1;
   const hasKanban   = offer.kanbanId !== null;
-  const isPepite    = offer.score > 85;
+  // "Pépite" = high-score, unread, and commute within the user's threshold (or uncalculated)
+  const isPepite    =
+    offer.score >= 85 &&
+    isUnread &&
+    (offer.commuteMinutes === null ||
+     commuteMaxMinutes === null ||
+     offer.commuteMinutes <= commuteMaxMinutes);
 
   const profileMatch = useMemo(
     () => computeLightProfileMatch(`${offer.title} ${offer.descriptionSnippet ?? ''}`, profileSkills),
@@ -195,14 +201,23 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
     <div
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+      className={`rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${
         isPepite
-          ? 'border-yellow-400 dark:border-yellow-500'
+          ? 'border-2 border-yellow-400 dark:border-yellow-500 shadow-lg shadow-yellow-100 dark:shadow-yellow-900/30 bg-gradient-to-b from-yellow-50/60 to-white dark:from-yellow-900/10 dark:to-gray-800'
           : isUnread
-            ? 'border-blue-200 dark:border-blue-700'
-            : 'border-gray-200 dark:border-gray-700'
+            ? 'bg-white dark:bg-gray-800 border-blue-200 dark:border-blue-700 shadow-sm'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm'
       } ${isArchived ? 'opacity-60' : ''}`}
     >
+      {/* Pépite banner */}
+      {isPepite && (
+        <div className="flex items-center gap-1.5 px-4 py-1.5 bg-yellow-400/20 dark:bg-yellow-500/10 border-b border-yellow-300 dark:border-yellow-600/40 rounded-t-lg">
+          <span className="text-sm">🌟</span>
+          <span className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 tracking-wide">
+            Offre Pépite
+          </span>
+        </div>
+      )}
       {/* Header */}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -248,11 +263,6 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
           {hasKanban && (
             <span className="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
               Dans le Kanban
-            </span>
-          )}
-          {isPepite && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
-              ⭐ Pépite
             </span>
           )}
           {profileSkills.length > 0 && profileMatch > 0 && (
