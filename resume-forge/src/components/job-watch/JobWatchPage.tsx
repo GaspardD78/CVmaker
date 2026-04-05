@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { JobOffersView } from './JobOffersView';
 import { JobWatchConfigView } from './JobWatchConfig';
+import { HealthDashboard } from './HealthDashboard';
 
 type Tab = 'offers' | 'config';
 
@@ -46,7 +47,12 @@ export function JobWatchPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'offers' && <JobOffersView />}
+      {activeTab === 'offers' && (
+        <>
+          <HealthDashboard />
+          <JobOffersView />
+        </>
+      )}
       {activeTab === 'config' && <JobWatchConfigView />}
     </div>
   );
