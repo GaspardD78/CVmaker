@@ -24,7 +24,16 @@ export interface JobOffer {
   salaryRaw: string | null;
   isRead: number;       // 0 | 1
   isArchived: number;   // 0 | 1
+  archivedAt: string | null;
   kanbanId: string | null;
+}
+
+export interface JobOfferFeedback {
+  id: string;
+  offerId: string;
+  action: 'kanban_import' | 'thumbs_up' | 'thumbs_down' | 'quick_archive';
+  timeToAction: number | null;
+  createdAt: string;
 }
 
 export interface JobWatchConfig {

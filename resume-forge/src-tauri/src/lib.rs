@@ -196,6 +196,18 @@ pub fn run() {
             sql: include_str!("../migrations/005_job_watch_v2.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "add_exclude_keywords",
+            sql: include_str!("../migrations/006_exclude_keywords.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 7,
+            description: "add_job_feedback_table",
+            sql: include_str!("../migrations/007_job_feedback.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]
