@@ -22,6 +22,14 @@ const COMMUTE_OPTIONS: Array<{ label: string; value: number | null }> = [
   { label: '≤ 90 min',  value: 90   },
 ];
 
+const AGE_OPTIONS: Array<{ label: string; value: number | null }> = [
+  { label: 'Tous',     value: null },
+  { label: '1 jour',   value: 1    },
+  { label: '3 jours',  value: 3    },
+  { label: '7 jours',  value: 7    },
+  { label: '30 jours', value: 30   },
+];
+
 export function JobOffersView() {
   const {
     filteredOffers,
@@ -260,6 +268,26 @@ export function JobOffersView() {
                 }`}
               >
                 {type}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Ancienneté */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Ancienneté</p>
+          <div className="flex flex-wrap gap-1.5">
+            {AGE_OPTIONS.map(opt => (
+              <button
+                key={String(opt.value)}
+                onClick={() => setFilters({ maxAgeDays: opt.value })}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  filters.maxAgeDays === opt.value
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {opt.label}
               </button>
             ))}
           </div>

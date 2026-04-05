@@ -258,11 +258,13 @@ export function JobWatchConfigView() {
   // Local text state for scoring textareas to avoid cursor jumps
   const [posKwText, setPosKwText] = useState(settings.positiveKeywords.join(', '));
   const [negKwText, setNegKwText] = useState(settings.negativeKeywords.join(', '));
+  const [blacklistText, setBlacklistText] = useState(settings.blacklistedCompanies.join(', '));
 
   useEffect(() => {
     setSettingsDraft(settings);
     setPosKwText(settings.positiveKeywords.join(', '));
     setNegKwText(settings.negativeKeywords.join(', '));
+    setBlacklistText(settings.blacklistedCompanies.join(', '));
   }, [settings]);
 
   const unusedSources = ALL_SOURCES.filter(s => !configs.some(c => c.source === s));
@@ -459,6 +461,19 @@ export function JobWatchConfigView() {
               placeholder="stagiaire, alternance, bénévole"
             />
           </div>
+        </div>
+        <div className="mt-3">
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+            Entreprises blacklistées (exclues de l'affichage)
+          </label>
+          <textarea
+            rows={2}
+            value={blacklistText}
+            onChange={e => setBlacklistText(e.target.value)}
+            onBlur={() => updateSetting('blacklistedCompanies', parseKeywordList(blacklistText))}
+            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+            placeholder="Google, Amazon, SSII Corp"
+          />
         </div>
       </section>
 
