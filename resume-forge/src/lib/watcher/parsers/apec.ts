@@ -117,9 +117,9 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  let data: ApecSearchResponse;
+  let data: ApecSearchResponse | null = null;
   try {
-    const reqBodyBytes = new TextEncoder().encode(JSON.stringify(body));
+    const reqBodyBytes = new Uint8Array(Array.from(new TextEncoder().encode(JSON.stringify(body))));
 
     const res = await tauriFetch(APEC_SEARCH_URL, {
       method: 'POST',
@@ -128,6 +128,7 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
         'User-Agent': BROWSER_USER_AGENT,
         'Content-Type': 'application/json; charset=utf-8',
         'Accept': 'application/json',
+        'Accept-Encoding': 'identity',
         'Referer': 'https://www.apec.fr/candidat/recherche-emploi.html/emploi',
         'Origin': 'https://www.apec.fr',
       },
@@ -141,12 +142,18 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
 
     const buffer = await res.arrayBuffer();
     const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-    data = JSON.parse(text) as ApecSearchResponse;
+
+    try {
+      data = JSON.parse(text) as ApecSearchResponse;
+    } catch (parseErr) {
+      console.error(`[apec] JSON Parse Error. Response snippet: ${text.slice(0, 500)}`);
+      throw new Error(`APEC JSON Parse Error: ${(parseErr as Error).message}`);
+    }
   } finally {
     clearTimeout(timeoutId);
   }
 
-  if (!data.resultats) return [];
+  if (!data || !data.resultats) return [];
 
   return data.resultats.map(item => {
     const salary = parseSalary(item.salaireTexte);
