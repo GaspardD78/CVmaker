@@ -3,7 +3,7 @@ import { Plus, Trash2, Save, ToggleLeft, ToggleRight, UserRound, Bot } from 'luc
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
-import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource } from '@/types/job-watch';
+import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource, SearchIntent } from '@/types/job-watch';
 import { generateSourceConfigPrompt } from '@/lib/prompt-templates';
 import { getDb } from '@/lib/db';
 import { getKeywordSuggestions, LearnedDictionary } from '@/lib/watcher/learning-engine';
@@ -257,17 +257,29 @@ export function JobWatchConfigView() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [helpModal, setHelpModal] = useState<HelpModal>(null);
 
-  // Local text state for scoring textareas to avoid cursor jumps
-  const [posKwText, setPosKwText] = useState(settings.positiveKeywords.join(', '));
-  const [negKwText, setNegKwText] = useState(settings.negativeKeywords.join(', '));
+  // Local text state for SearchIntent fields (avoids cursor jumps in textareas)
+  const si = settings.searchIntent;
+  const [rolePrimaryText,    setRolePrimaryText]    = useState(si.role.primary.join(', '));
+  const [roleExcludeText,    setRoleExcludeText]    = useState(si.role.mustExclude.join(', '));
+  const [domReqText,         setDomReqText]         = useState(si.domain.required.join(', '));
+  const [domPrefText,        setDomPrefText]        = useState(si.domain.preferred.join(', '));
+  const [domExclText,        setDomExclText]        = useState(si.domain.excluded.join(', '));
+  const [salaryTargetStr,    setSalaryTargetStr]    = useState(si.salary.target != null ? String(si.salary.target) : '');
+  const [salaryHideStr,      setSalaryHideStr]      = useState(si.salary.hideIfBelow != null ? String(si.salary.hideIfBelow) : '');
   const [blacklistText, setBlacklistText] = useState(settings.blacklistedCompanies.join(', '));
   const [learnedDict, setLearnedDict] = useState<LearnedDictionary>({ positive: {}, negative: {} });
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setSettingsDraft(settings);
-    setPosKwText(settings.positiveKeywords.join(', '));
-    setNegKwText(settings.negativeKeywords.join(', '));
+    const si = settings.searchIntent;
+    setRolePrimaryText(si.role.primary.join(', '));
+    setRoleExcludeText(si.role.mustExclude.join(', '));
+    setDomReqText(si.domain.required.join(', '));
+    setDomPrefText(si.domain.preferred.join(', '));
+    setDomExclText(si.domain.excluded.join(', '));
+    setSalaryTargetStr(si.salary.target != null ? String(si.salary.target) : '');
+    setSalaryHideStr(si.salary.hideIfBelow != null ? String(si.salary.hideIfBelow) : '');
     setBlacklistText(settings.blacklistedCompanies.join(', '));
   }, [settings]);
 
@@ -324,14 +336,29 @@ export function JobWatchConfigView() {
     toast.success('Source supprimée');
   };
 
+  const buildSearchIntent = (): SearchIntent => ({
+    role: {
+      primary:     parseKeywordList(rolePrimaryText),
+      mustExclude: parseKeywordList(roleExcludeText),
+    },
+    domain: {
+      required:  parseKeywordList(domReqText),
+      preferred: parseKeywordList(domPrefText),
+      excluded:  parseKeywordList(domExclText),
+    },
+    salary: {
+      target:      salaryTargetStr ? Number(salaryTargetStr) : null,
+      hideIfBelow: salaryHideStr   ? Number(salaryHideStr)   : null,
+    },
+  });
+
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
-      // Commit textarea text to settings before saving
       const toSave: JobWatchSettings = {
         ...settingsDraft,
-        positiveKeywords: parseKeywordList(posKwText),
-        negativeKeywords: parseKeywordList(negKwText),
+        searchIntent:        buildSearchIntent(),
+        blacklistedCompanies: parseKeywordList(blacklistText),
       };
       await saveSettings(toSave);
       toast.success('Paramètres sauvegardés');
@@ -351,14 +378,23 @@ export function JobWatchConfigView() {
 
   const rawSuggestions = useMemo(() => getKeywordSuggestions(learnedDict), [learnedDict]);
 
-  const currentPosTerms = useMemo(
-    () => new Set(posKwText.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)),
-    [posKwText],
-  );
-  const currentNegTerms = useMemo(
-    () => new Set(negKwText.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)),
-    [negKwText],
-  );
+  // All "positive" intent terms — used to de-duplicate suggestions
+  const currentPosTerms = useMemo(() => {
+    const all = [rolePrimaryText, domReqText, domPrefText]
+      .flatMap(t => t.split(','))
+      .map(k => k.trim().toLowerCase())
+      .filter(Boolean);
+    return new Set(all);
+  }, [rolePrimaryText, domReqText, domPrefText]);
+
+  // All "negative" intent terms
+  const currentNegTerms = useMemo(() => {
+    const all = [roleExcludeText, domExclText]
+      .flatMap(t => t.split(','))
+      .map(k => k.trim().toLowerCase())
+      .filter(Boolean);
+    return new Set(all);
+  }, [roleExcludeText, domExclText]);
 
   const suggestions = useMemo(() => ({
     positive: rawSuggestions.positive.filter(
@@ -371,18 +407,20 @@ export function JobWatchConfigView() {
 
   const hasSuggestions = suggestions.positive.length > 0 || suggestions.negative.length > 0;
 
+  // Positive suggestions → role.primary (most likely origin of learned terms)
   const handleAcceptPosSuggestion = (term: string) => {
-    const existing = parseKeywordList(posKwText);
+    const existing = parseKeywordList(rolePrimaryText);
     if (!existing.map(k => k.toLowerCase()).includes(term.toLowerCase())) {
-      setPosKwText([...existing, term].join(', '));
+      setRolePrimaryText([...existing, term].join(', '));
     }
     setDismissedSuggestions(prev => new Set(prev).add(term));
   };
 
+  // Negative suggestions → role.mustExclude
   const handleAcceptNegSuggestion = (term: string) => {
-    const existing = parseKeywordList(negKwText);
+    const existing = parseKeywordList(roleExcludeText);
     if (!existing.map(k => k.toLowerCase()).includes(term.toLowerCase())) {
-      setNegKwText([...existing, term].join(', '));
+      setRoleExcludeText([...existing, term].join(', '));
     }
     setDismissedSuggestions(prev => new Set(prev).add(term));
   };
@@ -466,34 +504,39 @@ export function JobWatchConfigView() {
         </div>
       </section>
 
-      {/* ── Scoring ── */}
+      {/* ── Scoring / SearchIntent ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Scoring</h3>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Scoring — SearchIntent</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+              Rôle&nbsp;+&nbsp;Domaine&nbsp;+&nbsp;Salaire — séparez les termes par des virgules
+            </p>
+          </div>
           {profile && (
             <button
               onClick={() => {
-                const skills = entries
-                  .filter(e => e.entryType === 'skill')
-                  .map(e => e.title);
+                const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title);
                 const titles = [profile.title].filter(Boolean) as string[];
                 const all = [...new Set([...titles, ...skills])];
                 if (all.length === 0) {
                   toast.info('Aucune compétence ou titre trouvé dans le profil maître');
                   return;
                 }
-                const existing = parseKeywordList(posKwText);
+                const existing = parseKeywordList(rolePrimaryText);
                 const merged = [...new Set([...existing, ...all])];
-                setPosKwText(merged.join(', '));
-                toast.success(`${all.length} mot(s)-clé(s) importé(s) depuis le profil`);
+                setRolePrimaryText(merged.join(', '));
+                toast.success(`${all.length} terme(s) importé(s) → Rôle principal`);
               }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
             >
               <UserRound className="w-3.5 h-3.5" />
-              Pré-remplir depuis le profil
+              Depuis le profil
             </button>
           )}
         </div>
+
+        {/* Learning suggestions */}
         {hasSuggestions && (
           <div className="mb-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3 bg-gray-50 dark:bg-gray-800/50">
             <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
@@ -502,15 +545,13 @@ export function JobWatchConfigView() {
             <div className="flex flex-col gap-2">
               {suggestions.positive.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-medium text-green-600 dark:text-green-400 mb-1">À ajouter ✅</p>
+                  <p className="text-[10px] font-medium text-green-600 dark:text-green-400 mb-1">
+                    → Rôle principal ✅
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {suggestions.positive.map(term => (
-                      <button
-                        key={term}
-                        type="button"
-                        onClick={() => handleAcceptPosSuggestion(term)}
-                        className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                      >
+                      <button key={term} type="button" onClick={() => handleAcceptPosSuggestion(term)}
+                        className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
                         + {term}
                       </button>
                     ))}
@@ -519,15 +560,13 @@ export function JobWatchConfigView() {
               )}
               {suggestions.negative.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-medium text-red-600 dark:text-red-400 mb-1">À exclure ❌</p>
+                  <p className="text-[10px] font-medium text-red-600 dark:text-red-400 mb-1">
+                    → Rôle à exclure ❌
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {suggestions.negative.map(term => (
-                      <button
-                        key={term}
-                        type="button"
-                        onClick={() => handleAcceptNegSuggestion(term)}
-                        className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
-                      >
+                      <button key={term} type="button" onClick={() => handleAcceptNegSuggestion(term)}
+                        className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">
                         − {term}
                       </button>
                     ))}
@@ -537,46 +576,107 @@ export function JobWatchConfigView() {
             </div>
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-2">
+
+        {/* Role */}
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+          Rôle visé
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 mb-3">
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Mots-clés positifs (+10 pts chacun)
+              Rôle — mots-clés principaux
+              <span className="ml-1 text-gray-400">(+15 pts/match, max +30)</span>
             </label>
-            <textarea
-              rows={3}
-              value={posKwText}
-              onChange={e => setPosKwText(e.target.value)}
-              onBlur={() => updateSetting('positiveKeywords', parseKeywordList(posKwText))}
+            <textarea rows={2} value={rolePrimaryText}
+              onChange={e => setRolePrimaryText(e.target.value)}
               className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              placeholder="cybersécurité, IAM, Talent Acquisition"
-            />
+              placeholder="recruteur, talent partner, RH" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Mots-clés négatifs (-20 pts chacun)
+              Rôle — à disqualifier
+              <span className="ml-1 text-gray-400">(score → 0)</span>
             </label>
-            <textarea
-              rows={3}
-              value={negKwText}
-              onChange={e => setNegKwText(e.target.value)}
-              onBlur={() => updateSetting('negativeKeywords', parseKeywordList(negKwText))}
+            <textarea rows={2} value={roleExcludeText}
+              onChange={e => setRoleExcludeText(e.target.value)}
               className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              placeholder="stagiaire, alternance, bénévole"
-            />
+              placeholder="stagiaire, commercial, bénévole" />
           </div>
         </div>
-        <div className="mt-3">
+
+        {/* Domain */}
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+          Domaine / Compétences
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3 mb-3">
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Requis
+              <span className="ml-1 text-gray-400">(+10, max +20)</span>
+            </label>
+            <textarea rows={2} value={domReqText}
+              onChange={e => setDomReqText(e.target.value)}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              placeholder="IAM, GRC, IGA" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Préférés
+              <span className="ml-1 text-gray-400">(+5, max +10)</span>
+            </label>
+            <textarea rows={2} value={domPrefText}
+              onChange={e => setDomPrefText(e.target.value)}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              placeholder="SIRH, ATS, Workday" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Exclus domaine
+              <span className="ml-1 text-gray-400">(score → 0)</span>
+            </label>
+            <textarea rows={2} value={domExclText}
+              onChange={e => setDomExclText(e.target.value)}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              placeholder="vente, commercial" />
+          </div>
+        </div>
+
+        {/* Salary */}
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+          Salaire
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 mb-3">
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Salaire cible (€ annuel brut)
+            </label>
+            <input type="number" min={0} step={1000}
+              value={salaryTargetStr}
+              onChange={e => setSalaryTargetStr(e.target.value)}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="45000" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Seuil minimal (-30 pts si inférieur)
+            </label>
+            <input type="number" min={0} step={1000}
+              value={salaryHideStr}
+              onChange={e => setSalaryHideStr(e.target.value)}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="36000" />
+          </div>
+        </div>
+
+        {/* Company blacklist */}
+        <div>
           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
             Entreprises blacklistées (exclues de l'affichage)
           </label>
-          <textarea
-            rows={2}
-            value={blacklistText}
+          <textarea rows={2} value={blacklistText}
             onChange={e => setBlacklistText(e.target.value)}
-            onBlur={() => updateSetting('blacklistedCompanies', parseKeywordList(blacklistText))}
             className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-            placeholder="Google, Amazon, SSII Corp"
-          />
+            placeholder="Google, Amazon, SSII Corp" />
         </div>
       </section>
 

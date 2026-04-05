@@ -89,8 +89,7 @@ export async function runFetch(
         // Score
         const score = computeScore(
           raw,
-          settings.positiveKeywords,
-          settings.negativeKeywords,
+          settings.searchIntent,
           settings.blacklistedCompanies,
         );
 

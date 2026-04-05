@@ -5,23 +5,19 @@
  *
  * Couche 1 – Disqualifiers (tout ou rien) :
  *   - Entreprise dans la blacklist → score 0
- *   - Mot-clé négatif matche le texte (\b) → score 0
+ *   - searchIntent.role.mustExclude ou domain.excluded matche (\b) → score 0
  *
- * Couche 2 – Pertinence graduée :
- *   - Base : 50
- *   - Mots-clés positifs : +10/match, plafonné à +30
- *   - Time-decay : -2 pts/jour depuis publishedAt, plafonné à -30
- *   - Salaire : comparé à TARGET_SALARY (ratio vs salaryMin)
+ * Couche 2 – Pertinence graduée (base 50 + bonus) :
+ *   - role.primary      : +15/match, plafonné à +30  (signal fort — rôle visé)
+ *   - domain.required   : +10/match, plafonné à +20  (domaine obligatoire)
+ *   - domain.preferred  : +5/match,  plafonné à +10  (domaine souhaité)
+ *   - Time-decay        : -2 pts/jour, plafonné à -30
+ *   - Salaire           : comparé à searchIntent.salary.target (défaut 45 k€)
  *   - Red flags structurels : -40 (ninja…) / -60 (non rémunéré)
  *   - Résultat clampé entre 0 et 100
  */
 
-import type { RawJobOffer } from '@/types/job-watch';
-
-// ---------------------------------------------------------------------------
-// TODO: exposer targetSalary dans JobWatchSettings (Sprint 2)
-// ---------------------------------------------------------------------------
-const TARGET_SALARY = 45_000;
+import type { RawJobOffer, SearchIntent } from '@/types/job-watch';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,8 +51,7 @@ type ScorerOffer = Pick<
 
 export function computeScore(
   offer: ScorerOffer,
-  positiveKeywords: string[],
-  negativeKeywords: string[],
+  searchIntent: SearchIntent,
   companyBlacklist: string[],
 ): number {
   const text = `${offer.title} ${offer.descriptionSnippet ?? ''}`;
@@ -73,10 +68,9 @@ export function computeScore(
     return 0;
   }
 
-  for (const kw of negativeKeywords) {
-    if (kw.trim() && wordBoundaryRegex(kw).test(text)) {
-      return 0;
-    }
+  const allExcluded = [...searchIntent.role.mustExclude, ...searchIntent.domain.excluded];
+  for (const kw of allExcluded) {
+    if (kw.trim() && wordBoundaryRegex(kw).test(text)) return 0;
   }
 
   // ------------------------------------------------------------------
@@ -85,14 +79,26 @@ export function computeScore(
 
   let score = 50;
 
-  // Mots-clés positifs (cap +30)
-  let posBonus = 0;
-  for (const kw of positiveKeywords) {
-    if (kw.trim() && wordBoundaryRegex(kw).test(text)) {
-      posBonus += 10;
-    }
+  // Rôle principal : +15/match, plafonné +30
+  let roleBonus = 0;
+  for (const kw of searchIntent.role.primary) {
+    if (kw.trim() && wordBoundaryRegex(kw).test(text)) roleBonus += 15;
   }
-  score += Math.min(30, posBonus);
+  score += Math.min(30, roleBonus);
+
+  // Domaine requis : +10/match, plafonné +20
+  let domReqBonus = 0;
+  for (const kw of searchIntent.domain.required) {
+    if (kw.trim() && wordBoundaryRegex(kw).test(text)) domReqBonus += 10;
+  }
+  score += Math.min(20, domReqBonus);
+
+  // Domaine préféré : +5/match, plafonné +10
+  let domPrefBonus = 0;
+  for (const kw of searchIntent.domain.preferred) {
+    if (kw.trim() && wordBoundaryRegex(kw).test(text)) domPrefBonus += 5;
+  }
+  score += Math.min(10, domPrefBonus);
 
   // Time-decay
   if (offer.publishedAt) {
@@ -102,11 +108,13 @@ export function computeScore(
   }
 
   // Salaire
+  const targetSalary = searchIntent.salary.target ?? 45_000;
+  const hideIfBelow  = searchIntent.salary.hideIfBelow ?? Math.round(targetSalary * 0.80);
   if (offer.salaryMin != null) {
-    const ratio = offer.salaryMin / TARGET_SALARY;
-    if (ratio >= 1.10)     score += 20;
-    else if (ratio >= 0.95) score += 10;
-    else if (ratio < 0.80)  score -= 30;
+    const ratio = offer.salaryMin / targetSalary;
+    if (ratio >= 1.10)                          score += 20;
+    else if (ratio >= 0.95)                     score += 10;
+    else if (offer.salaryMin < hideIfBelow)     score -= 30;
   }
   // salaire masqué → neutre
 
