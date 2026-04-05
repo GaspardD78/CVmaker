@@ -61,6 +61,7 @@ export interface JobWatchSettings {
   ftClientSecret: string;
   ftAccessToken: string;
   ftTokenExpiresAt: string;
+  blacklistedCompanies: string[];
 }
 
 export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
@@ -82,6 +83,7 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   ftClientSecret: '',
   ftAccessToken: '',
   ftTokenExpiresAt: '',
+  blacklistedCompanies: [],
 };
 
 export interface JobWatchFilters {
@@ -92,6 +94,7 @@ export interface JobWatchFilters {
   dateFrom: string | null;
   dateTo: string | null;
   contractTypes?: string[];
+  maxAgeDays: number | null;
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
@@ -102,6 +105,7 @@ export const DEFAULT_FILTERS: JobWatchFilters = {
   dateFrom: null,
   dateTo: null,
   contractTypes: [],
+  maxAgeDays: null,
 };
 
 /** Raw offer coming out of a parser, before dedup/scoring/commute enrichment */

@@ -47,6 +47,7 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     ftClientSecret:        map['ft_client_secret']        ?? '',
     ftAccessToken:         map['ft_access_token']         ?? '',
     ftTokenExpiresAt:      map['ft_token_expires_at']     ?? '',
+    blacklistedCompanies: parseJson<string[]>(map['blacklisted_companies'], []),
   };
 }
 
@@ -71,6 +72,7 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['ft_client_secret',       settings.ftClientSecret],
     ['ft_access_token',        settings.ftAccessToken],
     ['ft_token_expires_at',    settings.ftTokenExpiresAt],
+    ['blacklisted_companies',  JSON.stringify(settings.blacklistedCompanies)],
   ];
   for (const [key, value] of entries) {
     await db.execute(
@@ -339,7 +341,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   // ── Computed ──────────────────────────────────────────────────────────────
 
   filteredOffers: () => {
-    const { offers, filters } = get();
+    const { offers, filters, settings } = get();
     return offers.filter(o => {
       if (!filters.sources.includes(o.source as JobSource)) return false;
       if (o.score < filters.minScore) return false;
@@ -354,6 +356,17 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       ) return false;
       if (filters.dateFrom && o.fetchedAt < filters.dateFrom) return false;
       if (filters.dateTo   && o.fetchedAt > filters.dateTo)   return false;
+
+      if (settings.blacklistedCompanies.length > 0 && o.company) {
+        const companyLower = o.company.toLowerCase();
+        if (settings.blacklistedCompanies.some(b => b.toLowerCase() === companyLower)) return false;
+      }
+
+      if (filters.maxAgeDays !== null && o.publishedAt) {
+        const ageMs = Date.now() - new Date(o.publishedAt).getTime();
+        const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+        if (ageDays > filters.maxAgeDays) return false;
+      }
 
       if (filters.contractTypes && filters.contractTypes.length > 0) {
         const textToSearch = `${o.contractType || ''} ${o.title || ''}`.toLowerCase();
