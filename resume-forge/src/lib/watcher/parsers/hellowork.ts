@@ -63,15 +63,18 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
         'User-Agent': BROWSER_USER_AGENT,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'max-age=0',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-Site': 'same-origin',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
-        'sec-ch-ua': '"Google Chrome";v="124", "Chromium";v="124", "Not-A.Brand";v="24"',
+        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not-A.Brand";v="24"',
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
         'Referer': 'https://www.hellowork.com/fr-fr/',
+        'Connection': 'keep-alive',
       },
     });
     if (!res.ok) throw new Error(`HelloWork HTTP ${res.status}`);
@@ -140,6 +143,16 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
   }
 
   if (offers.length === 0) {
+    // Detect anti-bot / CGU block response
+    const isBlocked = html.includes('scraping') || html.includes('web scraping') || html.includes('screen scraping');
+    // Detect if results might be JS-rendered (page shell present but no cards)
+    const isShell = html.includes('tw-scroll-smooth') && !html.includes('data-cy="serpCard"');
+    if (isBlocked) {
+      throw new Error('HelloWork bloque le scraping (CGU 8.2). Désactivez cette source ou utilisez une autre.');
+    }
+    if (isShell) {
+      throw new Error('HelloWork charge les offres via JavaScript — scraping HTML non disponible. Désactivez cette source.');
+    }
     console.warn(`[hellowork] 0 offres récupérées. DOM potentiellement changé ou page bloquée. HTML snippet:`, html.slice(0, 1000));
   }
 
