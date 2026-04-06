@@ -127,6 +127,8 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   blacklistedCompanies: [],
 };
 
+export type SortOption = 'score_desc' | 'date_newest' | 'date_oldest' | 'commute_asc' | 'salary_desc';
+
 export interface JobWatchFilters {
   sources: JobSource[];
   minScore: number;
@@ -136,6 +138,7 @@ export interface JobWatchFilters {
   dateTo: string | null;
   contractTypes?: string[];
   maxAgeDays: number | null;
+  sortBy: SortOption;
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
@@ -147,7 +150,13 @@ export const DEFAULT_FILTERS: JobWatchFilters = {
   dateTo: null,
   contractTypes: [],
   maxAgeDays: null,
+  sortBy: 'score_desc',
 };
+
+export interface FilterPreset {
+  name: string;
+  filters: JobWatchFilters;
+}
 
 /** Raw offer coming out of a parser, before dedup/scoring/commute enrichment */
 export interface RawJobOffer {

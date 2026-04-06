@@ -1,10 +1,13 @@
 import { useState, useMemo, useRef } from 'react';
-import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ExternalLink, Clock, Star, Archive, BookmarkCheck, Train, MapPin, Euro, ThumbsUp, ThumbsDown, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { useNavigate } from 'react-router-dom';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
+import { useProfileStore } from '@/stores/profileStore';
 import type { JobOffer, JobSource } from '@/types/job-watch';
 import { computeLightProfileMatch } from '@/lib/watcher/scorer';
+import { generateFullCVMatchPrompt } from '@/lib/prompt-templates';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
   apec:          'APEC',
@@ -118,6 +121,8 @@ interface JobOfferCardProps {
 export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profileSkills = [] }: JobOfferCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { markRead, markArchived, submitFeedback } = useJobWatchStore();
+  const { profile, entries } = useProfileStore();
+  const navigate = useNavigate();
 
   // Track when this card was rendered to compute accurate time-to-action
   const displayedAt = useRef<number>(Date.now());
@@ -156,6 +161,22 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
   const handleQuickArchive = () => {
     submitFeedback(offer.id, 'quick_archive', getTimeToAction());
     toast.info('Offre archivée');
+  };
+
+  const handleCreateTargetedCV = async () => {
+    if (!profile) {
+      toast.error('Profil non chargé');
+      return;
+    }
+    const offerText = `${offer.title}\n${offer.company ?? ''}\n${offer.location ?? ''}\n${offer.descriptionSnippet ?? ''}`;
+    const prompt = generateFullCVMatchPrompt(profile, entries, offerText);
+    try {
+      await navigator.clipboard.writeText(prompt);
+      toast.success('Prompt copié ! Collez-le dans votre IA puis importez le résultat dans le CV builder.');
+      navigate('/cv');
+    } catch {
+      toast.error('Erreur lors de la copie du prompt');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -315,6 +336,17 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
           >
             <Clock className="w-3.5 h-3.5" />
             Importer Kanban
+          </button>
+        )}
+
+        {isPepite && profile && (
+          <button
+            onClick={handleCreateTargetedCV}
+            title="Générer un prompt pour créer un CV ciblé sur cette offre"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Créer un CV ciblé
           </button>
         )}
 

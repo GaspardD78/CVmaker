@@ -12,7 +12,7 @@ import {
   DEFAULT_FILTERS,
   JobSource,
 } from '@/types/job-watch';
-import { processFeedback, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/lib/watcher/learning-engine';
 
 // ── Settings helpers ────────────────────────────────────────────────────────
 
@@ -128,6 +128,8 @@ interface JobWatchState {
    *   If omitted the store falls back to time-since-fetch.
    */
   submitFeedback: (offerId: string, action: string, timeToAction?: number) => Promise<void>;
+  batchArchive: (ids: string[]) => Promise<void>;
+  batchMarkRead: (ids: string[]) => Promise<void>;
 
   // Configs
   fetchConfigs: () => Promise<void>;
@@ -261,6 +263,33 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     set(state => ({ offers: state.offers.filter(o => o.isArchived === 0) }));
   },
 
+  batchArchive: async (ids) => {
+    if (ids.length === 0) return;
+    const db = await getDb();
+    const archivedAt = new Date().toISOString();
+    const placeholders = ids.map((_, i) => `?${i + 1}`).join(',');
+    await db.execute(
+      `UPDATE job_offers SET is_archived = 1, archived_at = '${archivedAt}' WHERE id IN (${placeholders})`,
+      ids
+    );
+    set(state => ({
+      offers: state.offers.map(o => ids.includes(o.id) ? { ...o, isArchived: 1, archivedAt } : o),
+    }));
+  },
+
+  batchMarkRead: async (ids) => {
+    if (ids.length === 0) return;
+    const db = await getDb();
+    const placeholders = ids.map((_, i) => `?${i + 1}`).join(',');
+    await db.execute(
+      `UPDATE job_offers SET is_read = 1 WHERE id IN (${placeholders})`,
+      ids
+    );
+    set(state => ({
+      offers: state.offers.map(o => ids.includes(o.id) ? { ...o, isRead: 1 } : o),
+    }));
+  },
+
   submitFeedback: async (offerId, action, timeToAction) => {
     const db = await getDb();
     const offer = get().offers.find(o => o.id === offerId);
@@ -285,19 +314,20 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       await get().markRead(offerId);
     }
 
-    // 3. Update the learned dictionary in the background (fire & forget)
+    // 3. Update learned dictionary & company reputation in the background (fire & forget)
     if (offer?.title) {
       (async () => {
         try {
-          const posRaw = await db.select<{ value: string }[]>(
-            `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_positive'`
+          const rows = await db.select<{ key: string; value: string }[]>(
+            `SELECT key, value FROM job_watch_settings WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation')`
           );
-          const negRaw = await db.select<{ value: string }[]>(
-            `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_negative'`
-          );
+          const map: Record<string, string> = {};
+          for (const r of rows) map[r.key] = r.value;
+
+          // Update learned dictionary
           const currentDict: LearnedDictionary = {
-            positive: posRaw[0] ? JSON.parse(posRaw[0].value) : {},
-            negative: negRaw[0] ? JSON.parse(negRaw[0].value) : {},
+            positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
+            negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
           };
           const updated = processFeedback(offer.title, action, currentDict);
           await db.execute(
@@ -310,7 +340,16 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
              ON CONFLICT(key) DO UPDATE SET value = ?1`,
             [JSON.stringify(updated.negative)]
           );
-        } catch { /* silent — learning dict update is non-critical */ }
+
+          // Update company reputation
+          const currentRep: Record<string, number> = map['company_reputation'] ? JSON.parse(map['company_reputation']) : {};
+          const updatedRep = processCompanyReputation(offer.company, action, currentRep);
+          await db.execute(
+            `INSERT INTO job_watch_settings (key, value) VALUES ('company_reputation', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = ?1`,
+            [JSON.stringify(updatedRep)]
+          );
+        } catch { /* silent — learning updates are non-critical */ }
       })();
     }
   },
@@ -463,6 +502,27 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
       return true;
     });
+
+    // Apply sorting
+    const sortBy = filters.sortBy ?? 'score_desc';
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'score_desc':
+          return b.score - a.score;
+        case 'date_newest':
+          return (b.fetchedAt ?? '').localeCompare(a.fetchedAt ?? '');
+        case 'date_oldest':
+          return (a.fetchedAt ?? '').localeCompare(b.fetchedAt ?? '');
+        case 'commute_asc':
+          return (a.commuteMinutes ?? 9999) - (b.commuteMinutes ?? 9999);
+        case 'salary_desc':
+          return (b.salaryMax ?? b.salaryMin ?? 0) - (a.salaryMax ?? a.salaryMin ?? 0);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
   },
 
   unreadCount: () => get().offers.filter(o => o.isRead === 0 && o.isArchived === 0).length,

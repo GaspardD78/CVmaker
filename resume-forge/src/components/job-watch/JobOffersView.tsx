@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
-import { RefreshCw, Trash2, UserRound } from 'lucide-react';
+import { RefreshCw, Trash2, UserRound, ArrowUpDown, Archive, BookmarkCheck, CheckCircle, Settings, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useJobWatcher } from '@/hooks/useJobWatcher';
 import { useProfileStore } from '@/stores/profileStore';
 import { JobOfferCard } from './JobOfferCard';
-import type { JobOffer, JobSource } from '@/types/job-watch';
+import type { JobOffer, JobSource, SortOption } from '@/types/job-watch';
 
 const ALL_SOURCES: JobSource[] = ['apec', 'indeed', 'hellowork', 'wttj', 'linkedin_rss', 'france_travail'];
 const SOURCE_LABELS: Record<JobSource, string> = {
@@ -31,6 +32,14 @@ const AGE_OPTIONS: Array<{ label: string; value: number | null }> = [
   { label: '30 jours', value: 30   },
 ];
 
+const SORT_OPTIONS: Array<{ label: string; value: SortOption }> = [
+  { label: 'Score',         value: 'score_desc'   },
+  { label: 'Plus récentes', value: 'date_newest'  },
+  { label: 'Plus anciennes',value: 'date_oldest'  },
+  { label: 'Trajet court',  value: 'commute_asc'  },
+  { label: 'Salaire',       value: 'salary_desc'  },
+];
+
 export function JobOffersView() {
   const {
     filteredOffers,
@@ -42,19 +51,24 @@ export function JobOffersView() {
     deleteArchivedOffers,
     setKanbanId,
     settings,
+    configs,
+    batchArchive,
+    batchMarkRead,
   } = useJobWatchStore();
 
   const { createApplication } = useApplicationStore();
   const { currentUserId } = useAuthStore();
   const { triggerFetch, isFetching } = useJobWatcher();
 
-  const { entries } = useProfileStore();
+  const { profile, entries } = useProfileStore();
   const profileSkills = useMemo(
     () => entries.filter(e => e.entryType === 'skill').map(e => e.title),
     [entries],
   );
 
   const offers = filteredOffers();
+  const hasEnabledConfigs = configs.some(c => c.enabled === 1);
+  const isFirstTime = configs.length === 0;
 
   const [savedFilters, setSavedFilters] = useState<{ minScore: number; status: typeof filters.status } | null>(null);
   const isTopMatchActive = savedFilters !== null;
@@ -300,7 +314,58 @@ export function JobOffersView() {
           </div>
         </div>
 
+        {/* Sort */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Tri</p>
+          <div className="flex flex-wrap gap-1.5">
+            {SORT_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setFilters({ sortBy: opt.value })}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  (filters.sortBy ?? 'score_desc') === opt.value
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
       </div>
+
+      {/* Batch actions */}
+      {offers.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={async () => {
+              const ids = offers.filter(o => o.isRead === 0).map(o => o.id);
+              if (ids.length === 0) { toast.info('Toutes les offres sont déjà lues'); return; }
+              await batchMarkRead(ids);
+              toast.success(`${ids.length} offre(s) marquée(s) comme lue(s)`);
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <BookmarkCheck className="w-3 h-3" />
+            Tout marquer comme lu
+          </button>
+          <button
+            onClick={async () => {
+              const threshold = filters.minScore > 0 ? filters.minScore : 30;
+              const ids = offers.filter(o => o.score < threshold && o.isArchived === 0).map(o => o.id);
+              if (ids.length === 0) { toast.info('Aucune offre à archiver sous ce score'); return; }
+              await batchArchive(ids);
+              toast.success(`${ids.length} offre(s) archivée(s) (score < ${threshold})`);
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Archive className="w-3 h-3" />
+            Archiver les offres faibles
+          </button>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -313,9 +378,51 @@ export function JobOffersView() {
       {isLoading ? (
         <div className="text-center py-10 text-gray-400">Chargement…</div>
       ) : offers.length === 0 ? (
-        <div className="text-center py-10 text-gray-400">
-          <p className="text-sm">Aucune offre correspondant aux filtres</p>
-          <p className="text-xs mt-1">Cliquez sur « Actualiser » pour lancer une collecte</p>
+        <div className="text-center py-10">
+          {isFirstTime ? (
+            /* First-time onboarding */
+            <div className="max-w-sm mx-auto space-y-4">
+              <Zap className="w-10 h-10 mx-auto text-blue-400" />
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Bienvenue dans la Veille Emploi
+              </h3>
+              <div className="space-y-2 text-left">
+                <div className="flex items-center gap-2 text-xs">
+                  {profile?.title ? (
+                    <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                  )}
+                  <Link to="/profile" className="text-blue-500 hover:underline">
+                    Remplir votre profil
+                  </Link>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Configurer votre recherche (onglet Configuration)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Lancer votre première collecte
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : !hasEnabledConfigs ? (
+            <div className="text-gray-400">
+              <Settings className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Aucune source active</p>
+              <p className="text-xs mt-1">Activez au moins une source dans l'onglet Configuration</p>
+            </div>
+          ) : (
+            <div className="text-gray-400">
+              <p className="text-sm">Aucune offre correspondant aux filtres</p>
+              <p className="text-xs mt-1">Cliquez sur « Actualiser » pour lancer une collecte</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">

@@ -31,14 +31,24 @@ const STOP_WORDS = new Set([
 /**
  * Extracts significant keywords from a text string.
  * Lowercases, strips punctuation, removes stop-words and short tokens.
+ * When `includeBigrams` is true, also returns significant bigrams (pairs of consecutive words).
  */
-export function extractSignificantTerms(text: string): string[] {
-  return text
+export function extractSignificantTerms(text: string, includeBigrams = false): string[] {
+  const words = text
     .toLowerCase()
     .replace(/[^a-z0-9àâäéèêëîïôùûüç\s-]/g, ' ')
     .split(/\s+/)
     .map(w => w.replace(/^-+|-+$/g, ''))   // trim leading/trailing hyphens
     .filter(w => w.length >= 3 && !STOP_WORDS.has(w));
+
+  if (!includeBigrams) return words;
+
+  // Generate bigrams from significant words
+  const bigrams: string[] = [];
+  for (let i = 0; i < words.length - 1; i++) {
+    bigrams.push(`${words[i]} ${words[i + 1]}`);
+  }
+  return [...words, ...bigrams];
 }
 
 /**
@@ -55,7 +65,7 @@ export function processFeedback(
   action: string,
   currentDict: LearnedDictionary,
 ): LearnedDictionary {
-  const terms = extractSignificantTerms(offerTitle);
+  const terms = extractSignificantTerms(offerTitle, true); // include bigrams
   if (terms.length === 0) return currentDict;
 
   const positive = { ...currentDict.positive };
@@ -78,6 +88,86 @@ export function processFeedback(
   }
 
   return { positive, negative };
+}
+
+// ── Time-decay for learned dictionaries ─────────────────────────────────────
+
+/**
+ * Applies exponential decay to a learned dictionary.
+ * Multiplies all scores by 0.9 for each full 7-day period since `lastDecayedAt`.
+ * Prunes terms that drop below a score of 1.
+ * Returns the decayed dictionary and the new timestamp.
+ */
+export function decayLearnedDict(
+  dict: LearnedDictionary,
+  lastDecayedAt: string | null,
+): { dict: LearnedDictionary; decayedAt: string } {
+  const now = Date.now();
+  const lastMs = lastDecayedAt ? new Date(lastDecayedAt).getTime() : now;
+  const elapsedMs = now - lastMs;
+  const weeksPassed = Math.floor(elapsedMs / (7 * 24 * 60 * 60 * 1000));
+
+  if (weeksPassed <= 0) {
+    return { dict, decayedAt: lastDecayedAt ?? new Date().toISOString() };
+  }
+
+  const factor = Math.pow(0.9, weeksPassed);
+
+  const decay = (d: Record<string, number>): Record<string, number> => {
+    const result: Record<string, number> = {};
+    for (const [term, score] of Object.entries(d)) {
+      const decayed = score * factor;
+      if (decayed >= 1) result[term] = Math.round(decayed * 100) / 100;
+    }
+    return result;
+  };
+
+  return {
+    dict: { positive: decay(dict.positive), negative: decay(dict.negative) },
+    decayedAt: new Date().toISOString(),
+  };
+}
+
+// ── Company reputation tracking ─────────────────────────────────────────────
+
+/**
+ * Updates a company reputation dictionary based on feedback action.
+ * Positive actions increase rep, negative actions decrease it.
+ */
+export function processCompanyReputation(
+  company: string | null,
+  action: string,
+  currentReputation: Record<string, number>,
+): Record<string, number> {
+  if (!company || !company.trim()) return currentReputation;
+  const key = company.trim().toLowerCase();
+  const rep = { ...currentReputation };
+
+  if (action === 'kanban_import') {
+    rep[key] = (rep[key] ?? 0) + 2;
+  } else if (action === 'thumbs_up') {
+    rep[key] = (rep[key] ?? 0) + 1;
+  } else if (action === 'thumbs_down') {
+    rep[key] = (rep[key] ?? 0) - 1;
+  } else if (action === 'quick_archive') {
+    rep[key] = (rep[key] ?? 0) - 2;
+  }
+
+  return rep;
+}
+
+/**
+ * Returns companies with strongly negative reputation that the user
+ * may want to add to the blacklist.
+ */
+export function getBlacklistSuggestions(
+  reputation: Record<string, number>,
+  threshold = -5,
+): string[] {
+  return Object.entries(reputation)
+    .filter(([, score]) => score <= threshold)
+    .sort(([, a], [, b]) => a - b)
+    .map(([company]) => company);
 }
 
 /**

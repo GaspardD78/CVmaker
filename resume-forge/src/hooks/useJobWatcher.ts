@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { runFetch, FetchResult } from '@/lib/watcher/fetcher';
 import { sendDigestEmail } from '@/lib/watcher/email-digest';
+import { decayLearnedDict, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import { getDb } from '@/lib/db';
 import type { JobSource, JobOffer } from '@/types/job-watch';
 
 export function useJobWatcher() {
@@ -36,6 +38,36 @@ export function useJobWatcher() {
 
     setFetching(true);
     setError(null);
+
+    // Apply time-decay to learned dictionary before scoring
+    try {
+      const db = await getDb();
+      const rows = await db.select<{ key: string; value: string }[]>(
+        `SELECT key, value FROM job_watch_settings WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'learned_dict_decayed_at')`
+      );
+      const map: Record<string, string> = {};
+      for (const r of rows) map[r.key] = r.value;
+
+      const dict: LearnedDictionary = {
+        positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
+        negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
+      };
+      const { dict: decayed, decayedAt } = decayLearnedDict(dict, map['learned_dict_decayed_at'] ?? null);
+      if (decayedAt !== map['learned_dict_decayed_at']) {
+        await db.execute(
+          `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_positive', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1`,
+          [JSON.stringify(decayed.positive)]
+        );
+        await db.execute(
+          `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_negative', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1`,
+          [JSON.stringify(decayed.negative)]
+        );
+        await db.execute(
+          `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_decayed_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1`,
+          [decayedAt]
+        );
+      }
+    } catch { /* non-critical — decay can be skipped */ }
 
     try {
       const onProgress = (source: JobSource, status: string) => {

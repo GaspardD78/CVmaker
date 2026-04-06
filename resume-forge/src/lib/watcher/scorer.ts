@@ -18,6 +18,8 @@
  */
 
 import type { RawJobOffer, SearchIntent } from '@/types/job-watch';
+import type { LearnedDictionary } from './learning-engine';
+import type { Profile, MasterEntry } from '@/types/profile';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,6 +31,46 @@ function escapeRegex(s: string): string {
 
 function wordBoundaryRegex(term: string): RegExp {
   return new RegExp('\\b' + escapeRegex(term.trim()) + '\\b', 'i');
+}
+
+/**
+ * Weighted keyword match: checks title first (full bonus), then snippet (60% bonus).
+ * Returns the effective weight multiplier (1.0 for title, 0.6 for snippet-only, 0 for no match).
+ */
+function weightedMatch(kw: string, title: string, snippet: string): number {
+  const trimmed = kw.trim();
+  if (!trimmed) return 0;
+  const re = wordBoundaryRegex(trimmed);
+  if (re.test(title)) return 1.0;
+  if (re.test(snippet)) return 0.6;
+  return 0;
+}
+
+/**
+ * Extracts bigrams (pairs of consecutive significant words) from text.
+ * Useful for matching multi-word concepts like "chef de projet" or "data engineer".
+ */
+function extractBigrams(text: string): string[] {
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z0-9àâäéèêëîïôùûüç\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 2);
+  const bigrams: string[] = [];
+  for (let i = 0; i < words.length - 1; i++) {
+    bigrams.push(`${words[i]} ${words[i + 1]}`);
+  }
+  return bigrams;
+}
+
+/**
+ * Checks if a multi-word search term appears in the text bigrams.
+ * Returns true if the term (which may be 2+ words) is found as a bigram in the text.
+ */
+function matchesViaBigram(term: string, textBigrams: string[]): boolean {
+  const normalized = term.trim().toLowerCase();
+  if (!normalized.includes(' ')) return false; // single words use wordBoundaryRegex
+  return textBigrams.some(bg => bg.includes(normalized) || normalized.includes(bg));
 }
 
 // ---------------------------------------------------------------------------
@@ -49,10 +91,21 @@ type ScorerOffer = Pick<
   'title' | 'descriptionSnippet' | 'publishedAt' | 'company' | 'salaryMin' | 'salaryMax'
 >;
 
+/**
+ * Optional learned signals passed to the scorer.
+ * `learnedDict` comes from user feedback (thumbs up/down, kanban import, quick archive).
+ * `companyReputation` tracks per-company sentiment from the same feedback.
+ */
+export interface LearnedSignals {
+  learnedDict?: LearnedDictionary;
+  companyReputation?: Record<string, number>;
+}
+
 export function computeScore(
   offer: ScorerOffer,
   searchIntent: SearchIntent,
   companyBlacklist: string[],
+  learned?: LearnedSignals,
 ): number {
   const text = `${offer.title} ${offer.descriptionSnippet ?? ''}`;
 
@@ -75,30 +128,85 @@ export function computeScore(
 
   // ------------------------------------------------------------------
   // Couche 2 : Pertinence graduée
+  // Title matches get full bonus, snippet-only matches get 60%.
+  // Multi-word terms are also checked via bigram matching.
   // ------------------------------------------------------------------
+
+  const title   = offer.title ?? '';
+  const snippet = offer.descriptionSnippet ?? '';
+  const titleBigrams   = extractBigrams(title);
+  const snippetBigrams = extractBigrams(snippet);
 
   let score = 50;
 
-  // Rôle principal : +15/match, plafonné +30
+  /** Match a keyword against title+snippet, including bigram fallback for multi-word terms. */
+  const matchWeight = (kw: string): number => {
+    const w = weightedMatch(kw, title, snippet);
+    if (w > 0) return w;
+    // Bigram fallback for multi-word terms
+    if (kw.trim().includes(' ')) {
+      if (matchesViaBigram(kw, titleBigrams)) return 1.0;
+      if (matchesViaBigram(kw, snippetBigrams)) return 0.6;
+    }
+    return 0;
+  };
+
+  // Rôle principal : +15/match (weighted), plafonné +30
   let roleBonus = 0;
   for (const kw of searchIntent.role.primary) {
-    if (kw.trim() && wordBoundaryRegex(kw).test(text)) roleBonus += 15;
+    roleBonus += 15 * matchWeight(kw);
   }
   score += Math.min(30, roleBonus);
 
-  // Domaine requis : +10/match, plafonné +20
+  // Domaine requis : +10/match (weighted), plafonné +20
   let domReqBonus = 0;
   for (const kw of searchIntent.domain.required) {
-    if (kw.trim() && wordBoundaryRegex(kw).test(text)) domReqBonus += 10;
+    domReqBonus += 10 * matchWeight(kw);
   }
   score += Math.min(20, domReqBonus);
 
-  // Domaine préféré : +5/match, plafonné +10
+  // Domaine préféré : +5/match (weighted), plafonné +10
   let domPrefBonus = 0;
   for (const kw of searchIntent.domain.preferred) {
-    if (kw.trim() && wordBoundaryRegex(kw).test(text)) domPrefBonus += 5;
+    domPrefBonus += 5 * matchWeight(kw);
   }
   score += Math.min(10, domPrefBonus);
+
+  // ------------------------------------------------------------------
+  // Couche 2b : Signaux appris (feedback utilisateur)
+  // Ratio 4:1 avec la config explicite : cap +/-15
+  // ------------------------------------------------------------------
+
+  if (learned?.learnedDict) {
+    const textLower = text.toLowerCase();
+    let learnedBonus = 0;
+    let learnedPenalty = 0;
+
+    // Positive learned terms — bonus proportional to score, normalized to 0-3 range
+    for (const [term, rawScore] of Object.entries(learned.learnedDict.positive)) {
+      if (term.length >= 3 && textLower.includes(term)) {
+        learnedBonus += Math.min(3, rawScore * 0.5);
+      }
+    }
+    score += Math.min(15, learnedBonus);
+
+    // Negative learned terms — penalty proportional to score
+    for (const [term, rawScore] of Object.entries(learned.learnedDict.negative)) {
+      if (term.length >= 3 && textLower.includes(term)) {
+        learnedPenalty += Math.min(3, rawScore * 0.5);
+      }
+    }
+    score -= Math.min(15, learnedPenalty);
+  }
+
+  // Company reputation: +5 (good) / -5 (bad) when absolute score > 3
+  if (learned?.companyReputation && companyLower) {
+    const rep = learned.companyReputation[companyLower];
+    if (rep !== undefined) {
+      if (rep > 3) score += 5;
+      else if (rep < -3) score -= 5;
+    }
+  }
 
   // Time-decay
   if (offer.publishedAt) {
@@ -147,4 +255,66 @@ export function computeLightProfileMatch(
     skill => skill.trim() && text.includes(skill.trim().toLowerCase()),
   ).length;
   return Math.round((matched / profileSkills.length) * 100);
+}
+
+// ---------------------------------------------------------------------------
+// Profile-to-SearchIntent builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a SearchIntent pre-filled from the user's profile data.
+ * - role.primary: profile title tokens + 2 most recent experience titles
+ * - domain.required: top 5 skills (by sort order)
+ * - domain.preferred: next 5 skills
+ */
+export function buildSearchIntentFromProfile(
+  profile: Profile | null,
+  entries: MasterEntry[],
+): Partial<SearchIntent> {
+  // Extract role keywords from profile title
+  const rolePrimary: string[] = [];
+  if (profile?.title) {
+    // Split on common separators like "/", "|", "-", ","
+    const tokens = profile.title.split(/[/|,\-–—]/).map(t => t.trim()).filter(t => t.length >= 3);
+    rolePrimary.push(...tokens);
+  }
+
+  // Add the 2 most recent experience titles
+  const experiences = entries
+    .filter(e => e.entryType === 'experience')
+    .sort((a, b) => {
+      // Most recent first: sort by endDate desc, then startDate desc
+      const aEnd = a.endDate ?? '9999';
+      const bEnd = b.endDate ?? '9999';
+      if (aEnd !== bEnd) return bEnd.localeCompare(aEnd);
+      return (b.startDate ?? '').localeCompare(a.startDate ?? '');
+    })
+    .slice(0, 2);
+
+  for (const exp of experiences) {
+    if (exp.title && !rolePrimary.some(r => r.toLowerCase() === exp.title.toLowerCase())) {
+      rolePrimary.push(exp.title);
+    }
+  }
+
+  // Skills sorted by sortOrder
+  const skills = entries
+    .filter(e => e.entryType === 'skill')
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(e => e.title);
+
+  const domainRequired = skills.slice(0, 5);
+  const domainPreferred = skills.slice(5, 10);
+
+  return {
+    role: {
+      primary: rolePrimary,
+      mustExclude: [],
+    },
+    domain: {
+      required: domainRequired,
+      preferred: domainPreferred,
+      excluded: [],
+    },
+  };
 }

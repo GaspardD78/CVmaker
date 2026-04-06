@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, Eye, Target, TrendingUp, X } from 'lucide-react';
+import { AlertTriangle, Bot, ChevronDown, ChevronUp, Eye, Target, TrendingUp, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
-import { analyzeFeedback, LearningResult } from '@/lib/watcher/learning-engine';
+import { useProfileStore } from '@/stores/profileStore';
+import { analyzeFeedback, getBlacklistSuggestions, getKeywordSuggestions, LearningResult } from '@/lib/watcher/learning-engine';
+import { generatePerformanceOptimizationPrompt, generateDiagnosticPrompt } from '@/lib/prompt-templates';
+import { getDb } from '@/lib/db';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -96,16 +100,32 @@ function SuggestionAlert({ type, message, actionLabel, onAction, onDismiss }: Su
 
 export function HealthDashboard() {
   const { offers, settings, saveSettings } = useJobWatchStore();
+  const { profile, entries } = useProfileStore();
 
   const [analysis, setAnalysis]   = useState<LearningResult | null>(null);
   const [expanded, setExpanded]   = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [companySuggestions, setCompanySuggestions] = useState<string[]>([]);
 
   // Run DB analysis asynchronously after mount — never blocks render
   useEffect(() => {
     analyzeFeedback()
       .then(setAnalysis)
       .catch(() => setAnalysis(null));
+
+    // Load company reputation suggestions
+    (async () => {
+      try {
+        const db = await getDb();
+        const rows = await db.select<{ value: string }[]>(
+          `SELECT value FROM job_watch_settings WHERE key = 'company_reputation'`
+        );
+        if (rows[0]) {
+          const rep = JSON.parse(rows[0].value);
+          setCompanySuggestions(getBlacklistSuggestions(rep));
+        }
+      } catch { /* non-critical */ }
+    })();
   }, []);
 
   // ── Metrics (computed from in-memory store — zero additional I/O) ──────────
@@ -155,8 +175,13 @@ export function HealthDashboard() {
       .slice(0, 5);
   }, [analysis, settings, dismissed]);
 
+  const suggestBlacklist = useMemo(() => {
+    const already = new Set(settings.blacklistedCompanies.map(c => c.toLowerCase()));
+    return companySuggestions.filter(c => !already.has(c) && !dismissed.has(`bl:${c}`));
+  }, [companySuggestions, settings.blacklistedCompanies, dismissed]);
+
   const hasAlerts =
-    volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0;
+    volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0;
 
   // Auto-expand when actionable alerts are present
   useEffect(() => {
@@ -194,6 +219,56 @@ export function HealthDashboard() {
       },
     });
     dismiss(`bonus:${term}`);
+  };
+
+  const handleBlacklistCompany = async (company: string) => {
+    await saveSettings({
+      ...settings,
+      blacklistedCompanies: [...settings.blacklistedCompanies, company],
+    });
+    dismiss(`bl:${company}`);
+  };
+
+  const handlePerformancePrompt = async () => {
+    const db = await getDb();
+    const posRaw = await db.select<{ value: string }[]>(
+      `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_positive'`
+    );
+    const negRaw = await db.select<{ value: string }[]>(
+      `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_negative'`
+    );
+    const dict = {
+      positive: posRaw[0] ? JSON.parse(posRaw[0].value) : {},
+      negative: negRaw[0] ? JSON.parse(negRaw[0].value) : {},
+    };
+    const suggestions = getKeywordSuggestions(dict, 3);
+
+    const prompt = generatePerformanceOptimizationPrompt(
+      profile, entries, settings.searchIntent,
+      {
+        volumePerWeek: volume,
+        pertinencePercent: pertinence,
+        conversionPercent: conversion,
+        learnedPositive: suggestions.positive.slice(0, 5),
+        learnedNegative: suggestions.negative.slice(0, 5),
+      },
+    );
+    await navigator.clipboard.writeText(prompt);
+    toast.success("Prompt d'optimisation copié ! Collez-le dans votre IA.");
+  };
+
+  const handleDiagnosticPrompt = async () => {
+    const db = await getDb();
+    const rows = await db.select<{ title: string; score: number; action: string | null }[]>(`
+      SELECT o.title, o.score, f.action
+      FROM job_offers o
+      LEFT JOIN job_offer_feedback f ON f.offer_id = o.id
+      ORDER BY o.fetched_at DESC
+      LIMIT 20
+    `);
+    const prompt = generateDiagnosticPrompt(settings.searchIntent, rows);
+    await navigator.clipboard.writeText(prompt);
+    toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -250,6 +325,26 @@ export function HealthDashboard() {
             />
           </div>
 
+          {/* Prompt generation buttons */}
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+            <button
+              onClick={handlePerformancePrompt}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-purple-200 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+            >
+              <Bot className="w-3 h-3" />
+              Optimiser ma recherche (prompt IA)
+            </button>
+            {(volumeAlert || conversionAlert) && (
+              <button
+                onClick={handleDiagnosticPrompt}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-amber-200 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+              >
+                <AlertTriangle className="w-3 h-3" />
+                Diagnostic (prompt IA)
+              </button>
+            )}
+          </div>
+
           {/* Actionable learning suggestions */}
           {(suggestExclude.length > 0 || suggestBonus.length > 0) && (
             <div className="space-y-1.5 pt-1 border-t border-gray-100 dark:border-gray-700">
@@ -271,6 +366,16 @@ export function HealthDashboard() {
                   actionLabel="Ajouter en préférence"
                   onAction={() => handleAddBonus(term)}
                   onDismiss={() => dismiss(`bonus:${term}`)}
+                />
+              ))}
+              {suggestBlacklist.map(company => (
+                <SuggestionAlert
+                  key={`bl:${company}`}
+                  type="negative"
+                  message={`Vous rejetez souvent les offres de "${company}".`}
+                  actionLabel="Blacklister"
+                  onAction={() => handleBlacklistCompany(company)}
+                  onDismiss={() => dismiss(`bl:${company}`)}
                 />
               ))}
             </div>
