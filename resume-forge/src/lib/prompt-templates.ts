@@ -388,3 +388,136 @@ Le moteur de recherche de cette plateforme a ses propres spécificités. Pour m'
 
 Réponds de manière très concise pour que je puisse facilement copier-coller les listes de mots-clés.`;
 }
+
+// ── Enhanced prompts for job watch ──────────────────────────────────────────
+
+import type { SearchIntent } from '@/types/job-watch';
+
+interface PerformanceMetrics {
+  volumePerWeek: number;
+  pertinencePercent: number | null;
+  conversionPercent: number | null;
+  learnedPositive: string[];
+  learnedNegative: string[];
+}
+
+/**
+ * Context-aware optimization prompt that includes search performance data.
+ */
+export function generatePerformanceOptimizationPrompt(
+  profile: { title: string | null } | null,
+  entries: { entryType: string; title: string }[],
+  searchIntent: SearchIntent,
+  metrics: PerformanceMetrics,
+): string {
+  const titleStr = profile?.title ?? 'Non renseigné';
+  const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title).join(', ') || 'Aucune';
+
+  const intentStr = [
+    `Rôle principal : ${searchIntent.role.primary.join(', ') || 'Non défini'}`,
+    `Rôle exclu : ${searchIntent.role.mustExclude.join(', ') || 'Aucun'}`,
+    `Domaine requis : ${searchIntent.domain.required.join(', ') || 'Non défini'}`,
+    `Domaine préféré : ${searchIntent.domain.preferred.join(', ') || 'Aucun'}`,
+    `Domaine exclu : ${searchIntent.domain.excluded.join(', ') || 'Aucun'}`,
+    `Salaire cible : ${searchIntent.salary.target ? `${searchIntent.salary.target}€/an` : 'Non défini'}`,
+  ].join('\n');
+
+  return `Agis comme un expert en sourcing et optimisation de veille emploi.
+
+## Mon profil
+- Titre : ${titleStr}
+- Compétences : ${skills}
+
+## Ma configuration actuelle (SearchIntent)
+${intentStr}
+
+## Performance actuelle
+- Volume : ${metrics.volumePerWeek} offres/semaine
+- Pertinence (offres ouvertes) : ${metrics.pertinencePercent !== null ? `${metrics.pertinencePercent}%` : 'Non disponible'}
+- Conversion (importées Kanban) : ${metrics.conversionPercent !== null ? `${metrics.conversionPercent}%` : 'Non disponible'}
+
+## Ce que le système a appris de mes actions
+- Termes que j'apprécie : ${metrics.learnedPositive.length > 0 ? metrics.learnedPositive.join(', ') : 'Pas assez de données'}
+- Termes que je rejette : ${metrics.learnedNegative.length > 0 ? metrics.learnedNegative.join(', ') : 'Pas assez de données'}
+
+## Ta mission
+Analyse ma configuration et mes métriques, puis propose :
+1. **Diagnostic** : Pourquoi ma pertinence/conversion est-elle à ce niveau ? Mes mots-clés sont-ils trop larges ou trop étroits ?
+2. **Mots-clés à ajouter** (rôle principal ou domaine requis) — basés sur les signaux positifs appris
+3. **Mots-clés à exclure** — basés sur les signaux négatifs appris et les offres que je rejette
+4. **Ajustements stratégiques** : dois-je recentrer mon rôle cible, élargir/restreindre le domaine, ajuster le salaire ?
+
+Sois concis et actionnable. Formate les listes en CSV pour un copier-coller facile.`;
+}
+
+/**
+ * Diagnostic prompt when search performance is poor.
+ * Includes recent offer titles with scores and user actions.
+ */
+export function generateDiagnosticPrompt(
+  searchIntent: SearchIntent,
+  recentOffers: Array<{ title: string; score: number; action: string | null }>,
+): string {
+  const offersStr = recentOffers
+    .map((o, i) => `${i + 1}. [Score: ${o.score}] ${o.title} → ${o.action ?? 'aucune action'}`)
+    .join('\n');
+
+  return `Agis comme un expert en optimisation de recherche d'emploi.
+
+## Ma configuration
+- Rôle principal : ${searchIntent.role.primary.join(', ') || 'Non défini'}
+- Rôle exclu : ${searchIntent.role.mustExclude.join(', ') || 'Aucun'}
+- Domaine requis : ${searchIntent.domain.required.join(', ') || 'Non défini'}
+- Domaine préféré : ${searchIntent.domain.preferred.join(', ') || 'Aucun'}
+
+## Mes 20 dernières offres (avec score et action)
+${offersStr}
+
+## Problème
+Ma recherche ne donne pas de bons résultats. Analyse les offres ci-dessus et identifie :
+1. **Patterns de rejet** : quels types d'offres reviennent et sont systématiquement ignorées ?
+2. **Mots-clés manquants** : quels termes devrais-je ajouter en positif ou négatif ?
+3. **Inadéquation** : mes mots-clés ciblent-ils le bon type de poste ?
+4. **Plan d'action** : les 3 changements les plus impactants à faire immédiatement.
+
+Sois direct et concret.`;
+}
+
+/**
+ * Generate a prompt that extracts a structured SearchIntent from a pasted job description.
+ */
+export function generateSearchIntentExtractionPrompt(jobDescription: string): string {
+  return `Agis comme un expert en analyse d'offres d'emploi.
+
+Voici une offre d'emploi qui correspond exactement à ce que je recherche :
+
+---
+${jobDescription}
+---
+
+À partir de cette offre, extrais les critères de recherche pour configurer ma veille emploi automatisée. Retourne UNIQUEMENT un objet JSON valide (sans texte autour, sans markdown, sans \`\`\`json) avec cette structure :
+
+{
+  "role": {
+    "primary": ["mot-clé 1", "mot-clé 2"],
+    "mustExclude": ["terme à exclure 1"]
+  },
+  "domain": {
+    "required": ["tech/compétence obligatoire 1", "tech 2"],
+    "preferred": ["tech souhaitée 1", "tech 2"],
+    "excluded": ["domaine à éviter"]
+  },
+  "salary": {
+    "target": null,
+    "hideIfBelow": null
+  }
+}
+
+Règles :
+- "role.primary" : 2-4 termes décrivant le poste (pas le nom exact de l'offre, mais des termes de recherche génériques)
+- "domain.required" : technologies et compétences indispensables mentionnées dans l'offre
+- "domain.preferred" : technologies et compétences secondaires (nice-to-have)
+- "mustExclude" / "excluded" : termes pour éviter des postes très différents
+- Si un salaire est mentionné, extrais-le en €/an dans "target"
+- Retourne UNIQUEMENT le JSON, rien d'autre`;
+}

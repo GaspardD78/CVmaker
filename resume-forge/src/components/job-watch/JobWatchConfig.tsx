@@ -4,9 +4,10 @@ import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource, SearchIntent } from '@/types/job-watch';
-import { generateSourceConfigPrompt } from '@/lib/prompt-templates';
+import { generateSourceConfigPrompt, generateSearchIntentExtractionPrompt } from '@/lib/prompt-templates';
 import { getDb } from '@/lib/db';
 import { getKeywordSuggestions, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import { buildSearchIntentFromProfile } from '@/lib/watcher/scorer';
 import {
   HelpButton,
   FranceTravailHelpModal,
@@ -283,6 +284,39 @@ export function JobWatchConfigView() {
     setBlacklistText(settings.blacklistedCompanies.join(', '));
   }, [settings]);
 
+  // SearchIntent extraction from pasted job description
+  const [jobDescPaste, setJobDescPaste] = useState('');
+  const [aiResponsePaste, setAiResponsePaste] = useState('');
+
+  const handleGenerateExtractPrompt = () => {
+    if (!jobDescPaste.trim()) {
+      toast.info("Collez d'abord une offre d'emploi");
+      return;
+    }
+    const prompt = generateSearchIntentExtractionPrompt(jobDescPaste);
+    navigator.clipboard.writeText(prompt)
+      .then(() => toast.success("Prompt copié ! Collez-le dans votre IA, puis collez la réponse ci-dessous."))
+      .catch(() => toast.error('Erreur lors de la copie'));
+  };
+
+  const handleImportAiResponse = () => {
+    try {
+      const parsed = JSON.parse(aiResponsePaste.trim());
+      if (parsed.role?.primary) setRolePrimaryText(parsed.role.primary.join(', '));
+      if (parsed.role?.mustExclude) setRoleExcludeText(parsed.role.mustExclude.join(', '));
+      if (parsed.domain?.required) setDomReqText(parsed.domain.required.join(', '));
+      if (parsed.domain?.preferred) setDomPrefText(parsed.domain.preferred.join(', '));
+      if (parsed.domain?.excluded) setDomExclText(parsed.domain.excluded.join(', '));
+      if (parsed.salary?.target != null) setSalaryTargetStr(String(parsed.salary.target));
+      if (parsed.salary?.hideIfBelow != null) setSalaryHideStr(String(parsed.salary.hideIfBelow));
+      setJobDescPaste('');
+      setAiResponsePaste('');
+      toast.success('SearchIntent importé ! Vérifiez et sauvegardez.');
+    } catch {
+      toast.error('Format JSON invalide. Vérifiez la réponse de l\'IA.');
+    }
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -435,6 +469,32 @@ export function JobWatchConfigView() {
         <div className="flex items-center gap-3 mb-3">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Sources</h3>
           <HelpButton label="Guide de configuration" onClick={() => setHelpModal('sources')} />
+          {configs.length > 1 && (
+            <div className="flex gap-1.5 ml-auto">
+              <button
+                onClick={async () => {
+                  for (const c of configs) {
+                    if (c.enabled !== 1) await upsertConfig({ ...c, enabled: 1 });
+                  }
+                  toast.success('Toutes les sources activées');
+                }}
+                className="px-2 py-0.5 rounded text-[10px] font-medium border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                Tout activer
+              </button>
+              <button
+                onClick={async () => {
+                  for (const c of configs) {
+                    if (c.enabled !== 0) await upsertConfig({ ...c, enabled: 0 });
+                  }
+                  toast.success('Toutes les sources désactivées');
+                }}
+                className="px-2 py-0.5 rounded text-[10px] font-medium border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Tout désactiver
+              </button>
+            </div>
+          )}
         </div>
         {configs.length === 0 ? (
           <p className="text-sm text-gray-400 mb-3">Aucune source configurée.</p>
@@ -516,17 +576,31 @@ export function JobWatchConfigView() {
           {profile && (
             <button
               onClick={() => {
-                const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title);
-                const titles = [profile.title].filter(Boolean) as string[];
-                const all = [...new Set([...titles, ...skills])];
-                if (all.length === 0) {
+                const intent = buildSearchIntentFromProfile(profile, entries);
+                if (!intent.role?.primary?.length && !intent.domain?.required?.length) {
                   toast.info('Aucune compétence ou titre trouvé dans le profil maître');
                   return;
                 }
-                const existing = parseKeywordList(rolePrimaryText);
-                const merged = [...new Set([...existing, ...all])];
-                setRolePrimaryText(merged.join(', '));
-                toast.success(`${all.length} terme(s) importé(s) → Rôle principal`);
+                let count = 0;
+                if (intent.role?.primary?.length) {
+                  const existing = parseKeywordList(rolePrimaryText);
+                  const merged = [...new Set([...existing, ...intent.role.primary])];
+                  setRolePrimaryText(merged.join(', '));
+                  count += intent.role.primary.length;
+                }
+                if (intent.domain?.required?.length) {
+                  const existing = parseKeywordList(domReqText);
+                  const merged = [...new Set([...existing, ...intent.domain.required])];
+                  setDomReqText(merged.join(', '));
+                  count += intent.domain.required.length;
+                }
+                if (intent.domain?.preferred?.length) {
+                  const existing = parseKeywordList(domPrefText);
+                  const merged = [...new Set([...existing, ...intent.domain.preferred])];
+                  setDomPrefText(merged.join(', '));
+                  count += intent.domain.preferred.length;
+                }
+                toast.success(`${count} terme(s) importé(s) depuis le profil`);
               }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
             >
@@ -830,6 +904,51 @@ export function JobWatchConfigView() {
             onChange={e => updateSetting('fetchIntervalHours', Number(e.target.value))}
             className="w-full accent-blue-600"
           />
+        </div>
+      </section>
+
+      {/* ── SearchIntent from pasted job description ── */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+          Générer le SearchIntent depuis une offre
+        </h3>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+          Collez une offre qui vous plaît, générez un prompt, puis importez la réponse de l'IA.
+        </p>
+        <div className="space-y-2">
+          <textarea
+            value={jobDescPaste}
+            onChange={e => setJobDescPaste(e.target.value)}
+            rows={4}
+            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="Collez ici le texte d'une offre qui correspond à ce que vous cherchez…"
+          />
+          <button
+            onClick={handleGenerateExtractPrompt}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-purple-200 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            Copier le prompt d'extraction
+          </button>
+
+          {jobDescPaste.trim() && (
+            <div className="pt-2 space-y-2">
+              <textarea
+                value={aiResponsePaste}
+                onChange={e => setAiResponsePaste(e.target.value)}
+                rows={3}
+                className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Collez ici la réponse JSON de l'IA…"
+              />
+              <button
+                onClick={handleImportAiResponse}
+                disabled={!aiResponsePaste.trim()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white transition-colors"
+              >
+                Importer dans le SearchIntent
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

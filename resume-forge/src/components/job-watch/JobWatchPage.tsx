@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
+import { useProfileStore } from '@/stores/profileStore';
 import { JobOffersView } from './JobOffersView';
 import { JobWatchConfigView } from './JobWatchConfig';
 import { HealthDashboard } from './HealthDashboard';
+import { SetupWizard } from './SetupWizard';
 
 type Tab = 'offers' | 'config';
 
 export function JobWatchPage() {
   const [activeTab, setActiveTab] = useState<Tab>('offers');
-  const { initialize, unreadCount } = useJobWatchStore();
+  const { initialize, unreadCount, configs } = useJobWatchStore();
+  const { profile } = useProfileStore();
+  const [wizardDismissed, setWizardDismissed] = useState(false);
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Show wizard when no configs exist and user has a profile
+  const showWizard = !wizardDismissed && configs.length === 0 && profile?.title;
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'offers', label: `Offres${unreadCount() > 0 ? ` (${unreadCount()})` : ''}` },
@@ -29,31 +36,40 @@ export function JobWatchPage() {
         </p>
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 mb-5">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-700 dark:text-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab content */}
-      {activeTab === 'offers' && (
+      {showWizard ? (
+        <SetupWizard onComplete={() => {
+          setWizardDismissed(true);
+          initialize();
+        }} />
+      ) : (
         <>
-          <HealthDashboard />
-          <JobOffersView />
+          {/* Sub-tabs */}
+          <div className="flex border-b border-gray-200 dark:border-gray-700 mb-5">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-700 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          {activeTab === 'offers' && (
+            <>
+              <HealthDashboard />
+              <JobOffersView />
+            </>
+          )}
+          {activeTab === 'config' && <JobWatchConfigView />}
         </>
       )}
-      {activeTab === 'config' && <JobWatchConfigView />}
     </div>
   );
 }
