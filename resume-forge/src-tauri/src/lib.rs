@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 #[cfg(not(target_os = "android"))]
 use tauri::Emitter;
 use tauri_plugin_sql::{Migration, MigrationKind};
+use tauri_plugin_http::reqwest;
 
 mod email;
 pub use email::send_email;
@@ -88,6 +89,52 @@ fn start_oauth_server(app: tauri::AppHandle) -> Result<u16, String> {
 #[tauri::command]
 fn get_db_uri() -> String {
     DB_URI.get_or_init(resolve_db_uri).clone()
+}
+
+/// Effectue la requête POST vers l'API APEC et gère l'encodage de la réponse.
+///
+/// L'API APEC (https://www.apec.fr/cms/webservices/rechercheOffre) renvoie du
+/// JSON encodé en ISO-8859-1 / Windows-1252 (serveur legacy). Le plugin
+/// tauri-plugin-http tente de sérialiser le corps via IPC en UTF-8 strict et
+/// lève une erreur "invalid utf-8 sequence" avant même que le JS ne reçoive
+/// les données. On contourne en faisant la requête directement avec reqwest,
+/// en lisant les octets bruts, puis en décodant : UTF-8 d'abord, Latin-1 en
+/// repli (chaque octet Latin-1 correspond au même point de code Unicode).
+#[tauri::command]
+async fn fetch_apec_api(body: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("APEC client: {}", e))?;
+
+    let resp = client
+        .post("https://www.apec.fr/cms/webservices/rechercheOffre")
+        .header(reqwest::header::USER_AGENT,
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+             (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .header(reqwest::header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .header(reqwest::header::ACCEPT, "application/json, text/plain, */*")
+        .header(reqwest::header::ACCEPT_LANGUAGE, "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+        .header(reqwest::header::REFERER,
+            "https://www.apec.fr/candidat/recherche-emploi.html/emploi")
+        .header("Origin", "https://www.apec.fr")
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("APEC réseau: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("APEC HTTP {}", resp.status().as_u16()));
+    }
+
+    let bytes = resp.bytes().await
+        .map_err(|e| format!("APEC lecture corps: {}", e))?;
+
+    // Tentative UTF-8 stricte, repli Latin-1 (ISO-8859-1) si échec.
+    match std::str::from_utf8(&bytes) {
+        Ok(text) => Ok(text.to_string()),
+        Err(_)   => Ok(bytes.iter().map(|&b| b as char).collect()),
+    }
 }
 
 #[cfg(not(target_os = "android"))]
@@ -208,6 +255,18 @@ pub fn run() {
             sql: include_str!("../migrations/007_job_feedback.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "add_search_intent",
+            sql: include_str!("../migrations/008_search_intent.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 9,
+            description: "job_watch_profile_isolation",
+            sql: include_str!("../migrations/009_job_watch_profile.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]
@@ -233,6 +292,7 @@ pub fn run() {
             get_db_uri,
             send_email,
             generate_pdf,
+            fetch_apec_api,
             #[cfg(not(target_os = "android"))]
             start_oauth_server,
         ])
