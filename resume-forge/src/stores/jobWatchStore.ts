@@ -177,9 +177,16 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const raw = await db.select<Record<string, unknown>[]>(
-        `SELECT * FROM job_offers ORDER BY fetched_at DESC LIMIT 500`
-      );
+      const { useAuthStore } = await import('@/stores/authStore');
+      const profileId = useAuthStore.getState().currentUserId;
+      const raw = profileId
+        ? await db.select<Record<string, unknown>[]>(
+            `SELECT * FROM job_offers WHERE profile_id = ?1 ORDER BY fetched_at DESC LIMIT 500`,
+            [profileId],
+          )
+        : await db.select<Record<string, unknown>[]>(
+            `SELECT * FROM job_offers WHERE profile_id IS NULL ORDER BY fetched_at DESC LIMIT 500`,
+          );
       const offers = raw.map(r => keysToCamelCase<JobOffer>(r));
       set({ offers });
     } catch (err) {
@@ -358,9 +365,16 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   fetchConfigs: async () => {
     const db = await getDb();
-    const raw = await db.select<Record<string, unknown>[]>(
-      `SELECT * FROM job_watch_config ORDER BY source`
-    );
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    const raw = profileId
+      ? await db.select<Record<string, unknown>[]>(
+          `SELECT * FROM job_watch_config WHERE profile_id = ?1 ORDER BY source`,
+          [profileId],
+        )
+      : await db.select<Record<string, unknown>[]>(
+          `SELECT * FROM job_watch_config WHERE profile_id IS NULL ORDER BY source`,
+        );
     const configs = raw.map(r => {
       const c = keysToCamelCase<Record<string, unknown>>(r) as Record<string, unknown>;
       return {
@@ -375,6 +389,8 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   upsertConfig: async (config) => {
     const db = await getDb();
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
     const snake = keysToSnakeCase<Record<string, unknown>>({
       ...config,
       keywords:        JSON.stringify(config.keywords),
@@ -387,23 +403,24 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         `UPDATE job_watch_config SET
           source=?1, keywords=?2, exclude_keywords=?3, location=?4, radius_km=?5,
           contract_types=?6, rss_url=?7, ft_dept_code=?8, enabled=?9
-         WHERE id=?10`,
+         WHERE id=?10 AND (profile_id = ?11 OR (profile_id IS NULL AND ?11 IS NULL))`,
         [
           snake['source'], snake['keywords'], snake['exclude_keywords'] ?? '[]',
           snake['location'] ?? null, snake['radius_km'], snake['contract_types'],
           snake['rss_url'] ?? null, snake['ft_dept_code'] ?? null, snake['enabled'],
-          config.id,
+          config.id, profileId,
         ]
       );
     } else {
       await db.execute(
         `INSERT INTO job_watch_config
-          (source, keywords, exclude_keywords, location, radius_km, contract_types, rss_url, ft_dept_code, enabled)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`,
+          (source, keywords, exclude_keywords, location, radius_km, contract_types, rss_url, ft_dept_code, enabled, profile_id)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)`,
         [
           snake['source'], snake['keywords'], snake['exclude_keywords'] ?? '[]',
           snake['location'] ?? null, snake['radius_km'], snake['contract_types'],
           snake['rss_url'] ?? null, snake['ft_dept_code'] ?? null, snake['enabled'],
+          profileId,
         ]
       );
     }
@@ -461,7 +478,8 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   filteredOffers: () => {
     const { offers, filters, settings } = get();
-    return offers.filter(o => {
+
+    const filtered = offers.filter(o => {
       if (!filters.sources.includes(o.source as JobSource)) return false;
       if (o.score < filters.minScore) return false;
       if (filters.status === 'unread'   && (o.isRead === 1 || o.isArchived === 1)) return false;

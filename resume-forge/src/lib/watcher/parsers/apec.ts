@@ -1,22 +1,19 @@
 /**
  * Parser APEC — API CMS interne (rechercheOffre)
  *
- * Le flux RSS APEC n'est plus disponible (HTTP 500 systématique).
- * On utilise l'API publique du site web APEC :
- *   POST https://www.apec.fr/cms/webservices/rechercheOffre
- *
- * Pas d'authentification requise, pas de clé API.
- * Pagination via { pagination: { startIndex, range } }.
+ * L'API POST https://www.apec.fr/cms/webservices/rechercheOffre renvoie du
+ * JSON encodé en ISO-8859-1 / Windows-1252 (serveur legacy).
+ * tauri-plugin-http échoue avec "invalid utf-8 sequence" lors de la
+ * sérialisation IPC. On passe donc par la commande Rust `fetch_apec_api`
+ * qui lit les octets bruts et décode proprement avant de retourner la chaîne.
  */
 
+import { invoke } from '@tauri-apps/api/core';
 import { RawJobOffer } from '@/types/job-watch';
 import type { JobWatchConfig } from '@/types/job-watch';
-import { tauriFetch, BROWSER_USER_AGENT } from '../http';
 
-const APEC_SEARCH_URL = 'https://www.apec.fr/cms/webservices/rechercheOffre';
 const APEC_OFFER_BASE = 'https://www.apec.fr/candidat/recherche-emploi.html/emploi/detail-offre';
 const PAGE_SIZE = 20;
-const TIMEOUT_MS = 15_000;
 
 /** Map APEC numeric typeContrat codes to human-readable labels */
 const CONTRACT_TYPE_MAP: Record<number, string> = {
@@ -29,7 +26,6 @@ const CONTRACT_TYPE_MAP: Record<number, string> = {
 
 /** Extract department code from location string (e.g. "Paris" → "75") */
 function locationToDeptCode(location: string): string | null {
-  // Common French department name → code mappings
   const deptMap: Record<string, string> = {
     'paris': '75',
     'lyon': '69',
@@ -45,9 +41,7 @@ function locationToDeptCode(location: string): string | null {
     'grenoble': '38',
   };
   const normalized = location.toLowerCase().trim();
-  // Direct match
   if (deptMap[normalized]) return deptMap[normalized];
-  // If already a numeric dept code (e.g. "75" or "69")
   if (/^\d{2,3}$/.test(normalized)) return normalized;
   return null;
 }
@@ -78,7 +72,6 @@ function buildSearchBody(config: Pick<JobWatchConfig, 'keywords' | 'excludeKeywo
     if (code) lieux.push(code);
   }
 
-  // APEC supports "ET NON (term1 OU term2)" syntax for exclusions
   let motsCles = config.keywords.join(' ') || undefined;
   if (motsCles && config.excludeKeywords.length > 0) {
     motsCles += ` ET NON (${config.excludeKeywords.join(' OU ')})`;
@@ -114,48 +107,22 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
   const body = buildSearchBody(config);
   console.debug('[apec] Search body:', JSON.stringify(body));
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // Passe par la commande Rust pour contourner la limitation UTF-8 de tauri-plugin-http.
+  // fetch_apec_api lit les octets bruts et décode ISO-8859-1 si UTF-8 échoue.
+  const text = await invoke<string>('fetch_apec_api', { body: JSON.stringify(body) });
 
-  let data: ApecSearchResponse | null = null;
+  let data: ApecSearchResponse;
   try {
-    const bodyJson = JSON.stringify(body);
-
-    const res = await tauriFetch(APEC_SEARCH_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': BROWSER_USER_AGENT,
-        'Content-Type': 'application/json; charset=utf-8',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Referer': 'https://www.apec.fr/candidat/recherche-emploi.html/emploi',
-        'Origin': 'https://www.apec.fr',
-      },
-      body: bodyJson,
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`APEC API HTTP ${res.status}: ${text.slice(0, 200)}`);
-    }
-
-    const text = await res.text();
-
-    try {
-      data = JSON.parse(text) as ApecSearchResponse;
-    } catch (parseErr) {
-      console.error(`[apec] JSON Parse Error. Response snippet: ${text.slice(0, 500)}`);
-      throw new Error(`APEC JSON Parse Error: ${(parseErr as Error).message}`);
-    }
-  } finally {
-    clearTimeout(timeoutId);
+    data = JSON.parse(text) as ApecSearchResponse;
+  } catch (parseErr) {
+    console.error('[apec] JSON Parse Error. Snippet:', text.slice(0, 500));
+    throw new Error(`APEC JSON Parse Error: ${(parseErr as Error).message}`);
   }
 
-  if (!data || !data.resultats) return [];
+  if (!data.resultats) return [];
 
   return data.resultats.map(item => {
-    const salary = parseSalary(item.salaireTexte);
+    const salary      = parseSalary(item.salaireTexte);
     const contractLabel = item.typeContrat ? CONTRACT_TYPE_MAP[item.typeContrat] ?? null : null;
 
     return {
@@ -164,7 +131,7 @@ export async function parseApec(config: JobWatchConfig): Promise<RawJobOffer[]> 
       title:              item.intitule,
       company:            item.nomCommercial ?? null,
       location:           item.lieuTexte ?? null,
-      locationLat:        item.latitude ? parseFloat(item.latitude) : null,
+      locationLat:        item.latitude  ? parseFloat(item.latitude)  : null,
       locationLon:        item.longitude ? parseFloat(item.longitude) : null,
       contractType:       contractLabel,
       descriptionSnippet: item.texteOffre?.slice(0, 500) ?? null,

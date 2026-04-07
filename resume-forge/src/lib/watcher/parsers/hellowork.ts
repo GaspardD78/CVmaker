@@ -1,8 +1,14 @@
 /**
- * Parser HelloWork (ex-RegionsJob) — scraping HTML
+ * Parser HelloWork — scraping HTML
  *
- * HelloWork rend les résultats côté serveur (Turbo/Stimulus), pas de SPA.
- * On parse les cartes d'offres identifiées par data-cy="serpCard".
+ * HelloWork bloque activement le scraping (CGU 8.2). Leur page de résultats
+ * est rendue côté serveur (Hotwire/Turbo) MAIS le contenu des offres est
+ * injecté via JavaScript après chargement, rendant le scraping HTML
+ * inutilisable sans navigateur headless.
+ *
+ * Ce parser tente quand même de récupérer les cartes ([data-cy="serpCard"])
+ * lorsqu'elles sont présentes. Si la page revient sans offres (anti-bot ou
+ * rendu JS), une erreur descriptive est levée pour informer l'utilisateur.
  *
  * URL de recherche :
  *   https://www.hellowork.com/fr-fr/emploi/recherche.html?k=MOTS&l=LIEU&ray=KM
@@ -28,10 +34,10 @@ export function buildHelloworkUrl(config: Pick<JobWatchConfig, 'keywords' | 'loc
 function decodeEntities(text: string): string {
   return text
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g,            (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&amp;/g,  '&')
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'");
 }
@@ -60,21 +66,21 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
     const res = await tauriFetch(pageUrl, {
       signal: controller.signal,
       headers: {
-        'User-Agent': BROWSER_USER_AGENT,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'max-age=0',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-User': '?1',
+        // NB : Ne pas définir Accept-Encoding explicitement — tauri-plugin-http
+        // (reqwest) gère la décompression automatiquement. Un header explicite
+        // désactive la décompression automatique et retourne les octets gzip bruts.
+        'User-Agent':                BROWSER_USER_AGENT,
+        'Accept':                    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language':           'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control':             'max-age=0',
+        'Sec-Fetch-Dest':            'document',
+        'Sec-Fetch-Mode':            'navigate',
+        'Sec-Fetch-Site':            'none',   // première visite directe (pas de referer)
+        'Sec-Fetch-User':            '?1',
         'Upgrade-Insecure-Requests': '1',
-        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not-A.Brand";v="24"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'Referer': 'https://www.hellowork.com/fr-fr/',
-        'Connection': 'keep-alive',
+        'sec-ch-ua':                 '"Google Chrome";v="131", "Chromium";v="131", "Not-A.Brand";v="24"',
+        'sec-ch-ua-mobile':          '?0',
+        'sec-ch-ua-platform':        '"Windows"',
       },
     });
     if (!res.ok) throw new Error(`HelloWork HTTP ${res.status}`);
@@ -85,15 +91,13 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
 
   const offers: RawJobOffer[] = [];
 
-  // Use DOMParser instead of string splitting for more resilient scraping
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const doc    = parser.parseFromString(html, 'text/html');
 
-  // Select all offer cards
+  // Sélecteurs connus pour les cartes d'offres HelloWork
   const cards = doc.querySelectorAll('[data-cy="serpCard"], li > div[class*="tw-flex-col"]');
 
   for (const card of cards) {
-    // Find the main link element
     const linkEl = card.querySelector('a[href^="/fr-fr/emplois/"]') as HTMLAnchorElement;
     if (!linkEl) continue;
 
@@ -102,32 +106,25 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
 
     const url = `${HELLOWORK_BASE}${rawUrl}`;
 
-    // Attempt to extract title and company from the link title attribute or the DOM
     let rawTitle = linkEl.getAttribute('title') || linkEl.textContent?.trim() || '';
     rawTitle = decodeEntities(rawTitle);
 
-    let title = rawTitle;
+    let title   = rawTitle;
     let company: string | null = null;
 
-    // Title format: "Poste H/F - Entreprise"
     const lastDash = rawTitle.lastIndexOf(' - ');
     if (lastDash !== -1) {
-      title = rawTitle.slice(0, lastDash).trim();
+      title   = rawTitle.slice(0, lastDash).trim();
       company = rawTitle.slice(lastDash + 3).trim();
     } else {
-      // Sometimes company is in a separate element
       const companyEl = card.querySelector('[data-cy="offerCompany"], h3 p:last-child');
-      if (companyEl) {
-         company = companyEl.textContent?.trim() || null;
-      }
+      if (companyEl) company = companyEl.textContent?.trim() || null;
     }
 
-    // Location
-    const locEl = card.querySelector('[data-cy="localisationCard"], [data-cy="location"]');
-    const location = locEl ? locEl.textContent?.trim() || null : null;
+    const locEl      = card.querySelector('[data-cy="localisationCard"], [data-cy="location"]');
+    const location   = locEl ? locEl.textContent?.trim() || null : null;
 
-    // Contract type
-    const contractEl = card.querySelector('[data-cy="contractCard"], [data-cy="contractType"]');
+    const contractEl  = card.querySelector('[data-cy="contractCard"], [data-cy="contractType"]');
     const contractType = contractEl ? normalizeContract(contractEl.textContent?.trim() || '') : null;
 
     offers.push({
@@ -137,26 +134,26 @@ export async function parseHellowork(config: JobWatchConfig): Promise<RawJobOffe
       company,
       location,
       contractType,
-      descriptionSnippet: null, // Not available on search page
-      publishedAt:        null, // Relative dates only ("il y a 3 jours")
+      descriptionSnippet: null,
+      publishedAt:        null,
     });
   }
 
   if (offers.length === 0) {
-    // Detect anti-bot / CGU block response
-    const isBlocked = html.includes('scraping') || html.includes('web scraping') || html.includes('screen scraping');
-    // Detect if results might be JS-rendered (page shell present but no cards)
-    const isShell = html.includes('tw-scroll-smooth') && !html.includes('data-cy="serpCard"');
-    if (isBlocked) {
-      throw new Error('HelloWork bloque le scraping (CGU 8.2). Désactivez cette source ou utilisez une autre.');
+    // Détecter le type de blocage pour fournir un message précis.
+    const isScrapingBlocked = html.includes('screen scraping') || html.includes('web scraping');
+    const isJsRendered      = html.includes('tw-scroll-smooth') && !html.includes('serpCard');
+
+    if (isScrapingBlocked || isJsRendered) {
+      throw new Error(
+        'HelloWork bloque le scraping HTML (CGU 8.2) ou charge les offres via JavaScript. ' +
+        'Désactivez cette source dans la configuration de la Veille.'
+      );
     }
-    if (isShell) {
-      throw new Error('HelloWork charge les offres via JavaScript — scraping HTML non disponible. Désactivez cette source.');
-    }
-    console.warn(`[hellowork] 0 offres récupérées. DOM potentiellement changé ou page bloquée. HTML snippet:`, html.slice(0, 1000));
+    console.warn('[hellowork] 0 offres — sélecteurs peut-être obsolètes. Snippet HTML :', html.slice(0, 800));
   }
 
-  // Filter out offers matching exclude keywords (local filtering)
+  // Filtrage local par mots-clés exclus
   if (config.excludeKeywords.length > 0) {
     const excludeLower = config.excludeKeywords.map(k => k.toLowerCase());
     return offers.filter(o => {

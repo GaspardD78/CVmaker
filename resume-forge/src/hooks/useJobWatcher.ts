@@ -9,6 +9,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
+import { useAuthStore } from '@/stores/authStore';
 import { runFetch, FetchResult } from '@/lib/watcher/fetcher';
 import { sendDigestEmail } from '@/lib/watcher/email-digest';
 import { decayLearnedDict, LearnedDictionary } from '@/lib/watcher/learning-engine';
@@ -26,6 +27,8 @@ export function useJobWatcher() {
     updateLastFetchedAt,
     lastFetchedAt,
   } = useJobWatchStore();
+
+  const profileId = useAuthStore(s => s.currentUserId);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -74,7 +77,7 @@ export function useJobWatcher() {
         console.debug(`[watcher] ${source}: ${status}`);
       };
 
-      const results: FetchResult[] = await runFetch(configs, settings, onProgress);
+      const results: FetchResult[] = await runFetch(configs, settings, onProgress, profileId);
 
       // Update last_fetched_at for each config
       for (const config of configs.filter(c => c.enabled === 1)) {
@@ -129,7 +132,7 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [configs, settings, isFetching, setFetching, setError, fetchOffers, updateLastFetchedAt]);
+  }, [configs, settings, isFetching, setFetching, setError, fetchOffers, updateLastFetchedAt, profileId]);
 
   // Auto-trigger on mount if data is stale
   useEffect(() => {

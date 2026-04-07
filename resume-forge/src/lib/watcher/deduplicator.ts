@@ -21,11 +21,19 @@ export async function filterNewHashes(
   return hashes.filter(h => !existingHashes.has(h));
 }
 
-/** Build a Set of existing hashes by querying the DB */
+/** Build a Set of existing hashes by querying the DB, scoped to a profile */
 export async function loadExistingHashes(
-  db: { select: <T>(sql: string, params?: unknown[]) => Promise<T> }
+  db: { select: <T>(sql: string, params?: unknown[]) => Promise<T> },
+  profileId: string | null,
 ): Promise<Set<string>> {
-  const rows = await db.select<{ hash: string }[]>('SELECT hash FROM job_offers');
+  const rows = profileId
+    ? await db.select<{ hash: string }[]>(
+        'SELECT hash FROM job_offers WHERE profile_id = ?1',
+        [profileId],
+      )
+    : await db.select<{ hash: string }[]>(
+        'SELECT hash FROM job_offers WHERE profile_id IS NULL',
+      );
   return new Set(rows.map(r => r.hash));
 }
 

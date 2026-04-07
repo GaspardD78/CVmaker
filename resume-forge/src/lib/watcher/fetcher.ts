@@ -69,15 +69,17 @@ async function runParser(config: JobWatchConfig, settings: JobWatchSettings): Pr
 
 /**
  * Main fetch pipeline — runs all enabled sources.
+ * @param profileId - ID du profil courant pour isoler les données par utilisateur.
  * @returns Summary per source (new offers count, errors)
  */
 export async function runFetch(
-  configs:  JobWatchConfig[],
-  settings: JobWatchSettings,
-  onProgress?: (source: JobSource, status: string) => void
+  configs:    JobWatchConfig[],
+  settings:   JobWatchSettings,
+  onProgress?: (source: JobSource, status: string) => void,
+  profileId?: string | null,
 ): Promise<FetchResult[]> {
   const db = await getDb();
-  const existingHashes = await loadExistingHashes(db);
+  const existingHashes = await loadExistingHashes(db, profileId ?? null);
   const results: FetchResult[] = [];
 
   // Load learned signals for scoring
@@ -175,8 +177,8 @@ export async function runFetch(
            contract_type, description_snippet, published_at, score,
            commute_minutes, commute_status,
            salary_min, salary_max, salary_raw,
-           is_read, is_archived, kanban_id)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL)`,
+           is_read, is_archived, kanban_id, profile_id)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18)`,
         [
           raw.source, raw.url, hash, raw.title,
           raw.company ?? null, raw.location ?? null,
@@ -184,6 +186,7 @@ export async function runFetch(
           raw.contractType ?? null, raw.descriptionSnippet ?? null,
           raw.publishedAt ?? null, score, commuteMinutes, commuteStatus,
           raw.salaryMin ?? null, raw.salaryMax ?? null, raw.salaryRaw ?? null,
+          profileId ?? null,
         ]
       );
       existingHashes.add(hash);

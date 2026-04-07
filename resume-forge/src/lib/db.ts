@@ -120,6 +120,12 @@ export async function getDb(): Promise<Database> {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_source  ON job_offers(source)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_score   ON job_offers(score)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_fetched ON job_offers(fetched_at)`);
+
+    // Fallback: ensure migration 009 columns exist (profile isolation)
+    await db.execute(`ALTER TABLE job_watch_config ADD COLUMN profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE`).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_watch_config_profile ON job_watch_config(profile_id)`);
+    await db.execute(`ALTER TABLE job_offers ADD COLUMN profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE`).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_profile ON job_offers(profile_id)`);
     await db.execute(`
       CREATE TABLE IF NOT EXISTS job_watch_settings (
         key   TEXT PRIMARY KEY,
