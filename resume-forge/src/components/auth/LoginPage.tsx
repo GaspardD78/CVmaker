@@ -125,10 +125,13 @@ export function LoginPage() {
             <h2 className="text-sm font-medium text-gray-500 mb-3">Profils existants</h2>
             <div className="space-y-2">
               {profiles.map(profile => (
-                <button
+                <div
                   key={profile.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleSelectProfile(profile.id)}
-                  className="w-full flex items-center p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelectProfile(profile.id); }}
+                  className="w-full flex items-center p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left cursor-pointer"
                 >
                   <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3 flex-shrink-0">
                     {profile.photoPath ? (
@@ -148,7 +151,7 @@ export function LoginPage() {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
-                </button>
+                </div>
               ))}
             </div>
           </div>
