@@ -7,12 +7,14 @@
  *
  * Recherche d'offres :
  *   GET https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search
- *   Pagination : 2 pages max (offresParPage=150), 400ms entre pages
+ *   Pagination : 2 pages max (150 offres/page), 400ms entre pages
  *   204 = aucun résultat
+ *
+ * Qualité d'extraction : HIGH — données structurées avec coordonnées GPS natives.
  */
 
-import { RawJobOffer } from '@/types/job-watch';
-import type { JobWatchConfig, JobWatchSettings } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
+import { buildFranceTravailQuery } from '../profile-to-query';
 import { tauriFetch } from '../http';
 
 const FT_TOKEN_URL  = 'https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire';
@@ -23,20 +25,17 @@ const PAGE_DELAY_MS = 400;
 // ── OAuth2 token management ──────────────────────────────────────────────────
 
 interface TokenInfo {
-  accessToken:  string;
-  expiresAt:    number; // Unix timestamp ms
+  accessToken: string;
+  expiresAt:   number; // Unix timestamp ms
 }
 
-/** In-memory token cache (process lifetime) */
 let tokenCache: TokenInfo | null = null;
 
 export async function getFranceTravailToken(
   clientId:     string,
-  clientSecret: string
+  clientSecret: string,
 ): Promise<string> {
   const now = Date.now();
-
-  // Reuse if valid for at least 60s more
   if (tokenCache && tokenCache.expiresAt - now > 60_000) {
     return tokenCache.accessToken;
   }
@@ -67,12 +66,10 @@ export async function getFranceTravailToken(
   return tokenCache.accessToken;
 }
 
-/** Expose token cache so the store can persist it */
 export function getTokenCache(): TokenInfo | null {
   return tokenCache;
 }
 
-/** Restore token from persisted settings on startup */
 export function restoreTokenCache(accessToken: string, expiresAt: string): void {
   const exp = parseInt(expiresAt, 10);
   if (accessToken && !isNaN(exp) && exp - Date.now() > 60_000) {
@@ -83,7 +80,7 @@ export function restoreTokenCache(accessToken: string, expiresAt: string): void 
 // ── Salary parsing ────────────────────────────────────────────────────────────
 
 interface FtSalaire {
-  libelle?: string;
+  libelle?:    string;
   commentaire?: string;
 }
 
@@ -93,19 +90,17 @@ function parseSalary(salaire?: FtSalaire): { salaryMin: number | null; salaryMax
   const raw = [salaire.libelle, salaire.commentaire].filter(Boolean).join(' ');
   if (!raw) return { salaryMin: null, salaryMax: null, salaryRaw: null };
 
-  // Extract numbers — handles "28K€ - 35K€", "30 000 - 40 000 €", "45000"
   const nums = raw.replace(/\s/g, '').match(/\d[\d.,]*/g);
   if (!nums) return { salaryMin: null, salaryMax: null, salaryRaw: raw };
 
   const parsed = nums.map(n => {
     const v = parseFloat(n.replace(',', '.'));
-    // Convert K notation
     return v < 1000 ? v * 1000 : v;
-  }).filter(v => v >= 1000 && v <= 500_000);
+  }).filter(v => v >= 10_000 && v <= 500_000);
 
   return {
-    salaryMin: parsed[0]  ?? null,
-    salaryMax: parsed[1]  ?? parsed[0] ?? null,
+    salaryMin: parsed[0] ?? null,
+    salaryMax: parsed[1] ?? parsed[0] ?? null,
     salaryRaw: raw,
   };
 }
@@ -113,15 +108,17 @@ function parseSalary(salaire?: FtSalaire): { salaryMin: number | null; salaryMax
 // ── API types ────────────────────────────────────────────────────────────────
 
 interface FtOffer {
-  id?:               string;
-  intitule?:         string;
-  description?:      string;
-  dateCreation?:     string;
-  typeContrat?:      string;
+  id?:           string;
+  intitule?:     string;
+  description?:  string;
+  dateCreation?: string;
+  typeContrat?:  string;
+  typeContratLibelle?: string;
   lieuTravail?: {
     libelle?:   string;
     latitude?:  number;
     longitude?: number;
+    codePostal?: string;
   };
   entreprise?: {
     nom?: string;
@@ -140,7 +137,7 @@ interface FtSearchResponse {
 
 export async function parseFranceTravail(
   config: JobWatchConfig,
-  settings: JobWatchSettings
+  settings: JobWatchSettings,
 ): Promise<RawJobOffer[]> {
   const { ftClientId, ftClientSecret } = settings;
 
@@ -148,7 +145,6 @@ export async function parseFranceTravail(
     throw new Error('France Travail : client_id et client_secret requis');
   }
 
-  // Restore persisted token if any
   if (!tokenCache && settings.ftAccessToken && settings.ftTokenExpiresAt) {
     restoreTokenCache(settings.ftAccessToken, settings.ftTokenExpiresAt);
   }
@@ -156,29 +152,20 @@ export async function parseFranceTravail(
   const token  = await getFranceTravailToken(ftClientId, ftClientSecret);
   const offers: RawJobOffer[] = [];
 
+  // Build query from the unified SearchProfile
+  const query = buildFranceTravailQuery(settings.searchProfile);
+
   for (let page = 0; page < 2; page++) {
     const params = new URLSearchParams();
-    // France Travail motsCles supports boolean operators
-    if (config.keywords.length > 0) {
-      let kw = config.keywords.join(' ');
-      if (config.excludeKeywords?.length > 0) {
-        kw += ' ' + config.excludeKeywords.map(ex => `-${ex}`).join(' ');
-      }
-      params.set('motsCles', kw);
-    }
-    // France Travail requires the 'commune' parameter to be a 5-digit INSEE code.
-    // User might input city names or postal codes, which leads to a 400 Bad Request error.
-    // We only set 'commune' if it matches exactly 5 digits (a reasonable heuristic for an INSEE code).
-    if (config.location) {
-      const isLikelyInseeCode = /^\d{5}$/.test(config.location.trim());
-      if (isLikelyInseeCode) {
-        params.set('commune', config.location.trim());
-      } else {
-        console.warn(`[france-travail] location "${config.location}" is not a 5-digit INSEE code. Ignoring 'commune' param to prevent 400 error.`);
-      }
-    }
-    if (config.ftDeptCode)          params.set('departement', config.ftDeptCode);
-    if (config.radiusKm)            params.set('distance', String(config.radiusKm));
+
+    if (query.motsCles) params.set('motsCles', query.motsCles);
+
+    if (query.commune)      params.set('commune',     query.commune);
+    if (query.departement)  params.set('departement', query.departement);
+    if (query.distance)     params.set('distance',    String(query.distance));
+    if (query.typeContrat)  params.set('typeContrat', query.typeContrat);
+
+    // LinkedIn RSS uses its own URL; for FT the rssUrl field is ignored
     params.set('range', `${page * PAGE_SIZE}-${(page + 1) * PAGE_SIZE - 1}`);
 
     const res = await tauriFetch(`${FT_SEARCH_URL}?${params.toString()}`, {
@@ -188,7 +175,6 @@ export async function parseFranceTravail(
       },
     });
 
-    // 204 = no results
     if (res.status === 204) break;
 
     if (!res.ok) {
@@ -207,6 +193,17 @@ export async function parseFranceTravail(
         ?? (o.id ? `https://candidat.francetravail.fr/offres/recherche/detail/${o.id}` : '');
       if (!url) continue;
 
+      // France Travail is structured API → HIGH confidence on all fields
+      const hasCoords = o.lieuTravail?.latitude != null && o.lieuTravail?.longitude != null;
+      const extraction: ExtractionMetadata = {
+        titleSource:        'api',
+        titleConfidence:    'high',
+        locationSource:     hasCoords ? 'api_coords' : (o.lieuTravail?.libelle ? 'api_text' : 'none'),
+        locationConfidence: hasCoords ? 'high' : (o.lieuTravail?.libelle ? 'high' : 'none'),
+        contractSource:     o.typeContrat ? 'api' : 'none',
+        contractConfidence: o.typeContrat ? 'high' : 'none',
+      };
+
       offers.push({
         source:             'france_travail',
         url,
@@ -215,19 +212,17 @@ export async function parseFranceTravail(
         location:           o.lieuTravail?.libelle ?? null,
         locationLat:        o.lieuTravail?.latitude  ?? null,
         locationLon:        o.lieuTravail?.longitude ?? null,
-        contractType:       o.typeContrat ?? null,
+        contractType:       o.typeContratLibelle ?? o.typeContrat ?? null,
         descriptionSnippet: o.description ? o.description.slice(0, 500) : null,
         publishedAt:        o.dateCreation ?? null,
         salaryMin,
         salaryMax,
         salaryRaw,
+        extraction,
       });
     }
 
-    // No more pages if fewer than PAGE_SIZE results
     if (resultats.length < PAGE_SIZE) break;
-
-    // Delay between pages to respect quota
     if (page < 1) await new Promise(r => setTimeout(r, PAGE_DELAY_MS));
   }
 

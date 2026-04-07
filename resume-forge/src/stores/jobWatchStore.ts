@@ -6,15 +6,15 @@ import {
   JobWatchConfig,
   JobWatchSettings,
   JobWatchFilters,
-  SearchIntent,
+  SearchProfile,
   DEFAULT_JOB_WATCH_SETTINGS,
-  DEFAULT_SEARCH_INTENT,
+  DEFAULT_SEARCH_PROFILE,
   DEFAULT_FILTERS,
   JobSource,
 } from '@/types/job-watch';
 import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/lib/watcher/learning-engine';
 
-// ── Settings helpers ────────────────────────────────────────────────────────
+// ── Settings helpers ────────────────────────────────────────────────────────────
 
 async function loadSettingsFromDb(): Promise<JobWatchSettings> {
   const db = await getDb();
@@ -22,41 +22,62 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     'SELECT key, value FROM job_watch_settings'
   );
   const map: Record<string, string> = {};
-  for (const row of rows) {
-    map[row.key] = row.value;
-  }
+  for (const row of rows) map[row.key] = row.value;
 
   const parseJson = <T>(v: string | undefined, fallback: T): T => {
     if (!v) return fallback;
     try { return JSON.parse(v) as T; } catch { return fallback; }
   };
 
-  // Resolve SearchIntent — prefer the structured key; fall back to migrating
-  // legacy flat keyword arrays for installations upgrading from Sprint 1.
-  let searchIntent: SearchIntent = parseJson<SearchIntent>(map['search_intent'], DEFAULT_SEARCH_INTENT);
-  if (
-    !map['search_intent'] &&
-    (map['positive_keywords'] || map['negative_keywords'])
-  ) {
-    searchIntent = {
-      ...DEFAULT_SEARCH_INTENT,
-      role: {
-        primary:     parseJson<string[]>(map['positive_keywords'], []),
-        mustExclude: parseJson<string[]>(map['negative_keywords'], []),
-      },
-    };
+  // ── Resolve SearchProfile ───────────────────────────────────────────────────
+  // Priority: search_profile key (v3) → migrate from search_intent (v2) → default
+  let searchProfile: SearchProfile = parseJson<SearchProfile>(
+    map['search_profile'],
+    DEFAULT_SEARCH_PROFILE,
+  );
+
+  // Migration from legacy search_intent (v2) if search_profile not yet present
+  if (!map['search_profile'] && map['search_intent']) {
+    try {
+      const intent = JSON.parse(map['search_intent']);
+      searchProfile = {
+        ...DEFAULT_SEARCH_PROFILE,
+        jobTitles:     intent.role?.primary     ?? [],
+        skills:        intent.domain?.required  ?? [],
+        domains:       intent.domain?.preferred ?? [],
+        excludeTitles: intent.role?.mustExclude ?? [],
+        excludeDomains: intent.domain?.excluded ?? [],
+        salary: {
+          min:    intent.salary?.hideIfBelow ?? null,
+          target: intent.salary?.target      ?? null,
+        },
+      };
+    } catch { /* ignore — keep default */ }
+  }
+
+  // Further legacy migration from flat positive/negative keywords (v1)
+  if (!map['search_profile'] && !map['search_intent']) {
+    const pos = parseJson<string[]>(map['positive_keywords'], []);
+    const neg = parseJson<string[]>(map['negative_keywords'], []);
+    if (pos.length > 0 || neg.length > 0) {
+      searchProfile = {
+        ...DEFAULT_SEARCH_PROFILE,
+        jobTitles:     pos,
+        excludeTitles: neg,
+      };
+    }
   }
 
   return {
     fetchIntervalHours:   parseInt(map['fetch_interval_hours']  ?? '4', 10),
-    emailDigestEnabled:   (map['email_digest_enabled']  ?? '1') === '1',
+    emailDigestEnabled:   (map['email_digest_enabled']  ?? '0') === '1',
     emailDigestTime:       map['email_digest_time']      ?? '08:00',
     emailSmtpHost:         map['email_smtp_host']        ?? '',
     emailSmtpPort:        parseInt(map['email_smtp_port'] ?? '587', 10),
     emailSmtpUser:         map['email_smtp_user']        ?? '',
     emailSmtpPassword:     map['email_smtp_password']    ?? '',
     emailTo:               map['email_to']               ?? '',
-    searchIntent,
+    searchProfile,
     navitiaApiKey:         map['navitia_api_key']         ?? '',
     commuteOriginAddress:  map['commute_origin_address']  ?? '',
     commuteDepartureTime:  map['commute_departure_time']  ?? '09:00',
@@ -65,7 +86,6 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     ftClientSecret:        map['ft_client_secret']        ?? '',
     ftAccessToken:         map['ft_access_token']         ?? '',
     ftTokenExpiresAt:      map['ft_token_expires_at']     ?? '',
-    blacklistedCompanies: parseJson<string[]>(map['blacklisted_companies'], []),
   };
 }
 
@@ -80,7 +100,7 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['email_smtp_user',        settings.emailSmtpUser],
     ['email_smtp_password',    settings.emailSmtpPassword],
     ['email_to',               settings.emailTo],
-    ['search_intent',          JSON.stringify(settings.searchIntent)],
+    ['search_profile',         JSON.stringify(settings.searchProfile)],
     ['navitia_api_key',        settings.navitiaApiKey],
     ['commute_origin_address', settings.commuteOriginAddress],
     ['commute_departure_time', settings.commuteDepartureTime],
@@ -89,7 +109,6 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['ft_client_secret',       settings.ftClientSecret],
     ['ft_access_token',        settings.ftAccessToken],
     ['ft_token_expires_at',    settings.ftTokenExpiresAt],
-    ['blacklisted_companies',  JSON.stringify(settings.blacklistedCompanies)],
   ];
   for (const [key, value] of entries) {
     await db.execute(
@@ -100,7 +119,7 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
   }
 }
 
-// ── Store interface ──────────────────────────────────────────────────────────
+// ── Store interface ────────────────────────────────────────────────────────────
 
 interface JobWatchState {
   offers: JobOffer[];
@@ -122,11 +141,6 @@ interface JobWatchState {
   markArchived: (id: string, archived: boolean) => Promise<void>;
   setKanbanId: (offerId: string, kanbanId: string) => Promise<void>;
   deleteArchivedOffers: () => Promise<void>;
-  /**
-   * Record a user feedback action on an offer.
-   * @param timeToAction - seconds the user took to act (measured from card display).
-   *   If omitted the store falls back to time-since-fetch.
-   */
   submitFeedback: (offerId: string, action: string, timeToAction?: number) => Promise<void>;
   batchArchive: (ids: string[]) => Promise<void>;
   batchMarkRead: (ids: string[]) => Promise<void>;
@@ -140,6 +154,7 @@ interface JobWatchState {
   // Settings
   fetchSettings: () => Promise<void>;
   saveSettings: (settings: JobWatchSettings) => Promise<void>;
+  updateSearchProfile: (profile: SearchProfile) => Promise<void>;
 
   // UI state
   setFilters: (filters: Partial<JobWatchFilters>) => void;
@@ -151,7 +166,7 @@ interface JobWatchState {
   unreadCount: () => number;
 }
 
-// ── Store implementation ─────────────────────────────────────────────────────
+// ── Store implementation ────────────────────────────────────────────────────────
 
 export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   offers: [],
@@ -170,19 +185,21 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       get().fetchSettings(),
     ]);
 
-    // Clean up deprecated sources from state
+    // Clean up deprecated sources
     const configs = get().configs;
-    const hasDeprecated = configs.some(c => (c.source as string) === 'indeed' || (c.source as string) === 'hellowork');
+    const hasDeprecated = configs.some(
+      c => (c.source as string) === 'indeed' || (c.source as string) === 'hellowork'
+    );
     if (hasDeprecated) {
       for (const c of configs) {
-         if ((c.source as string) === 'indeed' || (c.source as string) === 'hellowork') {
-           await get().deleteConfig(c.id);
-         }
+        if ((c.source as string) === 'indeed' || (c.source as string) === 'hellowork') {
+          await get().deleteConfig(c.id);
+        }
       }
     }
   },
 
-  // ── Offers ────────────────────────────────────────────────────────────────
+  // ── Offers ──────────────────────────────────────────────────────────────────
 
   fetchOffers: async () => {
     set({ isLoading: true, error: null });
@@ -198,8 +215,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         : await db.select<Record<string, unknown>[]>(
             `SELECT * FROM job_offers WHERE profile_id IS NULL ORDER BY fetched_at DESC LIMIT 500`,
           );
-      const offers = raw.map(r => keysToCamelCase<JobOffer>(r));
-      set({ offers });
+      set({ offers: raw.map(r => keysToCamelCase<JobOffer>(r)) });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Erreur chargement offres' });
     } finally {
@@ -218,26 +234,14 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
          is_read, is_archived, kanban_id)
        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)`,
       [
-        offer.source,
-        offer.url,
-        offer.hash,
-        offer.title,
-        offer.company ?? null,
-        offer.location ?? null,
-        offer.locationLat ?? null,
-        offer.locationLon ?? null,
-        offer.contractType ?? null,
-        offer.descriptionSnippet ?? null,
-        offer.publishedAt ?? null,
-        offer.score,
-        offer.commuteMinutes ?? null,
-        offer.commuteStatus,
-        offer.salaryMin ?? null,
-        offer.salaryMax ?? null,
-        offer.salaryRaw ?? null,
-        offer.isRead,
-        offer.isArchived,
-        offer.kanbanId ?? null,
+        offer.source, offer.url, offer.hash, offer.title,
+        offer.company ?? null, offer.location ?? null,
+        offer.locationLat ?? null, offer.locationLon ?? null,
+        offer.contractType ?? null, offer.descriptionSnippet ?? null,
+        offer.publishedAt ?? null, offer.score,
+        offer.commuteMinutes ?? null, offer.commuteStatus,
+        offer.salaryMin ?? null, offer.salaryMax ?? null, offer.salaryRaw ?? null,
+        offer.isRead, offer.isArchived, offer.kanbanId ?? null,
       ]
     );
   },
@@ -266,10 +270,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   setKanbanId: async (offerId, kanbanId) => {
     const db = await getDb();
-    await db.execute(
-      `UPDATE job_offers SET kanban_id = ?1 WHERE id = ?2`,
-      [kanbanId, offerId]
-    );
+    await db.execute(`UPDATE job_offers SET kanban_id = ?1 WHERE id = ?2`, [kanbanId, offerId]);
     set(state => ({
       offers: state.offers.map(o => o.id === offerId ? { ...o, kanbanId } : o),
     }));
@@ -311,28 +312,24 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   submitFeedback: async (offerId, action, timeToAction) => {
     const db = await getDb();
     const offer = get().offers.find(o => o.id === offerId);
-    // Use caller-supplied timeToAction when available (measured from card display);
-    // otherwise fall back to time-since-fetch as a coarse approximation.
     const resolvedTimeToAction = timeToAction !== undefined
       ? timeToAction
       : offer
         ? Math.floor((Date.now() - new Date(offer.fetchedAt).getTime()) / 1000)
         : null;
 
-    // 1. Persist the feedback row
     await db.execute(
       `INSERT INTO job_offer_feedback (offer_id, action, time_to_action) VALUES (?1, ?2, ?3)`,
       [offerId, action, resolvedTimeToAction]
     );
 
-    // 2. Side-effects on the offer state
     if (action === 'thumbs_down' || action === 'quick_archive') {
       await get().markArchived(offerId, true);
     } else if (action === 'thumbs_up') {
       await get().markRead(offerId);
     }
 
-    // 3. Update learned dictionary & company reputation in the background (fire & forget)
+    // Update learned dictionary & company reputation (fire & forget)
     if (offer?.title) {
       (async () => {
         try {
@@ -342,7 +339,6 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
           const map: Record<string, string> = {};
           for (const r of rows) map[r.key] = r.value;
 
-          // Update learned dictionary
           const currentDict: LearnedDictionary = {
             positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
             negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
@@ -359,20 +355,21 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
             [JSON.stringify(updated.negative)]
           );
 
-          // Update company reputation
-          const currentRep: Record<string, number> = map['company_reputation'] ? JSON.parse(map['company_reputation']) : {};
+          const currentRep: Record<string, number> = map['company_reputation']
+            ? JSON.parse(map['company_reputation'])
+            : {};
           const updatedRep = processCompanyReputation(offer.company, action, currentRep);
           await db.execute(
             `INSERT INTO job_watch_settings (key, value) VALUES ('company_reputation', ?1)
              ON CONFLICT(key) DO UPDATE SET value = ?1`,
             [JSON.stringify(updatedRep)]
           );
-        } catch { /* silent — learning updates are non-critical */ }
+        } catch { /* silent */ }
       })();
     }
   },
 
-  // ── Configs ───────────────────────────────────────────────────────────────
+  // ── Configs ──────────────────────────────────────────────────────────────────
 
   fetchConfigs: async () => {
     const db = await getDb();
@@ -380,59 +377,33 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const profileId = useAuthStore.getState().currentUserId;
     const raw = profileId
       ? await db.select<Record<string, unknown>[]>(
-          `SELECT * FROM job_watch_config WHERE profile_id = ?1 ORDER BY source`,
+          `SELECT id, source, rss_url, enabled, last_fetched_at, created_at
+           FROM job_watch_config WHERE profile_id = ?1 ORDER BY source`,
           [profileId],
         )
       : await db.select<Record<string, unknown>[]>(
-          `SELECT * FROM job_watch_config WHERE profile_id IS NULL ORDER BY source`,
+          `SELECT id, source, rss_url, enabled, last_fetched_at, created_at
+           FROM job_watch_config WHERE profile_id IS NULL ORDER BY source`,
         );
-    const configs = raw.map(r => {
-      const c = keysToCamelCase<Record<string, unknown>>(r) as Record<string, unknown>;
-      return {
-        ...c,
-        keywords:        typeof c['keywords']        === 'string' ? JSON.parse(c['keywords']        as string) : (c['keywords']        ?? []),
-        excludeKeywords: typeof c['excludeKeywords']  === 'string' ? JSON.parse(c['excludeKeywords']  as string) : (c['excludeKeywords']  ?? []),
-        contractTypes:   typeof c['contractTypes']    === 'string' ? JSON.parse(c['contractTypes']    as string) : (c['contractTypes']    ?? []),
-      } as JobWatchConfig;
-    });
-    set({ configs });
+    set({ configs: raw.map(r => keysToCamelCase<JobWatchConfig>(r)) });
   },
 
   upsertConfig: async (config) => {
     const db = await getDb();
     const { useAuthStore } = await import('@/stores/authStore');
     const profileId = useAuthStore.getState().currentUserId;
-    const snake = keysToSnakeCase<Record<string, unknown>>({
-      ...config,
-      keywords:        JSON.stringify(config.keywords),
-      excludeKeywords: JSON.stringify(config.excludeKeywords),
-      contractTypes:   JSON.stringify(config.contractTypes),
-    });
 
     if (config.id) {
       await db.execute(
-        `UPDATE job_watch_config SET
-          source=?1, keywords=?2, exclude_keywords=?3, location=?4, radius_km=?5,
-          contract_types=?6, rss_url=?7, ft_dept_code=?8, enabled=?9
-         WHERE id=?10 AND (profile_id = ?11 OR (profile_id IS NULL AND ?11 IS NULL))`,
-        [
-          snake['source'], snake['keywords'], snake['exclude_keywords'] ?? '[]',
-          snake['location'] ?? null, snake['radius_km'], snake['contract_types'],
-          snake['rss_url'] ?? null, snake['ft_dept_code'] ?? null, snake['enabled'],
-          config.id, profileId,
-        ]
+        `UPDATE job_watch_config SET source=?1, rss_url=?2, enabled=?3
+         WHERE id=?4 AND (profile_id = ?5 OR (profile_id IS NULL AND ?5 IS NULL))`,
+        [config.source, config.rssUrl ?? null, config.enabled, config.id, profileId]
       );
     } else {
       await db.execute(
-        `INSERT INTO job_watch_config
-          (source, keywords, exclude_keywords, location, radius_km, contract_types, rss_url, ft_dept_code, enabled, profile_id)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)`,
-        [
-          snake['source'], snake['keywords'], snake['exclude_keywords'] ?? '[]',
-          snake['location'] ?? null, snake['radius_km'], snake['contract_types'],
-          snake['rss_url'] ?? null, snake['ft_dept_code'] ?? null, snake['enabled'],
-          profileId,
-        ]
+        `INSERT INTO job_watch_config (source, rss_url, enabled, profile_id)
+         VALUES (?1, ?2, ?3, ?4)`,
+        [config.source, config.rssUrl ?? null, config.enabled, profileId]
       );
     }
     await get().fetchConfigs();
@@ -459,12 +430,11 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     }));
   },
 
-  // ── Settings ──────────────────────────────────────────────────────────────
+  // ── Settings ──────────────────────────────────────────────────────────────────
 
   fetchSettings: async () => {
     try {
-      const settings = await loadSettingsFromDb();
-      set({ settings });
+      set({ settings: await loadSettingsFromDb() });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Erreur chargement paramètres' });
     }
@@ -475,7 +445,13 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     set({ settings });
   },
 
-  // ── UI ────────────────────────────────────────────────────────────────────
+  updateSearchProfile: async (profile: SearchProfile) => {
+    const settings = { ...get().settings, searchProfile: profile };
+    await saveSettingsToDb(settings);
+    set({ settings });
+  },
+
+  // ── UI ─────────────────────────────────────────────────────────────────────────
 
   setFilters: (filters) => {
     set(state => ({ filters: { ...state.filters, ...filters } }));
@@ -485,7 +461,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   setError: (msg) => set({ error: msg }),
 
-  // ── Computed ──────────────────────────────────────────────────────────────
+  // ── Computed ───────────────────────────────────────────────────────────────────
 
   filteredOffers: () => {
     const { offers, filters, settings } = get();
@@ -505,13 +481,14 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       if (filters.dateFrom && o.fetchedAt < filters.dateFrom) return false;
       if (filters.dateTo   && o.fetchedAt > filters.dateTo)   return false;
 
-      if (settings.blacklistedCompanies.length > 0 && o.company) {
+      const profile = settings.searchProfile;
+      if (profile.blacklistedCompanies.length > 0 && o.company) {
         const companyLower = o.company.toLowerCase();
-        if (settings.blacklistedCompanies.some(b => b.toLowerCase() === companyLower)) return false;
+        if (profile.blacklistedCompanies.some(b => b.toLowerCase() === companyLower)) return false;
       }
 
       if (filters.maxAgeDays !== null && o.publishedAt) {
-        const ageMs = Date.now() - new Date(o.publishedAt).getTime();
+        const ageMs  = Date.now() - new Date(o.publishedAt).getTime();
         const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
         if (ageDays > filters.maxAgeDays) return false;
       }
@@ -520,10 +497,10 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         const textToSearch = `${o.contractType || ''} ${o.title || ''}`.toLowerCase();
         const hasMatch = filters.contractTypes.some(type => {
           const t = type.toLowerCase();
-          if (t === 'cdi') return textToSearch.includes('cdi');
-          if (t === 'cdd') return textToSearch.includes('cdd');
-          if (t === 'freelance') return textToSearch.includes('freelance') || textToSearch.includes('indépendant') || textToSearch.includes('contractor');
-          if (t === 'stage/alternance') return textToSearch.includes('stage') || textToSearch.includes('alternance') || textToSearch.includes('apprentissage') || textToSearch.includes('internship') || textToSearch.includes('professionnalisation');
+          if (t === 'cdi')              return textToSearch.includes('cdi');
+          if (t === 'cdd')              return textToSearch.includes('cdd');
+          if (t === 'freelance')        return textToSearch.includes('freelance') || textToSearch.includes('indépendant') || textToSearch.includes('contractor');
+          if (t === 'stage/alternance') return textToSearch.includes('stage') || textToSearch.includes('alternance') || textToSearch.includes('apprentissage');
           return false;
         });
         if (!hasMatch) return false;
@@ -532,22 +509,15 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       return true;
     });
 
-    // Apply sorting
     const sortBy = filters.sortBy ?? 'score_desc';
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'score_desc':
-          return b.score - a.score;
-        case 'date_newest':
-          return (b.fetchedAt ?? '').localeCompare(a.fetchedAt ?? '');
-        case 'date_oldest':
-          return (a.fetchedAt ?? '').localeCompare(b.fetchedAt ?? '');
-        case 'commute_asc':
-          return (a.commuteMinutes ?? 9999) - (b.commuteMinutes ?? 9999);
-        case 'salary_desc':
-          return (b.salaryMax ?? b.salaryMin ?? 0) - (a.salaryMax ?? a.salaryMin ?? 0);
-        default:
-          return 0;
+        case 'score_desc':  return b.score - a.score;
+        case 'date_newest': return (b.fetchedAt ?? '').localeCompare(a.fetchedAt ?? '');
+        case 'date_oldest': return (a.fetchedAt ?? '').localeCompare(b.fetchedAt ?? '');
+        case 'commute_asc': return (a.commuteMinutes ?? 9999) - (b.commuteMinutes ?? 9999);
+        case 'salary_desc': return (b.salaryMax ?? b.salaryMin ?? 0) - (a.salaryMax ?? a.salaryMin ?? 0);
+        default:            return 0;
       }
     });
 

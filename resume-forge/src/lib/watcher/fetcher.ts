@@ -2,12 +2,11 @@
  * Orchestrateur de collecte des offres d'emploi.
  *
  * Pour chaque source activée :
- *  1. Appelle le parser correspondant
+ *  1. Appelle le parser correspondant (avec settings.searchProfile comme source de vérité)
  *  2. Calcule le hash de déduplication
  *  3. Filtre les doublons déjà en base
- *  4. Calcule le score de pertinence
+ *  4. Calcule le score de pertinence (scorer field-aware v2)
  *  5. Calcule le temps de trajet (si Navitia configuré)
- *     → Skip Nominatim si la RawJobOffer contient déjà locationLat/locationLon (FT)
  *  6. Sauvegarde les nouvelles offres en base
  *
  * Les erreurs par source sont loguées mais ne stoppent pas les autres sources.
@@ -22,6 +21,8 @@ import { parseApec } from './parsers/apec';
 import { parseWttj } from './parsers/wttj';
 import { parseLinkedinRss } from './parsers/linkedin-rss';
 import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
+import { parseEmploiTerritorial } from './parsers/emploi-territorial';
+import { parseMantiks } from './parsers/mantiks';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 
 /** Load learned dictionary and company reputation from DB for scoring. */
@@ -33,13 +34,13 @@ async function loadLearnedSignals(db: Awaited<ReturnType<typeof getDb>>): Promis
     const map: Record<string, string> = {};
     for (const row of rows) map[row.key] = row.value;
 
-    const learnedDict = {
-      positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
-      negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
+    return {
+      learnedDict: {
+        positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
+        negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
+      },
+      companyReputation: map['company_reputation'] ? JSON.parse(map['company_reputation']) : {},
     };
-    const companyReputation = map['company_reputation'] ? JSON.parse(map['company_reputation']) : {};
-
-    return { learnedDict, companyReputation };
   } catch {
     return {};
   }
@@ -51,13 +52,15 @@ export interface FetchResult {
   errors: string[];
 }
 
-/** Run a single parser, catching all errors */
+/** Run a single parser — settings.searchProfile drives all query parameters */
 async function runParser(config: JobWatchConfig, settings: JobWatchSettings): Promise<RawJobOffer[]> {
   switch (config.source) {
-    case 'apec':          return parseApec(config);
-    case 'wttj':          return parseWttj(config);
-    case 'linkedin_rss':  return parseLinkedinRss(config);
-    case 'france_travail': return parseFranceTravail(config, settings);
+    case 'apec':               return parseApec(config, settings);
+    case 'wttj':               return parseWttj(config, settings);
+    case 'linkedin_rss':       return parseLinkedinRss(config);
+    case 'france_travail':     return parseFranceTravail(config, settings);
+    case 'emploi_territorial': return parseEmploiTerritorial(config, settings);
+    case 'mantiks':            return parseMantiks(config, settings);
     default:
       throw new Error(`Source inconnue: ${config.source as string}`);
   }
@@ -65,25 +68,23 @@ async function runParser(config: JobWatchConfig, settings: JobWatchSettings): Pr
 
 /**
  * Main fetch pipeline — runs all enabled sources.
- * @param profileId - ID du profil courant pour isoler les données par utilisateur.
- * @returns Summary per source (new offers count, errors)
+ * All search parameters (keywords, location, contract types) come from
+ * settings.searchProfile — the single source of truth.
  */
 export async function runFetch(
-  configs:    JobWatchConfig[],
-  settings:   JobWatchSettings,
+  configs:     JobWatchConfig[],
+  settings:    JobWatchSettings,
   onProgress?: (source: JobSource, status: string) => void,
-  profileId?: string | null,
+  profileId?:  string | null,
 ): Promise<FetchResult[]> {
   const db = await getDb();
   const existingHashes = await loadExistingHashes(db, profileId ?? null);
   const results: FetchResult[] = [];
 
-  // Load learned signals for scoring
   const learned = await loadLearnedSignals(db);
 
   const enabledConfigs = configs.filter(c => c.enabled === 1);
 
-  // Phase 1: Fetch, dedup by hash, score, compute commute — collect all new offers
   interface ProcessedOffer {
     raw: RawJobOffer;
     hash: string;
@@ -117,26 +118,27 @@ export async function runFetch(
         const hash = await computeOfferHash(raw.source, raw.url);
         if (existingHashes.has(hash)) continue;
 
-        const score = computeScore(raw, settings.searchIntent, settings.blacklistedCompanies, learned);
+        // Score using the unified SearchProfile (field-aware v2)
+        const score = computeScore(raw, settings.searchProfile, learned);
 
         let commuteMinutes: number | null = null;
         let commuteStatus: 'pending' | 'ok' | 'error' | 'not_found' = 'pending';
 
         if (settings.navitiaApiKey && settings.commuteOriginAddress) {
           if (raw.locationLat != null && raw.locationLon != null) {
-            const commuteResult = await getCommuteMinutesByCoords(
+            const res = await getCommuteMinutesByCoords(
               settings.commuteOriginAddress, raw.locationLat, raw.locationLon,
               settings.commuteDepartureTime, settings.navitiaApiKey
             );
-            commuteStatus  = commuteResult.status;
-            commuteMinutes = commuteResult.minutes;
+            commuteStatus  = res.status;
+            commuteMinutes = res.minutes;
           } else if (raw.location) {
-            const commuteResult = await getCommuteMinutes(
+            const res = await getCommuteMinutes(
               settings.commuteOriginAddress, raw.location,
               settings.commuteDepartureTime, settings.navitiaApiKey
             );
-            commuteStatus  = commuteResult.status;
-            commuteMinutes = commuteResult.minutes;
+            commuteStatus  = res.status;
+            commuteMinutes = res.minutes;
           } else {
             commuteStatus = 'not_found';
           }
@@ -153,10 +155,10 @@ export async function runFetch(
       }
     }
 
-    onProgress?.(config.source, `traitement terminé`);
+    onProgress?.(config.source, 'traitement terminé');
   }
 
-  // Phase 2: Cross-source deduplication — remove duplicate offers from different sources
+  // Phase 2: Cross-source deduplication
   const skipIndices = detectCrossSourceDuplicates(
     allProcessed.map(p => ({ title: p.raw.title, company: p.raw.company, source: p.raw.source, score: p.score }))
   );
@@ -191,13 +193,11 @@ export async function runFetch(
       if (sourceResult) sourceResult.newOffers++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const sourceResult = sourceResultMap.get(raw.source as JobSource);
-      sourceResult?.errors.push(`Offre ${raw.url}: ${msg}`);
+      sourceResultMap.get(raw.source as JobSource)?.errors.push(`Offre ${raw.url}: ${msg}`);
       console.error('[fetcher] Erreur insertion offre:', err);
     }
   }
 
-  // Collect results for sources that weren't already pushed (due to parser error)
   for (const config of enabledConfigs) {
     const result = sourceResultMap.get(config.source);
     if (result && !results.includes(result)) {

@@ -1,53 +1,88 @@
 /**
- * Parser Welcome to the Jungle — scraping HTTP + parsing HTML
+ * Parser Welcome to the Jungle — HTTP scraping + JSON-LD / HTML parsing
  *
- * WTTJ n'a pas de flux RSS. On scrape la page de recherche et on extrait
- * les offres depuis les balises JSON-LD ou les éléments HTML structurés.
+ * WTTJ n'a pas de flux RSS. On scrape la page de recherche.
+ * Stratégie 1 : JSON-LD JobPosting (structured data, HIGH confidence)
+ * Stratégie 2 : HTML fallback (MEDIUM confidence)
  *
- * URL de recherche type:
- *   https://www.welcometothejungle.com/fr/jobs?query=MOTS&refinementList%5Boffices.country_code%5D%5B%5D=FR
+ * Qualité d'extraction :
+ *   Titre   : HIGH si JSON-LD, MEDIUM si HTML
+ *   Lieu    : MEDIUM si JSON-LD (addressLocality), LOW si HTML
+ *   Contrat : MEDIUM si JSON-LD employmentType, LOW si regex
  */
 
-import { RawJobOffer } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
 import { stripHtml, parseDate } from './rss-utils';
-import type { JobWatchConfig } from '@/types/job-watch';
+import { buildWttjQuery, isExcludedByProfile } from '../profile-to-query';
 import { tauriFetch, BROWSER_USER_AGENT } from '../http';
 
 const WTTJ_SEARCH_URL = 'https://www.welcometothejungle.com/fr/jobs';
 const TIMEOUT_MS = 10_000;
 
-export function buildWttjUrl(config: Pick<JobWatchConfig, 'keywords' | 'location'>): string {
+export function buildWttjUrl(config: JobWatchConfig, settings: JobWatchSettings): string {
+  const query  = buildWttjQuery(settings.searchProfile);
   const params = new URLSearchParams();
-  if (config.keywords.length > 0) params.set('query', config.keywords.join(' '));
+  if (query.query) params.set('query', query.query);
   params.set('refinementList[offices.country_code][]', 'FR');
-  if (config.location) params.set('refinementList[offices.city][]', config.location);
+  if (query.city)  params.set('refinementList[offices.city][]', query.city);
   return `${WTTJ_SEARCH_URL}?${params.toString()}`;
 }
 
+// ── JSON-LD types ─────────────────────────────────────────────────────────────
+
 interface WttjJsonLdJob {
-  '@type'?: string;
-  title?: string;
+  '@type'?:           string;
+  title?:             string;
   hiringOrganization?: { name?: string };
-  jobLocation?: { address?: { addressLocality?: string } } | Array<{ address?: { addressLocality?: string } }>;
+  jobLocation?:
+    | { address?: { addressLocality?: string; addressRegion?: string } }
+    | Array<{ address?: { addressLocality?: string; addressRegion?: string } }>;
   employmentType?: string;
-  description?: string;
-  datePosted?: string;
-  url?: string;
+  description?:   string;
+  datePosted?:    string;
+  url?:           string;
+  baseSalary?: {
+    value?: { minValue?: number; maxValue?: number; value?: number; unitText?: string };
+    currency?: string;
+  };
 }
 
-export async function parseWttj(config: JobWatchConfig): Promise<RawJobOffer[]> {
-  const pageUrl = config.rssUrl ?? buildWttjUrl(config);
+/** Normalise WTTJ employmentType to a canonical French label */
+function normaliseEmploymentType(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const r = raw.toLowerCase();
+  if (r.includes('full_time') || r.includes('full-time') || r.includes('cdi')) return 'CDI';
+  if (r.includes('part_time') || r.includes('part-time'))                       return 'CDD';
+  if (r.includes('contractor') || r.includes('freelance'))                      return 'Freelance';
+  if (r.includes('intern') || r.includes('stage'))                              return 'Stage';
+  if (r.includes('apprentice') || r.includes('alternance'))                     return 'Alternance';
+  return raw;
+}
+
+/** Extract city from jobLocation, supporting both object and array forms */
+function extractCity(jobLocation: WttjJsonLdJob['jobLocation']): string | null {
+  if (!jobLocation) return null;
+  const loc = Array.isArray(jobLocation) ? jobLocation[0] : jobLocation;
+  return loc?.address?.addressLocality ?? loc?.address?.addressRegion ?? null;
+}
+
+export async function parseWttj(
+  config: JobWatchConfig,
+  settings: JobWatchSettings,
+): Promise<RawJobOffer[]> {
+  const pageUrl = config.rssUrl ?? buildWttjUrl(config, settings);
+  const profile = settings.searchProfile;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timeoutId  = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   let html: string;
   try {
     const res = await tauriFetch(pageUrl, {
       signal: controller.signal,
       headers: {
-        'User-Agent': BROWSER_USER_AGENT,
-        'Accept': 'text/html,application/xhtml+xml',
+        'User-Agent':      BROWSER_USER_AGENT,
+        'Accept':          'text/html,application/xhtml+xml',
         'Accept-Language': 'fr-FR,fr;q=0.9',
       },
     });
@@ -58,43 +93,75 @@ export async function parseWttj(config: JobWatchConfig): Promise<RawJobOffer[]> 
   }
 
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const doc    = parser.parseFromString(html, 'text/html');
 
-  // Strategy 1: Extract JSON-LD structured data
-  const jsonLdScripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
   const offers: RawJobOffer[] = [];
+
+  // ── Strategy 1: JSON-LD structured data (HIGH confidence) ─────────────────
+  const jsonLdScripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
 
   for (const script of jsonLdScripts) {
     try {
-      const data = JSON.parse(script.textContent ?? '{}') as WttjJsonLdJob | { '@graph'?: WttjJsonLdJob[] } | WttjJsonLdJob[];
+      const raw = JSON.parse(script.textContent ?? '{}');
       const jobs: WttjJsonLdJob[] = [];
 
-      if (Array.isArray(data)) {
-        jobs.push(...data);
-      } else if ('@graph' in data && Array.isArray(data['@graph'])) {
-        jobs.push(...data['@graph']);
-      } else if ((data as WttjJsonLdJob)['@type'] === 'JobPosting') {
-        jobs.push(data as WttjJsonLdJob);
+      if (Array.isArray(raw)) {
+        jobs.push(...raw);
+      } else if ('@graph' in raw && Array.isArray(raw['@graph'])) {
+        jobs.push(...raw['@graph']);
+      } else if (raw['@type'] === 'JobPosting') {
+        jobs.push(raw as WttjJsonLdJob);
       }
 
       for (const job of jobs) {
         if (job['@type'] !== 'JobPosting' || !job.title) continue;
 
-        const locationEl = Array.isArray(job.jobLocation) ? job.jobLocation[0] : job.jobLocation;
-        const location = locationEl?.address?.addressLocality ?? null;
+        const city        = extractCity(job.jobLocation);
+        const contractRaw = normaliseEmploymentType(job.employmentType);
+        const offerUrl    = job.url ?? pageUrl;
 
-        // Build URL: prefer explicit url, fallback to search page
-        const offerUrl = job.url ?? pageUrl;
+        // Salary from JSON-LD baseSalary (annual amounts)
+        let salaryMin: number | null = null;
+        let salaryMax: number | null = null;
+        let salaryRaw: string | null = null;
+        if (job.baseSalary?.value) {
+          const bv = job.baseSalary.value;
+          salaryMin = bv.minValue ?? bv.value ?? null;
+          salaryMax = bv.maxValue ?? bv.value ?? null;
+          if (salaryMin !== null) {
+            const cur  = job.baseSalary.currency ?? '€';
+            const unit = bv.unitText?.toLowerCase();
+            // Convert monthly salary to annual
+            if (unit === 'month' || unit === 'monthly') {
+              salaryMin = Math.round(salaryMin * 12);
+              if (salaryMax) salaryMax = Math.round(salaryMax * 12);
+            }
+            salaryRaw = `${salaryMin}${salaryMax && salaryMax !== salaryMin ? '-' + salaryMax : ''} ${cur}`;
+          }
+        }
+
+        const extraction: ExtractionMetadata = {
+          titleSource:        'json_ld',
+          titleConfidence:    'high',
+          locationSource:     city ? 'json_ld' : 'none',
+          locationConfidence: city ? 'medium' : 'none', // WTTJ may omit region
+          contractSource:     job.employmentType ? 'json_ld' : 'none',
+          contractConfidence: job.employmentType ? 'medium' : 'none',
+        };
 
         offers.push({
           source:             'wttj',
           url:                offerUrl,
           title:              job.title,
           company:            job.hiringOrganization?.name ?? null,
-          location,
-          contractType:       job.employmentType ?? null,
+          location:           city,
+          contractType:       contractRaw,
           descriptionSnippet: job.description ? stripHtml(job.description, 500) : null,
           publishedAt:        parseDate(job.datePosted ?? null),
+          salaryMin,
+          salaryMax,
+          salaryRaw,
+          extraction,
         });
       }
     } catch {
@@ -102,19 +169,31 @@ export async function parseWttj(config: JobWatchConfig): Promise<RawJobOffer[]> 
     }
   }
 
-  // Strategy 2: Fallback HTML parsing if JSON-LD yields nothing
+  // ── Strategy 2: HTML fallback (MEDIUM confidence) ─────────────────────────
   if (offers.length === 0) {
-    const cards = Array.from(doc.querySelectorAll('[data-testid="job-list-item"], article[class*="job"]'));
+    const cards = Array.from(
+      doc.querySelectorAll('[data-testid="job-list-item"], article[class*="job"]')
+    );
+
     for (const card of cards) {
-      const titleEl   = card.querySelector('h3, h2, [class*="title"]');
-      const companyEl = card.querySelector('[class*="company"], [class*="organization"]');
+      const titleEl    = card.querySelector('h3, h2, [class*="title"]');
+      const companyEl  = card.querySelector('[class*="company"], [class*="organization"]');
       const locationEl = card.querySelector('[class*="location"], [class*="city"]');
-      const linkEl    = card.querySelector('a[href*="/jobs/"]');
+      const linkEl     = card.querySelector('a[href*="/jobs/"]');
 
       if (!titleEl || !linkEl) continue;
 
       const href = linkEl.getAttribute('href') ?? '';
       const url  = href.startsWith('http') ? href : `https://www.welcometothejungle.com${href}`;
+
+      const extraction: ExtractionMetadata = {
+        titleSource:        'html_primary',
+        titleConfidence:    'medium',
+        locationSource:     locationEl ? 'html' : 'none',
+        locationConfidence: locationEl ? 'low' : 'none',
+        contractSource:     'none',
+        contractConfidence: 'none',
+      };
 
       offers.push({
         source:             'wttj',
@@ -125,18 +204,14 @@ export async function parseWttj(config: JobWatchConfig): Promise<RawJobOffer[]> 
         contractType:       null,
         descriptionSnippet: null,
         publishedAt:        null,
+        extraction,
       });
     }
   }
 
-  // Filter out offers matching exclude keywords (local filtering)
-  if (config.excludeKeywords?.length > 0) {
-    const excludeLower = config.excludeKeywords.map(k => k.toLowerCase());
-    return offers.filter(o => {
-      const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`.toLowerCase();
-      return !excludeLower.some(ex => text.includes(ex));
-    });
-  }
-
-  return offers;
+  // Local exclusion filter (WTTJ has no server-side exclusion support)
+  return offers.filter(o => {
+    const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`;
+    return !isExcludedByProfile(text, profile);
+  });
 }
