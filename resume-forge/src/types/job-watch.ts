@@ -1,4 +1,4 @@
-export type JobSource = 'apec' | 'indeed' | 'hellowork' | 'wttj' | 'linkedin_rss' | 'france_travail';
+export type JobSource = 'apec' | 'wttj' | 'linkedin_rss' | 'france_travail';
 
 /**
  * Structured search intent replacing flat positiveKeywords / negativeKeywords.
@@ -142,7 +142,7 @@ export interface JobWatchFilters {
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
-  sources: ['apec', 'indeed', 'hellowork', 'wttj', 'linkedin_rss', 'france_travail'],
+  sources: ['apec', 'wttj', 'linkedin_rss', 'france_travail'],
   minScore: 0,
   maxCommuteMinutes: null,
   status: 'all',

@@ -19,9 +19,7 @@ import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } fro
 import { computeScore, LearnedSignals } from './scorer';
 import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
 import { parseApec } from './parsers/apec';
-import { parseIndeed } from './parsers/indeed';
 import { parseWttj } from './parsers/wttj';
-import { parseHellowork } from './parsers/hellowork';
 import { parseLinkedinRss } from './parsers/linkedin-rss';
 import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -57,8 +55,6 @@ export interface FetchResult {
 async function runParser(config: JobWatchConfig, settings: JobWatchSettings): Promise<RawJobOffer[]> {
   switch (config.source) {
     case 'apec':          return parseApec(config);
-    case 'indeed':        return parseIndeed(config);
-    case 'hellowork':     return parseHellowork(config);
     case 'wttj':          return parseWttj(config);
     case 'linkedin_rss':  return parseLinkedinRss(config);
     case 'france_travail': return parseFranceTravail(config, settings);

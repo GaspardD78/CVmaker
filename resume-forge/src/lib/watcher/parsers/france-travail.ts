@@ -166,7 +166,17 @@ export async function parseFranceTravail(
       }
       params.set('motsCles', kw);
     }
-    if (config.location)            params.set('commune', config.location);
+    // France Travail requires the 'commune' parameter to be a 5-digit INSEE code.
+    // User might input city names or postal codes, which leads to a 400 Bad Request error.
+    // We only set 'commune' if it matches exactly 5 digits (a reasonable heuristic for an INSEE code).
+    if (config.location) {
+      const isLikelyInseeCode = /^\d{5}$/.test(config.location.trim());
+      if (isLikelyInseeCode) {
+        params.set('commune', config.location.trim());
+      } else {
+        console.warn(`[france-travail] location "${config.location}" is not a 5-digit INSEE code. Ignoring 'commune' param to prevent 400 error.`);
+      }
+    }
     if (config.ftDeptCode)          params.set('departement', config.ftDeptCode);
     if (config.radiusKm)            params.set('distance', String(config.radiusKm));
     params.set('range', `${page * PAGE_SIZE}-${(page + 1) * PAGE_SIZE - 1}`);

@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { JobOffer, JobWatchSettings, JobSource } from '@/types/job-watch';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec: 'APEC', indeed: 'Indeed', hellowork: 'HelloWork', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
+  apec: 'APEC', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
 };
 
 export function buildEmailHtml(offers: JobOffer[], date: string): string {
@@ -15,7 +15,7 @@ export function buildEmailHtml(offers: JobOffer[], date: string): string {
     (acc[key] ??= []).push(o);
     return acc;
   }, {});
-  const sources: JobSource[] = ['apec', 'hellowork', 'indeed', 'wttj', 'linkedin_rss', 'france_travail'];
+  const sources: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail'];
 
   const summaryRows = sources
     .filter(s => bySource[s]?.length)
