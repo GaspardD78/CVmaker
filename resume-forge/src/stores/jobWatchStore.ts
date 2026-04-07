@@ -169,6 +169,17 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       get().fetchConfigs(),
       get().fetchSettings(),
     ]);
+
+    // Clean up deprecated sources from state
+    const configs = get().configs;
+    const hasDeprecated = configs.some(c => (c.source as string) === 'indeed' || (c.source as string) === 'hellowork');
+    if (hasDeprecated) {
+      for (const c of configs) {
+         if ((c.source as string) === 'indeed' || (c.source as string) === 'hellowork') {
+           await get().deleteConfig(c.id);
+         }
+      }
+    }
   },
 
   // ── Offers ────────────────────────────────────────────────────────────────

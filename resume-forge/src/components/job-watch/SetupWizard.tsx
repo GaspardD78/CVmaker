@@ -8,15 +8,13 @@ import type { JobSource, SearchIntent } from '@/types/job-watch';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
   apec: 'APEC',
-  indeed: 'Indeed',
-  hellowork: 'HelloWork',
   wttj: 'Welcome to the Jungle',
   linkedin_rss: 'LinkedIn (RSS)',
   france_travail: 'France Travail',
 };
 
-const DEFAULT_SOURCES: JobSource[] = ['apec', 'hellowork', 'wttj'];
-const ALL_SOURCES: JobSource[] = ['apec', 'hellowork', 'wttj', 'linkedin_rss', 'france_travail', 'indeed'];
+const DEFAULT_SOURCES: JobSource[] = ['apec', 'wttj'];
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail'];
 
 type Step = 'profile' | 'intent' | 'sources';
 

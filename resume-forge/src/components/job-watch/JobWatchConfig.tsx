@@ -19,16 +19,14 @@ import {
 
 const SOURCE_LABELS: Record<JobSource, string> = {
   apec:          'APEC',
-  indeed:        'Indeed',
-  hellowork:     'HelloWork',
   wttj:          'Welcome to the Jungle',
   linkedin_rss:  'LinkedIn (RSS tiers)',
   france_travail:'France Travail',
 };
 
-const ALL_SOURCES: JobSource[] = ['apec', 'hellowork', 'wttj', 'linkedin_rss', 'france_travail', 'indeed'];
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail'];
 const RSS_URL_SOURCES: JobSource[] = ['linkedin_rss'];
-const RSS_URL_OPTIONAL: JobSource[] = ['apec', 'hellowork', 'wttj'];
+const RSS_URL_OPTIONAL: JobSource[] = ['apec', 'wttj'];
 
 type HelpModal = 'sources' | 'ft' | 'navitia' | 'email' | 'linkedin' | null;
 
