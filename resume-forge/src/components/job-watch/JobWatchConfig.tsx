@@ -555,6 +555,7 @@ export function JobWatchConfigView() {
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Client Secret</label>
             <input
               type="password"
+              autoComplete="new-password"
               value={settingsDraft.ftClientSecret}
               onChange={e => updateSetting('ftClientSecret', e.target.value)}
               className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -767,6 +768,7 @@ export function JobWatchConfigView() {
             </label>
             <input
               type="password"
+              autoComplete="new-password"
               value={settingsDraft.navitiaApiKey}
               onChange={e => updateSetting('navitiaApiKey', e.target.value)}
               className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -879,6 +881,7 @@ export function JobWatchConfigView() {
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Mot de passe SMTP</label>
             <input
               type="password"
+              autoComplete="new-password"
               value={settingsDraft.emailSmtpPassword}
               onChange={e => updateSetting('emailSmtpPassword', e.target.value)}
               className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
