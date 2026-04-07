@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { RefreshCw, Trash2, UserRound, ArrowUpDown, Archive, BookmarkCheck, CheckCircle, Settings, Zap } from 'lucide-react';
+import { RefreshCw, Trash2, UserRound, Archive, BookmarkCheck, CheckCircle, Settings, Zap, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -26,18 +26,18 @@ const COMMUTE_OPTIONS: Array<{ label: string; value: number | null }> = [
 
 const AGE_OPTIONS: Array<{ label: string; value: number | null }> = [
   { label: 'Tous',     value: null },
-  { label: '1 jour',   value: 1    },
-  { label: '3 jours',  value: 3    },
-  { label: '7 jours',  value: 7    },
-  { label: '30 jours', value: 30   },
+  { label: '1 j',      value: 1    },
+  { label: '3 j',      value: 3    },
+  { label: '7 j',      value: 7    },
+  { label: '30 j',     value: 30   },
 ];
 
 const SORT_OPTIONS: Array<{ label: string; value: SortOption }> = [
-  { label: 'Score',         value: 'score_desc'   },
-  { label: 'Plus récentes', value: 'date_newest'  },
-  { label: 'Plus anciennes',value: 'date_oldest'  },
-  { label: 'Trajet court',  value: 'commute_asc'  },
-  { label: 'Salaire',       value: 'salary_desc'  },
+  { label: 'Score',      value: 'score_desc'   },
+  { label: 'Récentes',   value: 'date_newest'  },
+  { label: 'Anciennes',  value: 'date_oldest'  },
+  { label: 'Trajet',     value: 'commute_asc'  },
+  { label: 'Salaire',    value: 'salary_desc'  },
 ];
 
 export function JobOffersView() {
@@ -71,7 +71,22 @@ export function JobOffersView() {
   const isFirstTime = configs.length === 0;
 
   const [savedFilters, setSavedFilters] = useState<{ minScore: number; status: typeof filters.status } | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const isTopMatchActive = savedFilters !== null;
+
+  const navitiaEnabled = Boolean(settings.navitiaApiKey);
+
+  // Count non-default active filters for the badge
+  const activeFilterCount = [
+    filters.sources.length < ALL_SOURCES.length,
+    filters.minScore > 0,
+    navitiaEnabled && filters.maxCommuteMinutes !== null,
+    filters.status !== 'all',
+    (filters.contractTypes?.length ?? 0) > 0,
+    filters.maxAgeDays !== null,
+    (filters.sortBy ?? 'score_desc') !== 'score_desc',
+    isTopMatchActive,
+  ].filter(Boolean).length;
 
   // ── Filters ────────────────────────────────────────────────────────────────
 
@@ -123,7 +138,6 @@ export function JobOffersView() {
         salaryMax:   offer.salaryMax ?? undefined,
       } as Parameters<typeof createApplication>[0]);
 
-      // Retrieve the newly created application id
       const { useApplicationStore: appStore } = await import('@/stores/applicationStore');
       const apps = appStore.getState().applications;
       const newApp = apps.find(a => a.jobUrl === offer.url && a.companyName === (offer.company ?? 'Entreprise inconnue'));
@@ -144,10 +158,8 @@ export function JobOffersView() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const navitiaEnabled = Boolean(settings.navitiaApiKey);
-
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
@@ -161,13 +173,34 @@ export function JobOffersView() {
           </h2>
           <span className="text-sm text-gray-400">({offers.length} affichée{offers.length > 1 ? 's' : ''})</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Filter toggle */}
+          <button
+            onClick={() => setFiltersOpen(o => !o)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+              filtersOpen || activeFilterCount > 0
+                ? 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            Filtres
+            {activeFilterCount > 0 && (
+              <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">
+                {activeFilterCount}
+              </span>
+            )}
+            {filtersOpen
+              ? <ChevronUp className="w-3 h-3 opacity-60" />
+              : <ChevronDown className="w-3 h-3 opacity-60" />}
+          </button>
+
           <button
             onClick={handleDeleteArchived}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            Vider les archivées
+            Vider archivées
           </button>
           <button
             onClick={() => triggerFetch(false)}
@@ -180,161 +213,159 @@ export function JobOffersView() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-wrap gap-4">
-        {/* Source checkboxes */}
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Sources</p>
-          <div className="flex flex-wrap gap-2">
-            {ALL_SOURCES.map(source => (
-              <label key={source} className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.sources.includes(source)}
-                  onChange={() => toggleSource(source)}
-                  className="w-3.5 h-3.5 rounded accent-blue-600"
-                />
-                <span className="text-xs text-gray-600 dark:text-gray-300">{SOURCE_LABELS[source]}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+      {/* Filters — collapsible */}
+      {filtersOpen && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-3">
+          {/* Row 1: Sources + Status */}
+          <div className="flex flex-wrap gap-x-6 gap-y-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">Sources</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                {ALL_SOURCES.map(source => (
+                  <label key={source} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.sources.includes(source)}
+                      onChange={() => toggleSource(source)}
+                      className="w-3.5 h-3.5 rounded accent-blue-600"
+                    />
+                    <span className="text-xs text-gray-600 dark:text-gray-300">{SOURCE_LABELS[source]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
-        {/* Score min slider */}
-        <div>
-          <div className="flex items-center gap-3 mb-1.5">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Score min : <span className="text-gray-800 dark:text-gray-100 font-semibold">{filters.minScore}</span>
-            </p>
-            <button
-              onClick={toggleTopMatch}
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                isTopMatchActive
-                  ? 'bg-purple-600 text-white shadow-inner'
-                  : 'border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 dark:border-purple-800 dark:text-purple-300 dark:bg-purple-900/30'
-              }`}
-            >
-              <UserRound className="w-3 h-3" />
-              {isTopMatchActive ? 'Top Match (Actif)' : 'Top Match'}
-            </button>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={filters.minScore}
-            onChange={e => {
-              if (isTopMatchActive) setSavedFilters(null);
-              setFilters({ minScore: Number(e.target.value) });
-            }}
-            className="w-32 accent-blue-600"
-          />
-        </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">Statut</p>
+              <div className="flex gap-1.5">
+                {(['all', 'unread', 'archived'] as const).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setFilters({ status: s })}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      filters.status === s
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {s === 'all' ? 'Toutes' : s === 'unread' ? 'Non lues' : 'Archivées'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Commute max */}
-        {navitiaEnabled && (
-          <div>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Trajet max</p>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMUTE_OPTIONS.map(opt => (
-                <button
-                  key={String(opt.value)}
-                  onClick={() => setFilters({ maxCommuteMinutes: opt.value })}
-                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                    filters.maxCommuteMinutes === opt.value
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">Contrats</p>
+              <div className="flex flex-wrap gap-1.5">
+                {['CDI', 'CDD', 'Freelance', 'Stage/Alternance'].map(type => (
+                  <button
+                    key={type}
+                    onClick={() => toggleContractType(type)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      filters.contractTypes?.includes(type)
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Status */}
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Statut</p>
-          <div className="flex gap-1.5 items-center">
-            {(['all', 'unread', 'archived'] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setFilters({ status: s })}
-                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                  filters.status === s
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {s === 'all' ? 'Toutes' : s === 'unread' ? 'Non lues' : 'Archivées'}
-              </button>
-            ))}
+          {/* Row 2: Score + Ancienneté + Tri + Trajet */}
+          <div className="flex flex-wrap gap-x-6 gap-y-3 pt-2.5 border-t border-gray-100 dark:border-gray-700">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Score min <span className="text-gray-700 dark:text-gray-200 font-bold normal-case">{filters.minScore}</span>
+                </p>
+                <button
+                  onClick={toggleTopMatch}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                    isTopMatchActive
+                      ? 'bg-purple-600 text-white'
+                      : 'border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 dark:border-purple-800 dark:text-purple-300 dark:bg-purple-900/30'
+                  }`}
+                >
+                  <UserRound className="w-2.5 h-2.5" />
+                  Top Match
+                </button>
+              </div>
+              <input
+                type="range"
+                min={0} max={100} step={5}
+                value={filters.minScore}
+                onChange={e => {
+                  if (isTopMatchActive) setSavedFilters(null);
+                  setFilters({ minScore: Number(e.target.value) });
+                }}
+                className="w-28 accent-blue-600"
+              />
+            </div>
+
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">Ancienneté</p>
+              <div className="flex flex-wrap gap-1.5">
+                {AGE_OPTIONS.map(opt => (
+                  <button
+                    key={String(opt.value)}
+                    onClick={() => setFilters({ maxAgeDays: opt.value })}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      filters.maxAgeDays === opt.value
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">Tri</p>
+              <div className="flex flex-wrap gap-1.5">
+                {SORT_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setFilters({ sortBy: opt.value })}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      (filters.sortBy ?? 'score_desc') === opt.value
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {navitiaEnabled && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">Trajet max</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {COMMUTE_OPTIONS.map(opt => (
+                    <button
+                      key={String(opt.value)}
+                      onClick={() => setFilters({ maxCommuteMinutes: opt.value })}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        filters.maxCommuteMinutes === opt.value
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Contrats */}
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Contrats</p>
-          <div className="flex flex-wrap gap-1.5">
-            {['CDI', 'CDD', 'Freelance', 'Stage/Alternance'].map(type => (
-              <button
-                key={type}
-                onClick={() => toggleContractType(type)}
-                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                  filters.contractTypes?.includes(type)
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Ancienneté */}
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Ancienneté</p>
-          <div className="flex flex-wrap gap-1.5">
-            {AGE_OPTIONS.map(opt => (
-              <button
-                key={String(opt.value)}
-                onClick={() => setFilters({ maxAgeDays: opt.value })}
-                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                  filters.maxAgeDays === opt.value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Sort */}
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Tri</p>
-          <div className="flex flex-wrap gap-1.5">
-            {SORT_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setFilters({ sortBy: opt.value })}
-                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                  (filters.sortBy ?? 'score_desc') === opt.value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-      </div>
+      )}
 
       {/* Batch actions */}
       {offers.length > 0 && (
@@ -380,7 +411,6 @@ export function JobOffersView() {
       ) : offers.length === 0 ? (
         <div className="text-center py-10">
           {isFirstTime ? (
-            /* First-time onboarding */
             <div className="max-w-sm mx-auto space-y-4">
               <Zap className="w-10 h-10 mx-auto text-blue-400" />
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">

@@ -57,7 +57,7 @@ function CommuteBadge({ minutes, status, maxMinutes }: CommuteBadgeProps) {
   if (status === 'not_found') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800">
-        <MapPin className="w-3 h-3" /> Localisation non précisée
+        <MapPin className="w-3 h-3" /> Non précisé
       </span>
     );
   }
@@ -103,10 +103,18 @@ function SalaryBadge({ salaryMin, salaryMax, salaryRaw }: Pick<JobOffer, 'salary
   );
 }
 
-function ProfileMatchBadge({ match }: { match: number }) {
+/**
+ * Badge showing how many of the user's skills appear in the offer text.
+ * Label kept neutral — "Compétences" — to avoid confusion with the scoring
+ * engine's `score` field shown in `ScoreBadge`.
+ */
+function SkillMatchBadge({ match }: { match: number }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-      Match : {match}%
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+      title="Pourcentage de vos compétences présentes dans l'offre"
+    >
+      Compétences : {match}%
     </span>
   );
 }
@@ -124,7 +132,6 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
   const { profile, entries } = useProfileStore();
   const navigate = useNavigate();
 
-  // Track when this card was rendered to compute accurate time-to-action
   const displayedAt = useRef<number>(Date.now());
   const getTimeToAction = () => Math.floor((Date.now() - displayedAt.current) / 1000);
 
@@ -180,36 +187,30 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Only act on the card element itself — ignore events bubbling from inputs
     if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
-
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      handleThumbsUp();                          // → Thumbs up
+      handleThumbsUp();
     } else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
       e.preventDefault();
-      handleQuickArchive();                      // ← or A → quick archive
+      handleQuickArchive();
     } else if (e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      handleImportKanban();                      // K → Import Kanban
+      handleImportKanban();
     }
   };
 
-  // Alias kept for clarity in JSX
-  const handleImport = handleImportKanban;
-
-  const isUnread    = offer.isRead === 0;
-  const isArchived  = offer.isArchived === 1;
-  const hasKanban   = offer.kanbanId !== null;
-  // "Pépite" = high-score, unread, and commute within the user's threshold (or uncalculated)
-  const isPepite    =
+  const isUnread   = offer.isRead === 0;
+  const isArchived = offer.isArchived === 1;
+  const hasKanban  = offer.kanbanId !== null;
+  const isPepite   =
     offer.score >= 85 &&
     isUnread &&
     (offer.commuteMinutes === null ||
      commuteMaxMinutes === null ||
      offer.commuteMinutes <= commuteMaxMinutes);
 
-  const profileMatch = useMemo(
+  const skillMatch = useMemo(
     () => computeLightProfileMatch(`${offer.title} ${offer.descriptionSnippet ?? ''}`, profileSkills),
     [offer.title, offer.descriptionSnippet, profileSkills],
   );
@@ -239,11 +240,11 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
           </span>
         </div>
       )}
+
       {/* Header */}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="px-4 pt-3 pb-2">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            {/* Title + unread dot */}
             <div className="flex items-center gap-2">
               {isUnread && (
                 <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" aria-label="Non lue" />
@@ -252,15 +253,36 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
                 {offer.title}
               </h3>
             </div>
-            {/* Company + location */}
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
               {[offer.company, offer.location].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">{fetchedDate}</span>
+
+          {/* Date + inline feedback */}
+          <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+            {!isArchived && (
+              <>
+                <button
+                  onClick={handleThumbsUp}
+                  title="J'aime cette offre (→)"
+                  className="p-1 rounded text-gray-300 hover:text-green-500 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                >
+                  <ThumbsUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleThumbsDown}
+                  title="Pas intéressé (← ou A)"
+                  className="p-1 rounded text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <ThumbsDown className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+            <span className="text-xs text-gray-400 ml-1">{fetchedDate}</span>
+          </div>
         </div>
 
-        {/* Badges row */}
+        {/* Badges */}
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${SOURCE_COLORS[offer.source as JobSource]}`}>
             {SOURCE_LABELS[offer.source as JobSource] ?? offer.source}
@@ -286,8 +308,8 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
               Dans le Kanban
             </span>
           )}
-          {profileSkills.length > 0 && profileMatch > 0 && (
-            <ProfileMatchBadge match={profileMatch} />
+          {profileSkills.length > 0 && skillMatch > 0 && (
+            <SkillMatchBadge match={skillMatch} />
           )}
         </div>
 
@@ -310,7 +332,8 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
       </div>
 
       {/* Actions */}
-      <div className="px-4 pb-3 flex flex-wrap gap-2">
+      <div className="px-4 pb-3 flex items-center gap-2">
+        {/* Primary */}
         <button
           onClick={handleOpen}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
@@ -319,23 +342,14 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
           Ouvrir
         </button>
 
-        {offer.isRead === 0 && (
-          <button
-            onClick={handleMarkRead}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <BookmarkCheck className="w-3.5 h-3.5" />
-            Marquer lue
-          </button>
-        )}
-
+        {/* Secondary */}
         {!hasKanban && (
           <button
-            onClick={handleImport}
+            onClick={handleImportKanban}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <Clock className="w-3.5 h-3.5" />
-            Importer Kanban
+            Kanban
           </button>
         )}
 
@@ -346,35 +360,31 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profile
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
           >
             <FileText className="w-3.5 h-3.5" />
-            Créer un CV ciblé
+            CV ciblé
           </button>
         )}
 
-        {!isArchived && (
-          <>
+        {/* Tertiary — icon-only, right-aligned */}
+        <div className="ml-auto flex items-center gap-1">
+          {isUnread && (
+            <button
+              onClick={handleMarkRead}
+              title="Marquer comme lue"
+              className="p-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <BookmarkCheck className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {!isArchived && (
             <button
               onClick={handleArchive}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              title="Archiver"
+              className="p-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               <Archive className="w-3.5 h-3.5" />
-              Archiver
             </button>
-            <button
-              onClick={handleThumbsUp}
-              title="J'aime cette offre"
-              className="inline-flex items-center px-2 py-1.5 text-xs rounded-md border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-            >
-              <ThumbsUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleThumbsDown}
-              title="Je n'aime pas cette offre"
-              className="inline-flex items-center px-2 py-1.5 text-xs rounded-md border border-red-200 dark:border-red-700 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            >
-              <ThumbsDown className="w-3.5 h-3.5" />
-            </button>
-          </>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
