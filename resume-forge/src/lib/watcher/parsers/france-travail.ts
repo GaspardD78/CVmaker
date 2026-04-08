@@ -14,7 +14,7 @@
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
-import { buildFranceTravailQuery } from '../profile-to-query';
+import { buildFranceTravailQuery, isExcludedByProfile } from '../profile-to-query';
 import { tauriFetch } from '../http';
 
 const FT_TOKEN_URL  = 'https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire';
@@ -171,7 +171,7 @@ async function ftFetchWithRetry(
 }
 
 export async function parseFranceTravail(
-  config: JobWatchConfig,
+  _config: JobWatchConfig,
   settings: JobWatchSettings,
 ): Promise<RawJobOffer[]> {
   const { ftClientId, ftClientSecret } = settings;
@@ -184,101 +184,119 @@ export async function parseFranceTravail(
     restoreTokenCache(settings.ftAccessToken, settings.ftTokenExpiresAt);
   }
 
-  const token  = await getFranceTravailToken(ftClientId, ftClientSecret);
-  const offers: RawJobOffer[] = [];
+  const token   = await getFranceTravailToken(ftClientId, ftClientSecret);
+  const profile = settings.searchProfile;
 
-  // Build query from the unified SearchProfile
-  const query = buildFranceTravailQuery(settings.searchProfile);
+  // FT's `motsCles` only supports implicit AND (no OR). Joining multiple titles
+  // with spaces requires ALL words to appear — practically returns 0 results.
+  // We issue one request per title and merge results, deduplicating by URL.
+  const query = buildFranceTravailQuery(profile);
+  const queries: (string | undefined)[] = query.titles.length > 0 ? query.titles : [undefined];
 
-  // Track whether we had to drop the commune parameter after a 400 "commune" error
+  // Shared across all title queries: commune fallback is sticky once triggered.
   let communeDisabled = false;
+  const offersByUrl = new Map<string, RawJobOffer>();
 
-  for (let page = 0; page < 2; page++) {
-    const params = new URLSearchParams();
+  for (let t = 0; t < queries.length; t++) {
+    const motsCles = queries[t];
 
-    if (query.motsCles) params.set('motsCles', query.motsCles);
+    for (let page = 0; page < 2; page++) {
+      const params = new URLSearchParams();
 
-    // Skip commune if it was rejected on a previous page and fall back to departement
-    if (query.commune && !communeDisabled) {
-      params.set('commune', query.commune);
-    } else if (query.departement) {
-      params.set('departement', query.departement);
-    }
-    if (query.distance)     params.set('distance',    String(query.distance));
-    if (query.typeContrat)  params.set('typeContrat', query.typeContrat);
+      if (motsCles) params.set('motsCles', motsCles);
 
-    // LinkedIn RSS uses its own URL; for FT the rssUrl field is ignored
-    params.set('range', `${page * PAGE_SIZE}-${(page + 1) * PAGE_SIZE - 1}`);
-
-    let res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
-
-    // Graceful fallback: if 400 "commune" error, retry the same page without commune
-    if (res.status === 400 && query.commune && !communeDisabled) {
-      const text = await res.text().catch(() => '');
-      if (/commune/i.test(text)) {
-        console.warn(
-          `[france-travail] commune "${query.commune}" rejetée par l'API ` +
-          `(${text.slice(0, 120)}). Bascule sur departement="${query.departement ?? '(aucun)'}".`
-        );
-        communeDisabled = true;
-        params.delete('commune');
-        if (query.departement) params.set('departement', query.departement);
-        res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
-      } else {
-        throw new Error(`France Travail search error 400: ${text.slice(0, 200)}`);
+      // Skip commune if it was rejected on a previous request and fall back to departement
+      if (query.commune && !communeDisabled) {
+        params.set('commune', query.commune);
+      } else if (query.departement) {
+        params.set('departement', query.departement);
       }
+      if (query.distance)     params.set('distance',    String(query.distance));
+      if (query.typeContrat)  params.set('typeContrat', query.typeContrat);
+
+      params.set('range', `${page * PAGE_SIZE}-${(page + 1) * PAGE_SIZE - 1}`);
+
+      let res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
+
+      // Graceful fallback: if 400 "commune" error, retry without commune
+      if (res.status === 400 && query.commune && !communeDisabled) {
+        const text = await res.text().catch(() => '');
+        if (/commune/i.test(text)) {
+          console.warn(
+            `[france-travail] commune "${query.commune}" rejetée par l'API ` +
+            `(${text.slice(0, 120)}). Bascule sur departement="${query.departement ?? '(aucun)'}".`
+          );
+          communeDisabled = true;
+          params.delete('commune');
+          if (query.departement) params.set('departement', query.departement);
+          res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
+        } else {
+          throw new Error(`France Travail search error 400: ${text.slice(0, 200)}`);
+        }
+      }
+
+      if (res.status === 204) break;
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`France Travail search error ${res.status}: ${text.slice(0, 200)}`);
+      }
+
+      const data = await res.json() as FtSearchResponse;
+      const resultats = data.resultats ?? [];
+
+      for (const o of resultats) {
+        if (!o.intitule) continue;
+
+        const url = o.origineOffre?.urlOrigine
+          ?? (o.id ? `https://candidat.francetravail.fr/offres/recherche/detail/${o.id}` : '');
+        if (!url) continue;
+        if (offersByUrl.has(url)) continue;  // dedupe across title queries
+
+        const { salaryMin, salaryMax, salaryRaw } = parseSalary(o.salaire);
+
+        // France Travail is structured API → HIGH confidence on all fields
+        const hasCoords = o.lieuTravail?.latitude != null && o.lieuTravail?.longitude != null;
+        const extraction: ExtractionMetadata = {
+          titleSource:        'api',
+          titleConfidence:    'high',
+          locationSource:     hasCoords ? 'api_coords' : (o.lieuTravail?.libelle ? 'api_text' : 'none'),
+          locationConfidence: hasCoords ? 'high' : (o.lieuTravail?.libelle ? 'high' : 'none'),
+          contractSource:     o.typeContrat ? 'api' : 'none',
+          contractConfidence: o.typeContrat ? 'high' : 'none',
+        };
+
+        offersByUrl.set(url, {
+          source:             'france_travail',
+          url,
+          title:              o.intitule,
+          company:            o.entreprise?.nom ?? null,
+          location:           o.lieuTravail?.libelle ?? null,
+          locationLat:        o.lieuTravail?.latitude  ?? null,
+          locationLon:        o.lieuTravail?.longitude ?? null,
+          contractType:       o.typeContratLibelle ?? o.typeContrat ?? null,
+          descriptionSnippet: o.description ? o.description.slice(0, 500) : null,
+          publishedAt:        o.dateCreation ?? null,
+          salaryMin,
+          salaryMax,
+          salaryRaw,
+          extraction,
+        });
+      }
+
+      if (resultats.length < PAGE_SIZE) break;
+      if (page < 1) await new Promise(r => setTimeout(r, PAGE_DELAY_MS));
     }
 
-    if (res.status === 204) break;
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`France Travail search error ${res.status}: ${text.slice(0, 200)}`);
-    }
-
-    const data = await res.json() as FtSearchResponse;
-    const resultats = data.resultats ?? [];
-
-    for (const o of resultats) {
-      if (!o.intitule) continue;
-
-      const { salaryMin, salaryMax, salaryRaw } = parseSalary(o.salaire);
-      const url = o.origineOffre?.urlOrigine
-        ?? (o.id ? `https://candidat.francetravail.fr/offres/recherche/detail/${o.id}` : '');
-      if (!url) continue;
-
-      // France Travail is structured API → HIGH confidence on all fields
-      const hasCoords = o.lieuTravail?.latitude != null && o.lieuTravail?.longitude != null;
-      const extraction: ExtractionMetadata = {
-        titleSource:        'api',
-        titleConfidence:    'high',
-        locationSource:     hasCoords ? 'api_coords' : (o.lieuTravail?.libelle ? 'api_text' : 'none'),
-        locationConfidence: hasCoords ? 'high' : (o.lieuTravail?.libelle ? 'high' : 'none'),
-        contractSource:     o.typeContrat ? 'api' : 'none',
-        contractConfidence: o.typeContrat ? 'high' : 'none',
-      };
-
-      offers.push({
-        source:             'france_travail',
-        url,
-        title:              o.intitule,
-        company:            o.entreprise?.nom ?? null,
-        location:           o.lieuTravail?.libelle ?? null,
-        locationLat:        o.lieuTravail?.latitude  ?? null,
-        locationLon:        o.lieuTravail?.longitude ?? null,
-        contractType:       o.typeContratLibelle ?? o.typeContrat ?? null,
-        descriptionSnippet: o.description ? o.description.slice(0, 500) : null,
-        publishedAt:        o.dateCreation ?? null,
-        salaryMin,
-        salaryMax,
-        salaryRaw,
-        extraction,
-      });
-    }
-
-    if (resultats.length < PAGE_SIZE) break;
-    if (page < 1) await new Promise(r => setTimeout(r, PAGE_DELAY_MS));
+    // Small pause between title queries to be polite to the API
+    if (t < queries.length - 1) await new Promise(r => setTimeout(r, PAGE_DELAY_MS));
   }
+
+  // FT doesn't support server-side exclusion operators — apply post-filter locally
+  const offers = Array.from(offersByUrl.values()).filter(o => {
+    const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`;
+    return !isExcludedByProfile(text, profile);
+  });
 
   return offers;
 }
