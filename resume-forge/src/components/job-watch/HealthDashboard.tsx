@@ -156,8 +156,8 @@ export function HealthDashboard() {
   const suggestExclude = useMemo(() => {
     if (!analysis) return [];
     const already = new Set([
-      ...settings.searchIntent.role.mustExclude.map(k => k.toLowerCase()),
-      ...settings.searchIntent.domain.excluded.map(k => k.toLowerCase()),
+      ...settings.searchProfile.excludeTitles.map(k => k.toLowerCase()),
+      ...settings.searchProfile.excludeDomains.map(k => k.toLowerCase()),
     ]);
     return analysis.suggestedExclusions
       .filter(t => !already.has(t) && !dismissed.has(`excl:${t}`))
@@ -167,8 +167,8 @@ export function HealthDashboard() {
   const suggestBonus = useMemo(() => {
     if (!analysis) return [];
     const already = new Set([
-      ...settings.searchIntent.role.primary.map(k => k.toLowerCase()),
-      ...settings.searchIntent.domain.preferred.map(k => k.toLowerCase()),
+      ...settings.searchProfile.jobTitles.map(k => k.toLowerCase()),
+      ...settings.searchProfile.domains.map(k => k.toLowerCase()),
     ]);
     return analysis.suggestedBonusTerms
       .filter(t => !already.has(t) && !dismissed.has(`bonus:${t}`))
@@ -176,9 +176,9 @@ export function HealthDashboard() {
   }, [analysis, settings, dismissed]);
 
   const suggestBlacklist = useMemo(() => {
-    const already = new Set(settings.blacklistedCompanies.map(c => c.toLowerCase()));
+    const already = new Set(settings.searchProfile.blacklistedCompanies.map(c => c.toLowerCase()));
     return companySuggestions.filter(c => !already.has(c) && !dismissed.has(`bl:${c}`));
-  }, [companySuggestions, settings.blacklistedCompanies, dismissed]);
+  }, [companySuggestions, settings.searchProfile.blacklistedCompanies, dismissed]);
 
   const hasAlerts =
     volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0;
@@ -196,12 +196,9 @@ export function HealthDashboard() {
   const handleExcludeTerm = async (term: string) => {
     await saveSettings({
       ...settings,
-      searchIntent: {
-        ...settings.searchIntent,
-        role: {
-          ...settings.searchIntent.role,
-          mustExclude: [...settings.searchIntent.role.mustExclude, term],
-        },
+      searchProfile: {
+        ...settings.searchProfile,
+        excludeTitles: [...settings.searchProfile.excludeTitles, term],
       },
     });
     dismiss(`excl:${term}`);
@@ -210,12 +207,9 @@ export function HealthDashboard() {
   const handleAddBonus = async (term: string) => {
     await saveSettings({
       ...settings,
-      searchIntent: {
-        ...settings.searchIntent,
-        domain: {
-          ...settings.searchIntent.domain,
-          preferred: [...settings.searchIntent.domain.preferred, term],
-        },
+      searchProfile: {
+        ...settings.searchProfile,
+        domains: [...settings.searchProfile.domains, term],
       },
     });
     dismiss(`bonus:${term}`);
@@ -224,7 +218,10 @@ export function HealthDashboard() {
   const handleBlacklistCompany = async (company: string) => {
     await saveSettings({
       ...settings,
-      blacklistedCompanies: [...settings.blacklistedCompanies, company],
+      searchProfile: {
+        ...settings.searchProfile,
+        blacklistedCompanies: [...settings.searchProfile.blacklistedCompanies, company],
+      },
     });
     dismiss(`bl:${company}`);
   };
@@ -244,7 +241,7 @@ export function HealthDashboard() {
     const suggestions = getKeywordSuggestions(dict, 3);
 
     const prompt = generatePerformanceOptimizationPrompt(
-      profile, entries, settings.searchIntent,
+      profile, entries, settings.searchProfile,
       {
         volumePerWeek: volume,
         pertinencePercent: pertinence,
@@ -266,7 +263,7 @@ export function HealthDashboard() {
       ORDER BY o.fetched_at DESC
       LIMIT 20
     `);
-    const prompt = generateDiagnosticPrompt(settings.searchIntent, rows);
+    const prompt = generateDiagnosticPrompt(settings.searchProfile, rows);
     await navigator.clipboard.writeText(prompt);
     toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
   };

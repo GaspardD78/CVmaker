@@ -3,18 +3,21 @@ import { ChevronRight, ChevronLeft, Rocket, UserRound, Target, Globe } from 'luc
 import { toast } from 'sonner';
 import { useProfileStore } from '@/stores/profileStore';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
-import { buildSearchIntentFromProfile } from '@/lib/watcher/scorer';
-import type { JobSource, SearchIntent } from '@/types/job-watch';
+import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
+import type { JobSource } from '@/types/job-watch';
+import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec: 'APEC',
-  wttj: 'Welcome to the Jungle',
-  linkedin_rss: 'LinkedIn (RSS)',
-  france_travail: 'France Travail',
+  apec:               'APEC',
+  wttj:               'Welcome to the Jungle',
+  linkedin_rss:       'LinkedIn (RSS)',
+  france_travail:     'France Travail',
+  emploi_territorial: 'Emploi Territorial',
+  mantiks:            'Mantiks',
 };
 
 const DEFAULT_SOURCES: JobSource[] = ['apec', 'wttj'];
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail'];
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail', 'emploi_territorial'];
 
 type Step = 'profile' | 'intent' | 'sources';
 
@@ -28,20 +31,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   const [step, setStep] = useState<Step>('profile');
 
-  // Step 2: SearchIntent draft
-  const autoIntent = useMemo(
-    () => buildSearchIntentFromProfile(profile, entries),
+  // Step 2: SearchProfile draft (pre-filled from CV profile)
+  const autoProfile = useMemo(
+    () => buildSearchProfileFromProfile(profile, entries),
     [profile, entries],
   );
 
   const [rolePrimaryText, setRolePrimaryText] = useState(
-    autoIntent.role?.primary?.join(', ') ?? '',
+    autoProfile.jobTitles?.join(', ') ?? '',
   );
   const [domReqText, setDomReqText] = useState(
-    autoIntent.domain?.required?.join(', ') ?? '',
+    autoProfile.skills?.slice(0, 5).join(', ') ?? '',
   );
   const [domPrefText, setDomPrefText] = useState(
-    autoIntent.domain?.preferred?.join(', ') ?? '',
+    autoProfile.skills?.slice(5, 10).join(', ') ?? '',
   );
   const [mustExcludeText, setMustExcludeText] = useState('');
   const [salaryTarget, setSalaryTarget] = useState('');
@@ -73,40 +76,29 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const canGoPrev = step !== 'profile';
 
   const handleFinish = async () => {
-    // 1. Save SearchIntent
-    const intent: SearchIntent = {
-      role: {
-        primary: parseList(rolePrimaryText),
-        mustExclude: parseList(mustExcludeText),
-      },
-      domain: {
-        required: parseList(domReqText),
-        preferred: parseList(domPrefText),
-        excluded: [],
+    // 1. Save unified SearchProfile
+    const newProfile = {
+      ...DEFAULT_SEARCH_PROFILE,
+      jobTitles:     parseList(rolePrimaryText),
+      skills:        parseList(domReqText),
+      domains:       parseList(domPrefText),
+      excludeTitles: parseList(mustExcludeText),
+      location: {
+        ...DEFAULT_SEARCH_PROFILE.location,
+        label: locationText,
+        city:  locationText,
       },
       salary: {
+        min:    null,
         target: salaryTarget ? Number(salaryTarget) : null,
-        hideIfBelow: null,
       },
     };
 
-    await saveSettings({ ...settings, searchIntent: intent });
+    await saveSettings({ ...settings, searchProfile: newProfile });
 
-    // 2. Create configs for selected sources
-    const keywordsFromIntent = [...intent.role.primary.slice(0, 3), ...intent.domain.required.slice(0, 2)];
-
+    // 2. Create source entries (simplified — no per-source keywords)
     for (const source of selectedSources) {
-      await upsertConfig({
-        source,
-        keywords: keywordsFromIntent,
-        excludeKeywords: intent.role.mustExclude,
-        location: locationText || null,
-        radiusKm: 50,
-        contractTypes: [],
-        rssUrl: null,
-        ftDeptCode: null,
-        enabled: 1,
-      });
+      await upsertConfig({ source, rssUrl: null, enabled: 1 });
     }
 
     toast.success(`Configuration créée pour ${selectedSources.length} source(s)`);

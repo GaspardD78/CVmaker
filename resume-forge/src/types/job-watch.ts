@@ -1,29 +1,154 @@
-export type JobSource = 'apec' | 'wttj' | 'linkedin_rss' | 'france_travail';
+export type JobSource =
+  | 'apec'
+  | 'wttj'
+  | 'linkedin_rss'
+  | 'france_travail'
+  | 'emploi_territorial'
+  | 'mantiks';
+
+// ── Extraction metadata ──────────────────────────────────────────────────────
 
 /**
- * Structured search intent replacing flat positiveKeywords / negativeKeywords.
+ * Confidence metadata attached to each raw offer by the parser.
+ * Used by the scorer to weight field matches appropriately:
+ * - high  = data came from a structured API field or JSON-LD (reliable)
+ * - medium = data parsed from HTML with reasonable heuristics
+ * - low   = data guessed via regex fallback (unreliable)
+ * - none  = field absent / could not be extracted
+ */
+export interface ExtractionMetadata {
+  titleSource: 'api' | 'json_ld' | 'html_primary' | 'html_fallback' | 'regex';
+  titleConfidence: 'high' | 'medium' | 'low';
+  locationSource: 'api_coords' | 'api_text' | 'json_ld' | 'html' | 'regex' | 'none';
+  locationConfidence: 'high' | 'medium' | 'low' | 'none';
+  contractSource: 'api' | 'json_ld' | 'html' | 'regex' | 'none';
+  contractConfidence: 'high' | 'medium' | 'low' | 'none';
+}
+
+export const DEFAULT_EXTRACTION: ExtractionMetadata = {
+  titleSource:        'html_primary',
+  titleConfidence:    'medium',
+  locationSource:     'none',
+  locationConfidence: 'none',
+  contractSource:     'none',
+  contractConfidence: 'none',
+};
+
+// ── Search Profile ───────────────────────────────────────────────────────────
+
+/**
+ * SearchProfile is the single source of truth for:
+ *   1. What is sent to each source's search API (query params)
+ *   2. How offers are scored (field-aware matching)
  *
- * Scoring layers:
- *   role.primary      → +15/match, capped +30   (strong role signal)
- *   domain.required   → +10/match, capped +20   (mandatory domain match)
- *   domain.preferred  → +5/match,  capped +10   (nice-to-have signal)
- *
- * Disqualifiers (score = 0):
- *   role.mustExclude + domain.excluded
+ * It replaces the old dual-config approach where:
+ *   - job_watch_config.keywords → API query
+ *   - job_watch_settings.search_intent → scoring
+ * These two were often misconfigured independently, causing false positives.
+ */
+export interface SearchProfile {
+  /** Human-readable label shown in the UI */
+  name: string;
+
+  // ── What I'm looking for ─────────────────────────────────────────────────
+  /** Target job titles / role keywords. Used in API queries AND scored heavily if found in offer title. */
+  jobTitles: string[];       // e.g. ["Recruteur", "Talent Acquisition Manager", "RRH"]
+
+  /** Technical skills / tools. Weighted but not disqualifying if absent. */
+  skills: string[];          // e.g. ["ATS", "LinkedIn Recruiter", "sourcing"]
+
+  /** Industry / sector signals. Soft bonus if present. */
+  domains: string[];         // e.g. ["Tech", "SaaS", "FinTech", "Scale-up"]
+
+  // ── What I don't want ────────────────────────────────────────────────────
+  /** Title/role terms that immediately disqualify an offer (score → 0). */
+  excludeTitles: string[];   // e.g. ["stagiaire", "alternant", "commercial", "bénévole"]
+
+  /** Domain/sector terms that disqualify an offer (score → 0). */
+  excludeDomains: string[];  // e.g. ["BTP", "Restauration", "VPC"]
+
+  // ── Location ─────────────────────────────────────────────────────────────
+  location: {
+    /** Display label shown in UI (e.g. "Paris (75)") */
+    label: string;
+    /** City name used for WTTJ and fallback queries */
+    city: string;
+    /** INSEE code (5 digits) for France Travail API — required for that source */
+    inseeCode: string;
+    /** Department code(s) for APEC (e.g. ["75", "92", "93"]) */
+    departmentCodes: string[];
+    /** Search radius in km (used by FT + APEC) */
+    radiusKm: number;
+  };
+
+  // ── Contract ─────────────────────────────────────────────────────────────
+  /** Contract types to look for. Empty = all types. */
+  contractTypes: string[];   // e.g. ["CDI"] or ["CDI", "Freelance"]
+
+  // ── Salary ───────────────────────────────────────────────────────────────
+  salary: {
+    /** Absolute floor — offers below this are heavily penalised (-30 pts) */
+    min: number | null;      // e.g. 35000
+    /** Target — offers at or above target get a bonus */
+    target: number | null;   // e.g. 45000
+  };
+
+  // ── Scoring behaviour ────────────────────────────────────────────────────
+  scoring: {
+    /**
+     * Controls how strictly the scorer penalises missing / mismatched fields.
+     *
+     * strict   — jobTitle MUST appear in offer title; wrong contract = score 0
+     * balanced — jobTitle preferred in title; wrong contract = -20 pts (not 0)
+     * loose    — old behaviour: score starts at 50, pure keyword matching
+     */
+    mode: 'strict' | 'balanced' | 'loose';
+  };
+
+  // ── Company blacklist ─────────────────────────────────────────────────────
+  /** Companies to always exclude from results (score → 0). */
+  blacklistedCompanies: string[];
+}
+
+export const DEFAULT_SEARCH_PROFILE: SearchProfile = {
+  name: 'Ma recherche',
+  jobTitles: [],
+  skills: [],
+  domains: [],
+  excludeTitles: [],
+  excludeDomains: [],
+  location: {
+    label: '',
+    city: '',
+    inseeCode: '',
+    departmentCodes: [],
+    radiusKm: 30,
+  },
+  contractTypes: ['CDI'],
+  salary: { min: null, target: null },
+  scoring: { mode: 'balanced' },
+  blacklistedCompanies: [],
+};
+
+// ── Legacy SearchIntent (kept for backward-compat migration only) ─────────────
+
+/**
+ * @deprecated Use SearchProfile instead.
+ * Kept only for reading old data during migration in jobWatchStore.ts.
  */
 export interface SearchIntent {
   role: {
-    primary:     string[];   // target role keywords
-    mustExclude: string[];   // role keywords that disqualify the offer
+    primary:     string[];
+    mustExclude: string[];
   };
   domain: {
-    required:  string[];    // must-have domain / tech terms
-    preferred: string[];    // preferred domain / tech terms
-    excluded:  string[];    // domain / tech terms to disqualify
+    required:  string[];
+    preferred: string[];
+    excluded:  string[];
   };
   salary: {
-    target:      number | null;  // target annual salary (€)
-    hideIfBelow: number | null;  // penalise offers whose salary is below this
+    target:      number | null;
+    hideIfBelow: number | null;
   };
 }
 
@@ -32,6 +157,8 @@ export const DEFAULT_SEARCH_INTENT: SearchIntent = {
   domain: { required: [], preferred: [], excluded: [] },
   salary: { target: null, hideIfBelow: null },
 };
+
+// ── Job offer types ───────────────────────────────────────────────────────────
 
 export type CommuteStatus = 'pending' | 'ok' | 'error' | 'not_found';
 
@@ -69,16 +196,16 @@ export interface JobOfferFeedback {
   createdAt: string;
 }
 
+/**
+ * Per-source configuration — now much simpler.
+ * Search parameters (keywords, location, contract) are derived from SearchProfile.
+ * Only source-specific technical params stay here.
+ */
 export interface JobWatchConfig {
   id: string;
   source: JobSource;
-  keywords: string[];           // JSON array
-  excludeKeywords: string[];    // JSON array — mots à exclure de la recherche
-  location: string | null;
-  radiusKm: number;
-  contractTypes: string[];      // JSON array
+  /** URL RSS for linkedin_rss (required) and optional override for apec/wttj */
   rssUrl: string | null;
-  ftDeptCode: string | null;
   enabled: number;              // 0 | 1
   lastFetchedAt: string | null;
   createdAt: string;
@@ -93,8 +220,8 @@ export interface JobWatchSettings {
   emailSmtpUser: string;
   emailSmtpPassword: string;
   emailTo: string;
-  /** Structured scoring intent — replaces the old flat positiveKeywords / negativeKeywords. */
-  searchIntent: SearchIntent;
+  /** Unified search profile — single source of truth for query params AND scoring */
+  searchProfile: SearchProfile;
   navitiaApiKey: string;
   commuteOriginAddress: string;
   commuteDepartureTime: string;
@@ -103,19 +230,18 @@ export interface JobWatchSettings {
   ftClientSecret: string;
   ftAccessToken: string;
   ftTokenExpiresAt: string;
-  blacklistedCompanies: string[];
 }
 
 export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   fetchIntervalHours: 4,
-  emailDigestEnabled: true,
+  emailDigestEnabled: false,
   emailDigestTime: '08:00',
   emailSmtpHost: '',
   emailSmtpPort: 587,
   emailSmtpUser: '',
   emailSmtpPassword: '',
   emailTo: '',
-  searchIntent: DEFAULT_SEARCH_INTENT,
+  searchProfile: DEFAULT_SEARCH_PROFILE,
   navitiaApiKey: '',
   commuteOriginAddress: '',
   commuteDepartureTime: '09:00',
@@ -124,7 +250,6 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   ftClientSecret: '',
   ftAccessToken: '',
   ftTokenExpiresAt: '',
-  blacklistedCompanies: [],
 };
 
 export type SortOption = 'score_desc' | 'date_newest' | 'date_oldest' | 'commute_asc' | 'salary_desc';
@@ -132,7 +257,7 @@ export type SortOption = 'score_desc' | 'date_newest' | 'date_oldest' | 'commute
 export interface JobWatchFilters {
   sources: JobSource[];
   minScore: number;
-  maxCommuteMinutes: number | null; // null = illimité
+  maxCommuteMinutes: number | null;
   status: 'all' | 'unread' | 'archived';
   dateFrom: string | null;
   dateTo: string | null;
@@ -142,7 +267,7 @@ export interface JobWatchFilters {
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
-  sources: ['apec', 'wttj', 'linkedin_rss', 'france_travail'],
+  sources: ['apec', 'wttj', 'linkedin_rss', 'france_travail', 'emploi_territorial', 'mantiks'],
   minScore: 0,
   maxCommuteMinutes: null,
   status: 'all',
@@ -173,4 +298,6 @@ export interface RawJobOffer {
   salaryMin?: number | null;
   salaryMax?: number | null;
   salaryRaw?: string | null;
+  /** Extraction quality metadata — populated by parsers */
+  extraction: ExtractionMetadata;
 }

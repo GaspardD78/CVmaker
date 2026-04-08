@@ -391,7 +391,7 @@ Réponds de manière très concise pour que je puisse facilement copier-coller l
 
 // ── Enhanced prompts for job watch ──────────────────────────────────────────
 
-import type { SearchIntent } from '@/types/job-watch';
+import type { SearchProfile } from '@/types/job-watch';
 
 interface PerformanceMetrics {
   volumePerWeek: number;
@@ -407,19 +407,18 @@ interface PerformanceMetrics {
 export function generatePerformanceOptimizationPrompt(
   profile: { title: string | null } | null,
   entries: { entryType: string; title: string }[],
-  searchIntent: SearchIntent,
+  searchProfile: SearchProfile,
   metrics: PerformanceMetrics,
 ): string {
   const titleStr = profile?.title ?? 'Non renseigné';
   const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title).join(', ') || 'Aucune';
 
   const intentStr = [
-    `Rôle principal : ${searchIntent.role.primary.join(', ') || 'Non défini'}`,
-    `Rôle exclu : ${searchIntent.role.mustExclude.join(', ') || 'Aucun'}`,
-    `Domaine requis : ${searchIntent.domain.required.join(', ') || 'Non défini'}`,
-    `Domaine préféré : ${searchIntent.domain.preferred.join(', ') || 'Aucun'}`,
-    `Domaine exclu : ${searchIntent.domain.excluded.join(', ') || 'Aucun'}`,
-    `Salaire cible : ${searchIntent.salary.target ? `${searchIntent.salary.target}€/an` : 'Non défini'}`,
+    `Titres visés : ${searchProfile.jobTitles.join(', ') || 'Non défini'}`,
+    `Exclure : ${searchProfile.excludeTitles.join(', ') || 'Aucun'}`,
+    `Compétences : ${searchProfile.skills.join(', ') || 'Non définies'}`,
+    `Secteurs : ${searchProfile.domains.join(', ') || 'Aucun'}`,
+    `Salaire cible : ${searchProfile.salary.target ? `${searchProfile.salary.target}€/an` : 'Non défini'}`,
   ].join('\n');
 
   return `Agis comme un expert en sourcing et optimisation de veille emploi.
@@ -428,7 +427,7 @@ export function generatePerformanceOptimizationPrompt(
 - Titre : ${titleStr}
 - Compétences : ${skills}
 
-## Ma configuration actuelle (SearchIntent)
+## Ma configuration actuelle (Profil de recherche)
 ${intentStr}
 
 ## Performance actuelle
@@ -455,7 +454,7 @@ Sois concis et actionnable. Formate les listes en CSV pour un copier-coller faci
  * Includes recent offer titles with scores and user actions.
  */
 export function generateDiagnosticPrompt(
-  searchIntent: SearchIntent,
+  searchProfile: SearchProfile,
   recentOffers: Array<{ title: string; score: number; action: string | null }>,
 ): string {
   const offersStr = recentOffers
@@ -465,10 +464,10 @@ export function generateDiagnosticPrompt(
   return `Agis comme un expert en optimisation de recherche d'emploi.
 
 ## Ma configuration
-- Rôle principal : ${searchIntent.role.primary.join(', ') || 'Non défini'}
-- Rôle exclu : ${searchIntent.role.mustExclude.join(', ') || 'Aucun'}
-- Domaine requis : ${searchIntent.domain.required.join(', ') || 'Non défini'}
-- Domaine préféré : ${searchIntent.domain.preferred.join(', ') || 'Aucun'}
+- Titres visés : ${searchProfile.jobTitles.join(', ') || 'Non défini'}
+- Exclure : ${searchProfile.excludeTitles.join(', ') || 'Aucun'}
+- Domaine requis : ${searchProfile.skills.join(', ') || 'Non défini'}
+- Domaine préféré : ${searchProfile.domains.join(', ') || 'Aucun'}
 
 ## Mes 20 dernières offres (avec score et action)
 ${offersStr}

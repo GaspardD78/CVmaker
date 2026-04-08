@@ -1,13 +1,21 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Save, ToggleLeft, ToggleRight, UserRound, Bot } from 'lucide-react';
+
+import { useState, useEffect } from 'react';
+import {
+  Save, ToggleLeft, ToggleRight, UserRound, ChevronDown, ChevronUp,
+  Plus, Trash2, Info,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
-import type { JobWatchConfig as ConfigType, JobWatchSettings, JobSource, SearchIntent } from '@/types/job-watch';
-import { generateSourceConfigPrompt, generateSearchIntentExtractionPrompt } from '@/lib/prompt-templates';
-import { getDb } from '@/lib/db';
-import { getKeywordSuggestions, LearnedDictionary } from '@/lib/watcher/learning-engine';
-import { buildSearchIntentFromProfile } from '@/lib/watcher/scorer';
+import type {
+  JobWatchConfig as ConfigType,
+  JobWatchSettings,
+  JobSource,
+  SearchProfile,
+} from '@/types/job-watch';
+import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
+import { summarizeSourceQuery } from '@/lib/watcher/profile-to-query';
+import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
 import {
   HelpButton,
   FranceTravailHelpModal,
@@ -17,350 +25,241 @@ import {
   SourcesHelpModal,
 } from './ConfigHelpModal';
 
+// ── Constants ────────────────────────────────────────────────────────────────
+
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec:          'APEC',
-  wttj:          'Welcome to the Jungle',
-  linkedin_rss:  'LinkedIn (RSS tiers)',
-  france_travail:'France Travail',
+  apec:               'APEC',
+  wttj:               'Welcome to the Jungle',
+  linkedin_rss:       'LinkedIn (RSS tiers)',
+  france_travail:     'France Travail',
+  emploi_territorial: 'Emploi Territorial',
+  mantiks:            'Mantiks',
 };
 
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail'];
-const RSS_URL_SOURCES: JobSource[] = ['linkedin_rss'];
-const RSS_URL_OPTIONAL: JobSource[] = ['apec', 'wttj'];
+const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
+  emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
+  mantiks:            'Agrégateur FR — nécessite une clé API mantiks.io',
+  linkedin_rss:       'Via flux RSS tiers (rss.app, jobicy…)',
+  france_travail:     'API officielle — nécessite des credentials OAuth2',
+};
+
+const ALL_SOURCES: JobSource[] = [
+  'france_travail', 'apec', 'wttj', 'emploi_territorial', 'linkedin_rss', 'mantiks',
+];
+
+/** Sources that require an RSS URL (required) */
+const RSS_REQUIRED_SOURCES: JobSource[] = ['linkedin_rss', 'emploi_territorial'];
 
 type HelpModal = 'sources' | 'ft' | 'navitia' | 'email' | 'linkedin' | null;
 
-// ── Source config row ────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-interface SourceRowProps {
-  config: ConfigType;
-  onSave:      (c: ConfigType) => void;
-  onDelete:    (id: string) => void;
-  onToggle:    (c: ConfigType) => void;
-  onOpenHelp:  (modal: HelpModal) => void;
+const parseList = (s: string): string[] => s.split(',').map(k => k.trim()).filter(Boolean);
+const joinList  = (a: string[]): string => a.join(', ');
+
+// ── Section wrapper ──────────────────────────────────────────────────────────
+
+function Section({
+  title, children, defaultOpen = true,
+}: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 text-left"
+      >
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{title}</span>
+        {open
+          ? <ChevronUp className="w-4 h-4 text-gray-400" />
+          : <ChevronDown className="w-4 h-4 text-gray-400" />}
+      </button>
+      {open && <div className="px-4 py-4 space-y-4">{children}</div>}
+    </section>
+  );
 }
 
-function SourceRow({ config, onSave, onDelete, onToggle, onOpenHelp }: SourceRowProps) {
-  const { profile, entries } = useProfileStore();
-  const [draft, setDraft] = useState<ConfigType>(config);
-  // Separate raw text state so commas can be typed freely.
-  // Parsed into the array only on blur or save.
-  const [keywordsText, setKeywordsText] = useState(config.keywords.join(', '));
-  const [excludeText, setExcludeText] = useState(config.excludeKeywords.join(', '));
+// ── Field with label + help ──────────────────────────────────────────────────
 
-  useEffect(() => {
-    setDraft(config);
-    setKeywordsText(config.keywords.join(', '));
-    setExcludeText(config.excludeKeywords.join(', '));
-  }, [config]);
-
-  const parsedKeywords = keywordsText.split(',').map(k => k.trim()).filter(Boolean);
-  const parsedExclude  = excludeText.split(',').map(k => k.trim()).filter(Boolean);
-  const isDirty =
-    JSON.stringify({ ...draft, keywords: parsedKeywords, excludeKeywords: parsedExclude }) !== JSON.stringify(config);
-
-  const commitKeywords = () => {
-    setDraft(d => ({ ...d, keywords: parsedKeywords, excludeKeywords: parsedExclude }));
-  };
-
-  const handlePromptGenerate = () => {
-    if (!profile) {
-      toast.error('Profil introuvable');
-      return;
-    }
-    const prompt = generateSourceConfigPrompt(SOURCE_LABELS[config.source], profile, entries);
-    navigator.clipboard.writeText(prompt)
-      .then(() => toast.success("Prompt d'optimisation copié ! Collez-le dans votre IA."))
-      .catch(() => toast.error('Erreur lors de la copie du prompt'));
-  };
-
+function Field({
+  label, help, children,
+}: { label: string; help?: string; children: React.ReactNode }) {
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-            {SOURCE_LABELS[config.source]}
+    <div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">{label}</label>
+        {help && (
+          <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+            <Info className="w-3 h-3" /> {help}
           </span>
-          {config.source === 'linkedin_rss' && (
-            <HelpButton label="Comment faire ?" onClick={() => onOpenHelp('linkedin')} />
-          )}
-          {config.source === 'france_travail' && (
-            <HelpButton label="Comment faire ?" onClick={() => onOpenHelp('ft')} />
-          )}
-          <button
-            onClick={handlePromptGenerate}
-            title="Générer un prompt d'optimisation"
-            className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-1 rounded text-xs font-medium transition-colors ml-1"
-          >
-            <Bot className="w-3.5 h-3.5" />
-            Optimiser via IA
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onToggle({ ...draft, keywords: parsedKeywords, excludeKeywords: parsedExclude })}
-            title={draft.enabled ? 'Désactiver' : 'Activer'}
-            className="text-gray-400 hover:text-blue-600 transition-colors"
-          >
-            {draft.enabled === 1
-              ? <ToggleRight className="w-5 h-5 text-blue-600" />
-              : <ToggleLeft  className="w-5 h-5" />
-            }
-          </button>
-          <button onClick={() => onDelete(config.id)} className="text-gray-400 hover:text-red-500 transition-colors">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Keywords — raw text input, parsed on blur */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-xs text-gray-500 dark:text-gray-400">
-            Mots-clés (séparés par des virgules)
-          </label>
-          {profile && (
-            <button
-              onClick={() => {
-                const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title);
-                const titles = [profile.title].filter(Boolean) as string[];
-                const all = [...new Set([...titles, ...skills])];
-                if (all.length === 0) {
-                  toast.info('Aucune compétence ou titre trouvé dans le profil maître');
-                  return;
-                }
-                const existing = keywordsText.split(',').map(k => k.trim()).filter(Boolean);
-                const merged = [...new Set([...existing, ...all])];
-                setKeywordsText(merged.join(', '));
-                toast.success(`${all.length} mot(s)-clé(s) importé(s) depuis le profil`);
-              }}
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
-            >
-              <UserRound className="w-3 h-3" />
-              Depuis le profil
-            </button>
-          )}
-        </div>
-        <input
-          type="text"
-          value={keywordsText}
-          onChange={e => setKeywordsText(e.target.value)}
-          onBlur={commitKeywords}
-          className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          placeholder="recruteur, talent acquisition, RH"
-        />
-      </div>
-
-      {/* Exclude keywords */}
-      <div>
-        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-          Exclure (séparés par des virgules)
-          <span className="ml-1 text-gray-400">— filtre les résultats contenant ces termes</span>
-        </label>
-        <input
-          type="text"
-          value={excludeText}
-          onChange={e => setExcludeText(e.target.value)}
-          onBlur={commitKeywords}
-          className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          placeholder="stagiaire, alternance, bénévole"
-        />
-      </div>
-
-      {/* Location + radius */}
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {config.source === 'france_travail' ? 'Code commune INSEE (optionnel)' : 'Localisation'}
-          </label>
-          <input
-            type="text"
-            value={draft.location ?? ''}
-            onChange={e => setDraft(d => ({ ...d, location: e.target.value || null }))}
-            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder={config.source === 'france_travail' ? '75056 (Paris), 69123 (Lyon)…' : 'Paris'}
-          />
-        </div>
-        {config.source !== 'wttj' && config.source !== 'linkedin_rss' && (
-          <div className="w-24">
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Rayon (km)</label>
-            <input
-              type="number"
-              min={0}
-              max={500}
-              value={draft.radiusKm}
-              onChange={e => setDraft(d => ({ ...d, radiusKm: Number(e.target.value) }))}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
         )}
       </div>
-
-      {/* France Travail: département filter */}
-      {config.source === 'france_travail' && (
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Département (optionnel)
-            <span className="ml-1 text-gray-400">— élargit la recherche à tout le département</span>
-          </label>
-          <input
-            type="text"
-            value={draft.ftDeptCode ?? ''}
-            onChange={e => setDraft(d => ({ ...d, ftDeptCode: e.target.value || null }))}
-            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="75, 92, 93, 78…"
-          />
-        </div>
-      )}
-
-      {/* RSS URL */}
-      {(RSS_URL_SOURCES.includes(config.source) || RSS_URL_OPTIONAL.includes(config.source)) && (
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            URL RSS
-            {RSS_URL_OPTIONAL.includes(config.source) && (
-              <span className="ml-1 text-gray-400">(optionnel — générée automatiquement si vide)</span>
-            )}
-            {RSS_URL_SOURCES.includes(config.source) && (
-              <span className="ml-1 text-red-400">*</span>
-            )}
-          </label>
-          <input
-            type="url"
-            value={draft.rssUrl ?? ''}
-            onChange={e => setDraft(d => ({ ...d, rssUrl: e.target.value || null }))}
-            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder={RSS_URL_SOURCES.includes(config.source) ? 'https://rss.app/feeds/...' : 'Laisser vide pour générer automatiquement'}
-          />
-        </div>
-      )}
-
-      {isDirty && (
-        <button
-          onClick={() => onSave({ ...draft, keywords: parsedKeywords, excludeKeywords: parsedExclude })}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-        >
-          <Save className="w-3.5 h-3.5" /> Sauvegarder
-        </button>
-      )}
+      {children}
     </div>
   );
 }
 
-// ── Main config page ─────────────────────────────────────────────────────────
+const inputCls = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500';
+const textareaCls = inputCls + ' resize-none';
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function JobWatchConfigView() {
-  const { configs, settings, upsertConfig, deleteConfig, saveSettings, fetchConfigs } = useJobWatchStore();
+  const {
+    configs, settings,
+    upsertConfig, deleteConfig,
+    saveSettings, updateSearchProfile,
+    fetchConfigs,
+  } = useJobWatchStore();
   const { profile, entries } = useProfileStore();
-  const [settingsDraft, setSettingsDraft] = useState<JobWatchSettings>(settings);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [helpModal, setHelpModal] = useState<HelpModal>(null);
 
-  // Local text state for SearchIntent fields (avoids cursor jumps in textareas)
-  const si = settings.searchIntent;
-  const [rolePrimaryText,    setRolePrimaryText]    = useState(si.role.primary.join(', '));
-  const [roleExcludeText,    setRoleExcludeText]    = useState(si.role.mustExclude.join(', '));
-  const [domReqText,         setDomReqText]         = useState(si.domain.required.join(', '));
-  const [domPrefText,        setDomPrefText]        = useState(si.domain.preferred.join(', '));
-  const [domExclText,        setDomExclText]        = useState(si.domain.excluded.join(', '));
-  const [salaryTargetStr,    setSalaryTargetStr]    = useState(si.salary.target != null ? String(si.salary.target) : '');
-  const [salaryHideStr,      setSalaryHideStr]      = useState(si.salary.hideIfBelow != null ? String(si.salary.hideIfBelow) : '');
-  const [blacklistText, setBlacklistText] = useState(settings.blacklistedCompanies.join(', '));
-  const [learnedDict, setLearnedDict] = useState<LearnedDictionary>({ positive: {}, negative: {} });
-  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+  // ── SearchProfile draft ───────────────────────────────────────────────────
+
+  const sp = settings.searchProfile ?? DEFAULT_SEARCH_PROFILE;
+
+  const [jobTitlesText,    setJobTitlesText]    = useState(joinList(sp.jobTitles));
+  const [skillsText,       setSkillsText]       = useState(joinList(sp.skills));
+  const [domainsText,      setDomainsText]      = useState(joinList(sp.domains));
+  const [excludeTitlesText, setExcludeTitlesText] = useState(joinList(sp.excludeTitles));
+  const [excludeDomainsText, setExcludeDomainsText] = useState(joinList(sp.excludeDomains));
+  const [blacklistText,    setBlacklistText]    = useState(joinList(sp.blacklistedCompanies));
+
+  const [locationLabel,    setLocationLabel]    = useState(sp.location.label);
+  const [locationCity,     setLocationCity]     = useState(sp.location.city);
+  const [inseeCode,        setInseeCode]        = useState(sp.location.inseeCode);
+  const [deptCodes,        setDeptCodes]        = useState(joinList(sp.location.departmentCodes));
+  const [radiusKm,         setRadiusKm]         = useState(sp.location.radiusKm);
+
+  const [contractTypes,    setContractTypes]    = useState<string[]>(sp.contractTypes);
+  const [salaryMin,        setSalaryMin]        = useState(sp.salary.min != null ? String(sp.salary.min) : '');
+  const [salaryTarget,     setSalaryTarget]     = useState(sp.salary.target != null ? String(sp.salary.target) : '');
+  const [scoringMode,      setScoringMode]      = useState<'loose' | 'balanced' | 'strict'>(sp.scoring.mode);
+
+  // ── Settings draft ────────────────────────────────────────────────────────
+
+  const [settingsDraft, setSettingsDraft] = useState<JobWatchSettings>(settings);
 
   useEffect(() => {
+    const sp2 = settings.searchProfile ?? DEFAULT_SEARCH_PROFILE;
+    setJobTitlesText(joinList(sp2.jobTitles));
+    setSkillsText(joinList(sp2.skills));
+    setDomainsText(joinList(sp2.domains));
+    setExcludeTitlesText(joinList(sp2.excludeTitles));
+    setExcludeDomainsText(joinList(sp2.excludeDomains));
+    setBlacklistText(joinList(sp2.blacklistedCompanies));
+    setLocationLabel(sp2.location.label);
+    setLocationCity(sp2.location.city);
+    setInseeCode(sp2.location.inseeCode);
+    setDeptCodes(joinList(sp2.location.departmentCodes));
+    setRadiusKm(sp2.location.radiusKm);
+    setContractTypes(sp2.contractTypes);
+    setSalaryMin(sp2.salary.min != null ? String(sp2.salary.min) : '');
+    setSalaryTarget(sp2.salary.target != null ? String(sp2.salary.target) : '');
+    setScoringMode(sp2.scoring.mode);
     setSettingsDraft(settings);
-    const si = settings.searchIntent;
-    setRolePrimaryText(si.role.primary.join(', '));
-    setRoleExcludeText(si.role.mustExclude.join(', '));
-    setDomReqText(si.domain.required.join(', '));
-    setDomPrefText(si.domain.preferred.join(', '));
-    setDomExclText(si.domain.excluded.join(', '));
-    setSalaryTargetStr(si.salary.target != null ? String(si.salary.target) : '');
-    setSalaryHideStr(si.salary.hideIfBelow != null ? String(si.salary.hideIfBelow) : '');
-    setBlacklistText(settings.blacklistedCompanies.join(', '));
   }, [settings]);
 
-  // SearchIntent extraction from pasted job description
-  const [jobDescPaste, setJobDescPaste] = useState('');
-  const [aiResponsePaste, setAiResponsePaste] = useState('');
+  const [helpModal, setHelpModal] = useState<HelpModal>(null);
+  const [saving, setSaving] = useState(false);
 
-  const handleGenerateExtractPrompt = () => {
-    if (!jobDescPaste.trim()) {
-      toast.info("Collez d'abord une offre d'emploi");
-      return;
-    }
-    const prompt = generateSearchIntentExtractionPrompt(jobDescPaste);
-    navigator.clipboard.writeText(prompt)
-      .then(() => toast.success("Prompt copié ! Collez-le dans votre IA, puis collez la réponse ci-dessous."))
-      .catch(() => toast.error('Erreur lors de la copie'));
-  };
+  // ── Build current SearchProfile ───────────────────────────────────────────
 
-  const handleImportAiResponse = () => {
+  const buildProfile = (): SearchProfile => ({
+    name: sp.name,
+    jobTitles:    parseList(jobTitlesText),
+    skills:       parseList(skillsText),
+    domains:      parseList(domainsText),
+    excludeTitles: parseList(excludeTitlesText),
+    excludeDomains: parseList(excludeDomainsText),
+    location: {
+      label:           locationLabel,
+      city:            locationCity,
+      inseeCode:       inseeCode,
+      departmentCodes: parseList(deptCodes),
+      radiusKm,
+    },
+    contractTypes,
+    salary: {
+      min:    salaryMin    ? Number(salaryMin)    : null,
+      target: salaryTarget ? Number(salaryTarget) : null,
+    },
+    scoring: { mode: scoringMode },
+    blacklistedCompanies: parseList(blacklistText),
+  });
+
+  // ── Save handlers ────────────────────────────────────────────────────────
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
     try {
-      const parsed = JSON.parse(aiResponsePaste.trim());
-      if (parsed.role?.primary) setRolePrimaryText(parsed.role.primary.join(', '));
-      if (parsed.role?.mustExclude) setRoleExcludeText(parsed.role.mustExclude.join(', '));
-      if (parsed.domain?.required) setDomReqText(parsed.domain.required.join(', '));
-      if (parsed.domain?.preferred) setDomPrefText(parsed.domain.preferred.join(', '));
-      if (parsed.domain?.excluded) setDomExclText(parsed.domain.excluded.join(', '));
-      if (parsed.salary?.target != null) setSalaryTargetStr(String(parsed.salary.target));
-      if (parsed.salary?.hideIfBelow != null) setSalaryHideStr(String(parsed.salary.hideIfBelow));
-      setJobDescPaste('');
-      setAiResponsePaste('');
-      toast.success('SearchIntent importé ! Vérifiez et sauvegardez.');
-    } catch {
-      toast.error('Format JSON invalide. Vérifiez la réponse de l\'IA.');
+      await updateSearchProfile(buildProfile());
+      toast.success('Profil de recherche sauvegardé');
+    } catch (err) {
+      toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
+    } finally {
+      setSaving(false);
     }
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const db = await getDb();
-        const posRaw = await db.select<{ value: string }[]>(
-          `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_positive'`
-        );
-        const negRaw = await db.select<{ value: string }[]>(
-          `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_negative'`
-        );
-        setLearnedDict({
-          positive: posRaw[0] ? JSON.parse(posRaw[0].value) : {},
-          negative: negRaw[0] ? JSON.parse(negRaw[0].value) : {},
-        });
-      } catch { /* Non-critical — suggestions simply won't appear */ }
-    })();
-  }, []);
+  const handleSaveSettings = async () => {
+    setSaving(true);
+    try {
+      await saveSettings({ ...settingsDraft, searchProfile: buildProfile() });
+      toast.success('Paramètres sauvegardés');
+    } catch (err) {
+      toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateSetting = <K extends keyof JobWatchSettings>(key: K, value: JobWatchSettings[K]) =>
+    setSettingsDraft(d => ({ ...d, [key]: value }));
+
+  // ── Import from CV profile ────────────────────────────────────────────────
+
+  const handleImportFromProfile = () => {
+    if (!profile) { toast.error('Aucun profil trouvé'); return; }
+    const partial = buildSearchProfileFromProfile(profile, entries);
+    if (partial.jobTitles?.length) {
+      const existing = parseList(jobTitlesText);
+      setJobTitlesText(joinList([...new Set([...existing, ...partial.jobTitles])]));
+    }
+    if (partial.skills?.length) {
+      const existing = parseList(skillsText);
+      setSkillsText(joinList([...new Set([...existing, ...partial.skills])]));
+    }
+    if (partial.location?.city && !locationCity) {
+      setLocationCity(partial.location.city);
+      setLocationLabel(partial.location.label ?? partial.location.city);
+    }
+    toast.success('Données importées depuis le profil');
+  };
+
+  // ── Contract type toggle ──────────────────────────────────────────────────
+
+  const toggleContract = (ct: string) =>
+    setContractTypes(prev =>
+      prev.includes(ct) ? prev.filter(c => c !== ct) : [...prev, ct]
+    );
+
+  // ── Source management ─────────────────────────────────────────────────────
 
   const unusedSources = ALL_SOURCES.filter(s => !configs.some(c => c.source === s));
 
   const handleAddSource = async (source: JobSource) => {
-    const skills = entries.filter(e => e.entryType === 'skill').slice(0, 3).map(e => e.title);
-    const titles = [profile?.title].filter(Boolean) as string[];
-    const initialKeywords = [...new Set([...titles, ...skills])];
-
-    await upsertConfig({
-      source,
-      keywords:        initialKeywords,
-      excludeKeywords: [],
-      location:        profile?.city ?? null,
-      radiusKm:        50,
-      contractTypes:   [],
-      rssUrl:          null,
-      ftDeptCode:      null,
-      enabled:         1,
-    });
-  };
-
-  const handleSaveConfig = async (c: ConfigType) => {
-    await upsertConfig(c);
+    await upsertConfig({ source, rssUrl: null, enabled: 1 });
     await fetchConfigs();
-    toast.success('Configuration sauvegardée');
   };
 
   const handleToggle = async (c: ConfigType) => {
     await upsertConfig({ ...c, enabled: c.enabled === 1 ? 0 : 1 });
+  };
+
+  const handleSaveRssUrl = async (c: ConfigType, rssUrl: string) => {
+    await upsertConfig({ ...c, rssUrl: rssUrl || null });
+    toast.success('URL RSS sauvegardée');
   };
 
   const handleDeleteConfig = async (id: string) => {
@@ -368,150 +267,227 @@ export function JobWatchConfigView() {
     toast.success('Source supprimée');
   };
 
-  const buildSearchIntent = (): SearchIntent => ({
-    role: {
-      primary:     parseKeywordList(rolePrimaryText),
-      mustExclude: parseKeywordList(roleExcludeText),
-    },
-    domain: {
-      required:  parseKeywordList(domReqText),
-      preferred: parseKeywordList(domPrefText),
-      excluded:  parseKeywordList(domExclText),
-    },
-    salary: {
-      target:      salaryTargetStr ? Number(salaryTargetStr) : null,
-      hideIfBelow: salaryHideStr   ? Number(salaryHideStr)   : null,
-    },
-  });
-
-  const handleSaveSettings = async () => {
-    setSavingSettings(true);
-    try {
-      const toSave: JobWatchSettings = {
-        ...settingsDraft,
-        searchIntent:        buildSearchIntent(),
-        blacklistedCompanies: parseKeywordList(blacklistText),
-      };
-      await saveSettings(toSave);
-      toast.success('Paramètres sauvegardés');
-    } catch (err) {
-      toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
-  const updateSetting = <K extends keyof JobWatchSettings>(key: K, value: JobWatchSettings[K]) => {
-    setSettingsDraft(d => ({ ...d, [key]: value }));
-  };
-
-  const parseKeywordList = (raw: string): string[] =>
-    raw.split(',').map(k => k.trim()).filter(Boolean);
-
-  const rawSuggestions = useMemo(() => getKeywordSuggestions(learnedDict), [learnedDict]);
-
-  // All "positive" intent terms — used to de-duplicate suggestions
-  const currentPosTerms = useMemo(() => {
-    const all = [rolePrimaryText, domReqText, domPrefText]
-      .flatMap(t => t.split(','))
-      .map(k => k.trim().toLowerCase())
-      .filter(Boolean);
-    return new Set(all);
-  }, [rolePrimaryText, domReqText, domPrefText]);
-
-  // All "negative" intent terms
-  const currentNegTerms = useMemo(() => {
-    const all = [roleExcludeText, domExclText]
-      .flatMap(t => t.split(','))
-      .map(k => k.trim().toLowerCase())
-      .filter(Boolean);
-    return new Set(all);
-  }, [roleExcludeText, domExclText]);
-
-  const suggestions = useMemo(() => ({
-    positive: rawSuggestions.positive.filter(
-      t => !currentPosTerms.has(t.toLowerCase()) && !currentNegTerms.has(t.toLowerCase()) && !dismissedSuggestions.has(t),
-    ),
-    negative: rawSuggestions.negative.filter(
-      t => !currentNegTerms.has(t.toLowerCase()) && !currentPosTerms.has(t.toLowerCase()) && !dismissedSuggestions.has(t),
-    ),
-  }), [rawSuggestions, currentPosTerms, currentNegTerms, dismissedSuggestions]);
-
-  const hasSuggestions = suggestions.positive.length > 0 || suggestions.negative.length > 0;
-
-  // Positive suggestions → role.primary (most likely origin of learned terms)
-  const handleAcceptPosSuggestion = (term: string) => {
-    const existing = parseKeywordList(rolePrimaryText);
-    if (!existing.map(k => k.toLowerCase()).includes(term.toLowerCase())) {
-      setRolePrimaryText([...existing, term].join(', '));
-    }
-    setDismissedSuggestions(prev => new Set(prev).add(term));
-  };
-
-  // Negative suggestions → role.mustExclude
-  const handleAcceptNegSuggestion = (term: string) => {
-    const existing = parseKeywordList(roleExcludeText);
-    if (!existing.map(k => k.toLowerCase()).includes(term.toLowerCase())) {
-      setRoleExcludeText([...existing, term].join(', '));
-    }
-    setDismissedSuggestions(prev => new Set(prev).add(term));
-  };
-
   const closeHelp = () => setHelpModal(null);
 
-  return (
-    <div className="space-y-6">
+  // ── Render ────────────────────────────────────────────────────────────────
 
-      {/* ── Sources ── */}
-      <section>
-        <div className="flex items-center gap-3 mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Sources</h3>
-          <HelpButton label="Guide de configuration" onClick={() => setHelpModal('sources')} />
-          {configs.length > 1 && (
-            <div className="flex gap-1.5 ml-auto">
-              <button
-                onClick={async () => {
-                  for (const c of configs) {
-                    if (c.enabled !== 1) await upsertConfig({ ...c, enabled: 1 });
-                  }
-                  toast.success('Toutes les sources activées');
-                }}
-                className="px-2 py-0.5 rounded text-[10px] font-medium border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-              >
-                Tout activer
-              </button>
-              <button
-                onClick={async () => {
-                  for (const c of configs) {
-                    if (c.enabled !== 0) await upsertConfig({ ...c, enabled: 0 });
-                  }
-                  toast.success('Toutes les sources désactivées');
-                }}
-                className="px-2 py-0.5 rounded text-[10px] font-medium border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Tout désactiver
-              </button>
-            </div>
+  return (
+    <div className="space-y-4 max-w-3xl">
+
+      {/* ── 1. Search profile ── */}
+      <Section title="Ce que je cherche">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            Un seul profil pilote les requêtes envoyées à toutes les sources <em>et</em> le scoring des offres.
+          </p>
+          {profile && (
+            <button
+              onClick={handleImportFromProfile}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
+            >
+              <UserRound className="w-3 h-3" /> Importer depuis mon profil
+            </button>
           )}
         </div>
-        {configs.length === 0 ? (
-          <p className="text-sm text-gray-400 mb-3">Aucune source configurée.</p>
-        ) : (
-          <div className="space-y-3">
-            {configs.map(c => (
-              <SourceRow
-                key={c.id}
-                config={c}
-                onSave={handleSaveConfig}
-                onDelete={handleDeleteConfig}
-                onToggle={handleToggle}
-                onOpenHelp={setHelpModal}
-              />
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Titres de poste visés" help="+35 pts si dans le titre de l'offre">
+            <textarea rows={2} className={textareaCls}
+              value={jobTitlesText}
+              onChange={e => setJobTitlesText(e.target.value)}
+              placeholder="Recruteur, Talent Acquisition Manager, RRH"
+            />
+          </Field>
+
+          <Field label="Compétences / outils" help="+5 pts par compétence trouvée">
+            <textarea rows={2} className={textareaCls}
+              value={skillsText}
+              onChange={e => setSkillsText(e.target.value)}
+              placeholder="ATS, LinkedIn Recruiter, sourcing, Workday"
+            />
+          </Field>
+
+          <Field label="Secteurs / environnements" help="+3 pts par secteur trouvé">
+            <textarea rows={2} className={textareaCls}
+              value={domainsText}
+              onChange={e => setDomainsText(e.target.value)}
+              placeholder="Tech, SaaS, Scale-up, FinTech"
+            />
+          </Field>
+
+          <Field label="Entreprises exclues" help="Score → 0">
+            <textarea rows={2} className={textareaCls}
+              value={blacklistText}
+              onChange={e => setBlacklistText(e.target.value)}
+              placeholder="SSII Corp, Agence X"
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Exclure ces rôles" help="Score → 0 si trouvé dans le titre">
+            <textarea rows={2} className={textareaCls}
+              value={excludeTitlesText}
+              onChange={e => setExcludeTitlesText(e.target.value)}
+              placeholder="stagiaire, alternant, commercial, bénévole"
+            />
+          </Field>
+
+          <Field label="Exclure ces secteurs" help="Score → 0 si trouvé dans l'offre">
+            <textarea rows={2} className={textareaCls}
+              value={excludeDomainsText}
+              onChange={e => setExcludeDomainsText(e.target.value)}
+              placeholder="BTP, Restauration, VPC"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      {/* ── 2. Location ── */}
+      <Section title="Localisation">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Zone de recherche (libellé affiché)" help="Ex: Paris (75)">
+            <input type="text" className={inputCls}
+              value={locationLabel}
+              onChange={e => setLocationLabel(e.target.value)}
+              placeholder="Paris (75)"
+            />
+          </Field>
+
+          <Field label="Rayon (km)" help="Utilisé par France Travail et APEC">
+            <input type="number" min={0} max={200} className={inputCls}
+              value={radiusKm}
+              onChange={e => setRadiusKm(Number(e.target.value))}
+            />
+          </Field>
+
+          <Field label="Code INSEE — France Travail" help="5 chiffres : 75056 Paris, 69123 Lyon, 13055 Marseille">
+            <input type="text" className={inputCls} maxLength={5}
+              value={inseeCode}
+              onChange={e => setInseeCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="75056"
+            />
+          </Field>
+
+          <Field label="Département(s) — APEC" help="Séparés par des virgules : 75, 92, 93">
+            <input type="text" className={inputCls}
+              value={deptCodes}
+              onChange={e => setDeptCodes(e.target.value)}
+              placeholder="75, 92, 93, 78"
+            />
+          </Field>
+
+          <Field label="Ville — WTTJ / Emploi Territorial" help="Nom exact de la ville">
+            <input type="text" className={inputCls}
+              value={locationCity}
+              onChange={e => setLocationCity(e.target.value)}
+              placeholder="Paris"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      {/* ── 3. Contract & salary ── */}
+      <Section title="Contrat & Salaire">
+        <Field label="Types de contrat">
+          <div className="flex flex-wrap gap-2 mt-1">
+            {['CDI', 'CDD', 'Freelance', 'Alternance', 'Stage', 'Fonctionnaire'].map(ct => (
+              <button
+                key={ct}
+                type="button"
+                onClick={() => toggleContract(ct)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  contractTypes.includes(ct)
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400'
+                }`}
+              >
+                {ct}
+              </button>
             ))}
           </div>
-        )}
+          {contractTypes.length === 0 && (
+            <p className="text-[11px] text-amber-500 mt-1">Aucun contrat sélectionné = toutes les offres acceptées</p>
+          )}
+        </Field>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Salaire minimum (€/an)" help="-30 pts si l'offre est en-dessous">
+            <input type="number" min={0} step={1000} className={inputCls}
+              value={salaryMin}
+              onChange={e => setSalaryMin(e.target.value)}
+              placeholder="35000"
+            />
+          </Field>
+
+          <Field label="Salaire cible (€/an)" help="+20 pts si l'offre dépasse de 10%">
+            <input type="number" min={0} step={1000} className={inputCls}
+              value={salaryTarget}
+              onChange={e => setSalaryTarget(e.target.value)}
+              placeholder="45000"
+            />
+          </Field>
+        </div>
+
+        <Field label="Mode de scoring">
+          <div className="grid gap-2 sm:grid-cols-3 mt-1">
+            {([
+              ['loose',    'Permissif',  'Résultats larges, moins précis'],
+              ['balanced', 'Équilibré',  'Recommandé — bon compromis'],
+              ['strict',   'Strict',     'Titre DOIT correspondre, contrat respecté'],
+            ] as const).map(([value, label, desc]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setScoringMode(value)}
+                className={`p-2.5 rounded-lg border text-left transition-colors ${
+                  scoringMode === value
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-blue-300'
+                }`}
+              >
+                <p className={`text-xs font-semibold ${scoringMode === value ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-200'}`}>
+                  {label}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{desc}</p>
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <button
+          onClick={handleSaveProfile}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition-colors"
+        >
+          <Save className="w-4 h-4" />
+          {saving ? 'Sauvegarde…' : 'Sauvegarder le profil de recherche'}
+        </button>
+      </Section>
+
+      {/* ── 4. Sources ── */}
+      <Section title="Sources actives">
+        <p className="text-xs text-gray-400 dark:text-gray-500 -mt-1">
+          Les critères de votre profil (ci-dessus) sont envoyés automatiquement à chaque source active.
+        </p>
+
+        <div className="space-y-2">
+          {configs.map(c => (
+            <SourceRow
+              key={c.id}
+              config={c}
+              settings={settingsDraft}
+              onToggle={handleToggle}
+              onDelete={handleDeleteConfig}
+              onSaveRssUrl={handleSaveRssUrl}
+              onUpdateSetting={updateSetting}
+              onOpenHelp={setHelpModal}
+            />
+          ))}
+        </div>
+
         {unusedSources.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 pt-1">
             {unusedSources.map(s => (
               <button
                 key={s}
@@ -524,453 +500,233 @@ export function JobWatchConfigView() {
             ))}
           </div>
         )}
-      </section>
+      </Section>
 
-      {/* ── France Travail OAuth2 ── */}
-      <section>
-        <div className="flex items-center gap-3 mb-1">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">France Travail (API officielle)</h3>
-          <HelpButton label="Comment obtenir les clés ?" onClick={() => setHelpModal('ft')} />
-        </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-          Ces identifiants sont nécessaires pour utiliser la source France Travail.
-          Créez une application gratuite sur{' '}
-          <span className="text-blue-500">francetravail.io</span>{' '}
-          et activez l'API <em>Offres d'emploi v2</em>.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Client ID</label>
-            <input
-              type="text"
+      {/* ── 5. Advanced ── */}
+      <Section title="Options avancées" defaultOpen={false}>
+
+        {/* France Travail credentials */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">France Travail — Credentials OAuth2</p>
+            <HelpButton label="Comment obtenir ?" onClick={() => setHelpModal('ft')} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input type="text" className={inputCls} placeholder="Client ID"
               value={settingsDraft.ftClientId}
               onChange={e => updateSetting('ftClientId', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="PAR_resumeforge_xxxxxxxx"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Client Secret</label>
-            <input
-              type="password"
-              autoComplete="new-password"
+            <input type="password" autoComplete="new-password" className={inputCls} placeholder="Client Secret"
               value={settingsDraft.ftClientSecret}
               onChange={e => updateSetting('ftClientSecret', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="••••••••••••••••"
             />
           </div>
         </div>
-      </section>
 
-      {/* ── Scoring / SearchIntent ── */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Scoring — SearchIntent</h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              Rôle&nbsp;+&nbsp;Domaine&nbsp;+&nbsp;Salaire — séparez les termes par des virgules
-            </p>
-          </div>
-          {profile && (
-            <button
-              onClick={() => {
-                const intent = buildSearchIntentFromProfile(profile, entries);
-                if (!intent.role?.primary?.length && !intent.domain?.required?.length) {
-                  toast.info('Aucune compétence ou titre trouvé dans le profil maître');
-                  return;
-                }
-                let count = 0;
-                if (intent.role?.primary?.length) {
-                  const existing = parseKeywordList(rolePrimaryText);
-                  const merged = [...new Set([...existing, ...intent.role.primary])];
-                  setRolePrimaryText(merged.join(', '));
-                  count += intent.role.primary.length;
-                }
-                if (intent.domain?.required?.length) {
-                  const existing = parseKeywordList(domReqText);
-                  const merged = [...new Set([...existing, ...intent.domain.required])];
-                  setDomReqText(merged.join(', '));
-                  count += intent.domain.required.length;
-                }
-                if (intent.domain?.preferred?.length) {
-                  const existing = parseKeywordList(domPrefText);
-                  const merged = [...new Set([...existing, ...intent.domain.preferred])];
-                  setDomPrefText(merged.join(', '));
-                  count += intent.domain.preferred.length;
-                }
-                toast.success(`${count} terme(s) importé(s) depuis le profil`);
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
-            >
-              <UserRound className="w-3.5 h-3.5" />
-              Depuis le profil
-            </button>
-          )}
-        </div>
-
-        {/* Learning suggestions */}
-        {hasSuggestions && (
-          <div className="mb-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3 bg-gray-50 dark:bg-gray-800/50">
-            <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
-              Suggestions basées sur votre activité
-            </p>
-            <div className="flex flex-col gap-2">
-              {suggestions.positive.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-medium text-green-600 dark:text-green-400 mb-1">
-                    → Rôle principal ✅
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {suggestions.positive.map(term => (
-                      <button key={term} type="button" onClick={() => handleAcceptPosSuggestion(term)}
-                        className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
-                        + {term}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {suggestions.negative.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-medium text-red-600 dark:text-red-400 mb-1">
-                    → Rôle à exclure ❌
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {suggestions.negative.map(term => (
-                      <button key={term} type="button" onClick={() => handleAcceptNegSuggestion(term)}
-                        className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">
-                        − {term}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Role */}
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
-          Rôle visé
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2 mb-3">
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Rôle — mots-clés principaux
-              <span className="ml-1 text-gray-400">(+15 pts/match, max +30)</span>
-            </label>
-            <textarea rows={2} value={rolePrimaryText}
-              onChange={e => setRolePrimaryText(e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              placeholder="recruteur, talent partner, RH" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Rôle — à disqualifier
-              <span className="ml-1 text-gray-400">(score → 0)</span>
-            </label>
-            <textarea rows={2} value={roleExcludeText}
-              onChange={e => setRoleExcludeText(e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              placeholder="stagiaire, commercial, bénévole" />
-          </div>
-        </div>
-
-        {/* Domain */}
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
-          Domaine / Compétences
-        </p>
-        <div className="grid gap-3 sm:grid-cols-3 mb-3">
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Requis
-              <span className="ml-1 text-gray-400">(+10, max +20)</span>
-            </label>
-            <textarea rows={2} value={domReqText}
-              onChange={e => setDomReqText(e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              placeholder="IAM, GRC, IGA" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Préférés
-              <span className="ml-1 text-gray-400">(+5, max +10)</span>
-            </label>
-            <textarea rows={2} value={domPrefText}
-              onChange={e => setDomPrefText(e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              placeholder="SIRH, ATS, Workday" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Exclus domaine
-              <span className="ml-1 text-gray-400">(score → 0)</span>
-            </label>
-            <textarea rows={2} value={domExclText}
-              onChange={e => setDomExclText(e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              placeholder="vente, commercial" />
-          </div>
-        </div>
-
-        {/* Salary */}
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
-          Salaire
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2 mb-3">
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Salaire cible (€ annuel brut)
-            </label>
-            <input type="number" min={0} step={1000}
-              value={salaryTargetStr}
-              onChange={e => setSalaryTargetStr(e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="45000" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Seuil minimal (-30 pts si inférieur)
-            </label>
-            <input type="number" min={0} step={1000}
-              value={salaryHideStr}
-              onChange={e => setSalaryHideStr(e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="36000" />
-          </div>
-        </div>
-
-        {/* Company blacklist */}
+        {/* Mantiks API key */}
         <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Entreprises blacklistées (exclues de l'affichage)
-          </label>
-          <textarea rows={2} value={blacklistText}
-            onChange={e => setBlacklistText(e.target.value)}
-            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-            placeholder="Google, Amazon, SSII Corp" />
+          <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Mantiks — Clé API</p>
+          <input type="password" autoComplete="new-password" className={inputCls} placeholder="Clé API Mantiks"
+            value={(settingsDraft as unknown as Record<string, string>)['mantiksApiKey'] ?? ''}
+            onChange={e => setSettingsDraft(d => ({ ...d, mantiksApiKey: e.target.value } as unknown as JobWatchSettings))}
+          />
         </div>
-      </section>
 
-      {/* ── Temps de trajet ── */}
-      <section>
-        <div className="flex items-center gap-3 mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Temps de trajet (IDFM PRIM)</h3>
-          <HelpButton label="Comment configurer ?" onClick={() => setHelpModal('navitia')} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Clé API PRIM
-            </label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={settingsDraft.navitiaApiKey}
-              onChange={e => updateSetting('navitiaApiKey', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="••••••••••••••••"
-            />
+        {/* Commute */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">Temps de trajet (PRIM/Navitia)</p>
+            <HelpButton label="Comment configurer ?" onClick={() => setHelpModal('navitia')} />
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Adresse de départ</label>
-            <input
-              type="text"
-              value={settingsDraft.commuteOriginAddress}
-              onChange={e => updateSetting('commuteOriginAddress', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="9 rue des Lilas, Carrières-sous-Poissy 78955"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Heure de départ souhaitée</label>
-            <input
-              type="time"
-              value={settingsDraft.commuteDepartureTime}
-              onChange={e => updateSetting('commuteDepartureTime', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Seuil max (min) : <span className="font-semibold text-gray-800 dark:text-gray-100">{settingsDraft.commuteMaxMinutes}</span>
-            </label>
-            <input
-              type="range"
-              min={10}
-              max={120}
-              step={5}
-              value={settingsDraft.commuteMaxMinutes}
-              onChange={e => updateSetting('commuteMaxMinutes', Number(e.target.value))}
-              className="w-full accent-blue-600"
-            />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Field label="Clé API PRIM">
+              <input type="password" autoComplete="new-password" className={inputCls}
+                value={settingsDraft.navitiaApiKey}
+                onChange={e => updateSetting('navitiaApiKey', e.target.value)}
+                placeholder="••••••••"
+              />
+            </Field>
+            <Field label="Adresse de départ">
+              <input type="text" className={inputCls}
+                value={settingsDraft.commuteOriginAddress}
+                onChange={e => updateSetting('commuteOriginAddress', e.target.value)}
+                placeholder="9 rue des Lilas, 78955 Carrières-sous-Poissy"
+              />
+            </Field>
+            <Field label="Heure de départ">
+              <input type="time" className={inputCls}
+                value={settingsDraft.commuteDepartureTime}
+                onChange={e => updateSetting('commuteDepartureTime', e.target.value)}
+              />
+            </Field>
+            <Field label={`Seuil max : ${settingsDraft.commuteMaxMinutes} min`}>
+              <input type="range" min={10} max={120} step={5} className="w-full accent-blue-600"
+                value={settingsDraft.commuteMaxMinutes}
+                onChange={e => updateSetting('commuteMaxMinutes', Number(e.target.value))}
+              />
+            </Field>
           </div>
         </div>
-      </section>
 
-      {/* ── Email digest ── */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Email digest quotidien</h3>
-            <HelpButton label="Comment configurer ?" onClick={() => setHelpModal('email')} />
+        {/* Email digest */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">Email digest quotidien</p>
+              <HelpButton label="Comment configurer ?" onClick={() => setHelpModal('email')} />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded accent-blue-600"
+                checked={settingsDraft.emailDigestEnabled}
+                onChange={e => updateSetting('emailDigestEnabled', e.target.checked)}
+              />
+              <span className="text-xs text-gray-600 dark:text-gray-300">Activé</span>
+            </label>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={settingsDraft.emailDigestEnabled}
-              onChange={e => updateSetting('emailDigestEnabled', e.target.checked)}
-              className="w-4 h-4 rounded accent-blue-600"
-            />
-            <span className="text-xs text-gray-600 dark:text-gray-300">Activé</span>
-          </label>
-        </div>
-        <div className={`grid gap-3 sm:grid-cols-2 ${!settingsDraft.emailDigestEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email destinataire</label>
-            <input
-              type="email"
+          <div className={`grid gap-2 sm:grid-cols-2 ${!settingsDraft.emailDigestEnabled ? 'opacity-40 pointer-events-none' : ''}`}>
+            <input type="email" className={inputCls} placeholder="vous@example.com"
               value={settingsDraft.emailTo}
               onChange={e => updateSetting('emailTo', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="vous@example.com"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Heure d'envoi</label>
-            <input
-              type="time"
+            <input type="time" className={inputCls}
               value={settingsDraft.emailDigestTime}
               onChange={e => updateSetting('emailDigestTime', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Serveur SMTP</label>
-            <input
-              type="text"
+            <input type="text" className={inputCls} placeholder="smtp.gmail.com"
               value={settingsDraft.emailSmtpHost}
               onChange={e => updateSetting('emailSmtpHost', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="smtp.gmail.com"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Port SMTP</label>
-            <input
-              type="number"
+            <input type="number" className={inputCls} placeholder="587"
               value={settingsDraft.emailSmtpPort}
               onChange={e => updateSetting('emailSmtpPort', Number(e.target.value))}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Utilisateur SMTP</label>
-            <input
-              type="text"
+            <input type="text" className={inputCls} placeholder="utilisateur SMTP"
               value={settingsDraft.emailSmtpUser}
               onChange={e => updateSetting('emailSmtpUser', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="vous@gmail.com"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Mot de passe SMTP</label>
-            <input
-              type="password"
-              autoComplete="new-password"
+            <input type="password" autoComplete="new-password" className={inputCls} placeholder="mot de passe SMTP"
               value={settingsDraft.emailSmtpPassword}
               onChange={e => updateSetting('emailSmtpPassword', e.target.value)}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="••••••••"
             />
           </div>
         </div>
-      </section>
 
-      {/* ── Collecte ── */}
-      <section>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Collecte</h3>
-        <div className="max-w-xs">
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Intervalle (heures) : <span className="font-semibold text-gray-800 dark:text-gray-100">{settingsDraft.fetchIntervalHours}h</span>
-          </label>
-          <input
-            type="range"
-            min={1}
-            max={24}
-            step={1}
+        {/* Fetch interval */}
+        <Field label={`Fréquence de collecte : toutes les ${settingsDraft.fetchIntervalHours}h`}>
+          <input type="range" min={1} max={24} step={1} className="w-full accent-blue-600"
             value={settingsDraft.fetchIntervalHours}
             onChange={e => updateSetting('fetchIntervalHours', Number(e.target.value))}
-            className="w-full accent-blue-600"
           />
-        </div>
-      </section>
+        </Field>
 
-      {/* ── SearchIntent from pasted job description ── */}
-      <section>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-          Générer le SearchIntent depuis une offre
-        </h3>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-          Collez une offre qui vous plaît, générez un prompt, puis importez la réponse de l'IA.
-        </p>
-        <div className="space-y-2">
-          <textarea
-            value={jobDescPaste}
-            onChange={e => setJobDescPaste(e.target.value)}
-            rows={4}
-            className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Collez ici le texte d'une offre qui correspond à ce que vous cherchez…"
-          />
-          <button
-            onClick={handleGenerateExtractPrompt}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-purple-200 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-          >
-            <Bot className="w-3.5 h-3.5" />
-            Copier le prompt d'extraction
-          </button>
-
-          {jobDescPaste.trim() && (
-            <div className="pt-2 space-y-2">
-              <textarea
-                value={aiResponsePaste}
-                onChange={e => setAiResponsePaste(e.target.value)}
-                rows={3}
-                className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Collez ici la réponse JSON de l'IA…"
-              />
-              <button
-                onClick={handleImportAiResponse}
-                disabled={!aiResponsePaste.trim()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white transition-colors"
-              >
-                Importer dans le SearchIntent
-              </button>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Save all settings */}
-      <div className="pt-2">
         <button
           onClick={handleSaveSettings}
-          disabled={savingSettings}
+          disabled={saving}
           className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition-colors"
         >
           <Save className="w-4 h-4" />
-          {savingSettings ? 'Sauvegarde…' : 'Sauvegarder les paramètres'}
+          {saving ? 'Sauvegarde…' : 'Sauvegarder les options avancées'}
+        </button>
+      </Section>
+
+      {/* ── Help modals ── */}
+      {helpModal === 'sources'  && <SourcesHelpModal       onClose={closeHelp} />}
+      {helpModal === 'ft'       && <FranceTravailHelpModal  onClose={closeHelp} />}
+      {helpModal === 'navitia'  && <NavitiaHelpModal         onClose={closeHelp} />}
+      {helpModal === 'email'    && <EmailHelpModal           onClose={closeHelp} />}
+      {helpModal === 'linkedin' && <LinkedInRssHelpModal     onClose={closeHelp} />}
+    </div>
+  );
+}
+
+// ── Source row ───────────────────────────────────────────────────────────────
+
+interface SourceRowProps {
+  config: ConfigType;
+  settings: JobWatchSettings;
+  onToggle: (c: ConfigType) => void;
+  onDelete: (id: string) => void;
+  onSaveRssUrl: (c: ConfigType, url: string) => void;
+  onUpdateSetting: <K extends keyof JobWatchSettings>(key: K, value: JobWatchSettings[K]) => void;
+  onOpenHelp: (modal: HelpModal) => void;
+}
+
+function SourceRow({
+  config, settings, onToggle, onDelete, onSaveRssUrl, onOpenHelp,
+}: SourceRowProps) {
+  const [rssUrlDraft, setRssUrlDraft] = useState(config.rssUrl ?? '');
+  const [rssEdited, setRssEdited]     = useState(false);
+
+  const profile = settings.searchProfile ?? DEFAULT_SEARCH_PROFILE;
+  const queryPreview = summarizeSourceQuery(config.source, profile);
+
+  const needsRss = RSS_REQUIRED_SOURCES.includes(config.source);
+
+  return (
+    <div className={`border rounded-lg p-3 space-y-2 ${config.enabled ? 'border-gray-200 dark:border-gray-700' : 'border-gray-100 dark:border-gray-800 opacity-60'}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onToggle({ ...config })}
+            title={config.enabled ? 'Désactiver' : 'Activer'}
+            className="text-gray-400 hover:text-blue-600 transition-colors"
+          >
+            {config.enabled === 1
+              ? <ToggleRight className="w-5 h-5 text-blue-600" />
+              : <ToggleLeft  className="w-5 h-5" />}
+          </button>
+          <div>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              {SOURCE_LABELS[config.source]}
+            </span>
+            {SOURCE_DESCRIPTIONS[config.source] && (
+              <p className="text-[10px] text-gray-400">{SOURCE_DESCRIPTIONS[config.source]}</p>
+            )}
+          </div>
+          {config.source === 'linkedin_rss' && (
+            <HelpButton label="Comment faire ?" onClick={() => onOpenHelp('linkedin')} />
+          )}
+          {config.source === 'france_travail' && (
+            <HelpButton label="Credentials" onClick={() => onOpenHelp('ft')} />
+          )}
+        </div>
+        <button onClick={() => onDelete(config.id)} className="text-gray-300 hover:text-red-500 transition-colors ml-2">
+          <Trash2 className="w-4 h-4" />
         </button>
       </div>
 
-      {/* ── Help modals ── */}
-      {helpModal === 'sources'  && <SourcesHelpModal      onClose={closeHelp} />}
-      {helpModal === 'ft'       && <FranceTravailHelpModal onClose={closeHelp} />}
-      {helpModal === 'navitia'  && <NavitiaHelpModal        onClose={closeHelp} />}
-      {helpModal === 'email'    && <EmailHelpModal          onClose={closeHelp} />}
-      {helpModal === 'linkedin' && <LinkedInRssHelpModal    onClose={closeHelp} />}
+      {/* Query preview */}
+      {config.enabled === 1 && (
+        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-mono bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">
+          {queryPreview}
+        </p>
+      )}
+
+      {/* RSS URL (required for linkedin_rss + emploi_territorial) */}
+      {needsRss && (
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="block text-[10px] text-gray-400 mb-1">
+              URL RSS <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="url"
+              value={rssUrlDraft}
+              onChange={e => { setRssUrlDraft(e.target.value); setRssEdited(true); }}
+              className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="https://rss.app/feeds/..."
+            />
+          </div>
+          {rssEdited && (
+            <button
+              onClick={() => { onSaveRssUrl(config, rssUrlDraft); setRssEdited(false); }}
+              className="px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              <Save className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
