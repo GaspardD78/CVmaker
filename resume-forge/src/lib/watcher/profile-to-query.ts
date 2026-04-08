@@ -84,7 +84,10 @@ const FT_CONTRACT_CODES: Record<string, string> = {
 };
 
 export interface FranceTravailQueryParams {
+  /** Comma-joined titles (client-side loop uses individual titles instead) */
   motsCles: string | undefined;
+  /** List of job titles to query one-by-one (FT `motsCles` only supports AND, no OR) */
+  titles: string[];
   commune: string | undefined;
   departement: string | undefined;
   distance: number | undefined;
@@ -114,19 +117,18 @@ export function isValidInseeCode(code: string): boolean {
 }
 
 export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQueryParams {
-  // France Travail's motsCles is a simple full-text search. Too many keywords
-  // cause over-restriction → we keep only jobTitles (skills stay in scoring).
-  // We cap at 5 titles to avoid pathological queries.
-  const titles = profile.jobTitles.slice(0, 5).filter(Boolean);
-  let motsCles: string | undefined = titles.length > 0 ? titles.join(' ') : undefined;
-
-  // FT supports boolean exclusions with "-term" (single-word terms only).
-  const excluded = [...profile.excludeTitles, ...profile.excludeDomains]
-    .filter(Boolean)
-    .filter(ex => !/\s/.test(ex.trim())); // skip multi-word terms — FT doesn't support them
-  if (motsCles && excluded.length > 0) {
-    motsCles += ' ' + excluded.map(ex => `-${ex.trim()}`).join(' ');
-  }
+  // France Travail's motsCles does NOT support OR / ET / boolean operators:
+  //   - Multiple words (space or comma-joined) are combined with implicit AND
+  //   - No OR/OU, no parentheses, no `-term` exclusion
+  // Space-joining all job titles therefore requires ALL words to appear in
+  // every offer — returning 0 results in practice.
+  // We expose the raw title list; the parser runs one request per title and
+  // merges/deduplicates results client-side. Exclusions are applied locally
+  // via `isExcludedByProfile` post-fetch.
+  const titles = profile.jobTitles.map(t => t.trim()).filter(Boolean).slice(0, 5);
+  // Kept for backwards-compat (summarizeSourceQuery, tests). The parser does
+  // not rely on this field anymore — it iterates over `titles` instead.
+  const motsCles: string | undefined = titles[0];
 
   // Prefer INSEE code if valid, otherwise skip commune (query will fall back to departement)
   const rawInsee = profile.location.inseeCode?.trim() ?? '';
@@ -154,7 +156,7 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
     ? FT_CONTRACT_CODES[profile.contractTypes[0]]
     : undefined;
 
-  return { motsCles, commune, departement, distance, typeContrat };
+  return { motsCles, titles, commune, departement, distance, typeContrat };
 }
 
 // ── WTTJ ─────────────────────────────────────────────────────────────────────

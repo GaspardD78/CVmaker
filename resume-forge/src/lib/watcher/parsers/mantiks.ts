@@ -254,8 +254,11 @@ export async function parseMantiks(
     params.set('job_title_include_all',  'false');
     params.set('job_age_in_days',        String(JOB_AGE_DAYS));
     params.set('limit',                  String(PAGE_SIZE));
-    // Mantiks expects a comma-separated list of integer location IDs (required)
-    params.set('job_location_ids',       locationIds.join(','));
+    // Mantiks expects repeated `job_location_ids` params, one per ID
+    // (OpenAPI style=form, explode=true). Comma-joining is rejected as invalid.
+    for (const id of locationIds) {
+      params.append('job_location_ids', id);
+    }
     if (nextOffset) params.set('offset', nextOffset);
 
     const url = `${endpoint}?${params.toString()}`;
