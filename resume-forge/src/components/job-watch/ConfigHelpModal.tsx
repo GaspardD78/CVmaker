@@ -470,10 +470,11 @@ export function SourcesHelpModal({ onClose }: { onClose: () => void }) {
             — à ne modifier qu'en cas de changement d'API.
           </p>
           <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-            <strong>Restreindre à une zone géographique :</strong> Mantiks utilise des <em>IDs de lieu</em>{' '}
-            (entiers), pas un nom de ville. Pour les obtenir, appelez{' '}
-            <code>GET https://api.mantiks.io/location/search?name=Paris</code> avec votre clé API, puis
-            copiez les IDs retournés dans le champ « IDs de lieu Mantiks » (séparés par des virgules).
+            <strong>Zone géographique (obligatoire côté API) :</strong> Mantiks requiert des <em>IDs de lieu</em>{' '}
+            (entiers), pas un nom de ville. Par défaut, l'application les résout automatiquement à partir de la
+            ville configurée dans votre profil de recherche (appel à <code>/location/search?name=&lt;ville&gt;</code>).
+            Si vous souhaitez forcer des IDs spécifiques, renseignez-les manuellement dans le champ
+            « IDs de lieu Mantiks » (séparés par virgule).
           </p>
           <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
             <strong>Coût :</strong> 1 crédit par entreprise retournée (indépendamment du nombre d'offres).

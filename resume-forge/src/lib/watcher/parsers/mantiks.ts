@@ -108,6 +108,66 @@ function normaliseSalary(salary?: MantiksSalary | null): {
   return { salaryMin: min, salaryMax: max, salaryRaw: raw };
 }
 
+// ── Location resolution ───────────────────────────────────────────────────────
+
+interface MantiksLocation {
+  id?:         number | string;
+  name?:       string;
+  country?:    string;
+  region?:     string;
+  type?:       string;  // "city", "region", "country"...
+}
+
+interface MantiksLocationSearchResponse {
+  locations?: MantiksLocation[];
+}
+
+/**
+ * Resolve a human-readable city name to Mantiks location IDs via
+ * `GET /location/search?name=<city>`. Used as a fallback when the user
+ * hasn't configured `mantiksLocationIds` manually.
+ *
+ * We pick up to 3 IDs from the results to cast a reasonably wide net
+ * (Mantiks' "Paris" may surface multiple entities: city, metro area…).
+ */
+async function resolveLocationIds(
+  baseUrl: string,
+  apiKey: string,
+  cityName: string,
+): Promise<string[]> {
+  const url = `${baseUrl}/location/search?name=${encodeURIComponent(cityName)}`;
+  const res = await tauriFetch(url, {
+    headers: {
+      'x-api-key': apiKey,
+      'Accept':    'application/json',
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Mantiks : impossible de résoudre le lieu "${cityName}" via /location/search ` +
+      `(HTTP ${res.status}). Renseignez manuellement le champ « IDs de lieu Mantiks » ` +
+      `dans les options avancées.`
+    );
+  }
+
+  const data = await res.json() as MantiksLocationSearchResponse;
+  const locations = data.locations ?? [];
+  const ids = locations
+    .map(l => (l.id != null ? String(l.id) : null))
+    .filter((x): x is string => x != null)
+    .slice(0, 3);
+
+  if (ids.length === 0) {
+    throw new Error(
+      `Mantiks : aucun lieu trouvé pour "${cityName}" via /location/search. ` +
+      `Renseignez manuellement le champ « IDs de lieu Mantiks » dans les options avancées.`
+    );
+  }
+
+  return ids;
+}
+
 // ── Main parser ──────────────────────────────────────────────────────────────
 
 export async function parseMantiks(
@@ -117,7 +177,7 @@ export async function parseMantiks(
   const anySettings = settings as unknown as Record<string, string>;
   const apiKey      = (anySettings['mantiksApiKey'] ?? '').trim();
   const baseUrl     = ((anySettings['mantiksBaseUrl'] || DEFAULT_MANTIKS_API_BASE).trim()).replace(/\/$/, '');
-  const locationIds = (anySettings['mantiksLocationIds'] ?? '')
+  let   locationIds = (anySettings['mantiksLocationIds'] ?? '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
@@ -138,6 +198,21 @@ export async function parseMantiks(
   }
   const jobTitleParam = titles.length === 1 ? titles[0] : titles.join(' OR ');
 
+  // Mantiks requires job_location_ids. If the user hasn't provided them,
+  // fall back to resolving the profile city via /location/search.
+  if (locationIds.length === 0) {
+    const cityName = profile.location.city.trim();
+    if (!cityName) {
+      throw new Error(
+        'Mantiks : `job_location_ids` requis par l\'API mais non configuré. ' +
+        'Renseignez soit le champ « IDs de lieu Mantiks » (options avancées), ' +
+        'soit une ville dans votre profil de recherche.'
+      );
+    }
+    locationIds = await resolveLocationIds(baseUrl, apiKey, cityName);
+    console.info(`[mantiks] Lieux résolus automatiquement pour "${cityName}":`, locationIds);
+  }
+
   const endpoint = `${baseUrl}/company/search`;
   const offers: RawJobOffer[] = [];
   let nextOffset: string | null = null;
@@ -148,10 +223,8 @@ export async function parseMantiks(
     params.set('job_title_include_all',  'false');
     params.set('job_age_in_days',        String(JOB_AGE_DAYS));
     params.set('limit',                  String(PAGE_SIZE));
-    if (locationIds.length > 0) {
-      // Mantiks expects a comma-separated list of integer location IDs
-      params.set('job_location_ids', locationIds.join(','));
-    }
+    // Mantiks expects a comma-separated list of integer location IDs (required)
+    params.set('job_location_ids',       locationIds.join(','));
     if (nextOffset) params.set('offset', nextOffset);
 
     const url = `${endpoint}?${params.toString()}`;

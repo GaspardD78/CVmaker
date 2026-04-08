@@ -141,9 +141,10 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
     );
   }
 
-  // Always compute departement so the fallback works if commune is rejected (e.g. Paris 75056)
+  // Always compute departement so the fallback works if commune is rejected (e.g. Paris 75056).
+  // FT's `departement` param accepts a comma-separated list of 2-digit codes (e.g. "75,92,93,95").
   const departement = profile.location.departmentCodes.length > 0
-    ? profile.location.departmentCodes[0]
+    ? profile.location.departmentCodes.join(',')
     : undefined;
 
   const distance = profile.location.radiusKm > 0 ? profile.location.radiusKm : undefined;

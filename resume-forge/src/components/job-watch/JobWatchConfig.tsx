@@ -594,7 +594,7 @@ export function JobWatchConfigView() {
                 onChange={e => setSettingsDraft(d => ({ ...d, mantiksBaseUrl: e.target.value } as unknown as JobWatchSettings))}
               />
             </Field>
-            <Field label="IDs de lieu Mantiks (optionnel)" help="Liste d'IDs séparés par virgule — ex. : 2988507,2643743">
+            <Field label="IDs de lieu Mantiks (optionnel)" help="Si vide, résolu automatiquement depuis la ville du profil">
               <input type="text" className={inputCls}
                 placeholder="2988507, 2643743"
                 value={(settingsDraft as unknown as Record<string, string>)['mantiksLocationIds'] ?? ''}
@@ -603,8 +603,10 @@ export function JobWatchConfigView() {
             </Field>
           </div>
           <p className="text-[10px] text-gray-400 mt-1">
-            Mantiks utilise l'endpoint <code>/company/search</code> (recherche par entreprise). Pour restreindre à une
-            zone géographique, obtenez les IDs via <code>GET /location/search?name=Paris</code>. Documentation :{' '}
+            Mantiks utilise l'endpoint <code>/company/search</code> (recherche par entreprise). Le paramètre{' '}
+            <code>job_location_ids</code> est <strong>obligatoire</strong> côté API — laissez ce champ vide pour
+            qu'il soit résolu automatiquement à partir de la ville de votre profil (via <code>/location/search</code>),
+            ou renseignez manuellement des IDs entiers séparés par virgule. Documentation :{' '}
             <a href="https://mantiks-api.readme.io/reference/getting-started-with-your-api" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">mantiks-api.readme.io</a>.
           </p>
         </div>
