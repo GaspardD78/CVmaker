@@ -4,8 +4,8 @@
  * liens cliquables, boutons copier-coller.
  */
 
-import { useState, type ReactNode } from 'react';
-import { X, Copy, Check, ExternalLink, HelpCircle, Sparkles, Wand2 } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { X, Copy, Check, ExternalLink, HelpCircle, Sparkles, Wand2, ListChecks, AlignLeft } from 'lucide-react';
 import type { SearchProfile } from '@/types/job-watch';
 
 // ── Primitives ───────────────────────────────────────────────────────────────
@@ -419,36 +419,36 @@ export function SourcesHelpModal({ onClose }: { onClose: () => void }) {
 
       <div className="space-y-4">
         <div>
-          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">APEC · HelloWork · Welcome to the Jungle</h4>
-          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-            <p>Ces sources sont automatiques. Renseignez simplement :</p>
-            <ul className="space-y-1 ml-3 list-disc text-sm">
-              <li>
-                <strong>Mots-clés</strong> : séparés par des virgules.{' '}
-                <span className="text-gray-500 text-xs">ex : recruteur, talent acquisition, RH</span>
-              </li>
-              <li>
-                <strong>Localisation</strong> : ville ou région.{' '}
-                <span className="text-gray-500 text-xs">ex : Paris, Lyon, Bordeaux</span>
-              </li>
-              <li>
-                <strong>Rayon</strong> : distance en km autour de la localisation.{' '}
-                <span className="text-gray-500 text-xs">ex : 30 km</span>
-              </li>
-            </ul>
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">APEC</h4>
+          <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <p>Source automatique. Renseignez les <strong>titres de poste visés</strong>,
+            le ou les <strong>département(s)</strong> (ex : 75, 92) et le <strong>type de contrat</strong>.</p>
+            <p className="text-xs text-gray-500">Les mots-clés sont combinés en OU — 3 à 5 intitulés courts donnent les meilleurs résultats.</p>
           </div>
         </div>
 
         <div>
           <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">France Travail</h4>
           <p className="text-sm text-gray-700 dark:text-gray-300">
-            Nécessite une clé API. Cliquez sur{' '}
-            <span className="font-medium text-blue-600 dark:text-blue-400">« Comment faire ? »</span>{' '}
-            dans la section France Travail pour les instructions détaillées.
+            Nécessite des identifiants OAuth2. Cliquez sur{' '}
+            <span className="font-medium text-blue-600 dark:text-blue-400">« Comment obtenir ? »</span>{' '}
+            dans la section France Travail des options avancées pour le guide pas-à-pas.
           </p>
-          <p className="text-sm text-gray-500 mt-1">
-            Le <strong>code commune INSEE</strong> (ex : 75056 pour Paris) permet de filtrer
-            par ville précise. Le <strong>département</strong> (ex : 75, 92) élargit la recherche.
+          <p className="text-xs text-gray-500 mt-1">
+            Renseignez le <strong>code INSEE</strong> (ex : 75056 Paris) <em>et</em> au moins un <strong>département</strong> (ex : 75) —
+            si l'API rejette le code commune, la recherche bascule automatiquement sur le département.
+          </p>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">Welcome to the Jungle</h4>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            Source automatique. Les offres sont extraites depuis la page de recherche publique.
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            ⚠ WTTJ est une application JavaScript — les résultats peuvent être limités selon les
+            conditions de scraping. Si vous obtenez 0 offres, renseignez une <strong>ville</strong> dans
+            la section Localisation (champ « Ville — WTTJ »).
           </p>
         </div>
 
@@ -460,11 +460,20 @@ export function SourcesHelpModal({ onClose }: { onClose: () => void }) {
             dans la configuration LinkedIn pour le guide.
           </p>
         </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">Mantiks</h4>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            Agrégateur FR nécessitant une <strong>clé API mantiks.io</strong> (Options avancées).
+            Si vous obtenez une erreur 404, l'endpoint API a peut-être changé — vérifiez l'URL sur{' '}
+            <ExtLink href="https://developers.mantiks.io">developers.mantiks.io</ExtLink>.
+          </p>
+        </div>
       </div>
 
       <Note>
-        Commencez par activer 1 ou 2 sources seulement. Vous pourrez en ajouter d'autres une fois
-        que la collecte fonctionne.
+        Commencez par APEC + LinkedIn RSS — ce sont les plus fiables. Ajoutez France Travail
+        une fois les credentials configurés.
       </Note>
     </Modal>
   );
@@ -536,6 +545,51 @@ const PROFILE_PRESETS: Array<{
   },
 ];
 
+// ── Guided questions ─────────────────────────────────────────────────────────
+
+interface GuidedAnswers {
+  jobTitle:     string;
+  experience:   string;
+  city:         string;
+  contract:     string[];
+  salaryMin:    string;
+  salaryTarget: string;
+  excludedSectors: string;
+  extra: string;
+}
+
+const EMPTY_GUIDED: GuidedAnswers = {
+  jobTitle:        '',
+  experience:      '',
+  city:            '',
+  contract:        ['CDI'],
+  salaryMin:       '',
+  salaryTarget:    '',
+  excludedSectors: '',
+  extra:           '',
+};
+
+function buildContextFromGuided(a: GuidedAnswers): string {
+  const parts: string[] = [];
+  if (a.jobTitle)      parts.push(`Poste visé : ${a.jobTitle}.`);
+  if (a.experience)    parts.push(`Expérience : ${a.experience}.`);
+  if (a.city)          parts.push(`Localisation : ${a.city}.`);
+  if (a.contract.length) parts.push(`Type de contrat : ${a.contract.join(', ')}.`);
+  if (a.salaryMin)     parts.push(`Salaire minimum : ${a.salaryMin} €/an.`);
+  if (a.salaryTarget)  parts.push(`Salaire cible : ${a.salaryTarget} €/an.`);
+  if (a.excludedSectors) parts.push(`Secteurs à exclure : ${a.excludedSectors}.`);
+  if (a.extra)         parts.push(a.extra);
+  return parts.join('\n');
+}
+
+const CONTRACT_OPTIONS = ['CDI', 'CDD', 'Freelance', 'Alternance', 'Stage'];
+const EXPERIENCE_OPTIONS = [
+  { value: 'moins de 2 ans', label: '< 2 ans' },
+  { value: '2 à 5 ans',      label: '2–5 ans' },
+  { value: '5 à 10 ans',     label: '5–10 ans' },
+  { value: 'plus de 10 ans', label: '> 10 ans' },
+];
+
 /**
  * Generates an LLM prompt the user can paste into ChatGPT / Claude / Mistral
  * to help them draft a SearchProfile. The prompt includes the full JSON schema
@@ -600,8 +654,17 @@ export function ProfileAssistantModal({
   currentProfileHint = '',
 }: ProfileAssistantModalProps) {
   const [tab, setTab] = useState<'help' | 'presets' | 'prompt'>('help');
+  const [promptMode, setPromptMode] = useState<'guided' | 'freetext'>('guided');
+  const [guided, setGuided] = useState<GuidedAnswers>(EMPTY_GUIDED);
   const [userContext, setUserContext] = useState(currentProfileHint);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  // Sync guided → freetext when in guided mode
+  useEffect(() => {
+    if (promptMode === 'guided') {
+      setUserContext(buildContextFromGuided(guided));
+    }
+  }, [guided, promptMode]);
 
   const prompt = buildLlmPrompt(userContext);
 
@@ -610,6 +673,14 @@ export function ProfileAssistantModal({
     setCopiedPrompt(true);
     setTimeout(() => setCopiedPrompt(false), 2000);
   };
+
+  const setG = <K extends keyof GuidedAnswers>(k: K, v: GuidedAnswers[K]) =>
+    setGuided(prev => ({ ...prev, [k]: v }));
+
+  const toggleContract = (ct: string) =>
+    setG('contract', guided.contract.includes(ct)
+      ? guided.contract.filter(c => c !== ct)
+      : [...guided.contract, ct]);
 
   return (
     <Modal title="Assistant de configuration" onClose={onClose}>
@@ -754,28 +825,182 @@ export function ProfileAssistantModal({
       {tab === 'prompt' && (
         <div className="space-y-3">
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Décrivez en quelques phrases votre parcours et ce que vous cherchez. L'assistant génère
-            un <strong>prompt optimisé</strong> que vous pouvez coller dans ChatGPT, Claude ou Mistral.
-            Le modèle vous rendra un profil JSON prêt à recopier dans les champs.
+            Générez un prompt que vous collez dans ChatGPT, Claude ou Mistral.
+            L'IA vous rend un JSON prêt à recopier dans les champs.
           </p>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-              Votre contexte (optionnel)
-            </label>
-            <textarea
-              rows={5}
-              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              value={userContext}
-              onChange={e => setUserContext(e.target.value)}
-              placeholder={
-                'ex : 8 ans d\'expérience en recrutement tech, spécialisé cybersécurité.\n' +
-                'Je vis à Paris, je cherche un CDI Senior Talent Partner dans une scale-up.\n' +
-                'Je ne veux pas d\'ESN ni de postes commerciaux.'
-              }
-            />
+          {/* Mode toggle */}
+          <div className="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+            {([
+              ['guided',   'Questions guidées', ListChecks],
+              ['freetext', 'Texte libre',        AlignLeft],
+            ] as const).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setPromptMode(id)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                  promptMode === id
+                    ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                <Icon className="w-3 h-3" />
+                {label}
+              </button>
+            ))}
           </div>
 
+          {/* ── Guided questions ── */}
+          {promptMode === 'guided' && (
+            <div className="space-y-2.5 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">
+                    Intitulé de poste visé *
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="ex : Recruteur, Talent Acquisition, Data Analyst…"
+                    value={guided.jobTitle}
+                    onChange={e => setG('jobTitle', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">
+                    Ville / région
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="ex : Paris, Lyon, Bordeaux…"
+                    value={guided.city}
+                    onChange={e => setG('city', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Expérience
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {EXPERIENCE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setG('experience', guided.experience === opt.value ? '' : opt.value)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+                        guided.experience === opt.value
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Type de contrat
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CONTRACT_OPTIONS.map(ct => (
+                    <button
+                      key={ct}
+                      type="button"
+                      onClick={() => toggleContract(ct)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+                        guided.contract.includes(ct)
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400'
+                      }`}
+                    >
+                      {ct}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">
+                    Salaire minimum (€/an)
+                  </label>
+                  <input
+                    type="number" min={0} step={1000}
+                    className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="ex : 40000"
+                    value={guided.salaryMin}
+                    onChange={e => setG('salaryMin', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">
+                    Salaire cible (€/an)
+                  </label>
+                  <input
+                    type="number" min={0} step={1000}
+                    className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="ex : 50000"
+                    value={guided.salaryTarget}
+                    onChange={e => setG('salaryTarget', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">
+                  Secteurs / rôles à exclure
+                </label>
+                <input
+                  type="text"
+                  className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="ex : ESN, SSII, commercial, BTP…"
+                  value={guided.excludedSectors}
+                  onChange={e => setG('excludedSectors', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">
+                  Précisions libres (optionnel)
+                </label>
+                <textarea
+                  rows={2}
+                  className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                  placeholder="ex : télétravail hybride souhaité, secteur cybersécurité uniquement…"
+                  value={guided.extra}
+                  onChange={e => setG('extra', e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── Free text ── */}
+          {promptMode === 'freetext' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Votre contexte
+              </label>
+              <textarea
+                rows={5}
+                className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                value={userContext}
+                onChange={e => setUserContext(e.target.value)}
+                placeholder={
+                  'ex : 8 ans d\'expérience en recrutement tech, spécialisé cybersécurité.\n' +
+                  'Je vis à Paris, je cherche un CDI Senior Talent Partner dans une scale-up.\n' +
+                  'Je ne veux pas d\'ESN ni de postes commerciaux.'
+                }
+              />
+            </div>
+          )}
+
+          {/* Generated prompt */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -791,7 +1016,7 @@ export function ProfileAssistantModal({
                   : <><Copy className="w-3 h-3" /> Copier</>}
               </button>
             </div>
-            <pre className="text-[10px] leading-relaxed font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2 max-h-48 overflow-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+            <pre className="text-[10px] leading-relaxed font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300">
               {prompt}
             </pre>
           </div>
@@ -799,17 +1024,16 @@ export function ProfileAssistantModal({
           <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
             <p><strong>Mode d'emploi :</strong></p>
             <ol className="ml-4 list-decimal space-y-0.5">
-              <li>Copiez le prompt ci-dessus.</li>
-              <li>
-                Collez-le dans votre IA préférée :{' '}
+              <li>Copiez le prompt, collez-le dans{' '}
                 <ExtLink href="https://claude.ai/new">Claude</ExtLink> ·{' '}
                 <ExtLink href="https://chatgpt.com">ChatGPT</ExtLink> ·{' '}
                 <ExtLink href="https://chat.mistral.ai">Mistral</ExtLink>.
               </li>
-              <li>L'IA vous rend un JSON. Recopiez les valeurs dans les champs de la configuration.</li>
-              <li>Vérifiez <strong>impérativement</strong> le code INSEE sur{' '}
+              <li>L'IA rend un JSON — recopiez les valeurs dans les champs.</li>
+              <li>Vérifiez le code INSEE sur{' '}
                 <ExtLink href="https://www.insee.fr/fr/information/2560452">insee.fr</ExtLink> —
-                les LLM se trompent souvent sur ce code.</li>
+                les LLM se trompent souvent sur ce code.
+              </li>
             </ol>
           </div>
         </div>
