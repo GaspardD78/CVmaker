@@ -37,7 +37,6 @@
 import type { RawJobOffer, SearchProfile } from '@/types/job-watch';
 import type { LearnedDictionary } from './learning-engine';
 import type { Profile, MasterEntry } from '@/types/profile';
-import type { SearchIntent } from '@/types/job-watch';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -353,36 +352,6 @@ function zero(reason: string): ScoreBreakdown {
   };
 }
 
-// ── Legacy adapter (backward compat for any callers using old SearchIntent) ───
-
-/**
- * @deprecated Use computeScore(offer, profile) instead.
- * Adapts the old SearchIntent into a minimal SearchProfile for backward compat.
- */
-export function computeScoreLegacy(
-  offer: ScorerOffer,
-  searchIntent: SearchIntent,
-  companyBlacklist: string[],
-  learned?: LearnedSignals,
-): number {
-  const profile: SearchProfile = {
-    name: 'legacy',
-    jobTitles: searchIntent.role.primary,
-    skills: searchIntent.domain.required,
-    domains: searchIntent.domain.preferred,
-    excludeTitles: searchIntent.role.mustExclude,
-    excludeDomains: searchIntent.domain.excluded,
-    location: { label: '', city: '', inseeCode: '', departmentCodes: [], radiusKm: 30 },
-    contractTypes: [],
-    salary: {
-      min: searchIntent.salary.hideIfBelow,
-      target: searchIntent.salary.target,
-    },
-    scoring: { mode: 'balanced' },
-    blacklistedCompanies: companyBlacklist,
-  };
-  return computeScore(offer, profile, learned);
-}
 
 // ── Utility: profile-match signal for display ─────────────────────────────────
 
@@ -457,23 +426,3 @@ export function buildSearchProfileFromProfile(
   };
 }
 
-// ── Keep old export for components that reference it (will be removed later) ──
-
-/** @deprecated Use buildSearchProfileFromProfile */
-export function buildSearchIntentFromProfile(
-  profile: Profile | null,
-  entries: MasterEntry[],
-): Partial<SearchIntent> {
-  const p = buildSearchProfileFromProfile(profile, entries);
-  return {
-    role: {
-      primary:     p.jobTitles ?? [],
-      mustExclude: [],
-    },
-    domain: {
-      required:  p.skills?.slice(0, 5) ?? [],
-      preferred: p.skills?.slice(5, 10) ?? [],
-      excluded:  [],
-    },
-  };
-}
