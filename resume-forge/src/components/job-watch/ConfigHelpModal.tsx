@@ -5,7 +5,8 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { X, Copy, Check, ExternalLink, HelpCircle } from 'lucide-react';
+import { X, Copy, Check, ExternalLink, HelpCircle, Sparkles, Wand2 } from 'lucide-react';
+import type { SearchProfile } from '@/types/job-watch';
 
 // ── Primitives ───────────────────────────────────────────────────────────────
 
@@ -466,5 +467,369 @@ export function SourcesHelpModal({ onClose }: { onClose: () => void }) {
         que la collecte fonctionne.
       </Note>
     </Modal>
+  );
+}
+
+// ── Profile assistant (contextual help + prompt generator) ───────────────────
+
+/**
+ * A ready-to-apply preset covering the three most common job hunts.
+ * Users can one-click apply a preset to their SearchProfile, then tune.
+ */
+const PROFILE_PRESETS: Array<{
+  id: string;
+  icon: string;
+  label: string;
+  summary: string;
+  profile: Partial<SearchProfile>;
+}> = [
+  {
+    id: 'dev-web',
+    icon: '💻',
+    label: 'Développeur·se Web',
+    summary: 'Front/Back CDI, stack moderne, exclusion SSII',
+    profile: {
+      jobTitles: ['Développeur Web', 'Full Stack', 'Front End', 'Back End'],
+      skills: ['React', 'TypeScript', 'Node', 'PostgreSQL', 'Git'],
+      domains: ['Tech', 'SaaS', 'Scale-up', 'Startup'],
+      excludeTitles: ['stagiaire', 'alternant', 'apprenti'],
+      excludeDomains: ['ESN', 'SSII'],
+      contractTypes: ['CDI'],
+      salary: { min: 45000, target: 55000 },
+      scoring: { mode: 'balanced' },
+    },
+  },
+  {
+    id: 'recruteur',
+    icon: '🧲',
+    label: 'Recruteur·se / Talent Acquisition',
+    summary: 'TAM, sourcing, RH, exclusion ingénieur/technique',
+    profile: {
+      jobTitles: ['Recruteur', 'Talent Acquisition Manager', 'Talent Partner', 'Chargé de recrutement'],
+      skills: ['sourcing', 'LinkedIn Recruiter', 'ATS', 'recrutement'],
+      domains: ['Tech', 'Cybersécurité', 'SaaS'],
+      excludeTitles: [
+        'stagiaire', 'alternant', 'ingénieur', 'technicien',
+        'commercial', 'vendeur', 'cariste', 'électricien',
+      ],
+      excludeDomains: ['BTP', 'Restauration', 'VPC'],
+      contractTypes: ['CDI'],
+      salary: { min: 40000, target: 50000 },
+      scoring: { mode: 'balanced' },
+    },
+  },
+  {
+    id: 'data',
+    icon: '📊',
+    label: 'Data Analyst / Data Scientist',
+    summary: 'Python, SQL, ML, CDI ou freelance',
+    profile: {
+      jobTitles: ['Data Analyst', 'Data Scientist', 'Data Engineer'],
+      skills: ['Python', 'SQL', 'Pandas', 'dbt', 'Airflow'],
+      domains: ['Tech', 'FinTech', 'E-commerce', 'Scale-up'],
+      excludeTitles: ['stagiaire', 'alternant', 'commercial'],
+      excludeDomains: ['ESN', 'SSII'],
+      contractTypes: ['CDI', 'Freelance'],
+      salary: { min: 45000, target: 60000 },
+      scoring: { mode: 'balanced' },
+    },
+  },
+];
+
+/**
+ * Generates an LLM prompt the user can paste into ChatGPT / Claude / Mistral
+ * to help them draft a SearchProfile. The prompt includes the full JSON schema
+ * and asks the LLM to return a ready-to-paste JSON object.
+ */
+function buildLlmPrompt(userContext: string): string {
+  const trimmed = userContext.trim() || '[Décrivez ici en français votre parcours, vos compétences, le type de poste que vous cherchez, votre localisation, vos contraintes (télétravail, salaire, secteurs à éviter…).]';
+
+  return `Tu es un coach emploi français. Je veux configurer un profil de recherche pour un agrégateur d'offres (APEC, France Travail, Welcome to the Jungle, LinkedIn, Mantiks).
+
+## Mon profil / mon besoin
+${trimmed}
+
+## Ta mission
+Rédige un profil de recherche optimal au format JSON strict, qui respecte EXACTEMENT ce schéma :
+
+\`\`\`json
+{
+  "name": "string — nom court du profil",
+  "jobTitles": ["string"],        // 3 à 6 intitulés de postes visés, courts, sans ponctuation
+  "skills": ["string"],           // 5 à 10 compétences / outils clés
+  "domains": ["string"],          // 2 à 5 secteurs / environnements préférés
+  "excludeTitles": ["string"],    // titres qui doivent DISQUALIFIER une offre
+  "excludeDomains": ["string"],   // secteurs à exclure
+  "location": {
+    "label": "string",            // ex: "Paris (75)"
+    "city": "string",             // ex: "Paris"
+    "inseeCode": "string",        // code INSEE 5 chars, PAS le code postal. Ex: 75056 Paris, 69123 Lyon, 13055 Marseille
+    "departmentCodes": ["string"], // ex: ["75", "92", "93", "94"]
+    "radiusKm": 30
+  },
+  "contractTypes": ["CDI"],       // parmi: CDI, CDD, Freelance, Alternance, Stage
+  "salary": { "min": 40000, "target": 50000 },
+  "scoring": { "mode": "balanced" }, // loose | balanced | strict
+  "blacklistedCompanies": []
+}
+\`\`\`
+
+## Règles
+1. Ne propose QUE du JSON valide, rien d'autre avant ni après.
+2. Les intitulés (\`jobTitles\`) doivent être les plus susceptibles de matcher des offres réelles en France — évite les anglicismes internes aux entreprises.
+3. Pour \`excludeTitles\`, pense aux faux positifs courants du métier visé (ex: un recruteur tech exclura "ingénieur", "technicien", "commercial").
+4. Pour \`inseeCode\` : ATTENTION, ce n'est PAS le code postal. Si tu n'es pas sûr, mets une chaîne vide \`""\` et je recherchera moi-même sur insee.fr.
+5. Pour \`departmentCodes\` : donne 1 à 5 départements cohérents avec la zone visée.
+6. Le \`scoring.mode\` recommandé est \`"balanced"\` sauf demande explicite.
+7. Si une info manque dans mon profil, choisis une valeur raisonnable sans demander de clarification.
+
+Rends-moi uniquement le JSON.`;
+}
+
+interface ProfileAssistantModalProps {
+  onClose: () => void;
+  /** Called when the user applies a preset — receives a partial SearchProfile */
+  onApplyPreset?: (partial: Partial<SearchProfile>) => void;
+  /** Current profile, used to pre-fill the prompt context */
+  currentProfileHint?: string;
+}
+
+export function ProfileAssistantModal({
+  onClose,
+  onApplyPreset,
+  currentProfileHint = '',
+}: ProfileAssistantModalProps) {
+  const [tab, setTab] = useState<'help' | 'presets' | 'prompt'>('help');
+  const [userContext, setUserContext] = useState(currentProfileHint);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  const prompt = buildLlmPrompt(userContext);
+
+  const handleCopyPrompt = async () => {
+    await navigator.clipboard.writeText(prompt);
+    setCopiedPrompt(true);
+    setTimeout(() => setCopiedPrompt(false), 2000);
+  };
+
+  return (
+    <Modal title="Assistant de configuration" onClose={onClose}>
+      {/* Tabs */}
+      <div className="flex gap-1 -mt-2 -mx-1 pb-2 border-b border-gray-200 dark:border-gray-700">
+        {([
+          ['help',    'Guide rapide',  HelpCircle],
+          ['presets', 'Profils types', Sparkles],
+          ['prompt',  'Générer avec IA', Wand2],
+        ] as const).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              tab === id
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Help ── */}
+      {tab === 'help' && (
+        <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Chaque champ du profil pilote à la fois la <strong>requête envoyée</strong> aux sources
+            et le <strong>score</strong> des offres remontées. Bien le remplir est la clé pour ne
+            pas passer à côté d'offres pertinentes… ou en recevoir trop.
+          </p>
+
+          <div className="space-y-2">
+            <FieldHelp label="Titres de poste visés" example='ex : "Recruteur, Talent Acquisition, RRH"'>
+              <strong>3 à 6 intitulés courts</strong> qui apparaîtront dans le titre d'une offre
+              qui vous intéresse. <em>Moins, c'est mieux</em> : plus il y en a, plus la recherche
+              est restrictive (APEC/FT combinent certains mots-clés en ET).
+            </FieldHelp>
+
+            <FieldHelp label="Compétences / outils" example='ex : "ATS, LinkedIn Recruiter, Python"'>
+              Utilisées uniquement pour le <strong>scoring</strong> — pas envoyées aux API comme
+              mots-clés de recherche (elles rendraient la requête trop restrictive). Chaque
+              compétence trouvée dans une offre lui donne <strong>+5 pts</strong>.
+            </FieldHelp>
+
+            <FieldHelp label="Exclure ces rôles" example='ex : "stagiaire, alternant, ingénieur"'>
+              Termes qui <strong>disqualifient</strong> une offre (score → 0). Pensez aux faux
+              positifs récurrents : un recruteur tech voudra exclure "ingénieur", "technicien",
+              "commercial" — sinon les sources renvoient des centaines d'offres hors-cible.
+            </FieldHelp>
+
+            <FieldHelp label="Code INSEE" example='ex : 75056 (Paris), 69123 (Lyon), 13055 (Marseille)'>
+              <strong>Requis pour France Travail</strong> pour filtrer par ville précise.
+              Attention : le code INSEE d'une commune n'est <strong>pas</strong> son code postal !
+              Le bon code se trouve sur{' '}
+              <ExtLink href="https://www.insee.fr/fr/information/2560452">insee.fr</ExtLink>.
+              En cas d'erreur, la recherche bascule automatiquement sur le département.
+            </FieldHelp>
+
+            <FieldHelp label="Département(s)" example="ex : 75, 92, 93, 94">
+              Utilisé par APEC (multi-départements) et comme repli France Travail.
+              Séparés par des virgules.
+            </FieldHelp>
+
+            <FieldHelp label="Rayon (km)" example="ex : 30">
+              Distance autour de votre localisation. 30 km est un bon défaut pour une grande
+              agglomération.
+            </FieldHelp>
+
+            <FieldHelp label="Mode de scoring">
+              <ul className="space-y-0.5 text-xs">
+                <li>• <strong>Permissif</strong> : ramène beaucoup d'offres, tri au filtre.</li>
+                <li>• <strong>Équilibré</strong> (recommandé) : bon compromis précision/recall.</li>
+                <li>• <strong>Strict</strong> : le titre du poste DOIT apparaître dans l'offre.</li>
+              </ul>
+            </FieldHelp>
+          </div>
+
+          <Note>
+            Si vous recevez 0 offres, relâchez d'abord le profil : moins de titres, moins d'exclusions,
+            scoring "Permissif". Vous pourrez resserrer ensuite.
+          </Note>
+        </div>
+      )}
+
+      {/* ── Tab: Presets ── */}
+      {tab === 'presets' && (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Cliquez sur un profil type pour le <strong>pré-remplir</strong>. Vous pourrez ensuite
+            ajuster chaque champ avant de sauvegarder.
+          </p>
+          <div className="space-y-2">
+            {PROFILE_PRESETS.map(preset => (
+              <div
+                key={preset.id}
+                className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                      {preset.icon} {preset.label}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{preset.summary}</p>
+                  </div>
+                  {onApplyPreset && (
+                    <button
+                      type="button"
+                      onClick={() => { onApplyPreset(preset.profile); onClose(); }}
+                      className="px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium whitespace-nowrap transition-colors"
+                    >
+                      Appliquer
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {(preset.profile.jobTitles ?? []).slice(0, 4).map(t => (
+                    <span key={t} className="px-1.5 py-0.5 text-[10px] rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                      {t}
+                    </span>
+                  ))}
+                  {(preset.profile.excludeTitles ?? []).slice(0, 3).map(t => (
+                    <span key={t} className="px-1.5 py-0.5 text-[10px] rounded bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                      ≠ {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <Note>
+            Les presets sont des points de départ — adaptez toujours la localisation (INSEE,
+            départements) et la fourchette de salaire à votre cas.
+          </Note>
+        </div>
+      )}
+
+      {/* ── Tab: Prompt generator ── */}
+      {tab === 'prompt' && (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Décrivez en quelques phrases votre parcours et ce que vous cherchez. L'assistant génère
+            un <strong>prompt optimisé</strong> que vous pouvez coller dans ChatGPT, Claude ou Mistral.
+            Le modèle vous rendra un profil JSON prêt à recopier dans les champs.
+          </p>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              Votre contexte (optionnel)
+            </label>
+            <textarea
+              rows={5}
+              className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              value={userContext}
+              onChange={e => setUserContext(e.target.value)}
+              placeholder={
+                'ex : 8 ans d\'expérience en recrutement tech, spécialisé cybersécurité.\n' +
+                'Je vis à Paris, je cherche un CDI Senior Talent Partner dans une scale-up.\n' +
+                'Je ne veux pas d\'ESN ni de postes commerciaux.'
+              }
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                Prompt généré
+              </label>
+              <button
+                type="button"
+                onClick={handleCopyPrompt}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
+              >
+                {copiedPrompt
+                  ? <><Check className="w-3 h-3" /> Copié !</>
+                  : <><Copy className="w-3 h-3" /> Copier</>}
+              </button>
+            </div>
+            <pre className="text-[10px] leading-relaxed font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2 max-h-48 overflow-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+              {prompt}
+            </pre>
+          </div>
+
+          <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            <p><strong>Mode d'emploi :</strong></p>
+            <ol className="ml-4 list-decimal space-y-0.5">
+              <li>Copiez le prompt ci-dessus.</li>
+              <li>
+                Collez-le dans votre IA préférée :{' '}
+                <ExtLink href="https://claude.ai/new">Claude</ExtLink> ·{' '}
+                <ExtLink href="https://chatgpt.com">ChatGPT</ExtLink> ·{' '}
+                <ExtLink href="https://chat.mistral.ai">Mistral</ExtLink>.
+              </li>
+              <li>L'IA vous rend un JSON. Recopiez les valeurs dans les champs de la configuration.</li>
+              <li>Vérifiez <strong>impérativement</strong> le code INSEE sur{' '}
+                <ExtLink href="https://www.insee.fr/fr/information/2560452">insee.fr</ExtLink> —
+                les LLM se trompent souvent sur ce code.</li>
+            </ol>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * Small labelled help item used by the ProfileAssistantModal guide tab.
+ * Keeps the layout consistent without pulling in a heavier UI kit.
+ */
+function FieldHelp({ label, example, children }: { label: string; example?: string; children: ReactNode }) {
+  return (
+    <div className="border-l-2 border-blue-400 pl-2.5 py-0.5">
+      <p className="text-xs font-semibold text-gray-800 dark:text-gray-100">{label}</p>
+      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{children}</div>
+      {example && (
+        <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5">{example}</p>
+      )}
+    </div>
   );
 }

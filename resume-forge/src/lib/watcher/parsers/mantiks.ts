@@ -26,7 +26,8 @@ import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata 
 import { buildWttjQuery, isExcludedByProfile } from '../profile-to-query';
 import { tauriFetch } from '../http';
 
-const MANTIKS_API_BASE = 'https://api.mantiks.io/v1/jobs';
+/** Default endpoint — can be overridden via settings.mantiksBaseUrl */
+const DEFAULT_MANTIKS_API_BASE = 'https://api.mantiks.io/v1/jobs';
 const PAGE_SIZE = 50;
 const MAX_PAGES = 3;  // 150 offres max par collecte
 
@@ -130,10 +131,12 @@ export async function parseMantiks(
   config: JobWatchConfig,
   settings: JobWatchSettings,
 ): Promise<RawJobOffer[]> {
-  const apiKey = (settings as unknown as Record<string, string>)['mantiksApiKey'] ?? '';
+  const anySettings = settings as unknown as Record<string, string>;
+  const apiKey      = anySettings['mantiksApiKey'] ?? '';
+  const baseUrl     = (anySettings['mantiksBaseUrl'] || DEFAULT_MANTIKS_API_BASE).replace(/\/$/, '');
 
   if (!apiKey) {
-    throw new Error('Mantiks : clé API requise (mantiks_api_key dans les paramètres)');
+    throw new Error('Mantiks : clé API requise (champ « Clé API Mantiks » dans les options avancées)');
   }
 
   const profile = settings.searchProfile;
@@ -161,7 +164,7 @@ export async function parseMantiks(
     if (query.city)      params.set('location', query.city);
     if (contractFilter)  params.set('contract', contractFilter);
 
-    const res = await tauriFetch(`${MANTIKS_API_BASE}?${params.toString()}`, {
+    const res = await tauriFetch(`${baseUrl}?${params.toString()}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Accept':        'application/json',
@@ -171,6 +174,21 @@ export async function parseMantiks(
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
+      // A 404 almost always means the endpoint URL is wrong (Mantiks has changed
+      // their public API several times). Give the user actionable guidance.
+      if (res.status === 404) {
+        throw new Error(
+          `Mantiks : endpoint introuvable (404) à ${baseUrl}. ` +
+          `Vérifiez l'URL de base dans la configuration (champ « URL API Mantiks ») — ` +
+          `consultez https://developers.mantiks.io pour la valeur actuelle, ou désactivez la source.`
+        );
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(
+          `Mantiks : authentification refusée (${res.status}). ` +
+          `Vérifiez votre clé API dans les options avancées.`
+        );
+      }
       throw new Error(`Mantiks API error ${res.status}: ${text.slice(0, 200)}`);
     }
 
