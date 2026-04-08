@@ -141,8 +141,8 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
     );
   }
 
-  // Fall back to first department code if no INSEE
-  const departement = !commune && profile.location.departmentCodes.length > 0
+  // Always compute departement so the fallback works if commune is rejected (e.g. Paris 75056)
+  const departement = profile.location.departmentCodes.length > 0
     ? profile.location.departmentCodes[0]
     : undefined;
 

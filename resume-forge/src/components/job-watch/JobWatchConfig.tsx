@@ -416,9 +416,14 @@ export function JobWatchConfigView() {
                 . La recherche basculera sur le département.
               </p>
             )}
+            {isValidInseeCode(inseeCode) && parseList(deptCodes).length === 0 && (
+              <p className="text-[10px] text-amber-500 mt-0.5">
+                ⚠ Renseignez aussi le(s) <strong>département(s)</strong> ci-dessous — si l'API rejette le code commune (fréquent pour Paris 75056), la recherche y bascule automatiquement.
+              </p>
+            )}
           </Field>
 
-          <Field label="Département(s) — APEC" help="Séparés par des virgules : 75, 92, 93">
+          <Field label="Département(s) — APEC &amp; France Travail (repli)" help="Séparés par des virgules : 75, 92, 93">
             <input type="text" className={inputCls}
               value={deptCodes}
               onChange={e => setDeptCodes(e.target.value)}
