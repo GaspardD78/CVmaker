@@ -110,16 +110,17 @@ function normaliseSalary(salary?: MantiksSalary | null): {
 
 // ── Location resolution ───────────────────────────────────────────────────────
 
-interface MantiksLocation {
-  id?:         number | string;
-  name?:       string;
-  country?:    string;
-  region?:     string;
-  type?:       string;  // "city", "region", "country"...
+interface MantiksLocationEntry {
+  id:         number;
+  name:       string;
+  full_name?: string;
+  country?:   string;
+  type?:      string;  // "city" | "region" | ...
 }
 
 interface MantiksLocationSearchResponse {
-  locations?: MantiksLocation[];
+  nb_results?: number;
+  results?:    MantiksLocationEntry[];
 }
 
 /**
@@ -127,8 +128,18 @@ interface MantiksLocationSearchResponse {
  * `GET /location/search?name=<city>`. Used as a fallback when the user
  * hasn't configured `mantiksLocationIds` manually.
  *
- * We pick up to 3 IDs from the results to cast a reasonably wide net
- * (Mantiks' "Paris" may surface multiple entities: city, metro area…).
+ * Response shape (from the official OpenAPI spec):
+ *   {
+ *     "nb_results": 15,
+ *     "results": [
+ *       { "id": 2988507, "name": "Paris", "full_name": "Paris - Île-de-France - France",
+ *         "country": "France", "type": "city" },
+ *       ...
+ *     ]
+ *   }
+ *
+ * We prefer French entries of type "city", then fall back to any French entry,
+ * then to whatever comes first. We keep up to 3 IDs to widen the net.
  */
 async function resolveLocationIds(
   baseUrl: string,
@@ -152,15 +163,35 @@ async function resolveLocationIds(
   }
 
   const data = await res.json() as MantiksLocationSearchResponse;
-  const locations = data.locations ?? [];
-  const ids = locations
-    .map(l => (l.id != null ? String(l.id) : null))
+  const results = Array.isArray(data.results) ? data.results : [];
+
+  if (results.length === 0) {
+    throw new Error(
+      `Mantiks : aucun lieu trouvé pour "${cityName}" via /location/search ` +
+      `(nb_results=${data.nb_results ?? 0}). Renseignez manuellement le champ ` +
+      `« IDs de lieu Mantiks » dans les options avancées.`
+    );
+  }
+
+  // Rank candidates: French cities first, then French regions, then everything else.
+  const rank = (e: MantiksLocationEntry): number => {
+    const isFrance = e.country === 'France';
+    const isCity   = e.type === 'city';
+    if (isFrance && isCity) return 0;
+    if (isFrance)           return 1;
+    if (isCity)             return 2;
+    return 3;
+  };
+  const sorted = [...results].sort((a, b) => rank(a) - rank(b));
+
+  const ids = sorted
+    .map(l => (typeof l.id === 'number' ? String(l.id) : null))
     .filter((x): x is string => x != null)
     .slice(0, 3);
 
   if (ids.length === 0) {
     throw new Error(
-      `Mantiks : aucun lieu trouvé pour "${cityName}" via /location/search. ` +
+      `Mantiks : réponse /location/search sans IDs exploitables pour "${cityName}". ` +
       `Renseignez manuellement le champ « IDs de lieu Mantiks » dans les options avancées.`
     );
   }
