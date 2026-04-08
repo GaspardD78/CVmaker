@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, type ReactNode } from 'react';
-import { X, Copy, Check, ExternalLink, HelpCircle, Sparkles, Wand2, ListChecks, AlignLeft } from 'lucide-react';
+import { X, Copy, Check, ExternalLink, HelpCircle, Sparkles, Wand2, ListChecks, AlignLeft, ClipboardPaste, AlertCircle } from 'lucide-react';
 import type { SearchProfile } from '@/types/job-watch';
 
 // ── Primitives ───────────────────────────────────────────────────────────────
@@ -465,8 +465,20 @@ export function SourcesHelpModal({ onClose }: { onClose: () => void }) {
           <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">Mantiks</h4>
           <p className="text-sm text-gray-700 dark:text-gray-300">
             Agrégateur FR nécessitant une <strong>clé API mantiks.io</strong> (Options avancées).
-            Si vous obtenez une erreur 404, l'endpoint API a peut-être changé — vérifiez l'URL sur{' '}
-            <ExtLink href="https://developers.mantiks.io">developers.mantiks.io</ExtLink>.
+            L'intégration utilise l'endpoint <code>/company/search</code> avec authentification par
+            header <code>x-api-key</code>. L'URL de base par défaut est <code>https://api.mantiks.io</code>{' '}
+            — à ne modifier qu'en cas de changement d'API.
+          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+            <strong>Restreindre à une zone géographique :</strong> Mantiks utilise des <em>IDs de lieu</em>{' '}
+            (entiers), pas un nom de ville. Pour les obtenir, appelez{' '}
+            <code>GET https://api.mantiks.io/location/search?name=Paris</code> avec votre clé API, puis
+            copiez les IDs retournés dans le champ « IDs de lieu Mantiks » (séparés par des virgules).
+          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+            <strong>Coût :</strong> 1 crédit par entreprise retournée (indépendamment du nombre d'offres).
+            Documentation complète :{' '}
+            <ExtLink href="https://mantiks-api.readme.io/reference/getting-started-with-your-api">mantiks-api.readme.io</ExtLink>.
           </p>
         </div>
       </div>
@@ -640,6 +652,131 @@ Rédige un profil de recherche optimal au format JSON strict, qui respecte EXACT
 Rends-moi uniquement le JSON.`;
 }
 
+// ── JSON response parser ─────────────────────────────────────────────────────
+
+interface ParseResult {
+  ok: boolean;
+  profile?: Partial<SearchProfile>;
+  error?: string;
+  /** Non-blocking warnings the user should review */
+  warnings?: string[];
+}
+
+/**
+ * Parses + validates the JSON the user pastes from an LLM into a Partial<SearchProfile>.
+ *
+ * - Tolerant of markdown code fences (```json … ```), leading text, trailing text
+ * - Coerces each field to the expected shape, drops unknown values
+ * - Returns warnings for values that were silently corrected so the user can review
+ */
+function parseLlmProfileJson(raw: string): ParseResult {
+  const input = raw.trim();
+  if (!input) return { ok: false, error: 'Collez d\'abord la réponse JSON de l\'IA.' };
+
+  // Strip ```json … ``` fences if present
+  let cleaned = input
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
+  // If there's trailing text after a valid JSON object, try to isolate the first { … }
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace  = cleaned.lastIndexOf('}');
+  if (firstBrace > 0 || (firstBrace >= 0 && lastBrace > firstBrace && lastBrace < cleaned.length - 1)) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  }
+
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(cleaned);
+  } catch (err) {
+    return { ok: false, error: `JSON invalide : ${err instanceof Error ? err.message : String(err)}` };
+  }
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return { ok: false, error: 'Le JSON doit être un objet { … }.' };
+  }
+
+  const warnings: string[] = [];
+  const profile: Partial<SearchProfile> = {};
+
+  const asStringArray = (v: unknown, field: string): string[] | undefined => {
+    if (v === undefined || v === null) return undefined;
+    if (!Array.isArray(v)) { warnings.push(`${field} n'est pas un tableau — ignoré`); return undefined; }
+    const out = v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map(s => s.trim());
+    return out.length > 0 ? out : undefined;
+  };
+
+  if (typeof data.name === 'string' && data.name.trim()) profile.name = data.name.trim();
+
+  const jobTitles = asStringArray(data.jobTitles, 'jobTitles');
+  if (jobTitles) profile.jobTitles = jobTitles;
+  const skills = asStringArray(data.skills, 'skills');
+  if (skills) profile.skills = skills;
+  const domains = asStringArray(data.domains, 'domains');
+  if (domains) profile.domains = domains;
+  const excludeTitles = asStringArray(data.excludeTitles, 'excludeTitles');
+  if (excludeTitles) profile.excludeTitles = excludeTitles;
+  const excludeDomains = asStringArray(data.excludeDomains, 'excludeDomains');
+  if (excludeDomains) profile.excludeDomains = excludeDomains;
+  const blacklistedCompanies = asStringArray(data.blacklistedCompanies, 'blacklistedCompanies');
+  if (blacklistedCompanies) profile.blacklistedCompanies = blacklistedCompanies;
+
+  if (typeof data.location === 'object' && data.location !== null && !Array.isArray(data.location)) {
+    const loc = data.location as Record<string, unknown>;
+    const locationPatch: Partial<SearchProfile['location']> = {};
+    if (typeof loc.label === 'string')     locationPatch.label     = loc.label.trim();
+    if (typeof loc.city === 'string')      locationPatch.city      = loc.city.trim();
+    if (typeof loc.inseeCode === 'string') {
+      const code = loc.inseeCode.trim().toUpperCase();
+      locationPatch.inseeCode = code;
+      if (code && !/^(2[AB]\d{3}|\d{5})$/.test(code)) {
+        warnings.push(`inseeCode "${code}" semble invalide — vérifiez sur insee.fr`);
+      }
+    }
+    const depts = asStringArray(loc.departmentCodes, 'location.departmentCodes');
+    if (depts) locationPatch.departmentCodes = depts;
+    if (typeof loc.radiusKm === 'number' && loc.radiusKm >= 0) {
+      locationPatch.radiusKm = loc.radiusKm;
+    }
+    if (Object.keys(locationPatch).length > 0) {
+      profile.location = locationPatch as SearchProfile['location'];
+    }
+  }
+
+  const contractTypes = asStringArray(data.contractTypes, 'contractTypes');
+  if (contractTypes) {
+    const valid = ['CDI', 'CDD', 'Freelance', 'Alternance', 'Stage', 'Fonctionnaire'];
+    const kept = contractTypes.filter(ct => valid.includes(ct));
+    if (kept.length < contractTypes.length) {
+      warnings.push(`contractTypes : valeurs inconnues ignorées (seuls ${valid.join(', ')} sont acceptés)`);
+    }
+    if (kept.length > 0) profile.contractTypes = kept;
+  }
+
+  if (typeof data.salary === 'object' && data.salary !== null && !Array.isArray(data.salary)) {
+    const sal = data.salary as Record<string, unknown>;
+    const salaryPatch: Partial<SearchProfile['salary']> = {};
+    if (sal.min === null || typeof sal.min === 'number')       salaryPatch.min    = sal.min as number | null;
+    if (sal.target === null || typeof sal.target === 'number') salaryPatch.target = sal.target as number | null;
+    if (Object.keys(salaryPatch).length > 0) {
+      profile.salary = { min: null, target: null, ...salaryPatch };
+    }
+  }
+
+  if (typeof data.scoring === 'object' && data.scoring !== null && !Array.isArray(data.scoring)) {
+    const sc = data.scoring as Record<string, unknown>;
+    if (sc.mode === 'loose' || sc.mode === 'balanced' || sc.mode === 'strict') {
+      profile.scoring = { mode: sc.mode };
+    }
+  }
+
+  if (Object.keys(profile).length === 0) {
+    return { ok: false, error: 'Aucun champ exploitable trouvé dans le JSON.' };
+  }
+
+  return { ok: true, profile, warnings: warnings.length > 0 ? warnings : undefined };
+}
+
 interface ProfileAssistantModalProps {
   onClose: () => void;
   /** Called when the user applies a preset — receives a partial SearchProfile */
@@ -658,6 +795,8 @@ export function ProfileAssistantModal({
   const [guided, setGuided] = useState<GuidedAnswers>(EMPTY_GUIDED);
   const [userContext, setUserContext] = useState(currentProfileHint);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
 
   // Sync guided → freetext when in guided mode
   useEffect(() => {
@@ -681,6 +820,26 @@ export function ProfileAssistantModal({
     setG('contract', guided.contract.includes(ct)
       ? guided.contract.filter(c => c !== ct)
       : [...guided.contract, ct]);
+
+  const handleParseJson = () => {
+    setParseResult(parseLlmProfileJson(jsonInput));
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setJsonInput(text);
+      setParseResult(parseLlmProfileJson(text));
+    } catch {
+      setParseResult({ ok: false, error: 'Impossible de lire le presse-papiers — collez manuellement.' });
+    }
+  };
+
+  const handleApplyJson = () => {
+    if (!parseResult?.ok || !parseResult.profile || !onApplyPreset) return;
+    onApplyPreset(parseResult.profile);
+    onClose();
+  };
 
   return (
     <Modal title="Assistant de configuration" onClose={onClose}>
@@ -1029,12 +1188,89 @@ export function ProfileAssistantModal({
                 <ExtLink href="https://chatgpt.com">ChatGPT</ExtLink> ·{' '}
                 <ExtLink href="https://chat.mistral.ai">Mistral</ExtLink>.
               </li>
-              <li>L'IA rend un JSON — recopiez les valeurs dans les champs.</li>
-              <li>Vérifiez le code INSEE sur{' '}
-                <ExtLink href="https://www.insee.fr/fr/information/2560452">insee.fr</ExtLink> —
-                les LLM se trompent souvent sur ce code.
-              </li>
+              <li>Copiez la réponse JSON de l'IA et collez-la ci-dessous — l'app remplit les champs automatiquement.</li>
             </ol>
+          </div>
+
+          {/* ── JSON paste & apply ── */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Coller la réponse JSON de l'IA
+              </label>
+              <button
+                type="button"
+                onClick={handlePasteFromClipboard}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-[10px] font-medium hover:border-blue-400 hover:text-blue-600 transition-colors"
+              >
+                <ClipboardPaste className="w-3 h-3" />
+                Coller depuis presse-papiers
+              </button>
+            </div>
+            <textarea
+              rows={5}
+              className="w-full text-[11px] font-mono px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              value={jsonInput}
+              onChange={e => { setJsonInput(e.target.value); setParseResult(null); }}
+              placeholder={'{\n  "name": "…",\n  "jobTitles": [ "…" ],\n  …\n}'}
+            />
+
+            {parseResult && !parseResult.ok && (
+              <div className="flex items-start gap-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 px-2.5 py-1.5 text-[11px] text-red-700 dark:text-red-300">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>{parseResult.error}</span>
+              </div>
+            )}
+
+            {parseResult?.ok && parseResult.profile && (
+              <div className="space-y-1.5">
+                <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 px-2.5 py-1.5">
+                  <p className="text-[11px] font-medium text-green-700 dark:text-green-300 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> JSON valide — {Object.keys(parseResult.profile).length} champ(s) détecté(s)
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {Object.keys(parseResult.profile).map(k => (
+                      <span key={k} className="px-1.5 py-0.5 text-[9px] rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-mono">
+                        {k}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {parseResult.warnings && parseResult.warnings.length > 0 && (
+                  <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-2.5 py-1.5 text-[10px] text-amber-700 dark:text-amber-300">
+                    <p className="font-medium mb-0.5">Avertissements :</p>
+                    <ul className="list-disc ml-3 space-y-0.5">
+                      {parseResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleParseJson}
+                disabled={!jsonInput.trim()}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium hover:border-blue-400 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Vérifier
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyJson}
+                disabled={!parseResult?.ok || !onApplyPreset}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Check className="w-3 h-3" />
+                Appliquer au profil
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">
+              Les champs seront pré-remplis dans la configuration. Pensez à vérifier le code INSEE sur{' '}
+              <ExtLink href="https://www.insee.fr/fr/information/2560452">insee.fr</ExtLink>{' '}
+              avant de sauvegarder — les LLM se trompent souvent dessus.
+            </p>
           </div>
         </div>
       )}

@@ -577,27 +577,35 @@ export function JobWatchConfigView() {
           </div>
         </div>
 
-        {/* Mantiks API key + base URL */}
+        {/* Mantiks API key + base URL + location IDs */}
         <div>
           <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Mantiks — Clé API</p>
           <div className="grid gap-2 sm:grid-cols-2">
-            <Field label="Clé API">
+            <Field label="Clé API (header x-api-key)">
               <input type="password" autoComplete="new-password" className={inputCls} placeholder="Clé API Mantiks"
                 value={(settingsDraft as unknown as Record<string, string>)['mantiksApiKey'] ?? ''}
                 onChange={e => setSettingsDraft(d => ({ ...d, mantiksApiKey: e.target.value } as unknown as JobWatchSettings))}
               />
             </Field>
-            <Field label="URL API (optionnel)" help="Laisser vide pour l'endpoint par défaut">
+            <Field label="URL de base (optionnel)" help="Laisser vide pour https://api.mantiks.io">
               <input type="text" className={inputCls}
-                placeholder="https://api.mantiks.io/v1/jobs"
+                placeholder="https://api.mantiks.io"
                 value={(settingsDraft as unknown as Record<string, string>)['mantiksBaseUrl'] ?? ''}
                 onChange={e => setSettingsDraft(d => ({ ...d, mantiksBaseUrl: e.target.value } as unknown as JobWatchSettings))}
               />
             </Field>
+            <Field label="IDs de lieu Mantiks (optionnel)" help="Liste d'IDs séparés par virgule — ex. : 2988507,2643743">
+              <input type="text" className={inputCls}
+                placeholder="2988507, 2643743"
+                value={(settingsDraft as unknown as Record<string, string>)['mantiksLocationIds'] ?? ''}
+                onChange={e => setSettingsDraft(d => ({ ...d, mantiksLocationIds: e.target.value } as unknown as JobWatchSettings))}
+              />
+            </Field>
           </div>
           <p className="text-[10px] text-gray-400 mt-1">
-            En cas d'erreur 404, l'API Mantiks a peut-être changé — vérifiez l'URL sur{' '}
-            <a href="https://developers.mantiks.io" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">developers.mantiks.io</a>.
+            Mantiks utilise l'endpoint <code>/company/search</code> (recherche par entreprise). Pour restreindre à une
+            zone géographique, obtenez les IDs via <code>GET /location/search?name=Paris</code>. Documentation :{' '}
+            <a href="https://mantiks-api.readme.io/reference/getting-started-with-your-api" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">mantiks-api.readme.io</a>.
           </p>
         </div>
 
