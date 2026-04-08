@@ -465,8 +465,20 @@ export function SourcesHelpModal({ onClose }: { onClose: () => void }) {
           <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">Mantiks</h4>
           <p className="text-sm text-gray-700 dark:text-gray-300">
             Agrégateur FR nécessitant une <strong>clé API mantiks.io</strong> (Options avancées).
-            Si vous obtenez une erreur 404, l'endpoint API a peut-être changé — vérifiez l'URL sur{' '}
-            <ExtLink href="https://developers.mantiks.io">developers.mantiks.io</ExtLink>.
+            L'intégration utilise l'endpoint <code>/company/search</code> avec authentification par
+            header <code>x-api-key</code>. L'URL de base par défaut est <code>https://api.mantiks.io</code>{' '}
+            — à ne modifier qu'en cas de changement d'API.
+          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+            <strong>Restreindre à une zone géographique :</strong> Mantiks utilise des <em>IDs de lieu</em>{' '}
+            (entiers), pas un nom de ville. Pour les obtenir, appelez{' '}
+            <code>GET https://api.mantiks.io/location/search?name=Paris</code> avec votre clé API, puis
+            copiez les IDs retournés dans le champ « IDs de lieu Mantiks » (séparés par des virgules).
+          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+            <strong>Coût :</strong> 1 crédit par entreprise retournée (indépendamment du nombre d'offres).
+            Documentation complète :{' '}
+            <ExtLink href="https://mantiks-api.readme.io/reference/getting-started-with-your-api">mantiks-api.readme.io</ExtLink>.
           </p>
         </div>
       </div>

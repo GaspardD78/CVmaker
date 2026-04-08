@@ -89,6 +89,7 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     // Mantiks fields are persisted as untyped extras (parser reads via cast).
     mantiksApiKey:         map['mantiks_api_key']         ?? '',
     mantiksBaseUrl:        map['mantiks_base_url']        ?? '',
+    mantiksLocationIds:    map['mantiks_location_ids']    ?? '',
   } as JobWatchSettings;
 }
 
@@ -113,8 +114,9 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['ft_client_secret',       settings.ftClientSecret],
     ['ft_access_token',        settings.ftAccessToken],
     ['ft_token_expires_at',    settings.ftTokenExpiresAt],
-    ['mantiks_api_key',        anySettings['mantiksApiKey']  ?? ''],
-    ['mantiks_base_url',       anySettings['mantiksBaseUrl'] ?? ''],
+    ['mantiks_api_key',        anySettings['mantiksApiKey']       ?? ''],
+    ['mantiks_base_url',       anySettings['mantiksBaseUrl']      ?? ''],
+    ['mantiks_location_ids',   anySettings['mantiksLocationIds']  ?? ''],
   ];
   for (const [key, value] of entries) {
     await db.execute(

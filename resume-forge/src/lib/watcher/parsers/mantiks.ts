@@ -1,246 +1,248 @@
 /**
- * Parser Mantiks Job API
+ * Parser Mantiks API
  *
- * Mantiks est une solution d'agrégation d'offres d'emploi pour le marché
- * français avec filtres avancés, webhooks et historique.
+ * Mantiks agrège des offres d'emploi en se basant sur les entreprises qui
+ * recrutent. Le modèle est "companies-first" : on requête des entreprises
+ * avec des critères (titre de poste, lieu), et l'API retourne des sociétés
+ * accompagnées de la liste de leurs offres actives.
  *
- * Documentation API : https://developers.mantiks.io
- * Authentification : Bearer token (clé API obtenue sur mantiks.io)
+ * Documentation : https://mantiks-api.readme.io/reference/getting-started-with-your-api
+ * Authentification : header `x-api-key: <clé>`
  *
- * Endpoint principal : GET https://api.mantiks.io/v1/jobs
- * Paramètres supportés :
- *   - q          : mots-clés de recherche (titre/description)
- *   - location   : ville ou région
- *   - contract   : CDI, CDD, FREELANCE, INTERNSHIP, APPRENTICESHIP
- *   - page       : pagination (1-based)
- *   - per_page   : résultats par page (max 50)
- *   - country    : code pays (default "FR")
+ * Endpoint utilisé :
+ *   GET https://api.mantiks.io/company/search
+ *     ?job_title=...
+ *     &job_title_include_all=false
+ *     &job_location_ids=<id1,id2>    (IDs Mantiks obtenus via /location/search)
+ *     &job_age_in_days=30
+ *     &limit=50
+ *     &offset=<next_offset>
  *
- * Qualité d'extraction : HIGH — données structurées JSON
+ * Réponse :
+ *   {
+ *     companies: [
+ *       {
+ *         name, website, industry,
+ *         jobs: [
+ *           { job_title, location, job_board, job_board_url,
+ *             date_creation, salary: { min, max, type, currency }, description }
+ *         ]
+ *       }
+ *     ],
+ *     next_offset: "cursor" | null
+ *   }
  *
- * Note : Si Mantiks change son API, ajuster les types FT_* ci-dessous.
- * La clé API est stockée dans job_watch_settings sous 'mantiks_api_key'.
+ * Coût : 1 crédit par company retournée (indépendamment du nombre de jobs).
+ *
+ * Qualité d'extraction : HIGH — données structurées JSON.
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
-import { buildWttjQuery, isExcludedByProfile } from '../profile-to-query';
+import { isExcludedByProfile } from '../profile-to-query';
 import { tauriFetch } from '../http';
 
-/** Default endpoint — can be overridden via settings.mantiksBaseUrl */
-const DEFAULT_MANTIKS_API_BASE = 'https://api.mantiks.io/v1/jobs';
+/** Default base URL — overridable via settings.mantiksBaseUrl */
+const DEFAULT_MANTIKS_API_BASE = 'https://api.mantiks.io';
 const PAGE_SIZE = 50;
-const MAX_PAGES = 3;  // 150 offres max par collecte
-
-// ── Contract type mapping ────────────────────────────────────────────────────
-
-const CONTRACT_MAP: Record<string, string> = {
-  'CDI':           'CDI',
-  'CDD':           'CDD',
-  'FREELANCE':     'Freelance',
-  'INTERNSHIP':    'Stage',
-  'APPRENTICESHIP':'Alternance',
-  'INTERIM':       'Intérim',
-  'PART_TIME':     'CDD',
-  'FULL_TIME':     'CDI',
-};
+const MAX_PAGES = 3;        // hard cap to limit credits consumption
+const JOB_AGE_DAYS = 30;    // only keep offers posted within the last 30 days
 
 // ── Mantiks API response types ────────────────────────────────────────────────
 
-interface MantiksJob {
-  id?:            string;
-  title?:         string;
-  company?: {
-    name?: string;
-    size?: string;
-  };
-  location?: {
-    city?:        string;
-    region?:      string;
-    department?:  string;
-    latitude?:    number;
-    longitude?:   number;
-    remote?:      boolean;
-  };
-  contract_type?: string;
-  description?:   string;
-  url?:           string;
-  published_at?:  string;
-  salary?: {
-    min?: number;
-    max?: number;
-    currency?: string;
-    period?: 'ANNUAL' | 'MONTHLY';
-  };
-  source?: {
-    name?: string;
-    url?:  string;
-  };
+interface MantiksSalary {
+  min?:      number | null;
+  max?:      number | null;
+  type?:     'YEARLY' | 'MONTHLY' | string | null;
+  currency?: string | null;
 }
 
-interface MantiksResponse {
-  data?:  MantiksJob[];
-  meta?: {
-    total?:        number;
-    current_page?: number;
-    last_page?:    number;
-    per_page?:     number;
-  };
+interface MantiksJob {
+  job_title?:     string;
+  location?:      string | null;
+  job_board?:     string | null;
+  job_board_url?: string | null;
+  date_creation?: string | null;
+  salary?:        MantiksSalary | null;
+  description?:   string | null;
+}
+
+interface MantiksCompany {
+  name?:     string;
+  website?:  string | null;
+  industry?: string | null;
+  jobs?:     MantiksJob[];
+}
+
+interface MantiksCompaniesResponse {
+  companies?:   MantiksCompany[];
+  next_offset?: string | null;
 }
 
 // ── Salary normalisation ──────────────────────────────────────────────────────
 
-function normaliseSalary(salary?: MantiksJob['salary']): {
+function normaliseSalary(salary?: MantiksSalary | null): {
   salaryMin: number | null;
   salaryMax: number | null;
   salaryRaw: string | null;
 } {
-  if (!salary?.min && !salary?.max) return { salaryMin: null, salaryMax: null, salaryRaw: null };
+  if (!salary || (salary.min == null && salary.max == null)) {
+    return { salaryMin: null, salaryMax: null, salaryRaw: null };
+  }
 
   let min = salary.min ?? null;
   let max = salary.max ?? null;
   const cur = salary.currency ?? '€';
 
   // Convert monthly to annual
-  if (salary.period === 'MONTHLY') {
-    if (min) min = Math.round(min * 12);
-    if (max) max = Math.round(max * 12);
+  if (salary.type === 'MONTHLY') {
+    if (min != null) min = Math.round(min * 12);
+    if (max != null) max = Math.round(max * 12);
   }
 
   const raw = min != null
-    ? `${min}${max && max !== min ? '–' + max : ''} ${cur}/an`
-    : null;
+    ? `${min}${max != null && max !== min ? '–' + max : ''} ${cur}/an`
+    : max != null
+      ? `≤ ${max} ${cur}/an`
+      : null;
 
   return { salaryMin: min, salaryMax: max, salaryRaw: raw };
-}
-
-// ── Location formatting ───────────────────────────────────────────────────────
-
-function formatLocation(location?: MantiksJob['location']): string | null {
-  if (!location) return null;
-  if (location.remote) return 'Télétravail';
-  const parts: string[] = [];
-  if (location.city)   parts.push(location.city);
-  if (location.department && !location.city) parts.push(location.department);
-  else if (location.region && !location.city) parts.push(location.region);
-  return parts.join(', ') || null;
 }
 
 // ── Main parser ──────────────────────────────────────────────────────────────
 
 export async function parseMantiks(
-  config: JobWatchConfig,
+  _config: JobWatchConfig,
   settings: JobWatchSettings,
 ): Promise<RawJobOffer[]> {
   const anySettings = settings as unknown as Record<string, string>;
-  const apiKey      = anySettings['mantiksApiKey'] ?? '';
-  const baseUrl     = (anySettings['mantiksBaseUrl'] || DEFAULT_MANTIKS_API_BASE).replace(/\/$/, '');
+  const apiKey      = (anySettings['mantiksApiKey'] ?? '').trim();
+  const baseUrl     = ((anySettings['mantiksBaseUrl'] || DEFAULT_MANTIKS_API_BASE).trim()).replace(/\/$/, '');
+  const locationIds = (anySettings['mantiksLocationIds'] ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
 
   if (!apiKey) {
     throw new Error('Mantiks : clé API requise (champ « Clé API Mantiks » dans les options avancées)');
   }
 
   const profile = settings.searchProfile;
-  const query   = buildWttjQuery(profile); // same: keywords + city
 
-  // Build contract type filter
-  const contractFilter = profile.contractTypes
-    .map(ct => {
-      const entry = Object.entries(CONTRACT_MAP).find(([, v]) => v === ct);
-      return entry ? entry[0] : null;
-    })
-    .filter(Boolean)
-    .join(',');
+  // Mantiks' job_title accepts a free-form string. We join job titles with
+  // " OR " and keep job_title_include_all=false so any match counts. Skills
+  // are used for local scoring, not the server-side query.
+  const titles = profile.jobTitles.map(t => t.trim()).filter(Boolean);
+  if (titles.length === 0) {
+    // Without a title, the query would be too broad and burn credits.
+    return [];
+  }
+  const jobTitleParam = titles.length === 1 ? titles[0] : titles.join(' OR ');
 
+  const endpoint = `${baseUrl}/company/search`;
   const offers: RawJobOffer[] = [];
+  let nextOffset: string | null = null;
 
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const params = new URLSearchParams({
-      country:  'FR',
-      per_page: String(PAGE_SIZE),
-      page:     String(page),
-    });
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const params = new URLSearchParams();
+    params.set('job_title',              jobTitleParam);
+    params.set('job_title_include_all',  'false');
+    params.set('job_age_in_days',        String(JOB_AGE_DAYS));
+    params.set('limit',                  String(PAGE_SIZE));
+    if (locationIds.length > 0) {
+      // Mantiks expects a comma-separated list of integer location IDs
+      params.set('job_location_ids', locationIds.join(','));
+    }
+    if (nextOffset) params.set('offset', nextOffset);
 
-    if (query.query)     params.set('q', query.query);
-    if (query.city)      params.set('location', query.city);
-    if (contractFilter)  params.set('contract', contractFilter);
+    const url = `${endpoint}?${params.toString()}`;
 
-    const res = await tauriFetch(`${baseUrl}?${params.toString()}`, {
+    const res = await tauriFetch(url, {
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept':        'application/json',
-        'Content-Type':  'application/json',
+        'x-api-key': apiKey,
+        'Accept':    'application/json',
       },
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      // A 404 almost always means the endpoint URL is wrong (Mantiks has changed
-      // their public API several times). Give the user actionable guidance.
       if (res.status === 404) {
         throw new Error(
-          `Mantiks : endpoint introuvable (404) à ${baseUrl}. ` +
-          `Vérifiez l'URL de base dans la configuration (champ « URL API Mantiks ») — ` +
-          `consultez https://developers.mantiks.io pour la valeur actuelle, ou désactivez la source.`
+          `Mantiks : endpoint introuvable (404) à ${endpoint}. ` +
+          `Vérifiez l'URL de base dans la configuration — la valeur correcte est ` +
+          `« https://api.mantiks.io ». Documentation : ` +
+          `https://mantiks-api.readme.io/reference/getting-started-with-your-api`
         );
       }
       if (res.status === 401 || res.status === 403) {
         throw new Error(
           `Mantiks : authentification refusée (${res.status}). ` +
-          `Vérifiez votre clé API dans les options avancées.`
+          `Vérifiez votre clé API (header x-api-key) dans les options avancées.`
+        );
+      }
+      if (res.status === 429) {
+        throw new Error(
+          `Mantiks : quota API dépassé (429). Consultez votre usage sur mantiks.io ou réessayez plus tard.`
         );
       }
       throw new Error(`Mantiks API error ${res.status}: ${text.slice(0, 200)}`);
     }
 
-    const data = await res.json() as MantiksResponse;
-    const jobs  = data.data ?? [];
+    const data = await res.json() as MantiksCompaniesResponse;
+    const companies = data.companies ?? [];
 
-    for (const job of jobs) {
-      if (!job.title || !job.url) continue;
+    // Flatten companies → jobs, preserving company metadata on each offer
+    for (const company of companies) {
+      const companyName = company.name ?? null;
+      const jobs = company.jobs ?? [];
 
-      const { salaryMin, salaryMax, salaryRaw } = normaliseSalary(job.salary);
-      const location = formatLocation(job.location);
+      for (const job of jobs) {
+        const title = job.job_title?.trim();
+        const url   = job.job_board_url?.trim();
+        if (!title || !url) continue;
 
-      const hasCoords = job.location?.latitude != null && job.location?.longitude != null;
+        const { salaryMin, salaryMax, salaryRaw } = normaliseSalary(job.salary);
 
-      const extraction: ExtractionMetadata = {
-        titleSource:        'api',
-        titleConfidence:    'high',
-        locationSource:     hasCoords ? 'api_coords' : (location ? 'api_text' : 'none'),
-        locationConfidence: hasCoords ? 'high' : (location ? 'high' : 'none'),
-        contractSource:     job.contract_type ? 'api' : 'none',
-        contractConfidence: job.contract_type ? 'high' : 'none',
-      };
+        const extraction: ExtractionMetadata = {
+          titleSource:        'api',
+          titleConfidence:    'high',
+          locationSource:     job.location ? 'api_text' : 'none',
+          locationConfidence: job.location ? 'high' : 'none',
+          // Mantiks does not expose a structured contract field; we leave
+          // contractType unset and let the scorer handle it (balanced mode).
+          contractSource:     'none',
+          contractConfidence: 'none',
+        };
 
-      offers.push({
-        source:             'mantiks',
-        url:                job.url,
-        title:              job.title,
-        company:            job.company?.name ?? null,
-        location,
-        locationLat:        job.location?.latitude  ?? null,
-        locationLon:        job.location?.longitude ?? null,
-        contractType:       job.contract_type ? (CONTRACT_MAP[job.contract_type] ?? job.contract_type) : null,
-        descriptionSnippet: job.description?.slice(0, 500) ?? null,
-        publishedAt:        job.published_at ?? null,
-        salaryMin,
-        salaryMax,
-        salaryRaw,
-        extraction,
-      });
+        offers.push({
+          source:             'mantiks',
+          url,
+          title,
+          company:            companyName,
+          location:           job.location ?? null,
+          contractType:       null,
+          descriptionSnippet: job.description?.slice(0, 500) ?? null,
+          publishedAt:        job.date_creation ?? null,
+          salaryMin,
+          salaryMax,
+          salaryRaw,
+          extraction,
+        });
+      }
     }
 
-    // Stop if we've fetched all pages
-    if (!data.meta?.last_page || page >= data.meta.last_page) break;
-    if (jobs.length < PAGE_SIZE) break;
+    // Pagination: stop if no more pages or empty batch
+    nextOffset = data.next_offset ?? null;
+    if (!nextOffset) break;
+    if (companies.length === 0) break;
 
     // Respect rate limits
     await new Promise(r => setTimeout(r, 300));
   }
 
-  // Local exclusion filter
+  // Local exclusion filter (also applied to company name since Mantiks is
+  // company-first: excluding a company name should remove all its offers)
   return offers.filter(o => {
-    const text = `${o.title} ${o.descriptionSnippet ?? ''}`;
+    const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`;
     return !isExcludedByProfile(text, profile);
   });
 }
