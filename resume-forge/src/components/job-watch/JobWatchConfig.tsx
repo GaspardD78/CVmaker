@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import {
   Save, ToggleLeft, ToggleRight, UserRound, ChevronDown, ChevronUp,
-  Plus, Trash2, Info,
+  Plus, Trash2, Info, Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -14,7 +14,7 @@ import type {
   SearchProfile,
 } from '@/types/job-watch';
 import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
-import { summarizeSourceQuery } from '@/lib/watcher/profile-to-query';
+import { summarizeSourceQuery, isValidInseeCode } from '@/lib/watcher/profile-to-query';
 import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
 import {
   HelpButton,
@@ -23,6 +23,7 @@ import {
   EmailHelpModal,
   LinkedInRssHelpModal,
   SourcesHelpModal,
+  ProfileAssistantModal,
 } from './ConfigHelpModal';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ const ALL_SOURCES: JobSource[] = [
 /** Sources that require an RSS URL (required) */
 const RSS_REQUIRED_SOURCES: JobSource[] = ['linkedin_rss', 'emploi_territorial'];
 
-type HelpModal = 'sources' | 'ft' | 'navitia' | 'email' | 'linkedin' | null;
+type HelpModal = 'sources' | 'ft' | 'navitia' | 'email' | 'linkedin' | 'assistant' | null;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -217,6 +218,30 @@ export function JobWatchConfigView() {
   const updateSetting = <K extends keyof JobWatchSettings>(key: K, value: JobWatchSettings[K]) =>
     setSettingsDraft(d => ({ ...d, [key]: value }));
 
+  // ── Apply a preset from the Profile Assistant ─────────────────────────────
+
+  const handleApplyPreset = (partial: Partial<SearchProfile>) => {
+    if (partial.jobTitles)      setJobTitlesText(joinList(partial.jobTitles));
+    if (partial.skills)         setSkillsText(joinList(partial.skills));
+    if (partial.domains)        setDomainsText(joinList(partial.domains));
+    if (partial.excludeTitles)  setExcludeTitlesText(joinList(partial.excludeTitles));
+    if (partial.excludeDomains) setExcludeDomainsText(joinList(partial.excludeDomains));
+    if (partial.contractTypes)  setContractTypes(partial.contractTypes);
+    if (partial.salary) {
+      setSalaryMin(partial.salary.min    != null ? String(partial.salary.min)    : '');
+      setSalaryTarget(partial.salary.target != null ? String(partial.salary.target) : '');
+    }
+    if (partial.scoring?.mode)  setScoringMode(partial.scoring.mode);
+    if (partial.location) {
+      if (partial.location.label)           setLocationLabel(partial.location.label);
+      if (partial.location.city)            setLocationCity(partial.location.city);
+      if (partial.location.inseeCode)       setInseeCode(partial.location.inseeCode);
+      if (partial.location.departmentCodes) setDeptCodes(joinList(partial.location.departmentCodes));
+      if (partial.location.radiusKm != null) setRadiusKm(partial.location.radiusKm);
+    }
+    toast.success('Profil type appliqué — pensez à vérifier la localisation et à sauvegarder');
+  };
+
   // ── Import from CV profile ────────────────────────────────────────────────
 
   const handleImportFromProfile = () => {
@@ -276,18 +301,27 @@ export function JobWatchConfigView() {
 
       {/* ── 1. Search profile ── */}
       <Section title="Ce que je cherche">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+        <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+          <p className="text-xs text-gray-400 dark:text-gray-500 flex-1 min-w-0">
             Un seul profil pilote les requêtes envoyées à toutes les sources <em>et</em> le scoring des offres.
           </p>
-          {profile && (
+          <div className="flex items-center gap-1.5">
             <button
-              onClick={handleImportFromProfile}
-              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
+              onClick={() => setHelpModal('assistant')}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+              title="Guide, profils types, et générateur de prompt IA"
             >
-              <UserRound className="w-3 h-3" /> Importer depuis mon profil
+              <Wand2 className="w-3 h-3" /> Assistant
             </button>
-          )}
+            {profile && (
+              <button
+                onClick={handleImportFromProfile}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors"
+              >
+                <UserRound className="w-3 h-3" /> Importer depuis mon profil
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -364,9 +398,24 @@ export function JobWatchConfigView() {
           <Field label="Code INSEE — France Travail" help="5 chiffres : 75056 Paris, 69123 Lyon, 13055 Marseille">
             <input type="text" className={inputCls} maxLength={5}
               value={inseeCode}
-              onChange={e => setInseeCode(e.target.value.replace(/\D/g, ''))}
+              onChange={e => setInseeCode(e.target.value.replace(/[^0-9AB]/gi, '').toUpperCase())}
               placeholder="75056"
             />
+            {inseeCode && !isValidInseeCode(inseeCode) && (
+              <p className="text-[10px] text-amber-500 mt-0.5">
+                ⚠ Ce n'est pas un code INSEE valide (ce n'est <strong>pas</strong> le code postal).
+                Recherchez-le sur{' '}
+                <a
+                  href="https://www.insee.fr/fr/information/2560452"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-blue-500"
+                >
+                  insee.fr
+                </a>
+                . La recherche basculera sur le département.
+              </p>
+            )}
           </Field>
 
           <Field label="Département(s) — APEC" help="Séparés par des virgules : 75, 92, 93">
@@ -523,13 +572,28 @@ export function JobWatchConfigView() {
           </div>
         </div>
 
-        {/* Mantiks API key */}
+        {/* Mantiks API key + base URL */}
         <div>
           <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Mantiks — Clé API</p>
-          <input type="password" autoComplete="new-password" className={inputCls} placeholder="Clé API Mantiks"
-            value={(settingsDraft as unknown as Record<string, string>)['mantiksApiKey'] ?? ''}
-            onChange={e => setSettingsDraft(d => ({ ...d, mantiksApiKey: e.target.value } as unknown as JobWatchSettings))}
-          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Field label="Clé API">
+              <input type="password" autoComplete="new-password" className={inputCls} placeholder="Clé API Mantiks"
+                value={(settingsDraft as unknown as Record<string, string>)['mantiksApiKey'] ?? ''}
+                onChange={e => setSettingsDraft(d => ({ ...d, mantiksApiKey: e.target.value } as unknown as JobWatchSettings))}
+              />
+            </Field>
+            <Field label="URL API (optionnel)" help="Laisser vide pour l'endpoint par défaut">
+              <input type="text" className={inputCls}
+                placeholder="https://api.mantiks.io/v1/jobs"
+                value={(settingsDraft as unknown as Record<string, string>)['mantiksBaseUrl'] ?? ''}
+                onChange={e => setSettingsDraft(d => ({ ...d, mantiksBaseUrl: e.target.value } as unknown as JobWatchSettings))}
+              />
+            </Field>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1">
+            En cas d'erreur 404, l'API Mantiks a peut-être changé — vérifiez l'URL sur{' '}
+            <a href="https://developers.mantiks.io" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">developers.mantiks.io</a>.
+          </p>
         </div>
 
         {/* Commute */}
@@ -630,11 +694,25 @@ export function JobWatchConfigView() {
       </Section>
 
       {/* ── Help modals ── */}
-      {helpModal === 'sources'  && <SourcesHelpModal       onClose={closeHelp} />}
-      {helpModal === 'ft'       && <FranceTravailHelpModal  onClose={closeHelp} />}
-      {helpModal === 'navitia'  && <NavitiaHelpModal         onClose={closeHelp} />}
-      {helpModal === 'email'    && <EmailHelpModal           onClose={closeHelp} />}
-      {helpModal === 'linkedin' && <LinkedInRssHelpModal     onClose={closeHelp} />}
+      {helpModal === 'sources'   && <SourcesHelpModal       onClose={closeHelp} />}
+      {helpModal === 'ft'        && <FranceTravailHelpModal onClose={closeHelp} />}
+      {helpModal === 'navitia'   && <NavitiaHelpModal        onClose={closeHelp} />}
+      {helpModal === 'email'     && <EmailHelpModal          onClose={closeHelp} />}
+      {helpModal === 'linkedin'  && <LinkedInRssHelpModal    onClose={closeHelp} />}
+      {helpModal === 'assistant' && (
+        <ProfileAssistantModal
+          onClose={closeHelp}
+          onApplyPreset={handleApplyPreset}
+          currentProfileHint={
+            [
+              profile?.title ? `Poste actuel / visé : ${profile.title}` : '',
+              jobTitlesText  ? `Titres visés : ${jobTitlesText}`       : '',
+              skillsText     ? `Compétences : ${skillsText}`            : '',
+              locationCity   ? `Zone : ${locationCity}`                 : '',
+            ].filter(Boolean).join('\n')
+          }
+        />
+      )}
     </div>
   );
 }

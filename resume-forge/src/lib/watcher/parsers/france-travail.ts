@@ -135,6 +135,41 @@ interface FtSearchResponse {
 
 // ── Main parser ──────────────────────────────────────────────────────────────
 
+/**
+ * Exponential-backoff retry for transient 5xx errors.
+ * France Travail returns HTTP 500 "Erreur technique" fairly regularly; a short
+ * retry loop avoids polluting the UI with errors for temporary blips.
+ */
+async function ftFetchWithRetry(
+  url: string,
+  token: string,
+  attempts = 3,
+): Promise<Response> {
+  let lastErr: Error | null = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await tauriFetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept':        'application/json',
+        },
+      });
+      // Retry only on 5xx — 4xx means bad query, no point retrying
+      if (res.status >= 500 && res.status < 600 && i < attempts - 1) {
+        await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      if (i < attempts - 1) {
+        await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
+      }
+    }
+  }
+  throw lastErr ?? new Error('France Travail: fetch failed after retries');
+}
+
 export async function parseFranceTravail(
   config: JobWatchConfig,
   settings: JobWatchSettings,
@@ -155,25 +190,44 @@ export async function parseFranceTravail(
   // Build query from the unified SearchProfile
   const query = buildFranceTravailQuery(settings.searchProfile);
 
+  // Track whether we had to drop the commune parameter after a 400 "commune" error
+  let communeDisabled = false;
+
   for (let page = 0; page < 2; page++) {
     const params = new URLSearchParams();
 
     if (query.motsCles) params.set('motsCles', query.motsCles);
 
-    if (query.commune)      params.set('commune',     query.commune);
-    if (query.departement)  params.set('departement', query.departement);
+    // Skip commune if it was rejected on a previous page and fall back to departement
+    if (query.commune && !communeDisabled) {
+      params.set('commune', query.commune);
+    } else if (query.departement) {
+      params.set('departement', query.departement);
+    }
     if (query.distance)     params.set('distance',    String(query.distance));
     if (query.typeContrat)  params.set('typeContrat', query.typeContrat);
 
     // LinkedIn RSS uses its own URL; for FT the rssUrl field is ignored
     params.set('range', `${page * PAGE_SIZE}-${(page + 1) * PAGE_SIZE - 1}`);
 
-    const res = await tauriFetch(`${FT_SEARCH_URL}?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept':        'application/json',
-      },
-    });
+    let res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
+
+    // Graceful fallback: if 400 "commune" error, retry the same page without commune
+    if (res.status === 400 && query.commune && !communeDisabled) {
+      const text = await res.text().catch(() => '');
+      if (/commune/i.test(text)) {
+        console.warn(
+          `[france-travail] commune "${query.commune}" rejetée par l'API ` +
+          `(${text.slice(0, 120)}). Bascule sur departement="${query.departement ?? '(aucun)'}".`
+        );
+        communeDisabled = true;
+        params.delete('commune');
+        if (query.departement) params.set('departement', query.departement);
+        res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
+      } else {
+        throw new Error(`France Travail search error 400: ${text.slice(0, 200)}`);
+      }
+    }
 
     if (res.status === 204) break;
 

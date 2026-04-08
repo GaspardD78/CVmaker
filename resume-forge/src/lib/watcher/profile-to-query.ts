@@ -31,13 +31,31 @@ export interface ApecQueryParams {
   typesContrat: number[];
 }
 
+/** Quote a term if it contains whitespace, so multi-word titles are matched as a phrase */
+function quoteIfNeeded(term: string): string {
+  const t = term.trim();
+  if (!t) return '';
+  if (/\s/.test(t) && !t.startsWith('"')) return `"${t}"`;
+  return t;
+}
+
 export function buildApecQuery(profile: SearchProfile): ApecQueryParams {
-  // Combine job titles + skills for the keyword query
-  const allKeywords = [...profile.jobTitles, ...profile.skills].filter(Boolean);
-  let motsCles = allKeywords.join(' ') || undefined;
+  // Only use jobTitles for the keyword query (skills are used for scoring, not
+  // to restrict the search — adding them AND-joined to the query killed recall).
+  // Job titles are OR-combined so any match counts.
+  const titles = profile.jobTitles.map(quoteIfNeeded).filter(Boolean);
+  let motsCles: string | undefined;
+
+  if (titles.length === 1) {
+    motsCles = titles[0];
+  } else if (titles.length > 1) {
+    motsCles = `(${titles.join(' OU ')})`;
+  }
 
   // Append exclusion operators (APEC supports "ET NON (term1 OU term2)")
-  const excluded = [...profile.excludeTitles, ...profile.excludeDomains].filter(Boolean);
+  const excluded = [...profile.excludeTitles, ...profile.excludeDomains]
+    .map(quoteIfNeeded)
+    .filter(Boolean);
   if (motsCles && excluded.length > 0) {
     motsCles += ` ET NON (${excluded.join(' OU ')})`;
   }
@@ -73,25 +91,53 @@ export interface FranceTravailQueryParams {
   typeContrat: string | undefined;
 }
 
-export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQueryParams {
-  const allKeywords = [...profile.jobTitles, ...profile.skills].filter(Boolean);
-  let motsCles: string | undefined = allKeywords.join(' ') || undefined;
+/**
+ * Validates an INSEE commune code.
+ * INSEE codes are 5 characters: 2-digit department + 3-digit commune number.
+ * Paris/Lyon/Marseille use specific ranges (75056, 69123, 13055 for the city,
+ * 75101-75120 / 69381-69389 / 13201-13216 for arrondissements).
+ * Corsica uses "2A"/"2B" prefixes; DOM-TOM use "97x" prefixes.
+ *
+ * This rejects postal codes that users frequently confuse with INSEE codes
+ * (e.g. "75000", "75001" — postal — vs "75056", "75101" — INSEE).
+ */
+export function isValidInseeCode(code: string): boolean {
+  if (!code) return false;
+  // Corsica: "2A" or "2B" + 3 digits
+  if (/^2[AB]\d{3}$/.test(code)) return true;
+  // Metropolitan + DOM: 5 digits
+  if (!/^\d{5}$/.test(code)) return false;
+  // A postal code ending in "000" is almost never a valid INSEE code
+  // (INSEE codes for communes always have a non-zero suffix within the dept)
+  if (code.endsWith('000')) return false;
+  return true;
+}
 
-  // FT supports boolean exclusions with "-term"
-  const excluded = [...profile.excludeTitles, ...profile.excludeDomains].filter(Boolean);
+export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQueryParams {
+  // France Travail's motsCles is a simple full-text search. Too many keywords
+  // cause over-restriction → we keep only jobTitles (skills stay in scoring).
+  // We cap at 5 titles to avoid pathological queries.
+  const titles = profile.jobTitles.slice(0, 5).filter(Boolean);
+  let motsCles: string | undefined = titles.length > 0 ? titles.join(' ') : undefined;
+
+  // FT supports boolean exclusions with "-term" (single-word terms only).
+  const excluded = [...profile.excludeTitles, ...profile.excludeDomains]
+    .filter(Boolean)
+    .filter(ex => !/\s/.test(ex.trim())); // skip multi-word terms — FT doesn't support them
   if (motsCles && excluded.length > 0) {
-    motsCles += ' ' + excluded.map(ex => `-${ex}`).join(' ');
+    motsCles += ' ' + excluded.map(ex => `-${ex.trim()}`).join(' ');
   }
 
-  // Prefer INSEE code if provided, otherwise skip commune (query will be national)
-  const commune = profile.location.inseeCode?.match(/^\d{5}$/)
-    ? profile.location.inseeCode
-    : undefined;
+  // Prefer INSEE code if valid, otherwise skip commune (query will fall back to departement)
+  const rawInsee = profile.location.inseeCode?.trim() ?? '';
+  const commune = isValidInseeCode(rawInsee) ? rawInsee : undefined;
 
-  if (!commune && profile.location.inseeCode) {
+  if (!commune && rawInsee) {
     console.warn(
-      `[profile-to-query] FT: inseeCode "${profile.location.inseeCode}" is not a 5-digit INSEE code. ` +
-      'Falling back to department-level search.'
+      `[profile-to-query] FT: inseeCode "${rawInsee}" n'est pas un code INSEE valide. ` +
+      'Astuce : ce n\'est PAS le code postal — cherchez le code INSEE de votre commune sur ' +
+      'https://www.insee.fr/fr/information/2560452 (ex. 75056 pour Paris, 69123 pour Lyon). ' +
+      'Repli sur une recherche par département.'
     );
   }
 
@@ -181,5 +227,13 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
     }
     case 'linkedin_rss':
       return 'Via flux RSS (URL configurée)';
+    case 'emploi_territorial':
+      return 'Via flux RSS (URL configurée)';
+    case 'mantiks': {
+      const p = buildWttjQuery(profile);
+      const parts = [p.query ?? '(mots-clés vides)'];
+      if (p.city) parts.push(`ville: ${p.city}`);
+      return parts.join(' | ');
+    }
   }
 }
