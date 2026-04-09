@@ -155,6 +155,14 @@ function generateHtml(
       ? [app.salaryMin ? `${app.salaryMin.toLocaleString('fr-FR')} €` : null, app.salaryMax ? `${app.salaryMax.toLocaleString('fr-FR')} €` : null].filter(Boolean).join(' – ')
       : null;
 
+    const rejectionInfo = app.status === 'rejected' && (app.rejectionReason || app.rejectionEmail)
+      ? `<div style="margin-top:16px;padding:12px;background:#fef2f2;border-left:3px solid #ef4444;border-radius:4px">
+          <h4 style="margin:0 0 8px;font-size:12px;font-weight:600;color:#991b1b">Détails du refus</h4>
+          ${app.rejectionReason ? `<p style="margin:0 0 6px;font-size:13px;color:#7f1d1d"><strong>Raison :</strong> ${escapeHtml(app.rejectionReason)}</p>` : ''}
+          ${app.rejectionEmail ? `<p style="margin:0;font-size:13px;color:#7f1d1d"><strong>Email :</strong> ${escapeHtml(app.rejectionEmail)}</p>` : ''}
+        </div>`
+      : '';
+
     return `
       <section id="app-${app.id}" class="app-detail">
         <div class="app-header">
@@ -180,6 +188,7 @@ function generateHtml(
               ${app.nextAction ? `<tr><th>Prochaine action</th><td>${escapeHtml(app.nextAction)}${app.nextActionDate ? ` <em>(${formatDate(app.nextActionDate)})</em>` : ''}</td></tr>` : ''}
               ${app.notes ? `<tr><th>Notes</th><td>${escapeHtml(app.notes)}</td></tr>` : ''}
             </table>
+            ${rejectionInfo}
             <h3>Pièces jointes</h3>
             ${attachmentsHtml}
           </div>

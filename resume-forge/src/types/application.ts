@@ -53,6 +53,8 @@ export interface Application {
   appliedAt: string | null;
   nextAction: string | null;
   nextActionDate: string | null;
+  rejectionReason: string | null;
+  rejectionEmail: string | null;
   createdAt: string;
   updatedAt: string;
 }
