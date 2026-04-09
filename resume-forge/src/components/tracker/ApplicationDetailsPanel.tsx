@@ -44,6 +44,8 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionEmail, setRejectionEmail] = useState('');
 
   useEffect(() => {
     fetchCvs();
@@ -62,6 +64,8 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
       setContactName(application.contactName || '');
       setContactEmail(application.contactEmail || '');
       setContactPhone(application.contactPhone || '');
+      setRejectionReason(application.rejectionReason || '');
+      setRejectionEmail(application.rejectionEmail || '');
     }
   }, [application]);
 
@@ -107,6 +111,8 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
         contactName: contactName || null,
         contactEmail: contactEmail || null,
         contactPhone: contactPhone || null,
+        rejectionReason: rejectionReason || null,
+        rejectionEmail: rejectionEmail || null,
         ...overrides
       });
       toast.success("Candidature mise à jour");
@@ -221,6 +227,36 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
              </div>
           </div>
         </div>
+
+        {/* Détails du refus */}
+        {application.status === 'rejected' && (
+          <div className="space-y-4 bg-red-50 p-4 rounded-lg border border-red-100">
+            <h3 className="text-sm font-bold text-red-800 mb-3">Détails du refus</h3>
+
+            <div>
+              <label className="block text-xs font-medium text-red-700 mb-1">Raison du refus</label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                onBlur={() => handleSave()}
+                placeholder="Raison du refus..."
+                className="w-full h-20 px-3 py-2 text-sm border border-red-200 rounded bg-white focus:ring-1 focus:ring-red-500 outline-none resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-red-700 mb-1">Email du refus</label>
+              <input
+                type="email"
+                value={rejectionEmail}
+                onChange={(e) => setRejectionEmail(e.target.value)}
+                onBlur={() => handleSave()}
+                placeholder="email@exemple.com"
+                className="w-full px-3 py-2 text-sm border border-red-200 rounded bg-white focus:ring-1 focus:ring-red-500 outline-none"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Prochaine action */}
         <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">

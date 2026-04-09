@@ -36,6 +36,8 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionEmail, setRejectionEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -63,6 +65,8 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
         setContactName(application.contactName || '');
         setContactEmail(application.contactEmail || '');
         setContactPhone(application.contactPhone || '');
+        setRejectionReason(application.rejectionReason || '');
+        setRejectionEmail(application.rejectionEmail || '');
       } else {
         resetForm();
       }
@@ -95,6 +99,8 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
       priority,
       nextAction: nextAction || null,
       nextActionDate: nextActionDate || null,
+      rejectionReason: rejectionReason || null,
+      rejectionEmail: rejectionEmail || null,
     };
 
     setIsSubmitting(true);
@@ -139,6 +145,8 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
     setContactName('');
     setContactEmail('');
     setContactPhone('');
+    setRejectionReason('');
+    setRejectionEmail('');
   };
 
   return (
@@ -362,6 +370,33 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
                 </div>
               </div>
             </div>
+
+            {status === 'rejected' && (
+              <div className="space-y-4 pt-4 border-t">
+                <h4 className="font-medium text-sm text-gray-900">Détails du refus</h4>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Raison du refus</label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 h-24 resize-none"
+                    placeholder="Ex: Profil ne correspondant pas, poste pourvue..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email du refus</label>
+                  <input
+                    type="email"
+                    value={rejectionEmail}
+                    onChange={(e) => setRejectionEmail(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="email@exemple.com"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="pt-4 flex justify-end gap-3 border-t">
               <Dialog.Close className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">

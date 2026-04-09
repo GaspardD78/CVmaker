@@ -88,6 +88,8 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'applied_at',
     'next_action',
     'next_action_date',
+    'rejection_reason',
+    'rejection_email',
     'created_at',
     'updated_at',
   ],
