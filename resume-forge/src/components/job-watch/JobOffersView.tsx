@@ -49,6 +49,7 @@ export function JobOffersView() {
     error,
     unreadCount,
     deleteArchivedOffers,
+    clearAllOffers,
     setKanbanId,
     settings,
     configs,
@@ -156,6 +157,14 @@ export function JobOffersView() {
     toast.success('Offres archivées supprimées');
   };
 
+  const handleClearAllOffers = async () => {
+    if (!window.confirm('Êtes-vous sûr ? Toutes les offres seront supprimées et cette action ne peut pas être annulée.')) {
+      return;
+    }
+    await clearAllOffers();
+    toast.success('Toutes les offres ont été supprimées');
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -201,6 +210,13 @@ export function JobOffersView() {
           >
             <Trash2 className="w-3.5 h-3.5" />
             Vider archivées
+          </button>
+          <button
+            onClick={handleClearAllOffers}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Tout purger
           </button>
           <button
             onClick={() => triggerFetch(false)}

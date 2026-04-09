@@ -149,6 +149,7 @@ interface JobWatchState {
   markArchived: (id: string, archived: boolean) => Promise<void>;
   setKanbanId: (offerId: string, kanbanId: string) => Promise<void>;
   deleteArchivedOffers: () => Promise<void>;
+  clearAllOffers: () => Promise<void>;
   submitFeedback: (offerId: string, action: string, timeToAction?: number) => Promise<void>;
   batchArchive: (ids: string[]) => Promise<void>;
   batchMarkRead: (ids: string[]) => Promise<void>;
@@ -288,6 +289,12 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const db = await getDb();
     await db.execute(`DELETE FROM job_offers WHERE is_archived = 1`);
     set(state => ({ offers: state.offers.filter(o => o.isArchived === 0) }));
+  },
+
+  clearAllOffers: async () => {
+    const db = await getDb();
+    await db.execute(`DELETE FROM job_offers`);
+    set({ offers: [] });
   },
 
   batchArchive: async (ids) => {
