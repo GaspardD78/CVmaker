@@ -158,7 +158,10 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
     }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl w-full max-w-md p-6 z-[60] max-h-[90vh] overflow-y-auto">
+        <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl w-full max-w-md p-6 z-[60] max-h-[90vh] overflow-y-auto" aria-describedby="form-description">
+          <div id="form-description" className="sr-only">
+            {application ? 'Formulaire pour modifier une candidature' : 'Formulaire pour créer une nouvelle candidature'}
+          </div>
           <div className="flex justify-between items-center mb-4 border-b pb-2">
             <Dialog.Title className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</Dialog.Title>
             <Dialog.Close className="text-gray-500 hover:bg-gray-100 p-1 rounded-full">
