@@ -294,69 +294,78 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
 import { Profile, MasterEntry } from '@/types/profile';
 
 export function generateFullCVMatchPrompt(profile: Profile, entries: MasterEntry[], jobOfferText: string): string {
-  // 1. Extraction stricte des listes autorisées
-  const exactSkills = entries
-    .filter(e => e.entryType === 'skill')
-    .map(e => `- "${e.title}"`)
-    .join('\n');
-
+  // Build experience list with IDs and current descriptions
   const exactExperiences = entries
     .filter(e => e.entryType === 'experience')
     .map(e => {
       const dates = (e.startDate || e.endDate) ? `${e.startDate || '?'} - ${e.endDate || 'Présent'}` : 'Non précisée';
-      return `- Titre: "${e.title}" | Entreprise: "${e.subtitle}" | Dates: "${dates}"`;
+      return `- ID: "${e.id}" | Titre: "${e.title}" | Entreprise: "${e.subtitle ?? ''}" | Dates: "${dates}" | Description actuelle: "${(e.description ?? '').replace(/\n/g, ' ')}"`;
     })
     .join('\n');
 
-  const profileDataText = JSON.stringify({ profile, entries }, null, 2);
+  // Build skill list with IDs
+  const exactSkills = entries
+    .filter(e => e.entryType === 'skill')
+    .map(e => `- ID: "${e.id}" | Titre: "${e.title}"`)
+    .join('\n');
 
-  // 2. Construction du prompt verrouillé
+  const profileSummary = `Nom : ${profile.firstName} ${profile.lastName}
+Titre : ${profile.title ?? 'Non renseigné'}
+Résumé actuel : ${profile.summary ?? 'Non renseigné'}`;
+
   return `Agis comme un expert en rédaction de CV ATS et un recruteur de haut niveau.
 
-Voici mon Profil Maître brut (toutes mes données) :
-${profileDataText}
+## Mon profil
+${profileSummary}
 
-Voici l'annonce à laquelle je postule :
+## L'annonce à laquelle je postule
 ${jobOfferText}
 
-Ton objectif : Rédiger le contenu de mon CV pour qu'il corresponde à cette annonce, en agissant UNIQUEMENT comme un filtre et un reformulateur de puces. Tu ne dois RIEN inventer ni catégoriser.
-
-⚠️ RÈGLES DE VERROUILLAGE ABSOLU (À RESPECTER SOUS PEINE D'ÉCHEC) :
-
-1. EXPÉRIENCES (MÉTADONNÉES INTOUCHABLES) :
-Tu dois piocher parmi ces expériences exactes :
+## Mes expériences disponibles (profil maître)
 ${exactExperiences}
-Dans ton JSON, les champs 'title', 'subtitle' et 'date' de chaque expérience DOIVENT être des copiés-collés stricts de cette liste. Seul le champ 'description' (les puces avec •) doit être réécrit pour l'annonce.
 
-2. COMPÉTENCES (PAS DE CATÉGORIES) :
-Voici la liste STRICTE et UNIQUE des compétences autorisées :
+## Mes compétences disponibles (profil maître)
 ${exactSkills}
-Il t'est STRICTEMENT INTERDIT de créer des catégories (ex: ne crée pas "Gestion administrative", "Outils", etc.). Le champ 'title' de chaque objet skill dans ton JSON DOIT être l'une des chaînes de caractères de la liste ci-dessus, au mot et à la majuscule près. Si tu veux retenir 5 compétences, tu fais 5 objets séparés avec ces noms exacts.
 
-3. STYLE DES PUCES :
-- Humain, factuel, sans jargon 'bullshit'.
-- Puces classiques (•).
-- Mets en **gras** (avec les astérisques markdown) les mots-clés de l'annonce retrouvés dans mes expériences.
-- Sélectionne uniquement ce qui est pertinent pour tenir sur UNE page.
+## Ta mission
+Sélectionne et adapte uniquement ce qui est pertinent pour cette annonce. Tu es un filtre et un reformulateur - JAMAIS un inventeur.
 
-Format de sortie EXIGÉ :
-Renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après (ni balise markdown \`\`\`json).
-Structure attendue :
+⚠️ RÈGLES ABSOLUES :
+
+1. **EXPÉRIENCES** :
+   - Entrées pertinentes → \`"visible": true\` avec une \`"description"\` réécrite (puces •, mots-clés annonce en **gras**)
+   - Entrées non pertinentes → \`"visible": false\` (pas de description)
+   - Les métadonnées (titre, entreprise, dates) ne changent pas - tu n'y touches pas
+   - Réécrire les puces en t'appuyant sur la description actuelle, sans rien inventer
+   - Max 5-6 puces par expérience
+
+2. **COMPÉTENCES** :
+   - \`"visible": true\` pour les compétences pertinentes pour l'annonce
+   - \`"visible": false\` pour les compétences hors-sujet
+   - Aucune description à fournir pour les compétences
+
+3. **STYLE** :
+   - Ton humain, factuel, sans jargon
+   - Puces classiques (•)
+   - Mets en **gras** les mots-clés de l'annonce retrouvés dans les expériences
+   - Sélectionne pour tenir sur UNE page
+
+## Format de sortie OBLIGATOIRE
+Renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après (ni balise \`\`\`json).
+Toutes les entrées listées ci-dessus (expériences ET compétences) doivent figurer dans "entries", avec \`"visible": true\` ou \`"visible": false\`.
+
 {
-  "title": "Titre du CV (ex: le nom du poste de l'annonce)",
-  "summary": "Accroche de 2-3 lignes percutante",
-  "experiences": [
+  "title": "Titre du CV (reprendre le titre du poste de l'annonce)",
+  "summary": "Accroche de 2-3 lignes percutante et factuelle",
+  "entries": [
     {
-      "title": "[TITRE EXACT DE LA LISTE]",
-      "subtitle": "[ENTREPRISE EXACTE DE LA LISTE]",
-      "date": "[DATE EXACTE DE LA LISTE]",
-      "description": "• action 1\\n• action 2 avec mot en **gras**"
-    }
-  ],
-  "skills": [
+      "id": "[ID EXACT DE L'ENTRÉE - recopier tel quel]",
+      "visible": true,
+      "description": "• action réécrite avec **mot-clé**\\n• autre action"
+    },
     {
-      "title": "[NOM EXACT DE LA LISTE DES COMPÉTENCES AUTORISÉES]",
-      "description": ""
+      "id": "[ID EXACT D'UNE ENTRÉE À MASQUER]",
+      "visible": false
     }
   ]
 }`;

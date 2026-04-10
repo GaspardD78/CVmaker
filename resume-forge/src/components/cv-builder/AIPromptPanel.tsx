@@ -114,103 +114,41 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     }
 
     try {
-      // Clean up markdown blocks
+      // Clean up markdown code fences if present
       const cleanJson = jsonInput.replace(/```json/g, '').replace(/```/g, '').trim();
       const data = JSON.parse(cleanJson);
 
       if (!currentCv) return;
 
-      // Update CV Document
+      // Update CV metadata
       await useCvStore.getState().updateCv(currentCv.id, {
         targetJob: data.title,
         customSummary: data.summary,
       });
 
-      // Remove old experience and skill blocks
-      // We will identify them by looking at the entry type they reference, or just clear custom blocks if we want
-      // It's safer to just delete existing 'experience' and 'skill' section headers and their contents?
-      // For simplicity, we can remove ALL entry_ref blocks that point to 'experience' or 'skill'
-      // BUT actually, it's safer to just add the new ones at the end, or find the 'Expériences Professionnelles' section header
+      // Apply entry-level changes on existing entry_ref blocks via overrideData / isVisible.
+      // This preserves the master profile structure and only patches what the AI decided.
+      if (data.entries && Array.isArray(data.entries)) {
+        for (const aiEntry of data.entries as { id: string; visible: boolean; description?: string }[]) {
+          const block = currentCvBlocks.find(b => b.entryId === aiEntry.id);
+          if (!block) continue;
 
-      // Let's create entirely new custom_content blocks for these to not mess up the master profile
-      // or we can create entry_refs pointing to null with overrideData.
-      // The instructions say "Remplace les blocs de type 'experience' par les nouvelles expériences du JSON"
-      // "Remplace les blocs de type 'skill' par les nouveaux skills du JSON"
-
-      // Step 1: Delete all current experience and skill blocks (and their headers if needed, but maybe just clear entries)
-      const blocksToRemove = currentCvBlocks.filter(b => {
-        if (b.blockType === 'entry_ref' && b.entryId) {
-          const entry = entries.find(e => e.id === b.entryId);
-          return entry?.entryType === 'experience' || entry?.entryType === 'skill';
-        }
-        // Also remove custom_content blocks if they were added as experiences/skills? Let's just remove the entry_refs for now
-        return false;
-      });
-
-      for (const b of blocksToRemove) {
-        await useCvStore.getState().deleteCvBlock(b.id);
-      }
-
-      // We need to insert the new blocks. We will append them or place them where the old ones were.
-      // To simplify, let's just create new section headers and custom_content blocks at the end of the CV
-      let sortOrder = currentCvBlocks.length > 0 ? Math.max(...currentCvBlocks.map(b => b.sortOrder)) + 1 : 0;
-
-      if (data.experiences && data.experiences.length > 0) {
-        await useCvStore.getState().createCvBlock({
-          cvId: currentCv.id,
-          entryId: null,
-          blockType: 'section_header',
-          sectionName: 'Expériences (Sur-mesure)',
-          customContent: null,
-          sortOrder: sortOrder++,
-          isVisible: true,
-          overrideData: { displayFormat: 'list' }
-        });
-
-        for (const exp of data.experiences) {
-          await useCvStore.getState().createCvBlock({
-            cvId: currentCv.id,
-            entryId: null,
-            blockType: 'custom_text',
-            sectionName: null,
-            customContent: `**${exp.title}**\n${exp.subtitle} | ${exp.date}\n\n${exp.description}`,
-            sortOrder: sortOrder++,
-            isVisible: true,
-            overrideData: {}
-          });
-        }
-      }
-
-      if (data.skills && data.skills.length > 0) {
-        await useCvStore.getState().createCvBlock({
-          cvId: currentCv.id,
-          entryId: null,
-          blockType: 'section_header',
-          sectionName: 'Compétences (Sur-mesure)',
-          customContent: null,
-          sortOrder: sortOrder++,
-          isVisible: true,
-          overrideData: { displayFormat: 'badges' }
-        });
-
-        for (const skill of data.skills) {
-          await useCvStore.getState().createCvBlock({
-            cvId: currentCv.id,
-            entryId: null,
-            blockType: 'custom_text',
-            sectionName: null,
-            customContent: `**${skill.title}**: ${skill.description}`,
-            sortOrder: sortOrder++,
-            isVisible: true,
-            overrideData: {}
-          });
+          if (aiEntry.visible === false) {
+            await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
+          } else {
+            const updates: Partial<CVBlock> = { isVisible: true };
+            if (aiEntry.description !== undefined) {
+              updates.overrideData = { ...block.overrideData, description: aiEntry.description };
+            }
+            await useCvStore.getState().updateCvBlock(block.id, updates);
+          }
         }
       }
 
       toast.success("CV sur-mesure appliqué avec succès !");
       setJsonInput('');
       onClose();
-    } catch (err) {
+    } catch {
       toast.error("Erreur de parsing JSON. Vérifiez le format.");
     }
   };
