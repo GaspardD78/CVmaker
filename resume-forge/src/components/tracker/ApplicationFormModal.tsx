@@ -9,10 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogClose,
-  DialogPortal,
-  DialogOverlay,
 } from '@/components/ui/dialog';
-import { X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ApplicationFormModalProps {
@@ -164,15 +161,8 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
         resetForm();
       }
     }}>
-      <DialogPortal>
-        <DialogOverlay className="z-[60] backdrop-blur-sm" />
-        <DialogContent className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[60] max-h-[90vh] overflow-y-auto">
-          <div className="flex justify-between items-center mb-4 border-b pb-2">
-            <DialogTitle className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</DialogTitle>
-            <DialogClose className="text-gray-500 hover:bg-gray-100 p-1 rounded-full">
-              <X size={20} />
-            </DialogClose>
-          </div>
+      <DialogContent className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogTitle className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</DialogTitle>
           <DialogDescription className="sr-only">
             {application ? 'Formulaire pour modifier une candidature' : 'Formulaire pour créer une nouvelle candidature'}
           </DialogDescription>
@@ -422,8 +412,7 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
               </button>
             </div>
           </form>
-        </DialogContent>
-      </DialogPortal>
+      </DialogContent>
     </Dialog>
   );
 }
