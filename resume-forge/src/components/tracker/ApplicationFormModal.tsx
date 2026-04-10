@@ -3,7 +3,15 @@ import { useApplicationStore } from '@/stores/applicationStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { Application, ApplicationStatus, ApplicationSource } from '@/types/application';
-import * as Dialog from '@radix-ui/react-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+  DialogPortal,
+  DialogOverlay,
+} from '@/components/ui/dialog';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -150,24 +158,24 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => {
+    <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open) {
         onClose();
         resetForm();
       }
     }}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl w-full max-w-md p-6 z-[60] max-h-[90vh] overflow-y-auto" aria-describedby="form-description">
-          <div id="form-description" className="sr-only">
-            {application ? 'Formulaire pour modifier une candidature' : 'Formulaire pour créer une nouvelle candidature'}
-          </div>
+      <DialogPortal>
+        <DialogOverlay className="z-[60] backdrop-blur-sm" />
+        <DialogContent className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[60] max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4 border-b pb-2">
-            <Dialog.Title className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</Dialog.Title>
-            <Dialog.Close className="text-gray-500 hover:bg-gray-100 p-1 rounded-full">
+            <DialogTitle className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</DialogTitle>
+            <DialogClose className="text-gray-500 hover:bg-gray-100 p-1 rounded-full">
               <X size={20} />
-            </Dialog.Close>
+            </DialogClose>
           </div>
+          <DialogDescription className="sr-only">
+            {application ? 'Formulaire pour modifier une candidature' : 'Formulaire pour créer une nouvelle candidature'}
+          </DialogDescription>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -402,9 +410,9 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
             )}
 
             <div className="pt-4 flex justify-end gap-3 border-t">
-              <Dialog.Close className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
+              <DialogClose className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
                 Annuler
-              </Dialog.Close>
+              </DialogClose>
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -414,8 +422,8 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
               </button>
             </div>
           </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </DialogContent>
+      </DialogPortal>
+    </Dialog>
   );
 }
