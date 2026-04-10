@@ -37,6 +37,10 @@ export async function getDb(): Promise<Database> {
 
     // Fallback: ensure migration 003 columns/tables exist
     await db.execute(`ALTER TABLE applications ADD COLUMN job_description TEXT`).catch(() => {/* already exists */});
+
+    // Fallback: ensure migration 011 columns exist (rejection fields)
+    await db.execute(`ALTER TABLE applications ADD COLUMN rejection_reason TEXT`).catch(() => {/* already exists */});
+    await db.execute(`ALTER TABLE applications ADD COLUMN rejection_email TEXT`).catch(() => {/* already exists */});
     await db.execute(`
       CREATE TABLE IF NOT EXISTS compatibility_scores (
         id                   TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
