@@ -1,20 +1,20 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: [template] → 1.0.0
-Modified principles: N/A (initial ratification — all sections newly filled)
+Version change: 1.0.0 → 1.1.0
+Modified principles: N/A
 Added sections:
-  - Core Principles (5 principles)
-  - Technology Stack
-  - Development Workflow
-  - Governance
+  - Core Principles: added Principle VI (Documentation Language — French Only)
 Removed sections: N/A
 Templates reviewed:
-  - .specify/templates/plan-template.md ✅ (Constitution Check section aligns with principles below)
-  - .specify/templates/spec-template.md ✅ (FR/SC format compatible with principles)
-  - .specify/templates/tasks-template.md ✅ (phase structure compatible with principles)
+  - .specify/templates/plan-template.md ✅ (Constitution Check is generic — will include VI automatically on next /speckit-plan run)
+  - .specify/templates/spec-template.md ✅ (no constitution reference — no change needed)
+  - .specify/templates/tasks-template.md ✅ (no constitution reference — no change needed)
+  - .specify/templates/checklist-template.md ✅ (no constitution reference — no change needed)
+  - .specify/templates/constitution-template.md ✅ (generic structure — no change needed)
 Follow-up TODOs:
   - TODO(LICENSE): License section in resume-forge/README.md is marked "À définir" — define before v1 public release.
+  - TODO(BACKFILL): specs/001-markdown-resume-editor/ (spec.md, plan.md, research.md, data-model.md, quickstart.md, contracts/) were generated before this amendment and are in English — translate on next revision if needed.
 -->
 
 # ResumeForge Constitution
@@ -73,6 +73,30 @@ changes MUST include a corresponding SQLite migration in `src-tauri/migrations/`
 **Rationale**: A lean codebase is easier to maintain across four platforms and
 keeps Tauri build times acceptable.
 
+### VI. Documentation Language — French Only
+
+Tous les documents de spécification, plans d'implémentation et checklists DOIVENT
+être rédigés exclusivement en français. Cela couvre :
+
+- Les spécifications de fonctionnalité (`spec.md`)
+- Les plans d'implémentation (`plan.md`)
+- Les documents de recherche (`research.md`)
+- Les modèles de données (`data-model.md`)
+- Les contrats d'interface (`contracts/`)
+- Les guides de démarrage (`quickstart.md`)
+- Les listes de tâches (`tasks.md`)
+- Les checklists
+
+**Exception** : les identifiants de code source, commentaires techniques,
+noms de fichiers, messages de commit et configurations suivent les conventions
+industrielles standard (anglais). Seuls les documents de spécification lisibles
+par l'équipe sont couverts par ce principe.
+
+**Rationale** : L'équipe ResumeForge travaille en français. L'utilisation
+cohérente du français dans toute la documentation élimine la friction liée à la
+traduction, garantit que tous les membres de l'équipe peuvent lire et contribuer
+aux specs sans ambiguïté, et évite le coût cognitif du changement de langue.
+
 ## Technology Stack
 
 The following technology choices are load-bearing and MUST NOT be replaced without
@@ -125,4 +149,4 @@ New runtime dependencies MUST be proposed via a spec before being added to
   mandatory cloud dependency) MUST be tracked in the plan's Complexity Tracking
   table with explicit justification.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-13 | **Last Amended**: 2026-04-13
+**Version**: 1.1.0 | **Ratified**: 2026-04-13 | **Last Amended**: 2026-04-13

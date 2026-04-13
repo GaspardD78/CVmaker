@@ -1,160 +1,166 @@
-# Feature Specification: Live Markdown Resume Editor
+# Spécification de fonctionnalité : Éditeur de CV Markdown en direct
 
-**Feature Branch**: `001-markdown-resume-editor`
-**Created**: 2026-04-13
-**Status**: Draft
-**Input**: User description: "Create a specification for a desktop resume builder using Tauri and React. It should support live Markdown editing and PDF export."
+**Branche de fonctionnalité** : `001-markdown-resume-editor`
+**Créée le** : 2026-04-13
+**Statut** : Brouillon
+**Entrée** : Description utilisateur : "Create a specification for a desktop resume builder using Tauri and React. It should support live Markdown editing and PDF export."
 
-## User Scenarios & Testing *(mandatory)*
+## Scénarios utilisateur & tests *(obligatoire)*
 
-### User Story 1 — Live Markdown Editing with Real-Time Preview (Priority: P1)
+### Scénario 1 — Édition Markdown avec aperçu en direct (Priorité : P1)
 
-A user who prefers plain-text authoring opens the Markdown editor mode in the resume
-builder. They type or paste Markdown content on the left pane and immediately see a
-formatted resume preview on the right pane updating as they type. Changes are
-auto-saved locally so no work is lost if the window is closed.
+Un utilisateur qui préfère la rédaction en texte brut ouvre le mode éditeur Markdown dans
+le constructeur de CV. Il saisit ou colle du contenu Markdown dans le volet gauche et voit
+immédiatement un aperçu formaté du CV se mettre à jour dans le volet droit au fil de la
+saisie. Les modifications sont sauvegardées automatiquement en local afin qu'aucun
+contenu ne soit perdu si la fenêtre est fermée.
 
-**Why this priority**: The live preview is the core value proposition of this
-feature. Without it, the user has no feedback and the feature is no better than a
-plain text editor.
+**Pourquoi cette priorité** : L'aperçu en direct est la proposition de valeur centrale de cette
+fonctionnalité. Sans lui, l'utilisateur n'a aucun retour visuel et la fonctionnalité n'est pas
+meilleure qu'un simple éditeur de texte.
 
-**Independent Test**: Open the Markdown editor with an empty document, type a Markdown
-heading (`# John Doe`) and a bullet list of skills. The right pane MUST update
-within one second and display the formatted output. This delivers a fully usable
-editing loop independently of export.
+**Test indépendant** : Ouvrir l'éditeur Markdown avec un document vide, saisir un titre
+Markdown (`# John Doe`) et une liste à puces de compétences. Le volet droit DOIT se
+mettre à jour dans la seconde et afficher le rendu formaté. Cela constitue une boucle
+d'édition pleinement utilisable indépendamment de l'export.
 
-**Acceptance Scenarios**:
+**Scénarios d'acceptance** :
 
-1. **Given** an empty Markdown editor, **When** the user types `# Jane Smith`, **Then**
-   the preview pane displays "Jane Smith" rendered as a large heading within 1 second.
-2. **Given** a document with Markdown content, **When** the user deletes a line,
-   **Then** the preview updates immediately to reflect the removal.
-3. **Given** a session where the user typed content, **When** the application is closed
-   and reopened, **Then** the previous Markdown content is restored automatically.
-
----
-
-### User Story 2 — PDF Export of Markdown Resume (Priority: P2)
-
-A user who has authored their resume in Markdown wants to produce a PDF for
-submission to employers. They trigger an export action and receive a PDF file that
-faithfully reflects the formatted preview they saw in the editor, with no extraneous
-application chrome (toolbars, editor panes) included.
-
-**Why this priority**: Export to PDF is the primary output artifact. It is the
-deliverable that users hand to employers, so accuracy matters — but it is only useful
-once the editing experience (P1) works.
-
-**Independent Test**: Author a resume with a heading, contact information, a work
-experience section, and a skills list. Export to PDF. Open the PDF: all sections MUST
-appear in the correct order, fonts must be legible, and no Markdown syntax symbols
-(`#`, `*`, `-`) should be visible in the output.
-
-**Acceptance Scenarios**:
-
-1. **Given** a complete Markdown resume, **When** the user selects "Export as PDF",
-   **Then** a PDF file is saved to a location the user chooses, without any visible
-   Markdown syntax in the output.
-2. **Given** a PDF export, **When** the file is opened in any standard PDF viewer,
-   **Then** all content is readable, properly ordered, and styled consistently.
-3. **Given** an empty or nearly empty Markdown document, **When** the user attempts to
-   export, **Then** the system warns that the document appears incomplete rather than
-   silently producing a blank PDF.
+1. **Étant donné** un éditeur Markdown vide, **quand** l'utilisateur saisit `# Jane Smith`, **alors**
+   le volet d'aperçu affiche « Jane Smith » rendu comme un grand titre dans la seconde.
+2. **Étant donné** un document contenant du contenu Markdown, **quand** l'utilisateur supprime
+   une ligne, **alors** l'aperçu se met immédiatement à jour pour refléter la suppression.
+3. **Étant donné** une session où l'utilisateur a saisi du contenu, **quand** l'application est
+   fermée puis rouverte, **alors** le contenu Markdown précédent est restauré automatiquement.
 
 ---
 
-### User Story 3 — Markdown Template Starter (Priority: P3)
+### Scénario 2 — Export PDF du CV Markdown (Priorité : P2)
 
-A first-time user opens the Markdown editor and sees a pre-filled template resume
-(with placeholder names, dates, and sample entries) so they understand the expected
-structure and can start editing immediately rather than facing a blank document.
+Un utilisateur ayant rédigé son CV en Markdown souhaite produire un fichier PDF pour le
+soumettre à des recruteurs. Il déclenche une action d'export et reçoit un fichier PDF qui
+reproduit fidèlement l'aperçu formaté qu'il voyait dans l'éditeur, sans aucun chrome
+applicatif (barres d'outils, volets d'édition) inclus.
 
-**Why this priority**: Reduces the learning curve for users unfamiliar with Markdown
-resume conventions. Valuable but not blocking — the feature works without it.
+**Pourquoi cette priorité** : L'export PDF est l'artefact de sortie principal. C'est le livrable
+que les utilisateurs remettent aux recruteurs, l'exactitude est donc essentielle — mais il
+n'est utile qu'une fois que l'expérience d'édition (P1) fonctionne.
 
-**Independent Test**: Open a new Markdown resume document. Without typing anything,
-the editor MUST contain a complete template with clearly marked placeholder fields
-(e.g., `[Your Name]`, `[Company]`).
+**Test indépendant** : Rédiger un CV avec un titre, des coordonnées, une section expérience
+professionnelle et une liste de compétences. Exporter en PDF. Ouvrir le PDF : toutes les
+sections DOIVENT apparaître dans le bon ordre, les polices doivent être lisibles, et aucun
+symbole de syntaxe Markdown (`#`, `*`, `-`) ne doit être visible dans le rendu.
 
-**Acceptance Scenarios**:
+**Scénarios d'acceptance** :
 
-1. **Given** a newly created resume document, **When** the Markdown editor opens,
-   **Then** a template with standard resume sections (contact, experience, education,
-   skills) is pre-loaded.
-2. **Given** a template-loaded editor, **When** the user replaces a placeholder and
-   saves, **Then** the template content is replaced by the user's own text and the
-   template is not re-inserted on next open.
+1. **Étant donné** un CV Markdown complet, **quand** l'utilisateur sélectionne « Exporter en PDF »,
+   **alors** un fichier PDF est enregistré à l'emplacement choisi par l'utilisateur, sans aucune
+   syntaxe Markdown visible dans le rendu.
+2. **Étant donné** un export PDF, **quand** le fichier est ouvert dans n'importe quel lecteur PDF
+   standard, **alors** tout le contenu est lisible, correctement ordonné et mis en forme de
+   manière cohérente.
+3. **Étant donné** un document Markdown vide ou quasi vide, **quand** l'utilisateur tente
+   d'exporter, **alors** le système avertit que le document semble incomplet plutôt que de
+   produire silencieusement un PDF vierge.
 
 ---
 
-### Edge Cases
+### Scénario 3 — Modèle de départ Markdown (Priorité : P3)
 
-- What happens when the Markdown document is very long (e.g., 10+ pages worth of
-  content)? Preview must remain responsive without lag.
-- How does the system handle invalid Markdown (e.g., unclosed brackets)? It MUST
-  render what it can and not crash or freeze.
-- What if the user's chosen PDF save location is read-only or full? A clear error
-  message MUST be shown; the document MUST not be corrupted.
-- What happens to line breaks and special characters (accented letters, em dashes)
-  in the PDF output? All characters MUST render correctly.
+Un nouvel utilisateur ouvre l'éditeur Markdown et voit un CV modèle pré-rempli (avec des
+noms fictifs, des dates et des exemples d'entrées) afin de comprendre la structure attendue
+et de commencer à éditer immédiatement plutôt que de faire face à un document vierge.
 
-## Requirements *(mandatory)*
+**Pourquoi cette priorité** : Réduit la courbe d'apprentissage pour les utilisateurs peu
+familiers des conventions Markdown pour les CV. Utile mais non bloquant — la fonctionnalité
+fonctionne sans lui.
 
-### Functional Requirements
+**Test indépendant** : Ouvrir un nouveau document CV Markdown. Sans rien saisir,
+l'éditeur DOIT contenir un modèle complet avec des champs fictifs clairement identifiés
+(ex. : `[Votre nom]`, `[Entreprise]`).
 
-- **FR-001**: The system MUST provide a split-pane interface with a Markdown text
-  input area on one side and a formatted preview pane on the other.
-- **FR-002**: The preview pane MUST update within 1 second of any keystroke in the
-  editor without requiring a manual refresh action.
-- **FR-003**: The system MUST auto-save the Markdown document locally whenever the
-  user pauses typing (debounced) so no content is lost on unexpected close.
-- **FR-004**: Users MUST be able to export the current document to a PDF file stored
-  on their local filesystem.
-- **FR-005**: The PDF export MUST reproduce the formatted preview faithfully — no
-  visible Markdown syntax, correct section order, legible typography.
-- **FR-006**: The system MUST warn the user before exporting if the document is
-  empty or contains only the unedited starter template.
-- **FR-007**: New documents MUST open with a pre-filled starter template containing
-  labelled placeholder fields for the standard resume sections.
-- **FR-008**: All resume data MUST be stored locally; no content may be sent to any
-  remote server as part of normal editing or export.
+**Scénarios d'acceptance** :
 
-### Key Entities
+1. **Étant donné** un document CV nouvellement créé, **quand** l'éditeur Markdown s'ouvre,
+   **alors** un modèle avec les sections standard d'un CV (coordonnées, expérience,
+   formation, compétences) est pré-chargé.
+2. **Étant donné** un éditeur chargé avec le modèle, **quand** l'utilisateur remplace un champ
+   fictif et sauvegarde, **alors** le contenu du modèle est remplacé par le texte de
+   l'utilisateur et le modèle n'est pas réinséré à la prochaine ouverture.
 
-- **Resume Document**: A named, versioned Markdown text document associated with the
-  user's profile. Key attributes: title, raw Markdown content, last-modified date,
-  creation date.
-- **PDF Export Record**: A log entry capturing the export timestamp and the target
-  file path chosen by the user (for audit/history purposes).
+---
 
-## Success Criteria *(mandatory)*
+### Cas limites
 
-### Measurable Outcomes
+- Que se passe-t-il si le document Markdown est très long (ex. : plus de 10 pages de
+  contenu) ? L'aperçu doit rester réactif sans ralentissement.
+- Comment le système gère-t-il un Markdown invalide (ex. : crochets non fermés) ? Il DOIT
+  rendre ce qui est possible sans planter ni se figer.
+- Que se passe-t-il si l'emplacement de sauvegarde PDF choisi par l'utilisateur est en
+  lecture seule ou plein ? Un message d'erreur clair DOIT être affiché ; le document NE DOIT
+  PAS être corrompu.
+- Que se passe-t-il avec les sauts de ligne et les caractères spéciaux (lettres accentuées,
+  tirets cadratin) dans le PDF ? Tous les caractères DOIVENT être rendus correctement.
 
-- **SC-001**: Users can open the Markdown editor and begin typing within 3 seconds
-  of launching the feature from the main navigation.
-- **SC-002**: The preview pane updates in response to keystrokes with no perceptible
-  lag (target ≤ 1 second from last keystroke to visible preview change).
-- **SC-003**: 90% of users who author a resume in the Markdown editor successfully
-  complete a PDF export on their first attempt without consulting documentation.
-- **SC-004**: Exported PDFs can be opened by any standard PDF viewer on Windows,
-  macOS, Linux, and Android without rendering errors.
-- **SC-005**: Zero data loss: no resume content typed by the user is lost due to
-  application crash or unexpected close (auto-save covers all content within 5
-  seconds of typing).
+## Exigences *(obligatoire)*
 
-## Assumptions
+### Exigences fonctionnelles
 
-- The Markdown editor is an addition to the existing CV builder — users can choose
-  between the visual drag-and-drop builder and the Markdown editor for any given
-  resume document.
-- Standard resume Markdown conventions are assumed: headings for sections,
-  bullet lists for items, bold for emphasis. No custom Markdown extensions are
-  required for v1.
-- PDF export produces a single-column, ATS-compatible layout consistent with the
-  existing export standards of the application (no multi-column layouts or tables
-  that break ATS parsers).
-- The starter template is provided in the same language as the application UI (no
-  multilingual template support required for v1).
-- Markdown documents are stored in the same local database as all other application
-  data — no separate file-system storage is required for v1.
+- **FR-001** : Le système DOIT fournir une interface à deux volets avec une zone de saisie
+  Markdown d'un côté et un volet d'aperçu formaté de l'autre.
+- **FR-002** : Le volet d'aperçu DOIT se mettre à jour dans la seconde suivant toute frappe
+  dans l'éditeur, sans nécessiter d'action de rafraîchissement manuel.
+- **FR-003** : Le système DOIT sauvegarder automatiquement le document Markdown en local
+  à chaque pause de frappe (avec anti-rebond) afin qu'aucun contenu ne soit perdu lors
+  d'une fermeture inattendue.
+- **FR-004** : Les utilisateurs DOIVENT pouvoir exporter le document courant en fichier PDF
+  stocké sur leur système de fichiers local.
+- **FR-005** : L'export PDF DOIT reproduire fidèlement l'aperçu formaté — aucune syntaxe
+  Markdown visible, ordre des sections correct, typographie lisible.
+- **FR-006** : Le système DOIT avertir l'utilisateur avant l'export si le document est vide ou
+  ne contient que le modèle de départ non modifié.
+- **FR-007** : Les nouveaux documents DOIVENT s'ouvrir avec un modèle de départ pré-rempli
+  contenant des champs fictifs étiquetés pour les sections standard d'un CV.
+- **FR-008** : Toutes les données du CV DOIVENT être stockées en local ; aucun contenu ne
+  peut être envoyé vers un serveur distant dans le cadre de l'édition ou de l'export normaux.
+
+### Entités clés
+
+- **Document CV** : Un document texte Markdown nommé et versionné associé au profil de
+  l'utilisateur. Attributs clés : titre, contenu Markdown brut, date de dernière modification,
+  date de création.
+- **Enregistrement d'export PDF** : Une entrée de journal capturant l'horodatage de l'export
+  et le chemin du fichier cible choisi par l'utilisateur (à des fins d'audit/historique).
+
+## Critères de succès *(obligatoire)*
+
+### Résultats mesurables
+
+- **SC-001** : Les utilisateurs peuvent ouvrir l'éditeur Markdown et commencer à saisir dans
+  les 3 secondes suivant le lancement de la fonctionnalité depuis la navigation principale.
+- **SC-002** : Le volet d'aperçu se met à jour en réponse aux frappes sans latence perceptible
+  (cible ≤ 1 seconde entre la dernière frappe et le changement visible de l'aperçu).
+- **SC-003** : 90 % des utilisateurs qui rédigent un CV dans l'éditeur Markdown réussissent
+  un export PDF dès leur première tentative sans consulter la documentation.
+- **SC-004** : Les PDF exportés peuvent être ouverts par n'importe quel lecteur PDF standard
+  sur Windows, macOS, Linux et Android sans erreur de rendu.
+- **SC-005** : Zéro perte de données : aucun contenu de CV saisi par l'utilisateur n'est perdu
+  en raison d'un plantage ou d'une fermeture inattendue (la sauvegarde automatique couvre
+  tout le contenu dans les 5 secondes suivant la saisie).
+
+## Hypothèses
+
+- L'éditeur Markdown est un ajout au constructeur de CV existant — les utilisateurs peuvent
+  choisir entre le constructeur visuel par glisser-déposer et l'éditeur Markdown pour tout
+  document CV donné.
+- Les conventions Markdown standard pour les CV sont supposées : titres pour les sections,
+  listes à puces pour les éléments, gras pour l'emphase. Aucune extension Markdown
+  personnalisée n'est requise pour la v1.
+- L'export PDF produit une mise en page à colonne unique, compatible ATS, cohérente avec
+  les standards d'export existants de l'application (pas de mises en page multi-colonnes ni
+  de tableaux qui cassent les parseurs ATS).
+- Le modèle de départ est fourni dans la même langue que l'interface de l'application (pas
+  de support multilingue pour le modèle requis en v1).
+- Les documents Markdown sont stockés dans la même base de données locale que toutes
+  les autres données de l'application — aucun stockage séparé sur le système de fichiers
+  n'est requis pour la v1.

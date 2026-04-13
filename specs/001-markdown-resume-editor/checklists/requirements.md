@@ -1,40 +1,40 @@
-# Specification Quality Checklist: Live Markdown Resume Editor
+# Checklist qualité de spécification : Éditeur de CV Markdown en direct
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-04-13
-**Feature**: [spec.md](../spec.md)
+**Objet** : Valider la complétude et la qualité de la spécification avant de passer à la planification
+**Créée le** : 2026-04-13
+**Fonctionnalité** : [spec.md](../spec.md)
 
-## Content Quality
+## Qualité du contenu
 
-- [x] No implementation details (languages, frameworks, APIs)
-- [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
-- [x] All mandatory sections completed
+- [x] Aucun détail d'implémentation (langages, frameworks, API)
+- [x] Centré sur la valeur utilisateur et les besoins métier
+- [x] Rédigé pour des parties prenantes non techniques
+- [x] Toutes les sections obligatoires complétées
 
-## Requirement Completeness
+## Complétude des exigences
 
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
-- [x] All acceptance scenarios are defined
-- [x] Edge cases are identified
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
+- [x] Aucun marqueur [NEEDS CLARIFICATION] ne subsiste
+- [x] Les exigences sont testables et non ambiguës
+- [x] Les critères de succès sont mesurables
+- [x] Les critères de succès sont indépendants de la technologie (pas de détails d'implémentation)
+- [x] Tous les scénarios d'acceptance sont définis
+- [x] Les cas limites sont identifiés
+- [x] Le périmètre est clairement délimité
+- [x] Les dépendances et hypothèses sont identifiées
 
-## Feature Readiness
+## Maturité de la fonctionnalité
 
-- [x] All functional requirements have clear acceptance criteria
-- [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
+- [x] Toutes les exigences fonctionnelles ont des critères d'acceptance clairs
+- [x] Les scénarios utilisateur couvrent les flux principaux
+- [x] La fonctionnalité satisfait les résultats mesurables définis dans les critères de succès
+- [x] Aucun détail d'implémentation ne transparaît dans la spécification
 
 ## Notes
 
-All items pass. Spec is ready for `/speckit.plan` or `/speckit.clarify`.
+Tous les éléments sont validés. La spec est prête pour `/speckit.plan` ou `/speckit.clarify`.
 
-Informed decisions made without clarification:
-- ATS-compatible single-column PDF layout assumed (consistent with existing app standards)
-- Auto-save debounce assumed (industry standard for text editors)
-- Markdown stored in existing local database (consistent with existing data model)
-- Starter template in application UI language only (no multilingual requirement for v1)
+Décisions prises sans clarification préalable :
+- Mise en page PDF mono-colonne compatible ATS supposée (cohérente avec les standards d'export existants de l'application)
+- Anti-rebond de sauvegarde automatique supposé (standard industriel pour les éditeurs de texte)
+- Markdown stocké dans la base de données locale existante (cohérent avec le modèle de données existant)
+- Modèle de départ dans la langue de l'interface applicative uniquement (pas d'exigence multilingue pour la v1)
