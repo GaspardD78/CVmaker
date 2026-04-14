@@ -267,6 +267,24 @@ pub fn run() {
             sql: include_str!("../migrations/009_job_watch_profile.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "search_profile",
+            sql: include_str!("../migrations/010_search_profile.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 11,
+            description: "add_rejection_fields",
+            sql: include_str!("../migrations/011_add_rejection_fields.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 12,
+            description: "add_markdown_resume_columns",
+            sql: include_str!("../migrations/012_markdown_resume.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]

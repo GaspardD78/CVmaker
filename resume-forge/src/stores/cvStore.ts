@@ -343,21 +343,29 @@ export const useCvStore = create<CVState>((set, get) => ({
     }
   }),
 
-  setMarkdownMode: (id, mode) => enqueueWrite(async () => {
-    try {
-      const db = await getDb();
-      await db.execute(
-        `UPDATE cv_documents SET markdown_mode = ?1, updated_at = datetime('now') WHERE id = ?2`,
-        [mode, id]
-      );
-      const currentCv = get().currentCv;
-      if (currentCv && currentCv.id === id) {
-        set({ currentCv: { ...currentCv, markdownMode: mode } });
-      }
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to set markdown mode' });
+  setMarkdownMode: (id, mode) => {
+    // Optimistic update immédiat pour que l'UI réponde sans attendre la file d'écriture
+    const currentCv = get().currentCv;
+    if (currentCv && currentCv.id === id) {
+      set({ currentCv: { ...currentCv, markdownMode: mode } });
     }
-  }),
+    return enqueueWrite(async () => {
+      try {
+        const db = await getDb();
+        await db.execute(
+          `UPDATE cv_documents SET markdown_mode = ?1, updated_at = datetime('now') WHERE id = ?2`,
+          [mode, id]
+        );
+      } catch (err) {
+        // En cas d'erreur DB, annuler l'optimistic update
+        if (currentCv && currentCv.id === id) {
+          set({ currentCv, error: err instanceof Error ? err.message : 'Failed to set markdown mode' });
+        } else {
+          set({ error: err instanceof Error ? err.message : 'Failed to set markdown mode' });
+        }
+      }
+    });
+  },
 
   reorderCvBlocks: (cvId, blockIds) => enqueueWrite(async () => {
     try {
