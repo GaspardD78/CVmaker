@@ -19,7 +19,7 @@ import { tauriFetch, BROWSER_USER_AGENT } from '../http';
 const WTTJ_SEARCH_URL = 'https://www.welcometothejungle.com/fr/jobs';
 const TIMEOUT_MS = 10_000;
 
-export function buildWttjUrl(config: JobWatchConfig, settings: JobWatchSettings): string {
+export function buildWttjUrl(_config: JobWatchConfig, settings: JobWatchSettings): string {
   const query  = buildWttjQuery(settings.searchProfile);
   const params = new URLSearchParams();
   if (query.query) params.set('query', query.query);

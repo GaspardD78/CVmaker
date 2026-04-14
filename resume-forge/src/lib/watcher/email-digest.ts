@@ -7,6 +7,7 @@ import type { JobOffer, JobWatchSettings, JobSource } from '@/types/job-watch';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
   apec: 'APEC', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
+  emploi_territorial: 'Emploi Territorial', mantiks: 'Mantiks',
 };
 
 export function buildEmailHtml(offers: JobOffer[], date: string): string {

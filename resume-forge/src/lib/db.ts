@@ -130,6 +130,10 @@ export async function getDb(): Promise<Database> {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_watch_config_profile ON job_watch_config(profile_id)`);
     await db.execute(`ALTER TABLE job_offers ADD COLUMN profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE`).catch(() => {/* already exists */});
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_profile ON job_offers(profile_id)`);
+
+    // Fallback: ensure migration 012 columns exist (markdown editor)
+    await db.execute(`ALTER TABLE cv_documents ADD COLUMN markdown_content TEXT`).catch(() => {/* already exists */});
+    await db.execute(`ALTER TABLE cv_documents ADD COLUMN markdown_mode INTEGER NOT NULL DEFAULT 0 CHECK (markdown_mode IN (0, 1))`).catch(() => {/* already exists */});
     await db.execute(`
       CREATE TABLE IF NOT EXISTS job_watch_settings (
         key   TEXT PRIMARY KEY,

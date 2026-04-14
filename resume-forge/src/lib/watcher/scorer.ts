@@ -65,11 +65,6 @@ function findMatch(terms: string[], text: string): string | null {
   return null;
 }
 
-/** True if any term in the list matches the text. */
-function anyMatch(terms: string[], text: string): boolean {
-  return findMatch(terms, text) !== null;
-}
-
 // ── Red flags ────────────────────────────────────────────────────────────────
 
 const STRUCTURAL_RED_FLAGS: { pattern: RegExp; penalty: number }[] = [

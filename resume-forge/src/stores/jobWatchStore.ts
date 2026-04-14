@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getDb } from '@/lib/db';
-import { keysToCamelCase, keysToSnakeCase } from '@/lib/mapping';
+import { keysToCamelCase } from '@/lib/mapping';
 import {
   JobOffer,
   JobWatchConfig,

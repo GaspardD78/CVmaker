@@ -53,7 +53,7 @@ function parseSalary(raw: string | undefined): { min: number | null; max: number
 }
 
 export async function parseApec(
-  config: JobWatchConfig,
+  _config: JobWatchConfig,
   settings: JobWatchSettings,
 ): Promise<RawJobOffer[]> {
   const profile = settings.searchProfile;

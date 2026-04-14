@@ -10,17 +10,21 @@ import { computeLightProfileMatch } from '@/lib/watcher/scorer';
 import { generateFullCVMatchPrompt } from '@/lib/prompt-templates';
 
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec:          'APEC',
-  wttj:          'WTTJ',
-  linkedin_rss:  'LinkedIn',
-  france_travail:'France Travail',
+  apec:               'APEC',
+  wttj:               'WTTJ',
+  linkedin_rss:       'LinkedIn',
+  france_travail:     'France Travail',
+  emploi_territorial: 'Emploi Territorial',
+  mantiks:            'Mantiks',
 };
 
 const SOURCE_COLORS: Record<JobSource, string> = {
-  apec:          'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  wttj:          'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  linkedin_rss:  'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
-  france_travail:'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
+  apec:               'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  wttj:               'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  linkedin_rss:       'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
+  france_travail:     'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
+  emploi_territorial: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+  mantiks:            'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
 };
 
 function ScoreBadge({ score }: { score: number }) {

@@ -13,6 +13,7 @@ import type { JobOffer, JobSource, SortOption } from '@/types/job-watch';
 const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail'];
 const SOURCE_LABELS: Record<JobSource, string> = {
   apec: 'APEC', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
+  emploi_territorial: 'Emploi Territorial', mantiks: 'Mantiks',
 };
 
 const COMMUTE_OPTIONS: Array<{ label: string; value: number | null }> = [
