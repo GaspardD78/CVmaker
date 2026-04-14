@@ -82,8 +82,8 @@ l'implémentation et le test indépendants de chaque scénario.
 ### Implémentation — Scénario 3
 
 - [x] T016 [P] [SU3] Créer `resume-forge/src/lib/templates/default-markdown.ts` : exporter la constante `DEFAULT_MARKDOWN_TEMPLATE` contenant le CV modèle complet en français (sections : Résumé, Expérience, Formation, Compétences, Langues) avec des champs fictifs entre `[crochets]`
-- [ ] T017 [SU3] Dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx`, ajouter la logique d'initialisation au montage : si `cv.markdownContent === null`, appeler `cvStore.updateMarkdownContent(cvId, DEFAULT_MARKDOWN_TEMPLATE)` et initialiser `rawMarkdown` avec `DEFAULT_MARKDOWN_TEMPLATE` — dépend de T010, T016
-- [ ] T018 [SU3] Vérifier dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` que l'injection du modèle est strictement conditionnelle à `markdownContent === null` : lors d'une réouverture, `cv.markdownContent` contient déjà le texte utilisateur et le modèle ne doit PAS être réinjecté — dépend de T017
+- [x] T017 [SU3] Dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx`, ajouter la logique d'initialisation au montage : si `cv.markdownContent === null`, appeler `cvStore.updateMarkdownContent(cvId, DEFAULT_MARKDOWN_TEMPLATE)` et initialiser `rawMarkdown` avec `DEFAULT_MARKDOWN_TEMPLATE` — dépend de T010, T016
+- [x] T018 [SU3] Vérifier dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` que l'injection du modèle est strictement conditionnelle à `markdownContent === null` : lors d'une réouverture, `cv.markdownContent` contient déjà le texte utilisateur et le modèle ne doit PAS être réinjecté — dépend de T017
 
 **Point de contrôle** : Les trois scénarios fonctionnent indépendamment
 
@@ -93,9 +93,9 @@ l'implémentation et le test indépendants de chaque scénario.
 
 **Objectif** : Qualité, validation ATS et cohérence
 
-- [ ] T019 [P] Vérifier le typage TypeScript strict avec `bun run build` depuis `resume-forge/` et corriger toute erreur de type introduite par les modifications de `cv.ts`, `cvStore.ts`, `export-pdf.ts` et les nouveaux composants
+- [x] T019 [P] Vérifier le typage TypeScript strict avec `bun run build` depuis `resume-forge/` et corriger toute erreur de type introduite par les modifications de `cv.ts`, `cvStore.ts`, `export-pdf.ts` et les nouveaux composants
 - [ ] T020 [P] Validation manuelle ATS : exporter un CV Markdown complet en PDF, ouvrir le fichier dans un lecteur PDF standard, vérifier l'absence de symboles Markdown (`#`, `*`, `-`), la sélectionnabilité du texte, l'ordre correct des sections et la lisibilité des polices (gate constitution §IV)
-- [ ] T021 Valider le guide de démarrage rapide en suivant les étapes de `specs/001-markdown-resume-editor/quickstart.md` depuis un état de développement propre
+- [x] T021 Valider le guide de démarrage rapide en suivant les étapes de `specs/001-markdown-resume-editor/quickstart.md` depuis un état de développement propre
 
 ---
 
