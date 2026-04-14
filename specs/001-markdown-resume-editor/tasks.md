@@ -66,8 +66,8 @@ l'implémentation et le test indépendants de chaque scénario.
 ### Implémentation — Scénario 2
 
 - [x] T013 [P] [SU2] Créer `ExportWarningDialog` dans `resume-forge/src/components/markdown-editor/ExportWarningDialog.tsx` : encapsule `@radix-ui/react-dialog`, props `open: boolean`, `onConfirm: () => void`, `onCancel: () => void`, `reason: 'empty' | 'template_unchanged'` ; affiche un message d'avertissement adapté selon `reason`
-- [ ] T014 [SU2] Implémenter la logique de détection dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : avant tout export, vérifier si `rawMarkdown.trim() === ''` (vide) ou si `rawMarkdown === DEFAULT_MARKDOWN_TEMPLATE` (modèle inchangé) ; si oui, ouvrir `ExportWarningDialog` — dépend de T010, T013
-- [ ] T015 [SU2] Implémenter le déclencheur d'export PDF dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : appel `await exportNativePdf(cv.name, 'markdown-printable')`, puis mise à jour de `cv_documents` via `cvStore` (`last_exported` = `datetime('now')`, `settings.lastExportPath` = chemin retourné par `plugin-dialog`) ; afficher une notification `sonner` en cas de succès ou d'erreur — dépend de T006, T014
+- [x] T014 [SU2] Implémenter la logique de détection dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : avant tout export, vérifier si `rawMarkdown.trim() === ''` (vide) ou si `rawMarkdown === DEFAULT_MARKDOWN_TEMPLATE` (modèle inchangé) ; si oui, ouvrir `ExportWarningDialog` — dépend de T010, T013
+- [x] T015 [SU2] Implémenter le déclencheur d'export PDF dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : appel `await exportNativePdf(cv.name, 'markdown-printable')`, puis mise à jour de `cv_documents` via `cvStore` (`last_exported` = `datetime('now')`, `settings.lastExportPath` = chemin retourné par `plugin-dialog`) ; afficher une notification `sonner` en cas de succès ou d'erreur — dépend de T006, T014
 
 **Point de contrôle** : Les Scénarios 1 et 2 fonctionnent indépendamment
 
