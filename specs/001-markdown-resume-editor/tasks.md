@@ -18,9 +18,9 @@ l'implémentation et le test indépendants de chaque scénario.
 
 **Objectif** : Initialisation du projet et dépendances
 
-- [ ] T001 Installer `react-markdown` et `remark-gfm` via `bun add react-markdown remark-gfm` depuis `resume-forge/`
-- [ ] T002 Créer la migration SQLite dans `resume-forge/src-tauri/migrations/012_markdown_resume.sql` avec les deux instructions `ALTER TABLE cv_documents ADD COLUMN` pour `markdown_content` et `markdown_mode` (contrainte CHECK incluse)
-- [ ] T003 [P] Créer le répertoire `resume-forge/src/components/markdown-editor/` (dossier vide qui accueillera les composants)
+- [x] T001 Installer `react-markdown` et `remark-gfm` via `bun add react-markdown remark-gfm` depuis `resume-forge/`
+- [x] T002 Créer la migration SQLite dans `resume-forge/src-tauri/migrations/012_markdown_resume.sql` avec les deux instructions `ALTER TABLE cv_documents ADD COLUMN` pour `markdown_content` et `markdown_mode` (contrainte CHECK incluse)
+- [x] T003 [P] Créer le répertoire `resume-forge/src/components/markdown-editor/` (dossier vide qui accueillera les composants)
 
 ---
 
@@ -30,10 +30,10 @@ l'implémentation et le test indépendants de chaque scénario.
 
 **⚠️ CRITIQUE** : Aucun travail sur les scénarios ne peut commencer avant la fin de cette phase
 
-- [ ] T004 Ajouter `markdownContent: string | null` et `markdownMode: 0 | 1` à l'interface `CVDocument` dans `resume-forge/src/types/cv.ts`
-- [ ] T005 Ajouter deux nouvelles actions à `cvStore` dans `resume-forge/src/stores/cvStore.ts` : `updateMarkdownContent(id: string, content: string)` (exécute `UPDATE cv_documents SET markdown_content = ?1, updated_at = datetime('now') WHERE id = ?2` via `enqueueWrite`) et `setMarkdownMode(id: string, mode: 0 | 1)` (même pattern de file d'attente) — dépend de T004
-- [ ] T006 [P] Ajouter le paramètre optionnel `sourceElementId?: string` (défaut : `'printable-cv'`) à la fonction `exportNativePdf()` dans `resume-forge/src/lib/export-pdf.ts`, en remplaçant le sélecteur d'élément DOM codé en dur par ce paramètre
-- [ ] T007 Ajouter un bouton de bascule mode (« Constructeur visuel / Éditeur Markdown ») dans `resume-forge/src/components/cv-builder/CVBuilderPage.tsx` qui appelle `cvStore.setMarkdownMode()` et met à jour l'affichage conditionnel — dépend de T005
+- [x] T004 Ajouter `markdownContent: string | null` et `markdownMode: 0 | 1` à l'interface `CVDocument` dans `resume-forge/src/types/cv.ts`
+- [x] T005 Ajouter deux nouvelles actions à `cvStore` dans `resume-forge/src/stores/cvStore.ts` : `updateMarkdownContent(id: string, content: string)` (exécute `UPDATE cv_documents SET markdown_content = ?1, updated_at = datetime('now') WHERE id = ?2` via `enqueueWrite`) et `setMarkdownMode(id: string, mode: 0 | 1)` (même pattern de file d'attente) — dépend de T004
+- [x] T006 [P] Ajouter le paramètre optionnel `sourceElementId?: string` (défaut : `'printable-cv'`) à la fonction `exportNativePdf()` dans `resume-forge/src/lib/export-pdf.ts`, en remplaçant le sélecteur d'élément DOM codé en dur par ce paramètre
+- [x] T007 Ajouter un bouton de bascule mode (« Constructeur visuel / Éditeur Markdown ») dans `resume-forge/src/components/cv-builder/CVBuilderPage.tsx` qui appelle `cvStore.setMarkdownMode()` et met à jour l'affichage conditionnel — dépend de T005
 
 **Point de contrôle** : Fondations prêtes — le travail sur les scénarios peut commencer en parallèle
 
@@ -47,8 +47,8 @@ l'implémentation et le test indépendants de chaque scénario.
 
 ### Implémentation — Scénario 1
 
-- [ ] T008 [P] [SU1] Créer le composant `MarkdownEditorPane` dans `resume-forge/src/components/markdown-editor/MarkdownEditorPane.tsx` : `<textarea className="font-mono h-full w-full resize-none">` contrôlé, prop `value: string`, callback `onChange: (value: string) => void` appelé à chaque `onInput`
-- [ ] T009 [P] [SU1] Créer le composant `MarkdownPreviewPane` dans `resume-forge/src/components/markdown-editor/MarkdownPreviewPane.tsx` : `<ReactMarkdown remarkPlugins={[remarkGfm]}>` avec classes Tailwind `prose`, enveloppé dans `<div id={printableId ?? 'markdown-printable'}>`, prop `markdown: string`, prop optionnelle `printableId?: string`
+- [x] T008 [P] [SU1] Créer le composant `MarkdownEditorPane` dans `resume-forge/src/components/markdown-editor/MarkdownEditorPane.tsx` : `<textarea className="font-mono h-full w-full resize-none">` contrôlé, prop `value: string`, callback `onChange: (value: string) => void` appelé à chaque `onInput`
+- [x] T009 [P] [SU1] Créer le composant `MarkdownPreviewPane` dans `resume-forge/src/components/markdown-editor/MarkdownPreviewPane.tsx` : `<ReactMarkdown remarkPlugins={[remarkGfm]}>` avec classes Tailwind `prose`, enveloppé dans `<div id={printableId ?? 'markdown-printable'}>`, prop `markdown: string`, prop optionnelle `printableId?: string`
 - [ ] T010 [SU1] Créer `MarkdownEditorPage` dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : charge le CV via `cvStore.fetchCvById(cvId)`, gère l'état local `rawMarkdown` (mis à jour à chaque frappe), transmet la valeur anti-rebondée à 300 ms à `MarkdownPreviewPane`, affiche la disposition côte à côte — dépend de T008, T009
 - [ ] T011 [SU1] Implémenter la sauvegarde automatique anti-rebond à 2 000 ms dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : `useEffect` sur `rawMarkdown` avec `setTimeout(2000)` qui appelle `cvStore.updateMarkdownContent(cvId, rawMarkdown)` et affiche une notification `sonner` de confirmation — dépend de T005, T010
 - [ ] T012 [SU1] Intégrer le rendu conditionnel dans `resume-forge/src/components/cv-builder/CVBuilderPage.tsx` : si `currentCv.markdownMode === 1`, rendre `<MarkdownEditorPage cvId={cvId} />` à la place du constructeur visuel existant — dépend de T007, T010
@@ -65,7 +65,7 @@ l'implémentation et le test indépendants de chaque scénario.
 
 ### Implémentation — Scénario 2
 
-- [ ] T013 [P] [SU2] Créer `ExportWarningDialog` dans `resume-forge/src/components/markdown-editor/ExportWarningDialog.tsx` : encapsule `@radix-ui/react-dialog`, props `open: boolean`, `onConfirm: () => void`, `onCancel: () => void`, `reason: 'empty' | 'template_unchanged'` ; affiche un message d'avertissement adapté selon `reason`
+- [x] T013 [P] [SU2] Créer `ExportWarningDialog` dans `resume-forge/src/components/markdown-editor/ExportWarningDialog.tsx` : encapsule `@radix-ui/react-dialog`, props `open: boolean`, `onConfirm: () => void`, `onCancel: () => void`, `reason: 'empty' | 'template_unchanged'` ; affiche un message d'avertissement adapté selon `reason`
 - [ ] T014 [SU2] Implémenter la logique de détection dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : avant tout export, vérifier si `rawMarkdown.trim() === ''` (vide) ou si `rawMarkdown === DEFAULT_MARKDOWN_TEMPLATE` (modèle inchangé) ; si oui, ouvrir `ExportWarningDialog` — dépend de T010, T013
 - [ ] T015 [SU2] Implémenter le déclencheur d'export PDF dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` : appel `await exportNativePdf(cv.name, 'markdown-printable')`, puis mise à jour de `cv_documents` via `cvStore` (`last_exported` = `datetime('now')`, `settings.lastExportPath` = chemin retourné par `plugin-dialog`) ; afficher une notification `sonner` en cas de succès ou d'erreur — dépend de T006, T014
 
@@ -81,7 +81,7 @@ l'implémentation et le test indépendants de chaque scénario.
 
 ### Implémentation — Scénario 3
 
-- [ ] T016 [P] [SU3] Créer `resume-forge/src/lib/templates/default-markdown.ts` : exporter la constante `DEFAULT_MARKDOWN_TEMPLATE` contenant le CV modèle complet en français (sections : Résumé, Expérience, Formation, Compétences, Langues) avec des champs fictifs entre `[crochets]`
+- [x] T016 [P] [SU3] Créer `resume-forge/src/lib/templates/default-markdown.ts` : exporter la constante `DEFAULT_MARKDOWN_TEMPLATE` contenant le CV modèle complet en français (sections : Résumé, Expérience, Formation, Compétences, Langues) avec des champs fictifs entre `[crochets]`
 - [ ] T017 [SU3] Dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx`, ajouter la logique d'initialisation au montage : si `cv.markdownContent === null`, appeler `cvStore.updateMarkdownContent(cvId, DEFAULT_MARKDOWN_TEMPLATE)` et initialiser `rawMarkdown` avec `DEFAULT_MARKDOWN_TEMPLATE` — dépend de T010, T016
 - [ ] T018 [SU3] Vérifier dans `resume-forge/src/components/markdown-editor/MarkdownEditorPage.tsx` que l'injection du modèle est strictement conditionnelle à `markdownContent === null` : lors d'une réouverture, `cv.markdownContent` contient déjà le texte utilisateur et le modèle ne doit PAS être réinjecté — dépend de T017
 

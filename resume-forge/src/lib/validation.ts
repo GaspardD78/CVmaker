@@ -50,6 +50,8 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'settings',
     'is_favorite',
     'last_exported',
+    'markdown_content',
+    'markdown_mode',
     'created_at',
     'updated_at',
   ],

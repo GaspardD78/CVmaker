@@ -87,10 +87,10 @@ async function exportPdfWebFallback(): Promise<boolean> {
 
 // ─── Chemin Desktop (Vectoriel natif via Headless Chrome) ───────────────────
 
-async function exportPdfDesktop(): Promise<boolean> {
-  const cvNode = document.getElementById('printable-cv');
+async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
+  const cvNode = document.getElementById(sourceElementId);
   if (!cvNode) {
-    console.error('exportPdfDesktop: #printable-cv introuvable');
+    console.error(`exportPdfDesktop: #${sourceElementId} introuvable`);
     return false;
   }
 
@@ -177,11 +177,11 @@ async function exportPdfDesktop(): Promise<boolean> {
 
 // ─── Point d'entrée public ───────────────────────────────────────────────────
 
-export async function exportNativePdf(): Promise<boolean> {
+export async function exportNativePdf(sourceElementId: string = 'printable-cv'): Promise<boolean> {
   // On utilise plus jsPDF/html2canvas sur Android non plus, fallback global sur print
   if (!isTauri()) {
     return exportPdfWebFallback();
   }
 
-  return exportPdfDesktop();
+  return exportPdfDesktop(sourceElementId);
 }

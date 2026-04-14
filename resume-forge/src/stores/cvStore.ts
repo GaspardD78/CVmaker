@@ -38,6 +38,8 @@ interface CVState {
   updateCvBlock: (id: string, updates: Partial<CVBlock>) => Promise<void>;
   deleteCvBlock: (id: string) => Promise<void>;
   reorderCvBlocks: (cvId: string, blockIds: string[]) => Promise<void>;
+  updateMarkdownContent: (id: string, content: string) => Promise<void>;
+  setMarkdownMode: (id: string, mode: 0 | 1) => Promise<void>;
 }
 
 export const useCvStore = create<CVState>((set, get) => ({
@@ -322,6 +324,38 @@ export const useCvStore = create<CVState>((set, get) => ({
       }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to delete block' });
+    }
+  }),
+
+  updateMarkdownContent: (id, content) => enqueueWrite(async () => {
+    try {
+      const db = await getDb();
+      await db.execute(
+        `UPDATE cv_documents SET markdown_content = ?1, updated_at = datetime('now') WHERE id = ?2`,
+        [content, id]
+      );
+      const currentCv = get().currentCv;
+      if (currentCv && currentCv.id === id) {
+        set({ currentCv: { ...currentCv, markdownContent: content } });
+      }
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to update markdown content' });
+    }
+  }),
+
+  setMarkdownMode: (id, mode) => enqueueWrite(async () => {
+    try {
+      const db = await getDb();
+      await db.execute(
+        `UPDATE cv_documents SET markdown_mode = ?1, updated_at = datetime('now') WHERE id = ?2`,
+        [mode, id]
+      );
+      const currentCv = get().currentCv;
+      if (currentCv && currentCv.id === id) {
+        set({ currentCv: { ...currentCv, markdownMode: mode } });
+      }
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to set markdown mode' });
     }
   }),
 

@@ -9,6 +9,8 @@ export interface CVDocument {
   settings: Record<string, unknown>;
   isFavorite: boolean;
   lastExported: string | null;
+  markdownContent: string | null;
+  markdownMode: 0 | 1;
   createdAt: string;
   updatedAt: string;
 }

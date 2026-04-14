@@ -4,7 +4,7 @@ import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
-import { ArrowLeft, Download, FileText, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, Code2, Download, FileText, Loader2, Check } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
 import { exportNativePdf } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
@@ -20,7 +20,7 @@ const DEFAULT_PANEL = 380;
 export function CVBuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentCv, currentCvBlocks, fetchCvById, fetchCvBlocks, updateCv } = useCvStore();
+  const { currentCv, currentCvBlocks, fetchCvById, fetchCvBlocks, updateCv, setMarkdownMode } = useCvStore();
   const { profile, entries, fetchProfile } = useProfileStore();
   const [isExporting, setIsExporting] = useState(false);
   const { status: saveStatus, notifySave } = useSaveIndicator();
@@ -189,6 +189,20 @@ export function CVBuilderPage() {
           </span>
         )}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <button
+            onClick={() => setMarkdownMode(currentCv.id, currentCv.markdownMode === 1 ? 0 : 1)}
+            title={currentCv.markdownMode === 1 ? 'Passer au constructeur visuel' : 'Passer à l\'éditeur Markdown'}
+            className={`flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-md text-sm font-medium transition min-h-[44px] border ${
+              currentCv.markdownMode === 1
+                ? 'bg-indigo-100 text-indigo-700 border-indigo-300 hover:bg-indigo-200'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <Code2 className="w-4 h-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">
+              {currentCv.markdownMode === 1 ? 'Visuel' : 'Markdown'}
+            </span>
+          </button>
           <TemplatePickerPopover
             currentTemplateId={currentCv.templateId}
             onSelect={handleTemplateChange}
