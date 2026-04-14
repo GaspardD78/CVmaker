@@ -37,6 +37,8 @@ export function CVList() {
         settings: {},
         isFavorite: false,
         lastExported: null,
+        markdownContent: null,
+        markdownMode: 0,
       });
       setNewCvName('');
       toast.success("CV créé avec succès");

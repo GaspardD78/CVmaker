@@ -4,6 +4,7 @@ import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
+import { MarkdownEditorPage } from '@/components/markdown-editor/MarkdownEditorPage';
 import { ArrowLeft, Code2, Download, FileText, Loader2, Check } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
 import { exportNativePdf } from '@/lib/export-pdf';
@@ -226,60 +227,69 @@ export function CVBuilderPage() {
         </div>
       </div>
 
-      {/* Onglets mobile — masqués sur desktop */}
-      <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 print:hidden shrink-0">
-        <button
-          onClick={() => setActiveTab('edit')}
-          className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
-            activeTab === 'edit'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
-        >
-          Éditer
-        </button>
-        <button
-          onClick={() => setActiveTab('preview')}
-          className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
-            activeTab === 'preview'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
-        >
-          Aperçu
-        </button>
-      </div>
-
-      {/* Zone principale */}
-      <div className="flex flex-1 overflow-hidden print:overflow-visible print:block print:h-auto">
-        {/* Panneau gauche – édition */}
-        {showLeftPanel && (
-          <>
-            <div
-              style={!isMobile ? { width: panelWidth } : undefined}
-              className="w-full sm:w-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
+      {/* Mode Markdown : éditeur plein écran */}
+      {currentCv.markdownMode === 1 ? (
+        <div className="flex-1 overflow-hidden">
+          <MarkdownEditorPage cvId={id!} />
+        </div>
+      ) : (
+        <>
+          {/* Onglets mobile — masqués sur desktop */}
+          <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 print:hidden shrink-0">
+            <button
+              onClick={() => setActiveTab('edit')}
+              className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'edit'
+                  ? 'text-blue-600 border-blue-600'
+                  : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
             >
-              <LeftPanel cvId={id!} />
-            </div>
-            {/* Splitter draggable — desktop uniquement */}
-            {!isMobile && (
-              <div
-                onMouseDown={handleSplitterMouseDown}
-                className="w-1 hover:w-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
-              />
-            )}
-          </>
-        )}
-
-        {/* Panneau droit – aperçu */}
-        {showRightPanel && (
-          <div className="flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-2 sm:p-8 sm:flex sm:justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto">
-            <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
-              <RightPanel />
-            </div>
+              Éditer
+            </button>
+            <button
+              onClick={() => setActiveTab('preview')}
+              className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'preview'
+                  ? 'text-blue-600 border-blue-600'
+                  : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              Aperçu
+            </button>
           </div>
-        )}
-      </div>
+
+          {/* Zone principale – constructeur visuel */}
+          <div className="flex flex-1 overflow-hidden print:overflow-visible print:block print:h-auto">
+            {/* Panneau gauche – édition */}
+            {showLeftPanel && (
+              <>
+                <div
+                  style={!isMobile ? { width: panelWidth } : undefined}
+                  className="w-full sm:w-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
+                >
+                  <LeftPanel cvId={id!} />
+                </div>
+                {/* Splitter draggable — desktop uniquement */}
+                {!isMobile && (
+                  <div
+                    onMouseDown={handleSplitterMouseDown}
+                    className="w-1 hover:w-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
+                  />
+                )}
+              </>
+            )}
+
+            {/* Panneau droit – aperçu */}
+            {showRightPanel && (
+              <div className="flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-2 sm:p-8 sm:flex sm:justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto">
+                <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
+                  <RightPanel />
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
