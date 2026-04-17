@@ -1,5 +1,11 @@
+import type { CVTemplate } from '../../types/template';
+import { DENSITY_PRESETS, type DensityId } from '../../theme/tokens';
+
 interface DesignPanelProps {
   onFitToPage: () => void;
+  template: CVTemplate;
+  onApplyDensity: (id: DensityId) => void;
+  onApplyPalette: (accent: string) => void;
   fontFamily: string; setFontFamily: (v: string) => void;
   fontSize: string; setFontSize: (v: string) => void;
   primaryColor: string; setPrimaryColor: (v: string) => void;
@@ -36,6 +42,9 @@ interface DesignPanelProps {
 
 export function DesignPanel({
   onFitToPage,
+  template,
+  onApplyDensity,
+  onApplyPalette,
   fontFamily, setFontFamily,
   fontSize, setFontSize,
   primaryColor, setPrimaryColor,
@@ -86,6 +95,61 @@ export function DesignPanel({
         </p>
       </div>
       <div className="p-3 overflow-y-auto flex-1">
+
+        {/* ─── Thème du template ─────────────────────────────────────── */}
+        {(template.palettes && template.palettes.length > 0) && (
+          <div className="mb-3 pb-3 border-b border-purple-200">
+            <p className="text-xs font-semibold text-purple-800 mb-1.5">Palette</p>
+            <div className="flex flex-wrap gap-1.5">
+              {template.palettes.map(p => {
+                const active = (primaryColor || '').toLowerCase() === p.accent.toLowerCase();
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => onApplyPalette(p.accent)}
+                    title={p.name}
+                    className={`h-7 w-7 rounded-full border-2 transition-all ${
+                      active ? 'border-gray-900 scale-110 ring-2 ring-purple-200' : 'border-white shadow-sm hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: p.accent }}
+                    aria-label={`Palette ${p.name}`}
+                  />
+                );
+              })}
+              {primaryColor && (
+                <button
+                  type="button"
+                  onClick={() => onApplyPalette('')}
+                  title="Réinitialiser"
+                  className="h-7 px-2 text-[10px] font-medium text-gray-600 hover:text-gray-900 border border-dashed border-gray-300 rounded-full"
+                >
+                  Auto
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-3 pb-3 border-b border-purple-200">
+          <p className="text-xs font-semibold text-purple-800 mb-1.5">Densité</p>
+          <div className="grid grid-cols-3 gap-1">
+            {(['compact', 'normal', 'comfortable'] as DensityId[]).map(id => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onApplyDensity(id)}
+                className="text-[11px] font-medium py-1.5 px-1 rounded border border-gray-300 bg-white hover:bg-purple-100 hover:border-purple-400 transition-colors"
+              >
+                {DENSITY_PRESETS[id].name}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1 leading-tight">
+            Ajuste en un clic marges, espacements et hauteur de ligne.
+          </p>
+        </div>
+
       <div className="space-y-2">
         <div>
           <label className="block text-xs text-gray-700 mb-1">Police</label>

@@ -1,0 +1,45 @@
+import { CVTemplate } from '../types/template';
+import { PALETTES_NEUTRAL, PALETTES_SOBER } from '../theme/tokens';
+
+export const academic: CVTemplate = {
+  id: 'academic',
+  name: 'Académique',
+  description: 'Dense et sobre : optimisé pour publications, formations longues et certifications.',
+  category: 'academic',
+  recommendedFor: ['recherche', 'these', 'consulting'],
+  supportsPhoto: false,
+  palettes: [PALETTES_NEUTRAL[2], PALETTES_NEUTRAL[1], PALETTES_SOBER[2], PALETTES_SOBER[0]],
+  defaultDensity: 'compact',
+  headerVariants: ['clean', 'accent-bar'],
+  docx: {
+    pageSize: 'A4',
+    margins: { top: 1100, right: 1200, bottom: 1100, left: 1200 },
+    fonts: {
+      heading: 'Cambria',
+      body: 'Cambria',
+    },
+    headingSize: 24,
+    bodySize: 20,
+    lineSpacing: 260,
+    sectionSpacing: 180,
+    useColumns: false,
+    useTables: false,
+  },
+  preview: {
+    containerClass: 'max-w-[210mm] mx-auto bg-white shadow-lg px-12 py-10 text-gray-900 [font-family:Cambria,Georgia,serif]',
+    headingClass: 'text-[11.5px] font-bold uppercase tracking-[0.16em] text-amber-900 border-b border-amber-900/40 pb-1 mb-2.5 mt-5',
+    entryClass: 'mb-3',
+    titleClass: 'font-semibold text-gray-900 text-[12.5px]',
+    subtitleClass: 'text-amber-900 text-[12px] italic',
+    dateClass: 'text-gray-600 text-[11px] tabular-nums mb-0.5',
+    descriptionClass: 'text-gray-800 text-[11.5px] whitespace-pre-line leading-[1.45]',
+    skillsContainerClass: 'list-disc pl-5',
+    skillClass: 'text-[11.5px] text-gray-800',
+    skillBadgeContainerClass: 'flex flex-wrap gap-x-2 gap-y-0.5 mt-1',
+    skillBadgeClass: 'inline-block text-[11.5px] text-gray-800 after:content-[","] after:ml-1 last:after:content-[""]',
+    nameClass: 'text-[26px] font-semibold tracking-wide text-gray-900 mb-0.5',
+    headerTitleClass: 'text-[14px] font-normal text-amber-900 italic',
+    contactClass: 'text-[11px] text-gray-600',
+    summaryClass: 'text-[11.5px] text-gray-800 leading-[1.55] italic',
+  },
+};

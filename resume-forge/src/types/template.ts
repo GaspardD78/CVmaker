@@ -1,7 +1,21 @@
+import type { DensityId, HeaderVariantId, Palette, TemplateCategory } from '../theme/tokens';
+
 export interface CVTemplate {
   id: string;
   name: string;
   description: string;
+  /** Catégorie pour regrouper dans le sélecteur */
+  category: TemplateCategory;
+  /** Tags profils recommandés (ex: 'fr', 'international', 'dev', 'senior') */
+  recommendedFor?: string[];
+  /** Le template supporte l'affichage d'une photo (par défaut true) */
+  supportsPhoto?: boolean;
+  /** Palettes proposées (1re = défaut). Si omis, fallback sur palettes sobres. */
+  palettes?: Palette[];
+  /** Densité par défaut (compact/normal/comfortable) */
+  defaultDensity?: DensityId;
+  /** Variantes d'ent\u00eate autorisées (1re = défaut) */
+  headerVariants?: HeaderVariantId[];
   docx: {
     pageSize: 'A4' | 'LETTER';
     margins: { top: number; right: number; bottom: number; left: number };
