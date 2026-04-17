@@ -1,35 +1,40 @@
 /**
- * scorer.ts — Field-aware offer scoring (v2)
+ * scorer.ts — Field-aware offer scoring (v3)
  *
  * Architecture à 4 couches :
  *
  * Couche 0 – Hard disqualifiers (score → 0) :
  *   - Entreprise blacklistée
- *   - Terme exclu trouvé dans le titre (excludeTitles / excludeDomains)
+ *   - Terme exclu trouvé dans le titre OU la description (veto absolu, sans distinction)
  *   - Mauvais type de contrat (mode strict uniquement)
  *
  * Couche 1 – Title match (signal le plus fort) :
- *   - Match dans le titre (confidence high) → +35
- *   - Match dans le titre (confidence medium/low) → +25
- *   - Match dans la description → +10
- *   - Mode strict : aucun match titre → score plafonné à 30 max
- *   - Mode balanced : aucun match titre → -15 pts
+ *   - Match dans le titre (confidence high)  → +40
+ *   - Match dans le titre (confidence other) → +30
+ *   - Match dans la description              → +15
+ *   - Mode balanced, aucun match titre, jobTitles non vide → score total plafonné à 25
+ *   - Mode strict, aucun match titre → score → 0 (disqualifié)
  *
  * Couche 2 – Contract match :
- *   - Contrat correspondant → +10
- *   - Mauvais contrat (balanced) → -20
- *   - Mauvais contrat (strict) → score → 0 (handled in Couche 0)
+ *   - Contrat correspondant         → +10
+ *   - Mauvais contrat (balanced)    → -15
+ *   - Mauvais contrat (strict)      → score → 0 (handled in Couche 0)
  *
  * Couche 3 – Skills & domain :
- *   - Skill trouvé (any field) → +5 par match, plafonné +20
- *   - Domain trouvé → +3 par match, plafonné +10
+ *   - Skill trouvé dans titre       → +6 par match, plafonné +24
+ *   - Skill trouvé en description   → +3 par match, plafonné +12
+ *   - Domain trouvé                 → +3 par match, plafonné +10
  *
- * Couche 4 – Signals secondaires :
+ * Couche 4 – Signaux secondaires :
  *   - Salaire : +20 si ≥ target, -30 si < min
  *   - Time-decay : -2 pts/jour, plafonné -20
  *   - Learned signals (feedback utilisateur) : ±15 max
  *   - Company reputation : ±5
  *   - Red flags structurels (non rémunéré, ninja, etc.)
+ *
+ * Base dynamique :
+ *   - jobTitles.length > 0  → base = 0  (score entièrement gagné)
+ *   - jobTitles.length === 0 → base = 50 (mode permissif — comportement legacy)
  *
  * Résultat clampé entre 0 et 100.
  */
@@ -118,14 +123,16 @@ export interface ScoreBreakdown {
   /** True if immediately disqualified (score forced to 0) */
   disqualified: boolean;
   disqualifyReason?: string;
-  titleMatchScore: number;    // 0 | 10 | 25 | 35
+  titleMatchScore: number;    // 0 | 15 | 30 | 40
   titleMatchedTerm?: string;
-  contractMatchScore: number; // -20 | 0 | +10
-  skillsScore: number;        // 0..20
+  contractMatchScore: number; // -15 | 0 | +10
+  skillsScore: number;        // 0..24
   domainScore: number;        // 0..10
   salaryScore: number;        // -30 | 0 | +10 | +20
   learnedScore: number;       // -15..+15
   decayPenalty: number;       // 0..-20
+  /** Diagnostic: base score used (0 or 50) */
+  baseScore?: number;
 }
 
 export function computeScore(
@@ -141,8 +148,8 @@ export function computeScoreWithBreakdown(
   profile: SearchProfile,
   learned?: LearnedSignals,
 ): ScoreBreakdown {
-  const title   = offer.title ?? '';
-  const snippet = offer.descriptionSnippet ?? '';
+  const title    = offer.title ?? '';
+  const snippet  = offer.descriptionSnippet ?? '';
   const fullText = `${title} ${snippet}`;
   const companyLower = offer.company?.trim().toLowerCase() ?? '';
 
@@ -156,28 +163,27 @@ export function computeScoreWithBreakdown(
     return zero('Entreprise blacklistée');
   }
 
-  // Excluded title terms (check in title primarily, then full text)
+  // Excluded terms — veto absolu : titre OU description (sans distinction de position)
   const excludedTerms = [...profile.excludeTitles, ...profile.excludeDomains];
-  const excludedMatchInTitle = findMatch(excludedTerms, title);
-  if (excludedMatchInTitle) {
-    return zero(`Terme exclu dans le titre: "${excludedMatchInTitle}"`);
-  }
-  // Also check full text for excluded terms
-  const excludedMatchInText = findMatch(excludedTerms, fullText);
-  if (excludedMatchInText) {
-    return zero(`Terme exclu: "${excludedMatchInText}"`);
+  const excludedMatch = findMatch(excludedTerms, fullText);
+  if (excludedMatch) {
+    return zero(`Terme exclu: "${excludedMatch}"`);
   }
 
   // Contract disqualifier (strict mode only)
-  const normContract = normaliseContract(offer.contractType);
+  const normContract  = normaliseContract(offer.contractType);
   const wantsContracts = profile.contractTypes.length > 0;
   const contractMatches = wantsContracts && normContract
     ? profile.contractTypes.some(ct => ct.toLowerCase() === normContract.toLowerCase())
-    : true; // no preference = always ok
+    : true;
 
   if (!contractMatches && profile.scoring.mode === 'strict') {
     return zero(`Contrat incompatible: "${normContract}" (mode strict)`);
   }
+
+  // ── Base dynamique ─────────────────────────────────────────────────────────
+
+  const base = profile.jobTitles.length > 0 ? 0 : 50;
 
   // ── Couche 1 : Title match ─────────────────────────────────────────────────
 
@@ -185,32 +191,31 @@ export function computeScoreWithBreakdown(
   let titleMatchedTerm: string | undefined;
 
   if (profile.jobTitles.length > 0) {
-    // Try title field first
     const matchInTitle = findMatch(profile.jobTitles, title);
     if (matchInTitle) {
-      // Bonus depends on extraction confidence
       const conf = offer.extraction.titleConfidence;
-      titleMatchScore = conf === 'high' ? 35 : 25;
+      titleMatchScore = conf === 'high' ? 40 : 30;
       titleMatchedTerm = matchInTitle;
     } else {
-      // Try description/snippet
       const matchInSnippet = findMatch(profile.jobTitles, snippet);
       if (matchInSnippet) {
-        titleMatchScore = 10;
+        titleMatchScore = 15;
         titleMatchedTerm = matchInSnippet;
       }
     }
   }
 
-  // Mode strict: no title match → cap score at 30
-  const strictTitleCap = (profile.scoring.mode === 'strict' && profile.jobTitles.length > 0 && titleMatchScore === 0)
-    ? 30
-    : Infinity;
+  // Mode strict: no title match → disqualify
+  if (profile.scoring.mode === 'strict' && profile.jobTitles.length > 0 && titleMatchScore === 0) {
+    return zero('Aucun match jobTitle en mode strict');
+  }
 
-  // Mode balanced: no title match → penalty
-  const balancedNoPrimaryPenalty = (profile.scoring.mode === 'balanced' && profile.jobTitles.length > 0 && titleMatchScore === 0)
-    ? -15
-    : 0;
+  // Mode balanced: no title match → apply cap of 25 after full assembly
+  const applyBalancedCap = (
+    profile.scoring.mode === 'balanced' &&
+    profile.jobTitles.length > 0 &&
+    titleMatchScore === 0
+  );
 
   // ── Couche 2 : Contract match ──────────────────────────────────────────────
 
@@ -219,21 +224,21 @@ export function computeScoreWithBreakdown(
     if (contractMatches) {
       contractMatchScore = 10;
     } else if (offer.extraction.contractConfidence !== 'none') {
-      // Only penalise if we're confident about what the contract type is
-      contractMatchScore = -20;
+      contractMatchScore = -15;
     }
   }
 
   // ── Couche 3 : Skills & domain ────────────────────────────────────────────
 
-  // Skills: check title first (full weight), then snippet (reduced weight)
-  let skillsRaw = 0;
+  // Skills: title gets higher weight (+6, max +24), snippet lower (+3, max +12)
+  let skillsTitleRaw = 0;
+  let skillsSnippetRaw = 0;
   for (const skill of profile.skills) {
     if (!skill.trim()) continue;
-    if (hasWordMatch(skill, title))   skillsRaw += 5;
-    else if (hasWordMatch(skill, snippet)) skillsRaw += 3;
+    if (hasWordMatch(skill, title))        skillsTitleRaw   += 6;
+    else if (hasWordMatch(skill, snippet)) skillsSnippetRaw += 3;
   }
-  const skillsScore = Math.min(20, skillsRaw);
+  const skillsScore = Math.min(24, skillsTitleRaw) + Math.min(12, skillsSnippetRaw);
 
   // Domain signals (soft bonus)
   let domainRaw = 0;
@@ -253,8 +258,8 @@ export function computeScoreWithBreakdown(
   if (offer.salaryMin != null) {
     if (salaryTarget != null) {
       const ratio = offer.salaryMin / salaryTarget;
-      if (ratio >= 1.10)        salaryScore = 20;
-      else if (ratio >= 0.95)   salaryScore = 10;
+      if (ratio >= 1.10)      salaryScore = 20;
+      else if (ratio >= 0.95) salaryScore = 10;
     }
     if (salaryMin != null && offer.salaryMin < salaryMin) {
       salaryScore = -30;
@@ -301,18 +306,16 @@ export function computeScoreWithBreakdown(
   if (learned?.companyReputation && companyLower) {
     const rep = learned.companyReputation[companyLower];
     if (rep !== undefined) {
-      if (rep > 3) repScore = 5;
+      if (rep > 3)  repScore =  5;
       else if (rep < -3) repScore = -5;
     }
   }
 
   // ── Assemble total ─────────────────────────────────────────────────────────
 
-  const base = 50;
   const raw =
     base +
     titleMatchScore +
-    balancedNoPrimaryPenalty +
     contractMatchScore +
     skillsScore +
     domainScore +
@@ -322,7 +325,9 @@ export function computeScoreWithBreakdown(
     learnedScore +
     repScore;
 
-  const total = Math.max(0, Math.min(strictTitleCap === Infinity ? 100 : strictTitleCap, raw));
+  // Mode balanced, no title match → cap at 25
+  const capped = applyBalancedCap ? Math.min(25, raw) : raw;
+  const total  = Math.max(0, Math.min(100, capped));
 
   return {
     total,
@@ -335,6 +340,7 @@ export function computeScoreWithBreakdown(
     salaryScore,
     learnedScore,
     decayPenalty,
+    baseScore: base,
   };
 }
 
@@ -343,7 +349,7 @@ function zero(reason: string): ScoreBreakdown {
     total: 0, disqualified: true, disqualifyReason: reason,
     titleMatchScore: 0, contractMatchScore: 0,
     skillsScore: 0, domainScore: 0, salaryScore: 0,
-    learnedScore: 0, decayPenalty: 0,
+    learnedScore: 0, decayPenalty: 0, baseScore: 0,
   };
 }
 
@@ -420,4 +426,3 @@ export function buildSearchProfileFromProfile(
     },
   };
 }
-

@@ -32,6 +32,7 @@ const SOURCE_LABELS: Record<JobSource, string> = {
   apec:               'APEC',
   wttj:               'Welcome to the Jungle',
   linkedin_rss:       'LinkedIn (RSS tiers)',
+  jobicy:             'Jobicy (Remote)',
   france_travail:     'France Travail',
   emploi_territorial: 'Emploi Territorial',
   mantiks:            'Mantiks',
@@ -41,11 +42,12 @@ const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
   emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
   mantiks:            'Agrégateur FR — nécessite une clé API mantiks.io',
   linkedin_rss:       'Via flux RSS tiers (rss.app, jobicy…)',
+  jobicy:             'Offres remote internationales — API JSON, aucune clé requise',
   france_travail:     'API officielle — nécessite des credentials OAuth2',
 };
 
 const ALL_SOURCES: JobSource[] = [
-  'france_travail', 'apec', 'wttj', 'emploi_territorial', 'linkedin_rss', 'mantiks',
+  'france_travail', 'apec', 'wttj', 'emploi_territorial', 'linkedin_rss', 'jobicy', 'mantiks',
 ];
 
 /** Sources that require an RSS URL (required) */
@@ -689,6 +691,17 @@ export function JobWatchConfigView() {
             />
           </div>
         </div>
+
+        {/* Minimum save score */}
+        <Field
+          label={`Score minimum de sauvegarde : ${settingsDraft.minSaveScore} pts`}
+          help="Les offres sous ce seuil ne seront pas enregistrées lors de la collecte"
+        >
+          <input type="range" min={0} max={60} step={1} className="w-full accent-blue-600"
+            value={settingsDraft.minSaveScore}
+            onChange={e => updateSetting('minSaveScore', Number(e.target.value))}
+          />
+        </Field>
 
         {/* Fetch interval */}
         <Field label={`Fréquence de collecte : toutes les ${settingsDraft.fetchIntervalHours}h`}>

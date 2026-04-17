@@ -11,6 +11,7 @@ const SOURCE_LABELS: Record<JobSource, string> = {
   apec:               'APEC',
   wttj:               'Welcome to the Jungle',
   linkedin_rss:       'LinkedIn (RSS)',
+  jobicy:             'Jobicy (Remote)',
   france_travail:     'France Travail',
   emploi_territorial: 'Emploi Territorial',
   mantiks:            'Mantiks',

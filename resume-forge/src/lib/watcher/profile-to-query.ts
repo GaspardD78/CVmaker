@@ -230,6 +230,10 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
     }
     case 'linkedin_rss':
       return 'Via flux RSS (URL configurée)';
+    case 'jobicy': {
+      const tag = profile.jobTitles[0] ?? '';
+      return tag ? `tag: ${tag} | remote worldwide` : 'remote worldwide (aucun tag)';
+    }
     case 'emploi_territorial':
       return 'Via flux RSS (URL configurée)';
     case 'mantiks': {

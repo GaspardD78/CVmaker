@@ -2,6 +2,7 @@ export type JobSource =
   | 'apec'
   | 'wttj'
   | 'linkedin_rss'
+  | 'jobicy'
   | 'france_travail'
   | 'emploi_territorial'
   | 'mantiks';
@@ -230,6 +231,8 @@ export interface JobWatchSettings {
   ftClientSecret: string;
   ftAccessToken: string;
   ftTokenExpiresAt: string;
+  /** Score minimum en dessous duquel une offre n'est pas sauvegardée en DB (0-60, défaut 20) */
+  minSaveScore: number;
 }
 
 export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
@@ -250,7 +253,22 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   ftClientSecret: '',
   ftAccessToken: '',
   ftTokenExpiresAt: '',
+  minSaveScore: 20,
 };
+
+// ── Fetch log ─────────────────────────────────────────────────────────────────
+
+/** Log d'une collecte pour une source donnée, persisté dans job_watch_fetch_log */
+export interface FetchLog {
+  id: string;
+  source: JobSource;
+  fetchedAt: string;      // ISO 8601 UTC
+  offersFetched: number;
+  offersNew: number;
+  status: 'success' | 'error' | 'empty';
+  errorMessage: string | null;
+  durationMs: number;
+}
 
 export type SortOption = 'score_desc' | 'date_newest' | 'date_oldest' | 'commute_asc' | 'salary_desc';
 

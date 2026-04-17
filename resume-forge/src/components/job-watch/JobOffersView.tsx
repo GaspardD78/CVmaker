@@ -9,11 +9,20 @@ import { useJobWatcher } from '@/hooks/useJobWatcher';
 import { useProfileStore } from '@/stores/profileStore';
 import { JobOfferCard } from './JobOfferCard';
 import type { JobOffer, JobSource, SortOption } from '@/types/job-watch';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail'];
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'jobicy', 'france_travail'];
 const SOURCE_LABELS: Record<JobSource, string> = {
-  apec: 'APEC', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', france_travail: 'France Travail',
-  emploi_territorial: 'Emploi Territorial', mantiks: 'Mantiks',
+  apec: 'APEC', wttj: 'WTTJ', linkedin_rss: 'LinkedIn', jobicy: 'Jobicy',
+  france_travail: 'France Travail', emploi_territorial: 'Emploi Territorial', mantiks: 'Mantiks',
 };
 
 const COMMUTE_OPTIONS: Array<{ label: string; value: number | null }> = [
@@ -56,6 +65,7 @@ export function JobOffersView() {
     configs,
     batchArchive,
     batchMarkRead,
+    purgeOffers,
   } = useJobWatchStore();
 
   const { createApplication } = useApplicationStore();
@@ -72,6 +82,7 @@ export function JobOffersView() {
   const hasEnabledConfigs = configs.some(c => c.enabled === 1);
   const isFirstTime = configs.length === 0;
 
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
   const [savedFilters, setSavedFilters] = useState<{ minScore: number; status: typeof filters.status } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const isTopMatchActive = savedFilters !== null;
@@ -153,6 +164,12 @@ export function JobOffersView() {
     }
   }, [currentUserId, createApplication, setKanbanId]);
 
+  const handlePurgeIrrelevant = async () => {
+    const deleted = await purgeOffers(settings.minSaveScore);
+    setPurgeDialogOpen(false);
+    toast.success(`${deleted} offre${deleted !== 1 ? 's' : ''} supprimée${deleted !== 1 ? 's' : ''}`);
+  };
+
   const handleDeleteArchived = async () => {
     await deleteArchivedOffers();
     toast.success('Offres archivées supprimées');
@@ -211,6 +228,13 @@ export function JobOffersView() {
           >
             <Trash2 className="w-3.5 h-3.5" />
             Vider archivées
+          </button>
+          <button
+            onClick={() => setPurgeDialogOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Purger non pertinentes
           </button>
           <button
             onClick={handleClearAllOffers}
@@ -484,6 +508,27 @@ export function JobOffersView() {
           ))}
         </div>
       )}
+
+      {/* Purge irrelevant offers dialog */}
+      <Dialog open={purgeDialogOpen} onOpenChange={setPurgeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Purger les offres non pertinentes</DialogTitle>
+            <DialogDescription>
+              Supprimer les offres avec score &lt; {settings.minSaveScore} pts ?
+              Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPurgeDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={handlePurgeIrrelevant}>
+              Supprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

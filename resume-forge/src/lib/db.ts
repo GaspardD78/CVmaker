@@ -140,6 +140,23 @@ export async function getDb(): Promise<Database> {
         value TEXT
       )
     `);
+    // Fallback: ensure migration 013 table exists (job_watch_fetch_log)
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_watch_fetch_log (
+        id             TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        source         TEXT NOT NULL,
+        fetched_at     TEXT NOT NULL DEFAULT (datetime('now')),
+        offers_fetched INTEGER NOT NULL DEFAULT 0,
+        offers_new     INTEGER NOT NULL DEFAULT 0,
+        status         TEXT NOT NULL CHECK (status IN ('success', 'error', 'empty')),
+        error_message  TEXT,
+        duration_ms    INTEGER NOT NULL DEFAULT 0
+      )
+    `).catch(() => {/* already exists */});
+    await db.execute(
+      `CREATE INDEX IF NOT EXISTS idx_fetch_log_source ON job_watch_fetch_log(source, fetched_at DESC)`
+    ).catch(() => {/* already exists */});
+
     const defaultSettings: Array<[string, string]> = [
       ['fetch_interval_hours',  '4'],
       ['email_digest_enabled',  '1'],
@@ -159,6 +176,7 @@ export async function getDb(): Promise<Database> {
       ['ft_client_secret',      ''],
       ['ft_access_token',       ''],
       ['ft_token_expires_at',   ''],
+      ['min_save_score',        '20'],
     ];
     for (const [key, value] of defaultSettings) {
       await db.execute(

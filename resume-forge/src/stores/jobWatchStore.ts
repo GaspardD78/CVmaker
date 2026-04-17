@@ -6,6 +6,7 @@ import {
   JobWatchConfig,
   JobWatchSettings,
   JobWatchFilters,
+  FetchLog,
   SearchProfile,
   DEFAULT_JOB_WATCH_SETTINGS,
   DEFAULT_SEARCH_PROFILE,
@@ -86,6 +87,7 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
     ftClientSecret:        map['ft_client_secret']        ?? '',
     ftAccessToken:         map['ft_access_token']         ?? '',
     ftTokenExpiresAt:      map['ft_token_expires_at']     ?? '',
+    minSaveScore:         parseInt(map['min_save_score']  ?? '20', 10),
     // Mantiks fields are persisted as untyped extras (parser reads via cast).
     mantiksApiKey:         map['mantiks_api_key']         ?? '',
     mantiksBaseUrl:        map['mantiks_base_url']        ?? '',
@@ -114,6 +116,7 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['ft_client_secret',       settings.ftClientSecret],
     ['ft_access_token',        settings.ftAccessToken],
     ['ft_token_expires_at',    settings.ftTokenExpiresAt],
+    ['min_save_score',         String(settings.minSaveScore)],
     ['mantiks_api_key',        anySettings['mantiksApiKey']       ?? ''],
     ['mantiks_base_url',       anySettings['mantiksBaseUrl']      ?? ''],
     ['mantiks_location_ids',   anySettings['mantiksLocationIds']  ?? ''],
@@ -134,6 +137,7 @@ interface JobWatchState {
   configs: JobWatchConfig[];
   settings: JobWatchSettings;
   filters: JobWatchFilters;
+  fetchLogs: FetchLog[];
   isLoading: boolean;
   isFetching: boolean;
   error: string | null;
@@ -150,9 +154,13 @@ interface JobWatchState {
   setKanbanId: (offerId: string, kanbanId: string) => Promise<void>;
   deleteArchivedOffers: () => Promise<void>;
   clearAllOffers: () => Promise<void>;
+  purgeOffers: (minScore: number) => Promise<number>;
   submitFeedback: (offerId: string, action: string, timeToAction?: number) => Promise<void>;
   batchArchive: (ids: string[]) => Promise<void>;
   batchMarkRead: (ids: string[]) => Promise<void>;
+
+  // Fetch logs
+  loadFetchLogs: () => Promise<void>;
 
   // Configs
   fetchConfigs: () => Promise<void>;
@@ -182,6 +190,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   configs: [],
   settings: DEFAULT_JOB_WATCH_SETTINGS,
   filters: DEFAULT_FILTERS,
+  fetchLogs: [],
   isLoading: false,
   isFetching: false,
   error: null,
@@ -381,6 +390,33 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
           );
         } catch { /* silent */ }
       })();
+    }
+  },
+
+  purgeOffers: async (minScore) => {
+    const db = await getDb();
+    const result = await db.execute(
+      `DELETE FROM job_offers WHERE score < ?1 AND is_archived = 0`,
+      [minScore]
+    );
+    await get().fetchOffers();
+    return result.rowsAffected;
+  },
+
+  // ── Fetch logs ────────────────────────────────────────────────────────────────
+
+  loadFetchLogs: async () => {
+    try {
+      const db = await getDb();
+      const raw = await db.select<Record<string, unknown>[]>(
+        `SELECT id, source, fetched_at, offers_fetched, offers_new, status, error_message, duration_ms
+         FROM job_watch_fetch_log
+         ORDER BY fetched_at DESC
+         LIMIT 300`
+      );
+      set({ fetchLogs: raw.map(r => keysToCamelCase<FetchLog>(r)) });
+    } catch {
+      // Non-critical — table may not exist on first launch before migration runs
     }
   },
 

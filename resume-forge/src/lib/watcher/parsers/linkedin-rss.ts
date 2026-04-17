@@ -16,8 +16,10 @@
  *   - Métadonnées d'extraction ExtractionMetadata
  */
 
-import type { RawJobOffer, JobWatchConfig, ExtractionMetadata } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
 import { fetchRssFeed, stripHtml, parseDate } from './rss-utils';
+import { tauriFetch, BROWSER_USER_AGENT } from '../http';
+import { extractJsonLdJobs, parseJobLocation, parseJobDate } from '../json-ld-utils';
 
 // ── Patterns d'extraction ────────────────────────────────────────────────────
 
@@ -153,12 +155,127 @@ function extractSalaryFromText(text: string): { min: number | null; max: number 
   return { min: null, max: null, raw: null };
 }
 
+// ── Scraping LinkedIn sans RSS ────────────────────────────────────────────────
+
+export const LINKEDIN_SCRAPING_ERROR_MESSAGE =
+  "Scraping LinkedIn échoué — essayez rss.app comme alternative.";
+
+const LINKEDIN_GUEST_API_URL =
+  'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search';
+
+async function scrapeLinkedinJobs(settings: JobWatchSettings): Promise<RawJobOffer[]> {
+  const profile  = settings.searchProfile;
+  const keywords = profile.jobTitles.slice(0, 3).join(' ');
+
+  const params = new URLSearchParams();
+  if (keywords) params.set('keywords', keywords);
+  params.set('location', 'France');
+  params.set('start', '0');
+
+  const url = `${LINKEDIN_GUEST_API_URL}?${params.toString()}`;
+
+  let html: string;
+  try {
+    const res = await tauriFetch(url, {
+      headers: {
+        'User-Agent':      BROWSER_USER_AGENT,
+        'Accept':          'text/html,application/xhtml+xml',
+        'Accept-Language': 'fr-FR,fr;q=0.9',
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    html = await res.text();
+  } catch {
+    throw new Error(LINKEDIN_SCRAPING_ERROR_MESSAGE);
+  }
+
+  // Strategy 1: JSON-LD structured data (HIGH confidence)
+  const jsonLdJobs = extractJsonLdJobs(html);
+  if (jsonLdJobs.length > 0) {
+    return jsonLdJobs.map(job => {
+      const city = parseJobLocation(job);
+      return {
+        source:             'linkedin_rss',
+        url:                job.url ?? url,
+        title:              job.title!,
+        company:            job.hiringOrganization?.name ?? null,
+        location:           city,
+        contractType:       null,
+        descriptionSnippet: job.description ? stripHtml(job.description, 500) : null,
+        publishedAt:        parseJobDate(job),
+        salaryMin:          null,
+        salaryMax:          null,
+        salaryRaw:          null,
+        extraction: {
+          titleSource:        'json_ld',
+          titleConfidence:    'high',
+          locationSource:     city ? 'json_ld' : 'none',
+          locationConfidence: city ? 'medium' : 'none',
+          contractSource:     'none',
+          contractConfidence: 'none',
+        },
+      } satisfies RawJobOffer;
+    });
+  }
+
+  // Strategy 2: CSS fallback [data-job-id]
+  const parser  = new DOMParser();
+  const doc     = parser.parseFromString(html, 'text/html');
+  const cards   = Array.from(doc.querySelectorAll('[data-job-id]'));
+
+  const offers: RawJobOffer[] = cards
+    .map(card => {
+      const titleEl   = card.querySelector('h3, .base-search-card__title');
+      const companyEl = card.querySelector('h4, .base-search-card__subtitle');
+      const locEl     = card.querySelector('.job-search-card__location, [class*="location"]');
+      const linkEl    = card.querySelector('a[href*="/jobs/view/"]');
+
+      const href   = linkEl?.getAttribute('href') ?? '';
+      const jobUrl = href.startsWith('http') ? href : (href ? `https://www.linkedin.com${href}` : url);
+
+      return {
+        source:             'linkedin_rss',
+        url:                jobUrl,
+        title:              titleEl?.textContent?.trim() ?? '',
+        company:            companyEl?.textContent?.trim() ?? null,
+        location:           locEl?.textContent?.trim() ?? null,
+        contractType:       null,
+        descriptionSnippet: null,
+        publishedAt:        null,
+        salaryMin:          null,
+        salaryMax:          null,
+        salaryRaw:          null,
+        extraction: {
+          titleSource:        'html_primary',
+          titleConfidence:    'medium',
+          locationSource:     locEl ? 'html' : 'none',
+          locationConfidence: locEl ? 'low' : 'none',
+          contractSource:     'none',
+          contractConfidence: 'none',
+        },
+      } satisfies RawJobOffer;
+    })
+    .filter(o => o.title.length > 0);
+
+  if (offers.length === 0) {
+    throw new Error(LINKEDIN_SCRAPING_ERROR_MESSAGE);
+  }
+
+  return offers;
+}
+
 // ── Main parser ──────────────────────────────────────────────────────────────
 
-export async function parseLinkedinRss(config: JobWatchConfig): Promise<RawJobOffer[]> {
+export async function parseLinkedinRss(
+  config: JobWatchConfig,
+  settings?: JobWatchSettings,
+): Promise<RawJobOffer[]> {
   if (!config.rssUrl) {
-    console.warn('[linkedin_rss] Aucune URL RSS configurée — ignoré');
-    return [];
+    if (!settings) {
+      console.warn('[linkedin_rss] Pas de settings fournis pour le scraping — ignoré');
+      return [];
+    }
+    return scrapeLinkedinJobs(settings);
   }
 
   const items = await fetchRssFeed(config.rssUrl);
