@@ -1,0 +1,45 @@
+import { CVTemplate } from '../types/template';
+import { PALETTES_SOBER, PALETTES_NEUTRAL } from '../theme/tokens';
+
+export const executive: CVTemplate = {
+  id: 'executive',
+  name: 'Executive',
+  description: 'Serif premium, formel et prestigieux pour profils cadres et dirigeants.',
+  category: 'executive',
+  recommendedFor: ['senior', 'c-level', 'board'],
+  supportsPhoto: true,
+  palettes: [PALETTES_SOBER[2], PALETTES_NEUTRAL[0], PALETTES_SOBER[0], PALETTES_SOBER[1]],
+  defaultDensity: 'normal',
+  headerVariants: ['clean', 'accent-bar', 'dark-banner'],
+  docx: {
+    pageSize: 'A4',
+    margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+    fonts: {
+      heading: 'Cambria',
+      body: 'Cambria',
+    },
+    headingSize: 26,
+    bodySize: 22,
+    lineSpacing: 320,
+    sectionSpacing: 280,
+    useColumns: false,
+    useTables: false,
+  },
+  preview: {
+    containerClass: 'max-w-[210mm] mx-auto bg-white shadow-lg px-14 py-12 text-gray-900 [font-family:Cambria,Georgia,serif]',
+    headingClass: 'text-[12px] font-bold uppercase tracking-[0.24em] text-red-900 border-t border-b border-red-900/40 py-1.5 mb-4 mt-7 text-center',
+    entryClass: 'mb-5',
+    titleClass: 'font-bold text-gray-900 text-[14px]',
+    subtitleClass: 'text-red-900 text-[12.5px] italic',
+    dateClass: 'text-gray-500 text-[11.5px] tabular-nums italic mb-1',
+    descriptionClass: 'text-gray-800 text-[12px] whitespace-pre-line leading-[1.6]',
+    skillsContainerClass: 'list-disc pl-5',
+    skillClass: 'text-[12px] text-gray-800',
+    skillBadgeContainerClass: 'flex flex-wrap gap-x-2 gap-y-1 mt-1',
+    skillBadgeClass: 'inline-block text-[11.5px] text-gray-800 after:content-["•"] after:ml-2 after:text-red-900/60 last:after:content-[""]',
+    nameClass: 'text-[34px] font-normal tracking-[0.04em] text-gray-900 mb-1 text-center',
+    headerTitleClass: 'text-[15px] font-normal text-red-900 italic tracking-wide text-center uppercase',
+    contactClass: 'text-[11.5px] text-gray-600 text-center tracking-wide',
+    summaryClass: 'text-[12.5px] text-gray-800 leading-[1.65] italic text-center px-8',
+  },
+};

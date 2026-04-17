@@ -1,0 +1,45 @@
+import { CVTemplate } from '../types/template';
+import { PALETTES_VIBRANT, PALETTES_SOBER } from '../theme/tokens';
+
+export const creative: CVTemplate = {
+  id: 'creative',
+  name: 'Créatif',
+  description: 'Accents colorés affirmés, nom en bandeau, structure reste linéaire (ATS-safe).',
+  category: 'creative',
+  recommendedFor: ['design', 'marketing', 'communication'],
+  supportsPhoto: true,
+  palettes: [PALETTES_VIBRANT[2], PALETTES_VIBRANT[3], PALETTES_VIBRANT[1], PALETTES_SOBER[2]],
+  defaultDensity: 'normal',
+  headerVariants: ['accent-banner', 'accent-light', 'accent-bar', 'gradient-banner'],
+  docx: {
+    pageSize: 'A4',
+    margins: { top: 1200, right: 1200, bottom: 1200, left: 1200 },
+    fonts: {
+      heading: 'Georgia',
+      body: 'Calibri',
+    },
+    headingSize: 28,
+    bodySize: 22,
+    lineSpacing: 300,
+    sectionSpacing: 260,
+    useColumns: false,
+    useTables: false,
+  },
+  preview: {
+    containerClass: 'max-w-[210mm] mx-auto bg-white shadow-lg px-12 py-11 text-gray-900',
+    headingClass: 'text-[13px] font-black uppercase tracking-[0.14em] text-orange-700 mb-3.5 mt-7 inline-block relative pb-1 after:content-[""] after:absolute after:left-0 after:bottom-0 after:h-[3px] after:w-10 after:bg-orange-600',
+    entryClass: 'mb-5',
+    titleClass: 'font-bold text-gray-900 text-[14px]',
+    subtitleClass: 'text-orange-700 text-[12.5px] font-semibold',
+    dateClass: 'text-gray-500 text-[11.5px] tabular-nums italic mb-1',
+    descriptionClass: 'text-gray-700 text-[12px] whitespace-pre-line leading-relaxed',
+    skillsContainerClass: 'list-disc pl-5',
+    skillClass: 'text-[12px] text-gray-700',
+    skillBadgeContainerClass: 'flex flex-wrap gap-2 mt-1.5',
+    skillBadgeClass: 'inline-block px-3 py-1 text-[11px] font-semibold bg-orange-100 text-orange-900 border border-orange-300 rounded-full',
+    nameClass: 'text-[40px] font-black tracking-tight text-gray-900 mb-1 leading-none [font-family:Georgia,serif]',
+    headerTitleClass: 'text-[18px] font-semibold text-orange-700 uppercase tracking-[0.08em]',
+    contactClass: 'text-[12px] text-gray-600',
+    summaryClass: 'text-[12.5px] text-gray-700 leading-relaxed',
+  },
+};

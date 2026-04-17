@@ -1,0 +1,45 @@
+import { CVTemplate } from '../types/template';
+import { PALETTES_VIBRANT, PALETTES_SOBER } from '../theme/tokens';
+
+export const tech: CVTemplate = {
+  id: 'tech',
+  name: 'Tech',
+  description: 'Structure dense pour profils dev / data, skills mis en avant.',
+  category: 'tech',
+  recommendedFor: ['dev', 'data', 'engineering'],
+  supportsPhoto: false,
+  palettes: [PALETTES_VIBRANT[0], PALETTES_VIBRANT[1], PALETTES_VIBRANT[3], PALETTES_SOBER[1]],
+  defaultDensity: 'compact',
+  headerVariants: ['clean', 'accent-bar', 'accent-light'],
+  docx: {
+    pageSize: 'A4',
+    margins: { top: 1100, right: 1200, bottom: 1100, left: 1200 },
+    fonts: {
+      heading: 'Arial',
+      body: 'Calibri',
+    },
+    headingSize: 24,
+    bodySize: 20,
+    lineSpacing: 276,
+    sectionSpacing: 200,
+    useColumns: false,
+    useTables: false,
+  },
+  preview: {
+    containerClass: 'max-w-[210mm] mx-auto bg-white shadow-lg px-11 py-10 text-gray-800',
+    headingClass: 'text-[11.5px] font-bold uppercase tracking-[0.18em] text-indigo-700 mb-3 mt-6 pb-1 border-b border-indigo-200 flex items-baseline before:content-["▹"] before:mr-2 before:text-indigo-500 before:text-[14px]',
+    entryClass: 'mb-4',
+    titleClass: 'font-semibold text-gray-900 text-[13px]',
+    subtitleClass: 'text-indigo-700 text-[12px] font-medium',
+    dateClass: 'text-gray-500 text-[11px] tabular-nums font-mono mb-1',
+    descriptionClass: 'text-gray-700 text-[11.5px] whitespace-pre-line leading-relaxed',
+    skillsContainerClass: 'list-disc pl-5',
+    skillClass: 'text-[11.5px] text-gray-700',
+    skillBadgeContainerClass: 'flex flex-wrap gap-1.5 mt-1.5',
+    skillBadgeClass: 'inline-block px-2 py-0.5 text-[10.5px] font-medium bg-indigo-50 text-indigo-800 border border-indigo-200 rounded font-mono',
+    nameClass: 'text-[26px] font-bold text-gray-900 mb-0.5 tracking-tight',
+    headerTitleClass: 'text-[14px] font-medium text-indigo-700 font-mono',
+    contactClass: 'text-[11.5px] text-gray-600 font-mono',
+    summaryClass: 'text-[12px] text-gray-700 leading-relaxed',
+  },
+};

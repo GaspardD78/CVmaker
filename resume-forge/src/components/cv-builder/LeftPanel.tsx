@@ -6,6 +6,8 @@ import { SettingsPanel } from './SettingsPanel';
 import { SummaryPanel } from './SummaryPanel';
 import { DesignPanel } from './DesignPanel';
 import { BlockList } from './BlockList';
+import { getTemplate } from '@/templates';
+import { DENSITY_PRESETS, type DensityId } from '@/theme/tokens';
 
 import { Settings, Palette, FileText, Sparkles } from 'lucide-react';
 import { AIPromptPanel } from './AIPromptPanel';
@@ -301,6 +303,24 @@ export function LeftPanel({ cvId }: { cvId: string }) {
     toast.warning('Le CV reste trop long, même avec les réglages minimaux.');
   };
 
+  const handleApplyDensity = (id: DensityId) => {
+    const preset = DENSITY_PRESETS[id];
+    flushSync(() => {
+      setEntrySpacing(preset.entrySpacing);
+      setSectionHeaderGap(preset.sectionHeaderGap);
+      setBodyLineHeight(preset.bodyLineHeight);
+      setPageMargin(preset.pageMargin);
+      setBodyFontSize(preset.bodyFontSize);
+    });
+    toast.success(`Densité ${preset.name.toLowerCase()} appliquée`);
+  };
+
+  const handleApplyPalette = (accent: string) => {
+    setPrimaryColor(accent);
+  };
+
+  const currentTemplate = getTemplate(currentCv?.templateId || 'ats-classic');
+
   const handleAddCustomText = async () => {
     const maxOrder = currentCvBlocks.length > 0
       ? Math.max(...currentCvBlocks.map(b => b.sortOrder))
@@ -403,6 +423,9 @@ export function LeftPanel({ cvId }: { cvId: string }) {
       {isDesignOpen && (
         <DesignPanel
           onFitToPage={handleFitToPage}
+          template={currentTemplate}
+          onApplyDensity={handleApplyDensity}
+          onApplyPalette={handleApplyPalette}
           fontFamily={fontFamily} setFontFamily={setFontFamily}
           fontSize={fontSize} setFontSize={setFontSize}
           primaryColor={primaryColor} setPrimaryColor={setPrimaryColor}
