@@ -285,6 +285,12 @@ pub fn run() {
             sql: include_str!("../migrations/012_markdown_resume.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "job_watch_fetch_log",
+            sql: include_str!("../migrations/013_job_watch_fetch_log.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]

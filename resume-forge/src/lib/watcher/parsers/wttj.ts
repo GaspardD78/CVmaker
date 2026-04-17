@@ -12,9 +12,11 @@
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
-import { stripHtml, parseDate } from './rss-utils';
+import { stripHtml } from './rss-utils';
 import { buildWttjQuery, isExcludedByProfile } from '../profile-to-query';
 import { tauriFetch, BROWSER_USER_AGENT } from '../http';
+import { extractJsonLdJobsFromDoc, parseJobLocation, parseJobDate } from '../json-ld-utils';
+import type { JsonLdJob } from '../json-ld-utils';
 
 const WTTJ_SEARCH_URL = 'https://www.welcometothejungle.com/fr/jobs';
 const TIMEOUT_MS = 10_000;
@@ -28,25 +30,6 @@ export function buildWttjUrl(_config: JobWatchConfig, settings: JobWatchSettings
   return `${WTTJ_SEARCH_URL}?${params.toString()}`;
 }
 
-// ── JSON-LD types ─────────────────────────────────────────────────────────────
-
-interface WttjJsonLdJob {
-  '@type'?:           string;
-  title?:             string;
-  hiringOrganization?: { name?: string };
-  jobLocation?:
-    | { address?: { addressLocality?: string; addressRegion?: string } }
-    | Array<{ address?: { addressLocality?: string; addressRegion?: string } }>;
-  employmentType?: string;
-  description?:   string;
-  datePosted?:    string;
-  url?:           string;
-  baseSalary?: {
-    value?: { minValue?: number; maxValue?: number; value?: number; unitText?: string };
-    currency?: string;
-  };
-}
-
 /** Normalise WTTJ employmentType to a canonical French label */
 function normaliseEmploymentType(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -57,13 +40,6 @@ function normaliseEmploymentType(raw: string | undefined): string | null {
   if (r.includes('intern') || r.includes('stage'))                              return 'Stage';
   if (r.includes('apprentice') || r.includes('alternance'))                     return 'Alternance';
   return raw;
-}
-
-/** Extract city from jobLocation, supporting both object and array forms */
-function extractCity(jobLocation: WttjJsonLdJob['jobLocation']): string | null {
-  if (!jobLocation) return null;
-  const loc = Array.isArray(jobLocation) ? jobLocation[0] : jobLocation;
-  return loc?.address?.addressLocality ?? loc?.address?.addressRegion ?? null;
 }
 
 export async function parseWttj(
@@ -98,75 +74,56 @@ export async function parseWttj(
   const offers: RawJobOffer[] = [];
 
   // ── Strategy 1: JSON-LD structured data (HIGH confidence) ─────────────────
-  const jsonLdScripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+  const jobs: JsonLdJob[] = extractJsonLdJobsFromDoc(doc);
 
-  for (const script of jsonLdScripts) {
-    try {
-      const raw = JSON.parse(script.textContent ?? '{}');
-      const jobs: WttjJsonLdJob[] = [];
+  for (const job of jobs) {
+    const city        = parseJobLocation(job);
+    const contractRaw = normaliseEmploymentType(job.employmentType);
+    const offerUrl    = job.url ?? pageUrl;
 
-      if (Array.isArray(raw)) {
-        jobs.push(...raw);
-      } else if ('@graph' in raw && Array.isArray(raw['@graph'])) {
-        jobs.push(...raw['@graph']);
-      } else if (raw['@type'] === 'JobPosting') {
-        jobs.push(raw as WttjJsonLdJob);
-      }
-
-      for (const job of jobs) {
-        if (job['@type'] !== 'JobPosting' || !job.title) continue;
-
-        const city        = extractCity(job.jobLocation);
-        const contractRaw = normaliseEmploymentType(job.employmentType);
-        const offerUrl    = job.url ?? pageUrl;
-
-        // Salary from JSON-LD baseSalary (annual amounts)
-        let salaryMin: number | null = null;
-        let salaryMax: number | null = null;
-        let salaryRaw: string | null = null;
-        if (job.baseSalary?.value) {
-          const bv = job.baseSalary.value;
-          salaryMin = bv.minValue ?? bv.value ?? null;
-          salaryMax = bv.maxValue ?? bv.value ?? null;
-          if (salaryMin !== null) {
-            const cur  = job.baseSalary.currency ?? '€';
-            const unit = bv.unitText?.toLowerCase();
-            // Convert monthly salary to annual
-            if (unit === 'month' || unit === 'monthly') {
-              salaryMin = Math.round(salaryMin * 12);
-              if (salaryMax) salaryMax = Math.round(salaryMax * 12);
-            }
-            salaryRaw = `${salaryMin}${salaryMax && salaryMax !== salaryMin ? '-' + salaryMax : ''} ${cur}`;
-          }
+    // Salary from JSON-LD baseSalary (annual amounts)
+    let salaryMin: number | null = null;
+    let salaryMax: number | null = null;
+    let salaryRaw: string | null = null;
+    if (job.baseSalary?.value) {
+      const bv = job.baseSalary.value;
+      salaryMin = bv.minValue ?? bv.value ?? null;
+      salaryMax = bv.maxValue ?? bv.value ?? null;
+      if (salaryMin !== null) {
+        const cur  = job.baseSalary.currency ?? '€';
+        const unit = bv.unitText?.toLowerCase();
+        // Convert monthly salary to annual
+        if (unit === 'month' || unit === 'monthly') {
+          salaryMin = Math.round(salaryMin * 12);
+          if (salaryMax) salaryMax = Math.round(salaryMax * 12);
         }
-
-        const extraction: ExtractionMetadata = {
-          titleSource:        'json_ld',
-          titleConfidence:    'high',
-          locationSource:     city ? 'json_ld' : 'none',
-          locationConfidence: city ? 'medium' : 'none', // WTTJ may omit region
-          contractSource:     job.employmentType ? 'json_ld' : 'none',
-          contractConfidence: job.employmentType ? 'medium' : 'none',
-        };
-
-        offers.push({
-          source:             'wttj',
-          url:                offerUrl,
-          title:              job.title,
-          company:            job.hiringOrganization?.name ?? null,
-          location:           city,
-          contractType:       contractRaw,
-          descriptionSnippet: job.description ? stripHtml(job.description, 500) : null,
-          publishedAt:        parseDate(job.datePosted ?? null),
-          salaryMin,
-          salaryMax,
-          salaryRaw,
-          extraction,
-        });
+        salaryRaw = `${salaryMin}${salaryMax && salaryMax !== salaryMin ? '-' + salaryMax : ''} ${cur}`;
       }
-    } catch {
-      // Ignore malformed JSON-LD blocks
     }
+
+    const extraction: ExtractionMetadata = {
+      titleSource:        'json_ld',
+      titleConfidence:    'high',
+      locationSource:     city ? 'json_ld' : 'none',
+      locationConfidence: city ? 'medium' : 'none',
+      contractSource:     job.employmentType ? 'json_ld' : 'none',
+      contractConfidence: job.employmentType ? 'medium' : 'none',
+    };
+
+    offers.push({
+      source:             'wttj',
+      url:                offerUrl,
+      title:              job.title!,
+      company:            job.hiringOrganization?.name ?? null,
+      location:           city,
+      contractType:       contractRaw,
+      descriptionSnippet: job.description ? stripHtml(job.description, 500) : null,
+      publishedAt:        parseJobDate(job),
+      salaryMin,
+      salaryMax,
+      salaryRaw,
+      extraction,
+    });
   }
 
   // ── Strategy 2: HTML fallback (MEDIUM confidence) ─────────────────────────

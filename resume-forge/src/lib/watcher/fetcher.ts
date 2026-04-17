@@ -13,13 +13,14 @@
  */
 
 import { getDb } from '@/lib/db';
-import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource } from '@/types/job-watch';
+import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource, FetchLog } from '@/types/job-watch';
 import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } from './deduplicator';
 import { computeScore, LearnedSignals } from './scorer';
 import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
 import { parseApec } from './parsers/apec';
 import { parseWttj } from './parsers/wttj';
 import { parseLinkedinRss } from './parsers/linkedin-rss';
+import { parseJobicy } from './parsers/jobicy';
 import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
 import { parseMantiks } from './parsers/mantiks';
@@ -46,10 +47,56 @@ async function loadLearnedSignals(db: Awaited<ReturnType<typeof getDb>>): Promis
   }
 }
 
+/**
+ * Persists a FetchLog entry and purges old entries keeping only the 50 most
+ * recent per source. Gracefully swallows errors — logging must never crash
+ * the fetch pipeline.
+ */
+async function writeFetchLog(
+  db: Awaited<ReturnType<typeof getDb>>,
+  entry: Omit<FetchLog, 'id' | 'fetchedAt'>,
+): Promise<void> {
+  try {
+    await db.execute(
+      `INSERT INTO job_watch_fetch_log
+         (source, offers_fetched, offers_new, status, error_message, duration_ms)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      [
+        entry.source,
+        entry.offersFetched,
+        entry.offersNew,
+        entry.status,
+        entry.errorMessage,
+        entry.durationMs,
+      ]
+    );
+    // Purge: keep only the 50 most recent logs per source
+    await db.execute(
+      `DELETE FROM job_watch_fetch_log
+       WHERE source = ?1
+         AND id NOT IN (
+           SELECT id FROM job_watch_fetch_log
+           WHERE source = ?1
+           ORDER BY fetched_at DESC
+           LIMIT 50
+         )`,
+      [entry.source]
+    );
+  } catch (err) {
+    console.warn('[fetcher] writeFetchLog error (non-fatal):', err);
+  }
+}
+
 export interface FetchResult {
   source: JobSource;
   newOffers: number;
+  /** Nombre total d'offres parsées avant dédup et filtrage minSaveScore */
+  totalFetched: number;
   errors: string[];
+  /** Durée de collecte (parsing uniquement) en ms */
+  durationMs: number;
+  /** Statut calculé : success si pas d'erreur et offers > 0, empty si 0 offres, error si erreur */
+  status: 'success' | 'error' | 'empty';
 }
 
 /** Run a single parser — settings.searchProfile drives all query parameters */
@@ -57,7 +104,8 @@ async function runParser(config: JobWatchConfig, settings: JobWatchSettings): Pr
   switch (config.source) {
     case 'apec':               return parseApec(config, settings);
     case 'wttj':               return parseWttj(config, settings);
-    case 'linkedin_rss':       return parseLinkedinRss(config);
+    case 'linkedin_rss':       return parseLinkedinRss(config, settings);
+    case 'jobicy':             return parseJobicy(config, settings);
     case 'france_travail':     return parseFranceTravail(config, settings);
     case 'emploi_territorial': return parseEmploiTerritorial(config, settings);
     case 'mantiks':            return parseMantiks(config, settings);
@@ -96,20 +144,40 @@ export async function runFetch(
   const sourceResultMap = new Map<JobSource, FetchResult>();
 
   for (const config of enabledConfigs) {
-    const result: FetchResult = { source: config.source, newOffers: 0, errors: [] };
+    const result: FetchResult = {
+      source: config.source,
+      newOffers: 0,
+      totalFetched: 0,
+      errors: [],
+      durationMs: 0,
+      status: 'empty',
+    };
     sourceResultMap.set(config.source, result);
     onProgress?.(config.source, 'fetching');
 
+    const sourceStartTime = Date.now();
     let rawOffers: RawJobOffer[];
     try {
       rawOffers = await runParser(config, settings);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`Parser error: ${msg}`);
+      result.durationMs = Date.now() - sourceStartTime;
+      result.status = 'error';
       console.error(`[fetcher] Erreur source ${config.source}:`, err);
       results.push(result);
+      await writeFetchLog(db, {
+        source:        result.source,
+        offersFetched: 0,
+        offersNew:     0,
+        status:        'error',
+        errorMessage:  msg,
+        durationMs:    result.durationMs,
+      });
       continue;
     }
+    result.totalFetched = rawOffers.length;
+    result.durationMs = Date.now() - sourceStartTime;
 
     onProgress?.(config.source, `${rawOffers.length} offres récupérées, déduplication…`);
 
@@ -168,6 +236,9 @@ export async function runFetch(
     if (skipIndices.has(i)) continue;
     const { raw, hash, score, commuteMinutes, commuteStatus } = allProcessed[i];
 
+    // Filter by minimum save score — totalFetched already counted before this point
+    if (score < settings.minSaveScore) continue;
+
     try {
       await db.execute(
         `INSERT OR IGNORE INTO job_offers
@@ -201,8 +272,26 @@ export async function runFetch(
   for (const config of enabledConfigs) {
     const result = sourceResultMap.get(config.source);
     if (result && !results.includes(result)) {
+      // Compute final status
+      if (result.errors.length > 0) {
+        result.status = 'error';
+      } else if (result.totalFetched === 0) {
+        result.status = 'empty';
+      } else {
+        result.status = 'success';
+      }
       onProgress?.(config.source, `done (${result.newOffers} nouvelles)`);
       results.push(result);
+
+      // Persist fetch log (non-blocking — errors are swallowed in writeFetchLog)
+      await writeFetchLog(db, {
+        source:        result.source,
+        offersFetched: result.totalFetched,
+        offersNew:     result.newOffers,
+        status:        result.status,
+        errorMessage:  result.errors.length > 0 ? result.errors[0] : null,
+        durationMs:    result.durationMs,
+      });
     }
   }
 

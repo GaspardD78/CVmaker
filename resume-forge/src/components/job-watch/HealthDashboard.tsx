@@ -1,11 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bot, ChevronDown, ChevronUp, Eye, Target, TrendingUp, X } from 'lucide-react';
+import {
+  AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronRight, ChevronUp,
+  Circle, Clock, Eye, Info, Target, TrendingUp, X, XCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { analyzeFeedback, getBlacklistSuggestions, getKeywordSuggestions, LearningResult } from '@/lib/watcher/learning-engine';
 import { generatePerformanceOptimizationPrompt, generateDiagnosticPrompt } from '@/lib/prompt-templates';
 import { getDb } from '@/lib/db';
+import type { JobSource, FetchLog } from '@/types/job-watch';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'jobicy', 'france_travail', 'emploi_territorial', 'mantiks'];
+
+const SOURCE_LABELS: Record<JobSource, string> = {
+  apec:               'APEC',
+  wttj:               'Welcome to the Jungle',
+  linkedin_rss:       'LinkedIn',
+  jobicy:             'Jobicy',
+  france_travail:     'France Travail',
+  emploi_territorial: 'Emploi Territorial',
+  mantiks:            'Mantiks',
+};
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -96,24 +114,83 @@ function SuggestionAlert({ type, message, actionLabel, onAction, onDismiss }: Su
   );
 }
 
+// ── Fetch log status badge ────────────────────────────────────────────────────
+
+type FetchStatus = 'success' | 'error' | 'empty' | 'unconfigured' | 'pending';
+
+function StatusBadge({ status }: { status: FetchStatus }) {
+  switch (status) {
+    case 'success':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+          <CheckCircle2 className="w-3 h-3" />
+          Succès
+        </span>
+      );
+    case 'error':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400">
+          <XCircle className="w-3 h-3" />
+          Erreur
+        </span>
+      );
+    case 'empty':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+          <Circle className="w-3 h-3" />
+          Vide
+        </span>
+      );
+    case 'pending':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-500 dark:text-blue-400">
+          <Clock className="w-3 h-3" />
+          En attente
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 dark:text-gray-500">
+          <Circle className="w-3 h-3" />
+          Non configurée
+        </span>
+      );
+  }
+}
+
+function formatRelativeTime(isoDate: string): string {
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1)  return 'à l\'instant';
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24)   return `il y a ${diffH} h`;
+  const diffD = Math.floor(diffH / 24);
+  return `il y a ${diffD} j`;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function HealthDashboard() {
-  const { offers, settings, saveSettings } = useJobWatchStore();
+  const { offers, configs, settings, fetchLogs, loadFetchLogs, saveSettings } = useJobWatchStore();
   const { profile, entries } = useProfileStore();
 
   const [analysis, setAnalysis]   = useState<LearningResult | null>(null);
   const [expanded, setExpanded]   = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [companySuggestions, setCompanySuggestions] = useState<string[]>([]);
+  const [expandedSource, setExpandedSource] = useState<JobSource | null>(null);
+  const [scoringInfoDismissed, setScoringInfoDismissed] = useState(
+    () => localStorage.getItem('scoring_info_dismissed') === '1'
+  );
 
-  // Run DB analysis asynchronously after mount — never blocks render
   useEffect(() => {
     analyzeFeedback()
       .then(setAnalysis)
       .catch(() => setAnalysis(null));
 
-    // Load company reputation suggestions
+    loadFetchLogs();
+
     (async () => {
       try {
         const db = await getDb();
@@ -128,7 +205,7 @@ export function HealthDashboard() {
     })();
   }, []);
 
-  // ── Metrics (computed from in-memory store — zero additional I/O) ──────────
+  // ── Metrics ───────────────────────────────────────────────────────────────────
 
   const weekCutoff = useMemo(() => {
     const d = new Date();
@@ -144,14 +221,43 @@ export function HealthDashboard() {
     const kanban  = active.filter(o => o.kanbanId !== null).length;
     return {
       volume,
-      volumeAlert:      volume < 10,
-      pertinence:       total > 0 ? Math.round((read   / total) * 100) : null,
-      conversion:       total > 0 ? Math.round((kanban / total) * 100) : null,
-      conversionAlert:  total > 0 && kanban / total < 0.05,
+      volumeAlert:     volume < 10,
+      pertinence:      total > 0 ? Math.round((read   / total) * 100) : null,
+      conversion:      total > 0 ? Math.round((kanban / total) * 100) : null,
+      conversionAlert: total > 0 && kanban / total < 0.05,
     };
   }, [offers, weekCutoff]);
 
-  // ── Learning suggestions (filtered against current config + dismissed) ──────
+  // ── Fetch log helpers ─────────────────────────────────────────────────────────
+
+  const configuredSources = useMemo(
+    () => new Set(configs.filter(c => c.enabled === 1).map(c => c.source)),
+    [configs]
+  );
+
+  // Last log per source
+  const lastLogBySource = useMemo(() => {
+    const map = new Map<JobSource, FetchLog>();
+    for (const log of fetchLogs) {
+      if (!map.has(log.source)) map.set(log.source, log);
+    }
+    return map;
+  }, [fetchLogs]);
+
+  // 10 most recent logs per source for history expand
+  const historyBySource = useMemo(() => {
+    const map = new Map<JobSource, FetchLog[]>();
+    for (const log of fetchLogs) {
+      const arr = map.get(log.source) ?? [];
+      if (arr.length < 10) {
+        arr.push(log);
+        map.set(log.source, arr);
+      }
+    }
+    return map;
+  }, [fetchLogs]);
+
+  // ── Learning suggestions ──────────────────────────────────────────────────────
 
   const suggestExclude = useMemo(() => {
     if (!analysis) return [];
@@ -183,12 +289,13 @@ export function HealthDashboard() {
   const hasAlerts =
     volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0;
 
-  // Auto-expand when actionable alerts are present
+  const noJobTitles = settings.searchProfile.jobTitles.length === 0;
+
   useEffect(() => {
     if (hasAlerts) setExpanded(true);
   }, [hasAlerts]);
 
-  // ── Action handlers ────────────────────────────────────────────────────────
+  // ── Action handlers ────────────────────────────────────────────────────────────
 
   const dismiss = (key: string) =>
     setDismissed(prev => new Set([...prev, key]));
@@ -226,6 +333,11 @@ export function HealthDashboard() {
     dismiss(`bl:${company}`);
   };
 
+  const handleDismissScoringInfo = () => {
+    localStorage.setItem('scoring_info_dismissed', '1');
+    setScoringInfoDismissed(true);
+  };
+
   const handlePerformancePrompt = async () => {
     const db = await getDb();
     const posRaw = await db.select<{ value: string }[]>(
@@ -239,7 +351,6 @@ export function HealthDashboard() {
       negative: negRaw[0] ? JSON.parse(negRaw[0].value) : {},
     };
     const suggestions = getKeywordSuggestions(dict, 3);
-
     const prompt = generatePerformanceOptimizationPrompt(
       profile, entries, settings.searchProfile,
       {
@@ -268,7 +379,7 @@ export function HealthDashboard() {
     toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────────
 
   return (
     <div className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
@@ -296,6 +407,35 @@ export function HealthDashboard() {
       {/* Body */}
       {expanded && (
         <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-3 space-y-3">
+
+          {/* Warning: no jobTitles configured */}
+          {noJobTitles && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                Aucun titre de poste cible configuré — tous les scores démarreront à 50 (mode permissif).
+                Configurez des intitulés dans votre profil de recherche pour des résultats plus pertinents.
+              </span>
+            </div>
+          )}
+
+          {/* Scoring update info banner */}
+          {!scoringInfoDismissed && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300">
+              <div className="flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Le scoring a été mis à jour. Les offres précédentes conservent leur score d'origine.</span>
+              </div>
+              <button
+                onClick={handleDismissScoringInfo}
+                aria-label="Fermer"
+                className="flex-shrink-0 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* 3 metric tiles */}
           <div className="grid grid-cols-3 gap-3">
             <MetricTile
@@ -322,6 +462,109 @@ export function HealthDashboard() {
             />
           </div>
 
+          {/* Dernières collectes table */}
+          <div className="pt-1 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-[10px] uppercase tracking-wide font-medium text-gray-400 dark:text-gray-500 mb-1.5">
+              Dernières collectes
+            </p>
+            <div className="rounded-md border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-700/50 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    <th className="px-3 py-1.5 text-left font-medium">Source</th>
+                    <th className="px-3 py-1.5 text-left font-medium">Statut</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Récup.</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Nouvelles</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Date</th>
+                    <th className="px-2 py-1.5 w-6" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                  {ALL_SOURCES.map(source => {
+                    const log = lastLogBySource.get(source);
+                    const isConfigured = configuredSources.has(source);
+                    const status: FetchStatus = log
+                      ? log.status
+                      : isConfigured ? 'pending' : 'unconfigured';
+                    const history = historyBySource.get(source) ?? [];
+                    const isExpanded = expandedSource === source;
+
+                    return (
+                      <>
+                        <tr
+                          key={source}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                        >
+                          <td className="px-3 py-2 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                            {SOURCE_LABELS[source]}
+                          </td>
+                          <td className="px-3 py-2">
+                            {log?.errorMessage ? (
+                              <span title={log.errorMessage}>
+                                <StatusBadge status={status} />
+                              </span>
+                            ) : (
+                              <StatusBadge status={status} />
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-right text-gray-500 dark:text-gray-400">
+                            {log ? log.offersFetched : '—'}
+                          </td>
+                          <td className="px-2 py-2 text-right text-gray-500 dark:text-gray-400">
+                            {log ? log.offersNew : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                            {log ? formatRelativeTime(log.fetchedAt) : '—'}
+                          </td>
+                          <td className="px-2 py-2">
+                            {history.length > 1 && (
+                              <button
+                                onClick={() => setExpandedSource(isExpanded ? null : source)}
+                                aria-label={isExpanded ? 'Masquer l\'historique' : 'Voir l\'historique'}
+                                className="text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+                              >
+                                {isExpanded
+                                  ? <ChevronUp className="w-3.5 h-3.5" />
+                                  : <ChevronRight className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* History expand */}
+                        {isExpanded && history.length > 0 && (
+                          <tr key={`${source}-history`}>
+                            <td colSpan={6} className="px-0 py-0 bg-gray-50 dark:bg-gray-700/20">
+                              <table className="w-full text-[11px]">
+                                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/30">
+                                  {history.map(h => (
+                                    <tr key={h.id} className="text-gray-500 dark:text-gray-400">
+                                      <td className="pl-8 pr-3 py-1.5 w-1/6">
+                                        <StatusBadge status={h.status} />
+                                      </td>
+                                      <td className="px-2 py-1.5 text-right">{h.offersFetched} récup.</td>
+                                      <td className="px-2 py-1.5 text-right">{h.offersNew} nouvelles</td>
+                                      <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                                        {formatRelativeTime(h.fetchedAt)}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-gray-400 dark:text-gray-500 truncate max-w-xs">
+                                        {h.errorMessage ?? ''}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Prompt generation buttons */}
           <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
             <button
@@ -343,7 +586,7 @@ export function HealthDashboard() {
           </div>
 
           {/* Actionable learning suggestions */}
-          {(suggestExclude.length > 0 || suggestBonus.length > 0) && (
+          {(suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0) && (
             <div className="space-y-1.5 pt-1 border-t border-gray-100 dark:border-gray-700">
               {suggestExclude.map(term => (
                 <SuggestionAlert
