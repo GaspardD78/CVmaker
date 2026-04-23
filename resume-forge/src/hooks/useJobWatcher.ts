@@ -4,6 +4,11 @@
  * - Déclenche une collecte au montage si la dernière collecte remonte à plus de N heures
  * - Relance automatiquement toutes les N heures (configurable)
  * - Expose `triggerFetch` pour une collecte manuelle
+ *
+ * Le hook peut être appelé depuis plusieurs composants (App + JobOffersView).
+ * Seule la première instance montée reçoit la responsabilité du scheduler
+ * (auto-trigger + intervalle périodique). Les autres instances partagent
+ * `triggerFetch` mais n'ajoutent pas de minuteries supplémentaires.
  */
 
 import { useEffect, useCallback, useRef } from 'react';
@@ -15,6 +20,9 @@ import { sendDigestEmail } from '@/lib/watcher/email-digest';
 import { decayLearnedDict, LearnedDictionary } from '@/lib/watcher/learning-engine';
 import { getDb } from '@/lib/db';
 import type { JobSource, JobOffer } from '@/types/job-watch';
+
+// Only one mounted instance owns the auto-trigger + periodic scheduler.
+let schedulerOwned = false;
 
 /** Remove digest dedup keys older than 7 days to keep localStorage tidy. */
 function pruneOldDigestKeys(todayKey: string): void {
@@ -39,15 +47,32 @@ export function useJobWatcher() {
     setError,
     fetchOffers,
     updateLastFetchedAt,
-    lastFetchedAt,
   } = useJobWatchStore();
 
   const profileId = useAuthStore(s => s.currentUserId);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // True only for the instance that claimed the scheduler slot
+  const isScheduler = useRef(false);
+
+  // Claim the scheduler slot on mount; release on unmount.
+  useEffect(() => {
+    if (!schedulerOwned) {
+      schedulerOwned = true;
+      isScheduler.current = true;
+    }
+    return () => {
+      if (isScheduler.current) {
+        schedulerOwned = false;
+        isScheduler.current = false;
+      }
+    };
+  }, []);
 
   const triggerFetch = useCallback(async (silent = false) => {
-    if (isFetching) return;
+    // Read isFetching from the store live to avoid stale-closure race when
+    // the hook is mounted in multiple components simultaneously.
+    if (useJobWatchStore.getState().isFetching) return;
     if (!configs.some(c => c.enabled === 1)) {
       if (!silent) toast.info('Aucune source active — configurez la Veille');
       return;
@@ -56,14 +81,19 @@ export function useJobWatcher() {
     setFetching(true);
     setError(null);
 
-    // Apply time-decay to learned dictionary before scoring
+    // Apply time-decay to learned dictionary before scoring (scoped to profile)
     try {
       const db = await getDb();
-      const rows = await db.select<{ key: string; value: string }[]>(
-        `SELECT key, value FROM job_watch_settings WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'learned_dict_decayed_at')`
+      const pid = profileId ?? '';
+      const rows = await db.select<{ key: string; profile_id: string; value: string }[]>(
+        `SELECT key, profile_id, value FROM job_watch_settings
+         WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'learned_dict_decayed_at')
+         AND (profile_id = '' OR profile_id = ?1)`,
+        [pid],
       );
       const map: Record<string, string> = {};
-      for (const r of rows) map[r.key] = r.value;
+      for (const r of rows.filter(x => x.profile_id === '')) map[r.key] = r.value;
+      for (const r of rows.filter(x => x.profile_id !== '')) map[r.key] = r.value;
 
       const dict: LearnedDictionary = {
         positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
@@ -72,16 +102,19 @@ export function useJobWatcher() {
       const { dict: decayed, decayedAt } = decayLearnedDict(dict, map['learned_dict_decayed_at'] ?? null);
       if (decayedAt !== map['learned_dict_decayed_at']) {
         await db.execute(
-          `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_positive', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1`,
-          [JSON.stringify(decayed.positive)]
+          `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_positive', ?1, ?2)
+           ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+          [pid, JSON.stringify(decayed.positive)]
         );
         await db.execute(
-          `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_negative', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1`,
-          [JSON.stringify(decayed.negative)]
+          `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_negative', ?1, ?2)
+           ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+          [pid, JSON.stringify(decayed.negative)]
         );
         await db.execute(
-          `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_decayed_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1`,
-          [decayedAt]
+          `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_decayed_at', ?1, ?2)
+           ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+          [pid, decayedAt]
         );
       }
     } catch { /* non-critical — decay can be skipped */ }
@@ -149,15 +182,19 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [configs, settings, isFetching, setFetching, setError, fetchOffers, updateLastFetchedAt, profileId]);
+  }, [configs, settings, setFetching, setError, fetchOffers, updateLastFetchedAt, profileId]);
 
-  // Auto-trigger on mount if data is stale
+  // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {
+    if (!isScheduler.current) return;
     if (configs.length === 0) return;
 
     const intervalMs = settings.fetchIntervalHours * 60 * 60 * 1000;
     const now        = Date.now();
-    const lastMs     = lastFetchedAt ? new Date(lastFetchedAt).getTime() : 0;
+    // Read lastFetchedAt from the store directly to avoid the stale-closure
+    // problem when configs.length changes after a fetch (e.g. user adds a source).
+    const stored     = useJobWatchStore.getState().lastFetchedAt;
+    const lastMs     = stored ? new Date(stored).getTime() : 0;
     const staleness  = now - lastMs;
 
     if (staleness >= intervalMs) {
@@ -168,8 +205,10 @@ export function useJobWatcher() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configs.length, settings.fetchIntervalHours]);
 
-  // Periodic scheduler
+  // Periodic scheduler — only the scheduler instance runs this.
   useEffect(() => {
+    if (!isScheduler.current) return;
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
