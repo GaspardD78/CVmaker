@@ -26,14 +26,22 @@ import { parseEmploiTerritorial } from './parsers/emploi-territorial';
 import { parseMantiks } from './parsers/mantiks';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 
-/** Load learned dictionary and company reputation from DB for scoring. */
-async function loadLearnedSignals(db: Awaited<ReturnType<typeof getDb>>): Promise<LearnedSignals> {
+/** Load learned dictionary and company reputation from DB for scoring, scoped to the profile. */
+async function loadLearnedSignals(
+  db: Awaited<ReturnType<typeof getDb>>,
+  profileId: string | null,
+): Promise<LearnedSignals> {
   try {
-    const rows = await db.select<{ key: string; value: string }[]>(
-      `SELECT key, value FROM job_watch_settings WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation')`
+    const pid = profileId ?? '';
+    const rows = await db.select<{ key: string; profile_id: string; value: string }[]>(
+      `SELECT key, profile_id, value FROM job_watch_settings
+       WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation')
+       AND (profile_id = '' OR profile_id = ?1)`,
+      [pid],
     );
     const map: Record<string, string> = {};
-    for (const row of rows) map[row.key] = row.value;
+    for (const r of rows.filter(x => x.profile_id === '')) map[r.key] = r.value;
+    for (const r of rows.filter(x => x.profile_id !== '')) map[r.key] = r.value;
 
     return {
       learnedDict: {
@@ -136,7 +144,7 @@ export async function runFetch(
   const existingHashes = await loadExistingHashes(db, profileId ?? null);
   const results: FetchResult[] = [];
 
-  const learned = await loadLearnedSignals(db);
+  const learned = await loadLearnedSignals(db, profileId ?? null);
 
   const enabledConfigs = configs.filter(c => c.enabled === 1);
 

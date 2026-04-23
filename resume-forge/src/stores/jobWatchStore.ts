@@ -17,13 +17,33 @@ import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/
 
 // ── Settings helpers ────────────────────────────────────────────────────────────
 
-async function loadSettingsFromDb(): Promise<JobWatchSettings> {
+// Keys saved per-profile (override global defaults). All other keys are global
+// (API credentials, SMTP config) shared across profiles on the same device.
+const PROFILE_SETTINGS_KEYS = new Set([
+  'fetch_interval_hours', 'email_digest_enabled', 'email_digest_time', 'email_to',
+  'search_profile', 'commute_origin_address', 'commute_departure_time',
+  'commute_max_minutes', 'min_save_score',
+  'learned_dict_positive', 'learned_dict_negative', 'learned_dict_decayed_at',
+  'company_reputation',
+]);
+
+async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSettings> {
   const db = await getDb();
-  const rows = await db.select<{ key: string; value: string }[]>(
-    'SELECT key, value FROM job_watch_settings'
-  );
+  // Load global settings as base, then overlay profile-specific settings
+  const rows = profileId
+    ? await db.select<{ key: string; profile_id: string; value: string }[]>(
+        `SELECT key, profile_id, value FROM job_watch_settings
+         WHERE profile_id = '' OR profile_id = ?1`,
+        [profileId],
+      )
+    : await db.select<{ key: string; profile_id: string; value: string }[]>(
+        `SELECT key, profile_id, value FROM job_watch_settings WHERE profile_id = ''`,
+      );
   const map: Record<string, string> = {};
-  for (const row of rows) map[row.key] = row.value;
+  // Global rows first (lower priority)
+  for (const row of rows.filter(r => r.profile_id === '')) map[row.key] = row.value;
+  // Profile-specific rows override globals
+  for (const row of rows.filter(r => r.profile_id !== '')) map[row.key] = row.value;
 
   const parseJson = <T>(v: string | undefined, fallback: T): T => {
     if (!v) return fallback;
@@ -95,9 +115,10 @@ async function loadSettingsFromDb(): Promise<JobWatchSettings> {
   } as JobWatchSettings;
 }
 
-async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
+async function saveSettingsToDb(settings: JobWatchSettings, profileId: string | null): Promise<void> {
   const db = await getDb();
   const anySettings = settings as unknown as Record<string, string>;
+  // [key, value] — profile_id is resolved below based on PROFILE_SETTINGS_KEYS
   const entries: Array<[string, string]> = [
     ['fetch_interval_hours',   String(settings.fetchIntervalHours)],
     ['email_digest_enabled',   settings.emailDigestEnabled ? '1' : '0'],
@@ -122,10 +143,12 @@ async function saveSettingsToDb(settings: JobWatchSettings): Promise<void> {
     ['mantiks_location_ids',   anySettings['mantiksLocationIds']  ?? ''],
   ];
   for (const [key, value] of entries) {
+    // Profile-specific keys are stored under the profile's ID; the rest stay global ('')
+    const pid = (profileId && PROFILE_SETTINGS_KEYS.has(key)) ? profileId : '';
     await db.execute(
-      `INSERT INTO job_watch_settings (key, value) VALUES (?1, ?2)
-       ON CONFLICT(key) DO UPDATE SET value = ?2`,
-      [key, value]
+      `INSERT INTO job_watch_settings (key, profile_id, value) VALUES (?1, ?2, ?3)
+       ON CONFLICT(key, profile_id) DO UPDATE SET value = ?3`,
+      [key, pid, value]
     );
   }
 }
@@ -353,15 +376,21 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       await get().markRead(offerId);
     }
 
-    // Update learned dictionary & company reputation (fire & forget)
+    // Update learned dictionary & company reputation (fire & forget, scoped to profile)
     if (offer?.title) {
       (async () => {
         try {
-          const rows = await db.select<{ key: string; value: string }[]>(
-            `SELECT key, value FROM job_watch_settings WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation')`
+          const { useAuthStore } = await import('@/stores/authStore');
+          const pid = useAuthStore.getState().currentUserId ?? '';
+          const rows = await db.select<{ key: string; profile_id: string; value: string }[]>(
+            `SELECT key, profile_id, value FROM job_watch_settings
+             WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation')
+             AND (profile_id = '' OR profile_id = ?1)`,
+            [pid],
           );
           const map: Record<string, string> = {};
-          for (const r of rows) map[r.key] = r.value;
+          for (const r of rows.filter(x => x.profile_id === '')) map[r.key] = r.value;
+          for (const r of rows.filter(x => x.profile_id !== '')) map[r.key] = r.value;
 
           const currentDict: LearnedDictionary = {
             positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
@@ -369,14 +398,14 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
           };
           const updated = processFeedback(offer.title, action, currentDict);
           await db.execute(
-            `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_positive', ?1)
-             ON CONFLICT(key) DO UPDATE SET value = ?1`,
-            [JSON.stringify(updated.positive)]
+            `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_positive', ?1, ?2)
+             ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+            [pid, JSON.stringify(updated.positive)]
           );
           await db.execute(
-            `INSERT INTO job_watch_settings (key, value) VALUES ('learned_dict_negative', ?1)
-             ON CONFLICT(key) DO UPDATE SET value = ?1`,
-            [JSON.stringify(updated.negative)]
+            `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_negative', ?1, ?2)
+             ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+            [pid, JSON.stringify(updated.negative)]
           );
 
           const currentRep: Record<string, number> = map['company_reputation']
@@ -384,9 +413,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
             : {};
           const updatedRep = processCompanyReputation(offer.company, action, currentRep);
           await db.execute(
-            `INSERT INTO job_watch_settings (key, value) VALUES ('company_reputation', ?1)
-             ON CONFLICT(key) DO UPDATE SET value = ?1`,
-            [JSON.stringify(updatedRep)]
+            `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('company_reputation', ?1, ?2)
+             ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+            [pid, JSON.stringify(updatedRep)]
           );
         } catch { /* silent */ }
       })();
@@ -487,20 +516,26 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   fetchSettings: async () => {
     try {
-      set({ settings: await loadSettingsFromDb() });
+      const { useAuthStore } = await import('@/stores/authStore');
+      const profileId = useAuthStore.getState().currentUserId;
+      set({ settings: await loadSettingsFromDb(profileId) });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Erreur chargement paramètres' });
     }
   },
 
   saveSettings: async (settings) => {
-    await saveSettingsToDb(settings);
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    await saveSettingsToDb(settings, profileId);
     set({ settings });
   },
 
   updateSearchProfile: async (profile: SearchProfile) => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
     const settings = { ...get().settings, searchProfile: profile };
-    await saveSettingsToDb(settings);
+    await saveSettingsToDb(settings, profileId);
     set({ settings });
   },
 
