@@ -90,34 +90,52 @@ export interface CrossSourceDuplicate {
  *  - Title Levenshtein distance < 10% of the longer title's length
  *
  * Returns indices of duplicates to skip (the lower-scored one of each pair).
+ *
+ * Performance: we bucket offers by normalized company name so Levenshtein
+ * only runs within each bucket. For N offers spread across K companies the
+ * complexity is O(N) bucketing + O(sum bᵢ²) Levenshtein where bᵢ is the
+ * bucket size — linear in practice since most buckets hold 1-2 offers.
  */
 export function detectCrossSourceDuplicates(
   offers: Array<{ title: string; company: string | null; source: string; score: number }>,
 ): Set<number> {
   const skipIndices = new Set<number>();
   const normalizedTitles = offers.map(o => normalizeForDedup(o.title));
-  const normalizedCompanies = offers.map(o => o.company ? normalizeForDedup(o.company) : '');
 
+  // Phase 1: bucket offers by normalized company name
+  const buckets = new Map<string, number[]>();
   for (let i = 0; i < offers.length; i++) {
-    if (skipIndices.has(i)) continue;
-    if (!normalizedCompanies[i]) continue; // can't dedupe without company
+    const company = offers[i].company ? normalizeForDedup(offers[i].company!) : '';
+    if (!company) continue; // can't dedupe without company
+    const arr = buckets.get(company);
+    if (arr) arr.push(i);
+    else buckets.set(company, [i]);
+  }
 
-    for (let j = i + 1; j < offers.length; j++) {
-      if (skipIndices.has(j)) continue;
-      if (offers[i].source === offers[j].source) continue; // same source — already deduped by hash
+  // Phase 2: only compare within each bucket
+  for (const indices of buckets.values()) {
+    if (indices.length < 2) continue;
 
-      // Must have same company
-      if (normalizedCompanies[i] !== normalizedCompanies[j]) continue;
+    for (let a = 0; a < indices.length; a++) {
+      const i = indices[a];
+      if (skipIndices.has(i)) continue;
 
-      // Title similarity check
-      const maxLen = Math.max(normalizedTitles[i].length, normalizedTitles[j].length);
-      const maxDist = Math.max(1, Math.floor(maxLen * 0.1));
-      const dist = levenshteinDistance(normalizedTitles[i], normalizedTitles[j], maxDist);
+      for (let b = a + 1; b < indices.length; b++) {
+        const j = indices[b];
+        if (skipIndices.has(j)) continue;
+        if (offers[i].source === offers[j].source) continue; // same source — already deduped by hash
 
-      if (dist <= maxDist) {
-        // Keep the one with higher score
-        const skipIdx = offers[i].score >= offers[j].score ? j : i;
-        skipIndices.add(skipIdx);
+        // Title similarity check
+        const maxLen = Math.max(normalizedTitles[i].length, normalizedTitles[j].length);
+        const maxDist = Math.max(1, Math.floor(maxLen * 0.1));
+        const dist = levenshteinDistance(normalizedTitles[i], normalizedTitles[j], maxDist);
+
+        if (dist <= maxDist) {
+          // Keep the one with higher score
+          const skipIdx = offers[i].score >= offers[j].score ? j : i;
+          skipIndices.add(skipIdx);
+          if (skipIdx === i) break; // i is gone — stop comparing against it
+        }
       }
     }
   }

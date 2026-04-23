@@ -156,6 +156,13 @@ export async function getDb(): Promise<Database> {
     await db.execute(
       `CREATE INDEX IF NOT EXISTS idx_fetch_log_source ON job_watch_fetch_log(source, fetched_at DESC)`
     ).catch(() => {/* already exists */});
+    // Fallback: ensure migration 014 columns exist (breakdown counters)
+    await db.execute(
+      `ALTER TABLE job_watch_fetch_log ADD COLUMN offers_duplicate INTEGER NOT NULL DEFAULT 0`
+    ).catch(() => {/* already exists */});
+    await db.execute(
+      `ALTER TABLE job_watch_fetch_log ADD COLUMN offers_filtered INTEGER NOT NULL DEFAULT 0`
+    ).catch(() => {/* already exists */});
 
     const defaultSettings: Array<[string, string]> = [
       ['fetch_interval_hours',  '4'],

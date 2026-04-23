@@ -409,7 +409,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     try {
       const db = await getDb();
       const raw = await db.select<Record<string, unknown>[]>(
-        `SELECT id, source, fetched_at, offers_fetched, offers_new, status, error_message, duration_ms
+        `SELECT id, source, fetched_at, offers_fetched, offers_new,
+                offers_duplicate, offers_filtered,
+                status, error_message, duration_ms
          FROM job_watch_fetch_log
          ORDER BY fetched_at DESC
          LIMIT 300`

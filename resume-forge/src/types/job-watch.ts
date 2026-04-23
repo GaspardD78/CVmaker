@@ -263,8 +263,14 @@ export interface FetchLog {
   id: string;
   source: JobSource;
   fetchedAt: string;      // ISO 8601 UTC
+  /** Offres renvoyées par la source (avant tout filtrage local) */
   offersFetched: number;
+  /** Offres effectivement insérées en base */
   offersNew: number;
+  /** Offres rejetées car déjà connues (hash) ou doublon cross-source */
+  offersDuplicate: number;
+  /** Offres rejetées par le filtre minSaveScore */
+  offersFiltered: number;
   status: 'success' | 'error' | 'empty';
   errorMessage: string | null;
   durationMs: number;
