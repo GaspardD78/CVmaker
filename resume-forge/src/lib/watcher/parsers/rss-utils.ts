@@ -1,9 +1,11 @@
 /**
  * Minimal RSS/Atom feed parser using DOMParser (native Web API, no npm dependency).
  * Handles RSS 2.0 and Atom 1.0 formats.
- * HTTP requests are routed through tauri-plugin-http to bypass CORS.
+ * HTTP requests go through `fetchResilient` for retry + circuit breaker + timeout.
  */
-import { tauriFetch, BROWSER_USER_AGENT } from '../http';
+import { BROWSER_USER_AGENT } from '../http';
+import { fetchResilient } from '../http-client';
+import type { JobSource } from '@/types/job-watch';
 
 export interface RssItem {
   title: string;
@@ -21,57 +23,39 @@ function getAttr(el: Element, tag: string, attr: string): string {
   return el.getElementsByTagName(tag)[0]?.getAttribute(attr) ?? '';
 }
 
-const MAX_RETRIES = 3;
-const INITIAL_DELAY_MS = 1_000;
-
 const RSS_HEADERS = {
   'User-Agent': BROWSER_USER_AGENT,
   'Accept': 'application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8',
   'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.5',
 };
 
-export async function fetchRssFeed(url: string): Promise<RssItem[]> {
-  let lastError: Error | undefined;
+/**
+ * Fetch and parse an RSS/Atom feed. The `source` parameter keys the circuit
+ * breaker — pass the caller's JobSource so a single broken feed doesn't
+ * affect other feeds under the same source.
+ */
+export async function fetchRssFeed(url: string, source: JobSource | string = 'rss'): Promise<RssItem[]> {
+  const res = await fetchResilient(url, {
+    source,
+    headers: RSS_HEADERS,
+    // Explicitly do NOT retry on 4xx — those are deterministic (bad URL, gone)
+    retry: {
+      shouldRetry: (r, err) => {
+        if (err) return true;
+        if (!r) return true;
+        if (r.status === 429) return true;
+        if (r.status >= 500 && r.status < 600) return true;
+        return false;
+      },
+    },
+  });
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
-
-    try {
-      const res = await tauriFetch(url, {
-        signal: controller.signal,
-        headers: RSS_HEADERS,
-      });
-
-      if (!res.ok) {
-        // 4xx errors are deterministic — fail fast, no retry
-        if (res.status >= 400 && res.status < 500) {
-          throw new Error(`HTTP ${res.status} pour ${url}`);
-        }
-        // 5xx errors are transient — retry with backoff
-        lastError = new Error(`HTTP ${res.status} pour ${url}`);
-        if (attempt < MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, INITIAL_DELAY_MS * 2 ** attempt));
-          continue;
-        }
-        throw new Error(`HTTP ${res.status} pour ${url} (après ${MAX_RETRIES} tentatives)`);
-      }
-
-      const text = await res.text();
-      return parseXml(text);
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      // Don't retry 4xx or if last attempt
-      if (attempt >= MAX_RETRIES - 1 || lastError.message.startsWith('HTTP 4')) {
-        throw lastError;
-      }
-      await new Promise(r => setTimeout(r, INITIAL_DELAY_MS * 2 ** attempt));
-    } finally {
-      clearTimeout(timeoutId);
-    }
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} pour ${url}`);
   }
 
-  throw lastError ?? new Error(`Échec après ${MAX_RETRIES} tentatives pour ${url}`);
+  const text = await res.text();
+  return parseXml(text);
 }
 
 function parseXml(text: string): RssItem[] {

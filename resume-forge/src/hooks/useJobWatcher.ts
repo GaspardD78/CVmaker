@@ -16,6 +16,20 @@ import { decayLearnedDict, LearnedDictionary } from '@/lib/watcher/learning-engi
 import { getDb } from '@/lib/db';
 import type { JobSource, JobOffer } from '@/types/job-watch';
 
+/** Remove digest dedup keys older than 7 days to keep localStorage tidy. */
+function pruneOldDigestKeys(todayKey: string): void {
+  const cutoff = new Date(todayKey);
+  cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffKey = cutoff.toISOString().slice(0, 10);
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('resumeforge_digest_sent_')) {
+      const dateStr = key.slice('resumeforge_digest_sent_'.length);
+      if (dateStr < cutoffKey) localStorage.removeItem(key);
+    }
+  }
+}
+
 export function useJobWatcher() {
   const {
     configs,
@@ -105,19 +119,22 @@ export function useJobWatcher() {
         toast.warning(`Erreurs sur : ${errorSources}`);
       }
 
-      // Send email digest if new offers detected and digest enabled
+      // Send email digest if new offers detected and digest enabled.
+      // Dedup key lives in localStorage so multiple windows/tabs share it
+      // and it survives restarts (sessionStorage reset across tabs caused
+      // duplicate digests — see https://…integrate-first2apply C3).
       if (totalNew > 0 && settings.emailDigestEnabled && settings.emailTo) {
-        // Get today's ISO date to check if digest already sent
         const todayKey = new Date().toISOString().slice(0, 10);
         const digestSentKey = `resumeforge_digest_sent_${todayKey}`;
-        if (!sessionStorage.getItem(digestSentKey)) {
+        if (!localStorage.getItem(digestSentKey)) {
           try {
             const { useJobWatchStore: store } = await import('@/stores/jobWatchStore');
             const newOffersList: JobOffer[] = store.getState().offers
               .filter(o => o.isRead === 0 && o.isArchived === 0)
               .slice(0, 50);
             await sendDigestEmail(newOffersList, settings);
-            sessionStorage.setItem(digestSentKey, '1');
+            localStorage.setItem(digestSentKey, '1');
+            pruneOldDigestKeys(todayKey);
           } catch (err) {
             console.error('[useJobWatcher] Erreur envoi digest:', err);
             toast.error(`Digest email : ${err instanceof Error ? err.message : 'erreur inconnue'}`);

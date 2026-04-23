@@ -39,7 +39,7 @@
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
 import { isExcludedByProfile } from '../profile-to-query';
-import { tauriFetch } from '../http';
+import { fetchResilient } from '../http-client';
 
 /** Default base URL — overridable via settings.mantiksBaseUrl */
 const DEFAULT_MANTIKS_API_BASE = 'https://api.mantiks.io';
@@ -147,7 +147,8 @@ async function resolveLocationIds(
   cityName: string,
 ): Promise<string[]> {
   const url = `${baseUrl}/location/search?name=${encodeURIComponent(cityName)}`;
-  const res = await tauriFetch(url, {
+  const res = await fetchResilient(url, {
+    source: 'mantiks',
     headers: {
       'x-api-key': apiKey,
       'Accept':    'application/json',
@@ -263,7 +264,8 @@ export async function parseMantiks(
 
     const url = `${endpoint}?${params.toString()}`;
 
-    const res = await tauriFetch(url, {
+    const res = await fetchResilient(url, {
+      source: 'mantiks',
       headers: {
         'x-api-key': apiKey,
         'Accept':    'application/json',

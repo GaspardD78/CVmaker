@@ -14,7 +14,8 @@
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
 import { stripHtml } from './rss-utils';
 import { buildWttjQuery, isExcludedByProfile } from '../profile-to-query';
-import { tauriFetch, BROWSER_USER_AGENT } from '../http';
+import { BROWSER_USER_AGENT } from '../http';
+import { fetchResilient } from '../http-client';
 import { extractJsonLdJobsFromDoc, parseJobLocation, parseJobDate } from '../json-ld-utils';
 import type { JsonLdJob } from '../json-ld-utils';
 
@@ -49,24 +50,17 @@ export async function parseWttj(
   const pageUrl = config.rssUrl ?? buildWttjUrl(config, settings);
   const profile = settings.searchProfile;
 
-  const controller = new AbortController();
-  const timeoutId  = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-  let html: string;
-  try {
-    const res = await tauriFetch(pageUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent':      BROWSER_USER_AGENT,
-        'Accept':          'text/html,application/xhtml+xml',
-        'Accept-Language': 'fr-FR,fr;q=0.9',
-      },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    html = await res.text();
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  const res = await fetchResilient(pageUrl, {
+    source: 'wttj',
+    timeoutMs: TIMEOUT_MS,
+    headers: {
+      'User-Agent':      BROWSER_USER_AGENT,
+      'Accept':          'text/html,application/xhtml+xml',
+      'Accept-Language': 'fr-FR,fr;q=0.9',
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const html = await res.text();
 
   const parser = new DOMParser();
   const doc    = parser.parseFromString(html, 'text/html');

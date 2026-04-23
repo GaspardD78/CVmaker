@@ -59,12 +59,14 @@ async function writeFetchLog(
   try {
     await db.execute(
       `INSERT INTO job_watch_fetch_log
-         (source, offers_fetched, offers_new, status, error_message, duration_ms)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+         (source, offers_fetched, offers_new, offers_duplicate, offers_filtered, status, error_message, duration_ms)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
       [
         entry.source,
         entry.offersFetched,
         entry.offersNew,
+        entry.offersDuplicate,
+        entry.offersFiltered,
         entry.status,
         entry.errorMessage,
         entry.durationMs,
@@ -89,9 +91,14 @@ async function writeFetchLog(
 
 export interface FetchResult {
   source: JobSource;
+  /** Offres effectivement insérées en base (nouvelles et au-dessus de minSaveScore) */
   newOffers: number;
-  /** Nombre total d'offres parsées avant dédup et filtrage minSaveScore */
+  /** Nombre total d'offres renvoyées par la source (avant tout filtrage) */
   totalFetched: number;
+  /** Offres rejetées car déjà connues (hash) ou doublon cross-source */
+  offersDuplicate: number;
+  /** Offres rejetées par le filtre minSaveScore */
+  offersFiltered: number;
   errors: string[];
   /** Durée de collecte (parsing uniquement) en ms */
   durationMs: number;
@@ -148,6 +155,8 @@ export async function runFetch(
       source: config.source,
       newOffers: 0,
       totalFetched: 0,
+      offersDuplicate: 0,
+      offersFiltered: 0,
       errors: [],
       durationMs: 0,
       status: 'empty',
@@ -167,12 +176,14 @@ export async function runFetch(
       console.error(`[fetcher] Erreur source ${config.source}:`, err);
       results.push(result);
       await writeFetchLog(db, {
-        source:        result.source,
-        offersFetched: 0,
-        offersNew:     0,
-        status:        'error',
-        errorMessage:  msg,
-        durationMs:    result.durationMs,
+        source:          result.source,
+        offersFetched:   0,
+        offersNew:       0,
+        offersDuplicate: 0,
+        offersFiltered:  0,
+        status:          'error',
+        errorMessage:    msg,
+        durationMs:      result.durationMs,
       });
       continue;
     }
@@ -184,7 +195,10 @@ export async function runFetch(
     for (const raw of rawOffers) {
       try {
         const hash = await computeOfferHash(raw.source, raw.url);
-        if (existingHashes.has(hash)) continue;
+        if (existingHashes.has(hash)) {
+          result.offersDuplicate += 1;
+          continue;
+        }
 
         // Score using the unified SearchProfile (field-aware v2)
         const score = computeScore(raw, settings.searchProfile, learned);
@@ -233,11 +247,21 @@ export async function runFetch(
 
   // Phase 3: Insert non-duplicate offers into DB
   for (let i = 0; i < allProcessed.length; i++) {
-    if (skipIndices.has(i)) continue;
     const { raw, hash, score, commuteMinutes, commuteStatus } = allProcessed[i];
 
-    // Filter by minimum save score — totalFetched already counted before this point
-    if (score < settings.minSaveScore) continue;
+    if (skipIndices.has(i)) {
+      const sr = sourceResultMap.get(raw.source as JobSource);
+      if (sr) sr.offersDuplicate += 1;
+      continue;
+    }
+
+    // Filter by minimum save score. Track explicitly so the HealthDashboard can
+    // explain the gap between `totalFetched` and `newOffers` to the user.
+    if (score < settings.minSaveScore) {
+      const sr = sourceResultMap.get(raw.source as JobSource);
+      if (sr) sr.offersFiltered += 1;
+      continue;
+    }
 
     try {
       await db.execute(
@@ -285,12 +309,14 @@ export async function runFetch(
 
       // Persist fetch log (non-blocking — errors are swallowed in writeFetchLog)
       await writeFetchLog(db, {
-        source:        result.source,
-        offersFetched: result.totalFetched,
-        offersNew:     result.newOffers,
-        status:        result.status,
-        errorMessage:  result.errors.length > 0 ? result.errors[0] : null,
-        durationMs:    result.durationMs,
+        source:          result.source,
+        offersFetched:   result.totalFetched,
+        offersNew:       result.newOffers,
+        offersDuplicate: result.offersDuplicate,
+        offersFiltered:  result.offersFiltered,
+        status:          result.status,
+        errorMessage:    result.errors.length > 0 ? result.errors[0] : null,
+        durationMs:      result.durationMs,
       });
     }
   }

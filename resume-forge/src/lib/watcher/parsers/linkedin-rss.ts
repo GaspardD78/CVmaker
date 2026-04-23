@@ -18,7 +18,8 @@
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
 import { fetchRssFeed, stripHtml, parseDate } from './rss-utils';
-import { tauriFetch, BROWSER_USER_AGENT } from '../http';
+import { BROWSER_USER_AGENT } from '../http';
+import { fetchResilient } from '../http-client';
 import { extractJsonLdJobs, parseJobLocation, parseJobDate } from '../json-ld-utils';
 
 // ── Patterns d'extraction ────────────────────────────────────────────────────
@@ -176,7 +177,8 @@ async function scrapeLinkedinJobs(settings: JobWatchSettings): Promise<RawJobOff
 
   let html: string;
   try {
-    const res = await tauriFetch(url, {
+    const res = await fetchResilient(url, {
+      source: 'linkedin_rss',
       headers: {
         'User-Agent':      BROWSER_USER_AGENT,
         'Accept':          'text/html,application/xhtml+xml',
@@ -278,7 +280,7 @@ export async function parseLinkedinRss(
     return scrapeLinkedinJobs(settings);
   }
 
-  const items = await fetchRssFeed(config.rssUrl);
+  const items = await fetchRssFeed(config.rssUrl, 'linkedin_rss');
 
   return items.map(item => {
     const descText = stripHtml(item.description, 1000) ?? '';

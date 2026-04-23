@@ -101,7 +101,7 @@ export async function parseEmploiTerritorial(
   const rssUrl = buildRssUrl(config, settings);
   const profile = settings.searchProfile;
 
-  const items = await fetchRssFeed(rssUrl);
+  const items = await fetchRssFeed(rssUrl, 'emploi_territorial');
 
   const offers: RawJobOffer[] = items.map(item => {
     const descText  = stripHtml(item.description, 800) ?? '';

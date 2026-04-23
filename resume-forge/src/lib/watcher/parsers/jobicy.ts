@@ -15,7 +15,7 @@
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
-import { tauriFetch } from '../http';
+import { fetchResilient } from '../http-client';
 import { stripHtml } from './rss-utils';
 
 const JOBICY_API_URL = 'https://jobicy.com/api/v2/remote-jobs';
@@ -102,7 +102,8 @@ export async function parseJobicy(
     fetchUrl = `${JOBICY_API_URL}?${params.toString()}`;
   }
 
-  const res = await tauriFetch(fetchUrl, {
+  const res = await fetchResilient(fetchUrl, {
+    source: 'jobicy',
     headers: { 'Accept': 'application/json' },
   });
 

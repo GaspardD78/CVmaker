@@ -507,7 +507,15 @@ export function HealthDashboard() {
                               <StatusBadge status={status} />
                             )}
                           </td>
-                          <td className="px-2 py-2 text-right text-gray-500 dark:text-gray-400">
+                          <td
+                            className="px-2 py-2 text-right text-gray-500 dark:text-gray-400"
+                            title={log
+                              ? `Source → ${log.offersFetched} offres\n` +
+                                `${log.offersDuplicate} doublons déjà connus\n` +
+                                `${log.offersFiltered} sous le score minimum\n` +
+                                `${log.offersNew} enregistrées`
+                              : undefined}
+                          >
                             {log ? log.offersFetched : '—'}
                           </td>
                           <td className="px-2 py-2 text-right text-gray-500 dark:text-gray-400">
@@ -537,21 +545,27 @@ export function HealthDashboard() {
                             <td colSpan={6} className="px-0 py-0 bg-gray-50 dark:bg-gray-700/20">
                               <table className="w-full text-[11px]">
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/30">
-                                  {history.map(h => (
-                                    <tr key={h.id} className="text-gray-500 dark:text-gray-400">
-                                      <td className="pl-8 pr-3 py-1.5 w-1/6">
-                                        <StatusBadge status={h.status} />
-                                      </td>
-                                      <td className="px-2 py-1.5 text-right">{h.offersFetched} récup.</td>
-                                      <td className="px-2 py-1.5 text-right">{h.offersNew} nouvelles</td>
-                                      <td className="px-3 py-1.5 text-right whitespace-nowrap">
-                                        {formatRelativeTime(h.fetchedAt)}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-gray-400 dark:text-gray-500 truncate max-w-xs">
-                                        {h.errorMessage ?? ''}
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {history.map(h => {
+                                    const breakdownParts: string[] = [];
+                                    if (h.offersDuplicate > 0) breakdownParts.push(`${h.offersDuplicate} doublons`);
+                                    if (h.offersFiltered > 0)  breakdownParts.push(`${h.offersFiltered} sous score min`);
+                                    const breakdown = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : '';
+                                    return (
+                                      <tr key={h.id} className="text-gray-500 dark:text-gray-400">
+                                        <td className="pl-8 pr-3 py-1.5 w-1/6">
+                                          <StatusBadge status={h.status} />
+                                        </td>
+                                        <td className="px-2 py-1.5 text-right">{h.offersFetched} récup.</td>
+                                        <td className="px-2 py-1.5 text-right">{h.offersNew} nouvelles{breakdown}</td>
+                                        <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                                          {formatRelativeTime(h.fetchedAt)}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-gray-400 dark:text-gray-500 truncate max-w-xs">
+                                          {h.errorMessage ?? ''}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </td>
