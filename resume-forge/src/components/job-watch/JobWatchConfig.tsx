@@ -30,6 +30,7 @@ import {
 
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
 import { SessionManagerPanel } from './SessionManagerPanel';
+import { AIFilterGenerator } from './AIFilterGenerator';
 
 const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
   emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
@@ -570,7 +571,12 @@ export function JobWatchConfigView() {
         <SessionManagerPanel />
       </Section>
 
-      {/* ── 6. Advanced ── */}
+      {/* ── 6. AI filter rule (prompt-importable) ── */}
+      <Section title="Filtre IA par prompt" defaultOpen={false}>
+        <AIFilterGenerator />
+      </Section>
+
+      {/* ── 7. Advanced ── */}
       <Section title="Options avancées" defaultOpen={false}>
 
         {/* France Travail credentials */}

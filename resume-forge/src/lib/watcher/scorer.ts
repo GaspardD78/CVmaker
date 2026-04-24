@@ -42,6 +42,7 @@
 import type { RawJobOffer, SearchProfile } from '@/types/job-watch';
 import type { LearnedDictionary } from './learning-engine';
 import type { Profile, MasterEntry } from '@/types/profile';
+import { applyAIFilter, type AIFilterRule, type AIFilterMatch } from './ai-filter';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,8 @@ function normaliseContract(raw: string | null): string | null {
 export interface LearnedSignals {
   learnedDict?: LearnedDictionary;
   companyReputation?: Record<string, number>;
+  /** Optional AI filter rule applied as Couche 0.5 of the scoring pipeline. */
+  aiFilterRule?: AIFilterRule | null;
 }
 
 // ── Main scorer ──────────────────────────────────────────────────────────────
@@ -133,6 +136,10 @@ export interface ScoreBreakdown {
   decayPenalty: number;       // 0..-20
   /** Diagnostic: base score used (0 or 50) */
   baseScore?: number;
+  /** Net delta contributed by the AI filter rule (bounded). */
+  aiFilterDelta?: number;
+  /** Matching AI filter patterns, for UI transparency. */
+  aiFilterMatches?: AIFilterMatch[];
 }
 
 export function computeScore(
@@ -168,6 +175,20 @@ export function computeScoreWithBreakdown(
   const excludedMatch = findMatch(excludedTerms, fullText);
   if (excludedMatch) {
     return zero(`Terme exclu: "${excludedMatch}"`);
+  }
+
+  // ── Couche 0.5 : AI filter rule (optional) ─────────────────────────────────
+  // Runs after built-in exclusions so the user's own rules can disqualify
+  // offers that the profile didn't catch, and contribute a bounded delta
+  // to the final score.
+  const aiResult = applyAIFilter(learned?.aiFilterRule, {
+    title,
+    company: offer.company ?? null,
+    descriptionSnippet: snippet,
+    location: null,
+  });
+  if (aiResult.disqualified) {
+    return zero(aiResult.disqualifyReason ?? 'Exclu par la règle IA');
   }
 
   // Contract disqualifier (strict mode only)
@@ -323,7 +344,8 @@ export function computeScoreWithBreakdown(
     redFlagPenalty +
     decayPenalty +
     learnedScore +
-    repScore;
+    repScore +
+    aiResult.delta;
 
   // Mode balanced, no title match → cap at 25
   const capped = applyBalancedCap ? Math.min(25, raw) : raw;
@@ -341,6 +363,8 @@ export function computeScoreWithBreakdown(
     learnedScore,
     decayPenalty,
     baseScore: base,
+    aiFilterDelta: aiResult.delta,
+    aiFilterMatches: aiResult.matches.length > 0 ? aiResult.matches : undefined,
   };
 }
 

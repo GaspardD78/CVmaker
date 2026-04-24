@@ -29,7 +29,7 @@ import { parseEmploiTerritorial } from './parsers/emploi-territorial';
 import { parseMantiks } from './parsers/mantiks';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 
-/** Load learned dictionary and company reputation from DB for scoring, scoped to the profile. */
+/** Load learned dictionary, company reputation and AI filter rule for scoring, scoped to the profile. */
 async function loadLearnedSignals(
   db: Awaited<ReturnType<typeof getDb>>,
   profileId: string | null,
@@ -38,7 +38,7 @@ async function loadLearnedSignals(
     const pid = profileId ?? '';
     const rows = await db.select<{ key: string; profile_id: string; value: string }[]>(
       `SELECT key, profile_id, value FROM job_watch_settings
-       WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation')
+       WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation', 'ai_filter_rule')
        AND (profile_id = '' OR profile_id = ?1)`,
       [pid],
     );
@@ -46,12 +46,18 @@ async function loadLearnedSignals(
     for (const r of rows.filter(x => x.profile_id === '')) map[r.key] = r.value;
     for (const r of rows.filter(x => x.profile_id !== '')) map[r.key] = r.value;
 
+    let aiFilterRule: LearnedSignals['aiFilterRule'] = null;
+    if (map['ai_filter_rule']) {
+      try { aiFilterRule = JSON.parse(map['ai_filter_rule']); } catch { /* ignore malformed rule */ }
+    }
+
     return {
       learnedDict: {
         positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
         negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
       },
       companyReputation: map['company_reputation'] ? JSON.parse(map['company_reputation']) : {},
+      aiFilterRule,
     };
   } catch {
     return {};
