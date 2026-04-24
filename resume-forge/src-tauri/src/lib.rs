@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex, OnceLock};
 #[cfg(not(target_os = "android"))]
+use std::process::Child;
+#[cfg(not(target_os = "android"))]
 use tauri::Emitter;
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri_plugin_http::reqwest;
@@ -16,10 +18,11 @@ use std::io::Write;
 use tempfile::Builder;
 
 // ── WebView session state ─────────────────────────────────────────────────────
-// Holds a non-headless Chrome browser open during the user login flow.
-// Wrapped in Arc<Mutex<Option<…>>> so it can be safely shared across commands.
+// Login flow: we spawn Chrome as a plain subprocess (no CDP, no automation
+// flags) so Cloudflare / FriendlyCaptcha anti-bot checks don't trip up the
+// user. The child handle lets us kill the process when the user confirms.
 #[cfg(not(target_os = "android"))]
-type LoginBrowserState = Arc<Mutex<Option<Browser>>>;
+type LoginBrowserState = Arc<Mutex<Option<Child>>>;
 
 /// Resolved database URI, computed once at startup.
 static DB_URI: OnceLock<String> = OnceLock::new();
@@ -264,12 +267,19 @@ async fn scrape_with_session(
         opts.headless(true)
             .user_data_dir(Some(dir))
             .window_size(Some((1440, 900)));
+
+        // Stealth flags — mask `navigator.webdriver`, disable the banner that
+        // broadcasts "automated test software" to anti-bot scripts. We leak
+        // the &str slices (short-lived, per-process).
+        let mut extra_args: Vec<&'static std::ffi::OsStr> = vec![
+            std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+        ];
         if let Some(ua) = user_agent.as_ref() {
-            // headless_chrome takes &'static str in args — we leak the UA string.
-            // Short-lived leak, acceptable for the lifetime of the process.
             let flag: &'static str = Box::leak(format!("--user-agent={}", ua).into_boxed_str());
-            opts.args(vec![std::ffi::OsStr::new(flag)]);
+            extra_args.push(std::ffi::OsStr::new(flag));
         }
+        opts.args(extra_args);
+
         let launch_opts = opts.build().map_err(|e| e.to_string())?;
         let browser = Browser::new(launch_opts).map_err(|e| format!("Lancement Chrome: {}", e))?;
 
@@ -309,7 +319,9 @@ async fn open_login_flow(
     site_id: String,
     login_url: String,
 ) -> Result<(), String> {
-    default_executable().map_err(|e| format!("Chrome/Chromium introuvable: {}", e))?;
+    // Resolve the Chrome/Chromium binary via headless_chrome's locator
+    let chrome_path = default_executable()
+        .map_err(|e| format!("Chrome/Chromium introuvable: {}", e))?;
 
     let dir = session_dir(&app, &site_id)?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Création dossier session: {}", e))?;
@@ -317,45 +329,48 @@ async fn open_login_flow(
     // Close any previous login browser before opening a new one
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
-        *guard = None;
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
 
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
-        let launch_opts = LaunchOptions::default_builder()
-            .headless(false)
-            .user_data_dir(Some(dir))
-            .window_size(Some((1200, 800)))
-            .build()
-            .map_err(|e| e.to_string())?;
-        let browser = Browser::new(launch_opts).map_err(|e| format!("Lancement Chrome: {}", e))?;
+    // Spawn Chrome as a pure subprocess — NO --enable-automation, NO CDP.
+    // This avoids `navigator.webdriver = true` and the "Chrome est contrôlé
+    // par un logiciel de test automatisé" banner that makes Cloudflare and
+    // FriendlyCaptcha reject the login form.
+    let child = std::process::Command::new(&chrome_path)
+        .arg(format!("--user-data-dir={}", dir.display()))
+        .arg("--window-size=1200,800")
+        .arg("--no-first-run")
+        .arg("--no-default-browser-check")
+        .arg("--disable-blink-features=AutomationControlled")
+        .arg(&login_url)
+        .spawn()
+        .map_err(|e| format!("Lancement Chrome: {}", e))?;
 
-        let tab = browser.new_tab().map_err(|e| format!("Nouvel onglet: {}", e))?;
-        tab.navigate_to(&login_url).map_err(|e| format!("Navigation: {}", e))?;
-
-        // Hand the browser to the shared state so it stays alive
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
-        *guard = Some(browser);
-        Ok(())
-    })
-    .await
-    .map_err(|e| format!("Tâche interrompue: {}", e))?
+    let mut guard = state.lock().map_err(|e| e.to_string())?;
+    *guard = Some(child);
+    Ok(())
 }
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 async fn close_login_browser(state: tauri::State<'_, LoginBrowserState>) -> Result<(), String> {
-    // Take the browser out of the state under the mutex, then drop it outside
-    // the critical section so the subsequent flush-delay doesn't hold the lock.
+    // Take the child handle out of the state under the mutex, then kill it
+    // outside the critical section so the subsequent flush-delay doesn't
+    // hold the lock.
     let taken = {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.take()
     };
-    if taken.is_some() {
-        drop(taken);
-        // Give Chrome ~2 s to flush cookies to disk before the tab is fully gone.
-        // Without this, headless_chrome sometimes kills the process faster than
-        // SQLite flushes the cookie store, so sessionExists then returns false.
+    if let Some(mut child) = taken {
+        // Best-effort: may already have exited if the user closed the window
+        let _ = child.kill();
+        let _ = child.wait();
+        // Give Chrome ~2 s to flush cookies to disk before we consider the
+        // login done. Without this, SQLite cookie writes sometimes race the
+        // process teardown, so sessionExists then returns false.
         tokio::time::sleep(std::time::Duration::from_millis(2_000)).await;
     }
     Ok(())
