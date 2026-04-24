@@ -276,12 +276,22 @@ async fn scrape_with_session(
         let tab = browser.new_tab().map_err(|e| format!("Nouvel onglet: {}", e))?;
         tab.navigate_to(&url).map_err(|e| format!("Navigation: {}", e))?;
 
+        tab.wait_until_navigated().map_err(|e| format!("Attente navigation: {}", e))?;
+
         if let Some(selector) = wait_selector {
-            tab.wait_for_element_with_custom_timeout(&selector, timeout)
-                .map_err(|e| format!("Sélecteur '{}' jamais rendu: {}", selector, e))?;
+            // Best-effort wait: if the selector never appears (site changed its DOM,
+            // anti-bot redirect, session expired…) we still return the HTML and let
+            // the TypeScript parser decide whether the content is usable.
+            if let Err(e) = tab.wait_for_element_with_custom_timeout(&selector, timeout) {
+                eprintln!(
+                    "[scrape_with_session] Sélecteur '{}' non trouvé après {:?}: {} — extraction HTML quand même",
+                    selector, timeout, e
+                );
+                // Short grace period so client-side rendering has one last chance
+                std::thread::sleep(std::time::Duration::from_millis(2_000));
+            }
         } else {
-            tab.wait_until_navigated().map_err(|e| format!("Attente navigation: {}", e))?;
-            // Small grace period so client-side rendering has a chance
+            // No selector — just wait for navigation + JS render grace period
             std::thread::sleep(std::time::Duration::from_millis(1_500));
         }
 
