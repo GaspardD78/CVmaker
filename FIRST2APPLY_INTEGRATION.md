@@ -72,16 +72,32 @@
 
 ---
 
-## Phase 3 — Filtre IA par prompt importable ⏳ À VENIR
+## Phase 3 — Filtre IA par prompt importable ✅ COMPLÈTE
 
 ### Lot 3.1 — Format `AIFilterRule`
-Interface JSON imortable (excludeIfTitle, boostIfContains…) — déterministe, auditable.
+| ID | Description | Statut |
+|----|-------------|--------|
+| 3.1.1 | `lib/watcher/ai-filter.ts` — types `AIFilterRule`, `WeightedPattern`, version schema `1.0` | ✅ |
+| 3.1.2 | `validateAIFilterRule()` — parsing défensif avec messages d'erreur explicites | ✅ |
+| 3.1.3 | `applyAIFilter()` — match regex/substring, exclusions hard, boost/penalty bornés | ✅ |
+| 3.1.4 | Tests unitaires (`ai-filter.test.ts`, 19 cas) | ✅ |
 
 ### Lot 3.2 — Générateur de prompt
-Composant `AIFilterGenerator.tsx` : textarea intention → prompt assemblé → copier → coller réponse IA.
+| ID | Description | Statut |
+|----|-------------|--------|
+| 3.2.1 | `buildAIFilterPrompt()` — prompt avec schéma + exemple, contraintes strictes | ✅ |
+| 3.2.2 | `components/job-watch/AIFilterGenerator.tsx` — 3 étapes : intention → copie prompt → colle JSON | ✅ |
+| 3.2.3 | Extraction JSON d'une réponse "bruitée" (détection blocs ```json) | ✅ |
+| 3.2.4 | Intégration dans `JobWatchConfig` (section 6 "Filtre IA par prompt") | ✅ |
 
 ### Lot 3.3 — Application dans scorer
-Couche 0.5 dans `scorer.ts` : `excludeIf*` → disqualification, `boost/penalize` → weight.
+| ID | Description | Statut |
+|----|-------------|--------|
+| 3.3.1 | Couche 0.5 dans `scorer.ts` entre Couche 0 et Couche 1 | ✅ |
+| 3.3.2 | `ScoreBreakdown.aiFilterDelta` + `aiFilterMatches` pour transparence UI | ✅ |
+| 3.3.3 | Persistance per-profile (`ai_filter_rule` dans `PROFILE_SETTINGS_KEYS`) | ✅ |
+| 3.3.4 | `jobWatchStore.loadAIFilterRule` / `saveAIFilterRule` + chargement au `initialize` | ✅ |
+| 3.3.5 | `fetcher.loadLearnedSignals` propage la règle via `LearnedSignals.aiFilterRule` | ✅ |
 
 ---
 

@@ -14,6 +14,7 @@ import {
   JobSource,
 } from '@/types/job-watch';
 import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import type { AIFilterRule } from '@/lib/watcher/ai-filter';
 
 // ── Settings helpers ────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ const PROFILE_SETTINGS_KEYS = new Set([
   'commute_max_minutes', 'min_save_score',
   'learned_dict_positive', 'learned_dict_negative', 'learned_dict_decayed_at',
   'company_reputation',
+  'ai_filter_rule',
 ]);
 
 async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSettings> {
@@ -173,6 +175,8 @@ interface JobWatchState {
   fetchProgress: FetchProgress | null;
   error: string | null;
   lastFetchedAt: string | null;
+  /** Optional AI filter rule applied by the scorer as Couche 0.5 (per-profile). */
+  aiFilterRule: AIFilterRule | null;
 
   // Init
   initialize: () => Promise<void>;
@@ -204,6 +208,10 @@ interface JobWatchState {
   saveSettings: (settings: JobWatchSettings) => Promise<void>;
   updateSearchProfile: (profile: SearchProfile) => Promise<void>;
 
+  // AI filter rule
+  loadAIFilterRule: () => Promise<void>;
+  saveAIFilterRule: (rule: AIFilterRule | null) => Promise<void>;
+
   // UI state
   setFilters: (filters: Partial<JobWatchFilters>) => void;
   setFetching: (v: boolean) => void;
@@ -228,12 +236,14 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   fetchProgress: null,
   error: null,
   lastFetchedAt: null,
+  aiFilterRule: null,
 
   initialize: async () => {
     await Promise.all([
       get().fetchOffers(),
       get().fetchConfigs(),
       get().fetchSettings(),
+      get().loadAIFilterRule(),
     ]);
 
     // Clean up deprecated sources
@@ -547,6 +557,47 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const settings = { ...get().settings, searchProfile: profile };
     await saveSettingsToDb(settings, profileId);
     set({ settings });
+  },
+
+  // ── AI filter rule ──────────────────────────────────────────────────────────
+
+  loadAIFilterRule: async () => {
+    try {
+      const db = await getDb();
+      const { useAuthStore } = await import('@/stores/authStore');
+      const pid = useAuthStore.getState().currentUserId ?? '';
+      const rows = await db.select<{ profile_id: string; value: string }[]>(
+        `SELECT profile_id, value FROM job_watch_settings
+         WHERE key = 'ai_filter_rule' AND (profile_id = '' OR profile_id = ?1)`,
+        [pid],
+      );
+      // Profile row overrides global row
+      const row = rows.find(r => r.profile_id === pid) ?? rows.find(r => r.profile_id === '');
+      if (!row || !row.value) {
+        set({ aiFilterRule: null });
+        return;
+      }
+      try {
+        set({ aiFilterRule: JSON.parse(row.value) as AIFilterRule });
+      } catch {
+        set({ aiFilterRule: null });
+      }
+    } catch {
+      set({ aiFilterRule: null });
+    }
+  },
+
+  saveAIFilterRule: async (rule: AIFilterRule | null) => {
+    const db = await getDb();
+    const { useAuthStore } = await import('@/stores/authStore');
+    const pid = useAuthStore.getState().currentUserId ?? '';
+    const value = rule === null ? '' : JSON.stringify(rule);
+    await db.execute(
+      `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('ai_filter_rule', ?1, ?2)
+       ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+      [pid, value],
+    );
+    set({ aiFilterRule: rule });
   },
 
   // ── UI ─────────────────────────────────────────────────────────────────────────
