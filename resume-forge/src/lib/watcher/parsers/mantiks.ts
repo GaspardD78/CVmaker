@@ -1,4 +1,9 @@
 /**
+ * @deprecated depuis Phase 2 — API payante peu utilisée, remplacée par
+ * les parseurs WebView (LinkedIn, Indeed, HelloWork). Le code reste
+ * opérationnel pour les configs existantes mais n'est plus proposé par
+ * défaut dans l'ajout de sources.
+ *
  * Parser Mantiks API
  *
  * Mantiks agrège des offres d'emploi en se basant sur les entreprises qui

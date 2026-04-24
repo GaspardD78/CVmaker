@@ -9,20 +9,15 @@ import type { JobOffer, JobSource } from '@/types/job-watch';
 import { computeLightProfileMatch } from '@/lib/watcher/scorer';
 import { generateFullCVMatchPrompt } from '@/lib/prompt-templates';
 
-const SOURCE_LABELS: Record<JobSource, string> = {
-  apec:               'APEC',
-  wttj:               'WTTJ',
-  linkedin_rss:       'LinkedIn',
-  jobicy:             'Jobicy',
-  france_travail:     'France Travail',
-  emploi_territorial: 'Emploi Territorial',
-  mantiks:            'Mantiks',
-};
+import { SOURCE_LABELS } from '@/lib/watcher/sources';
 
 const SOURCE_COLORS: Record<JobSource, string> = {
   apec:               'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
   wttj:               'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  linkedin:           'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
   linkedin_rss:       'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
+  indeed:             'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+  hellowork:          'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   jobicy:             'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300',
   france_travail:     'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
   emploi_territorial: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',

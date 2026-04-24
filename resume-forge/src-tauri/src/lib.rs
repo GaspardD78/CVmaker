@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 #[cfg(not(target_os = "android"))]
 use tauri::Emitter;
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -14,6 +14,12 @@ use headless_chrome::browser::default_executable;
 use std::io::Write;
 #[cfg(not(target_os = "android"))]
 use tempfile::Builder;
+
+// ── WebView session state ─────────────────────────────────────────────────────
+// Holds a non-headless Chrome browser open during the user login flow.
+// Wrapped in Arc<Mutex<Option<…>>> so it can be safely shared across commands.
+#[cfg(not(target_os = "android"))]
+type LoginBrowserState = Arc<Mutex<Option<Browser>>>;
 
 /// Resolved database URI, computed once at startup.
 static DB_URI: OnceLock<String> = OnceLock::new();
@@ -206,6 +212,182 @@ async fn generate_pdf(_html: String) -> Result<Vec<u8>, String> {
     Err("L'export PDF vectoriel n'est pas supporté sur Android via cette méthode.".into())
 }
 
+// ── WebView scraping (Phase 2 — First2Apply integration) ────────────────────
+//
+// Architecture:
+//   1. `open_login_flow` spawns a visible Chrome with a per-site `user_data_dir`
+//      so the user can authenticate once. Cookies persist on disk.
+//   2. `close_login_browser` drops the browser reference → Chrome exits →
+//      cookies are flushed.
+//   3. `scrape_with_session` reuses the same `user_data_dir` in headless mode
+//      to retrieve the HTML of any page behind the session.
+//   4. `session_exists` / `clear_session` manage the on-disk cookie store.
+//
+// Chrome can only run once per user_data_dir. The login flow and scraping
+// are therefore mutually exclusive per site, which is enforced implicitly
+// by the login-browser state.
+
+#[cfg(not(target_os = "android"))]
+fn session_dir(app: &tauri::AppHandle, site_id: &str) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    // Sanitize site_id to avoid path traversal
+    let safe = site_id.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .collect::<String>();
+    if safe.is_empty() {
+        return Err("site_id invalide".into());
+    }
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(base.join("browser-sessions").join(safe))
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+async fn scrape_with_session(
+    app: tauri::AppHandle,
+    site_id: String,
+    url: String,
+    wait_selector: Option<String>,
+    timeout_secs: Option<u64>,
+    user_agent: Option<String>,
+) -> Result<String, String> {
+    // Early check: browser available?
+    default_executable().map_err(|e| format!("Chrome/Chromium introuvable: {}", e))?;
+
+    let dir = session_dir(&app, &site_id)?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Création dossier session: {}", e))?;
+
+    let timeout = std::time::Duration::from_secs(timeout_secs.unwrap_or(20));
+
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let mut opts = LaunchOptions::default_builder();
+        opts.headless(true)
+            .user_data_dir(Some(dir))
+            .window_size(Some((1440, 900)));
+        if let Some(ua) = user_agent.as_ref() {
+            // headless_chrome takes &'static str in args — we leak the UA string.
+            // Short-lived leak, acceptable for the lifetime of the process.
+            let flag: &'static str = Box::leak(format!("--user-agent={}", ua).into_boxed_str());
+            opts.args(vec![std::ffi::OsStr::new(flag)]);
+        }
+        let launch_opts = opts.build().map_err(|e| e.to_string())?;
+        let browser = Browser::new(launch_opts).map_err(|e| format!("Lancement Chrome: {}", e))?;
+
+        let tab = browser.new_tab().map_err(|e| format!("Nouvel onglet: {}", e))?;
+        tab.navigate_to(&url).map_err(|e| format!("Navigation: {}", e))?;
+
+        if let Some(selector) = wait_selector {
+            tab.wait_for_element_with_custom_timeout(&selector, timeout)
+                .map_err(|e| format!("Sélecteur '{}' jamais rendu: {}", selector, e))?;
+        } else {
+            tab.wait_until_navigated().map_err(|e| format!("Attente navigation: {}", e))?;
+            // Small grace period so client-side rendering has a chance
+            std::thread::sleep(std::time::Duration::from_millis(1_500));
+        }
+
+        tab.get_content().map_err(|e| format!("Extraction HTML: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Tâche interrompue: {}", e))?
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+async fn open_login_flow(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, LoginBrowserState>,
+    site_id: String,
+    login_url: String,
+) -> Result<(), String> {
+    default_executable().map_err(|e| format!("Chrome/Chromium introuvable: {}", e))?;
+
+    let dir = session_dir(&app, &site_id)?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Création dossier session: {}", e))?;
+
+    // Close any previous login browser before opening a new one
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        *guard = None;
+    }
+
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let launch_opts = LaunchOptions::default_builder()
+            .headless(false)
+            .user_data_dir(Some(dir))
+            .window_size(Some((1200, 800)))
+            .build()
+            .map_err(|e| e.to_string())?;
+        let browser = Browser::new(launch_opts).map_err(|e| format!("Lancement Chrome: {}", e))?;
+
+        let tab = browser.new_tab().map_err(|e| format!("Nouvel onglet: {}", e))?;
+        tab.navigate_to(&login_url).map_err(|e| format!("Navigation: {}", e))?;
+
+        // Hand the browser to the shared state so it stays alive
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        *guard = Some(browser);
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Tâche interrompue: {}", e))?
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+fn close_login_browser(state: tauri::State<'_, LoginBrowserState>) -> Result<(), String> {
+    let mut guard = state.lock().map_err(|e| e.to_string())?;
+    *guard = None; // Drop → Chrome exits → cookies flushed to disk
+    Ok(())
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+fn session_exists(app: tauri::AppHandle, site_id: String) -> bool {
+    match session_dir(&app, &site_id) {
+        // Chrome lays down Default/Cookies once login completes
+        Ok(dir) => dir.join("Default").join("Cookies").exists(),
+        Err(_)  => false,
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+fn clear_session(app: tauri::AppHandle, site_id: String) -> Result<(), String> {
+    let dir = session_dir(&app, &site_id)?;
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| format!("Suppression session: {}", e))?;
+    }
+    Ok(())
+}
+
+// Android stubs — WebView scraping requires a desktop Chromium
+#[cfg(target_os = "android")]
+#[tauri::command]
+async fn scrape_with_session(
+    _site_id: String, _url: String, _wait_selector: Option<String>,
+    _timeout_secs: Option<u64>, _user_agent: Option<String>,
+) -> Result<String, String> {
+    Err("Scraping WebView non supporté sur Android".into())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+async fn open_login_flow(_site_id: String, _login_url: String) -> Result<(), String> {
+    Err("Login WebView non supporté sur Android".into())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+fn close_login_browser() -> Result<(), String> { Ok(()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+fn session_exists(_site_id: String) -> bool { false }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+fn clear_session(_site_id: String) -> Result<(), String> { Ok(()) }
+
 // ── Point d'entrée ────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -297,6 +479,12 @@ pub fn run() {
             sql: include_str!("../migrations/014_fetch_log_breakdown.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 15,
+            description: "settings_per_profile",
+            sql: include_str!("../migrations/015_settings_per_profile.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]
@@ -304,7 +492,9 @@ pub fn run() {
 
     #[cfg(not(target_os = "android"))]
     {
-        builder = builder.plugin(tauri_plugin_shell::init());
+        builder = builder
+            .plugin(tauri_plugin_shell::init())
+            .manage::<LoginBrowserState>(Arc::new(Mutex::new(None)));
     }
 
     builder
@@ -323,6 +513,11 @@ pub fn run() {
             send_email,
             generate_pdf,
             fetch_apec_api,
+            scrape_with_session,
+            open_login_flow,
+            close_login_browser,
+            session_exists,
+            clear_session,
             #[cfg(not(target_os = "android"))]
             start_oauth_server,
         ])

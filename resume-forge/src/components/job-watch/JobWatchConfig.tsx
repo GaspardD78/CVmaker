@@ -28,26 +28,24 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const SOURCE_LABELS: Record<JobSource, string> = {
-  apec:               'APEC',
-  wttj:               'Welcome to the Jungle',
-  linkedin_rss:       'LinkedIn (RSS tiers)',
-  jobicy:             'Jobicy (Remote)',
-  france_travail:     'France Travail',
-  emploi_territorial: 'Emploi Territorial',
-  mantiks:            'Mantiks',
-};
+import { SOURCE_LABELS } from '@/lib/watcher/sources';
+import { SessionManagerPanel } from './SessionManagerPanel';
 
 const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
   emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
-  mantiks:            'Agrégateur FR — nécessite une clé API mantiks.io',
-  linkedin_rss:       'Via flux RSS tiers (rss.app, jobicy…)',
+  mantiks:            '@deprecated — agrégateur FR nécessitant une clé API payante',
+  linkedin:           'Scraping direct via session Chrome (login requis) — Phase 2',
+  linkedin_rss:       '@deprecated — flux RSS tiers (rss.app) ; préférer LinkedIn direct',
+  indeed:             'Scraping via WebView (contourne Cloudflare)',
+  hellowork:          'Scraping via WebView (rendu JS)',
   jobicy:             'Offres remote internationales — API JSON, aucune clé requise',
   france_travail:     'API officielle — nécessite des credentials OAuth2',
 };
 
+// Non-deprecated sources eligible for adding a new config
 const ALL_SOURCES: JobSource[] = [
-  'france_travail', 'apec', 'wttj', 'emploi_territorial', 'linkedin_rss', 'jobicy', 'mantiks',
+  'france_travail', 'apec', 'wttj', 'linkedin', 'indeed', 'hellowork',
+  'emploi_territorial', 'jobicy',
 ];
 
 /** Sources that require an RSS URL (required) */
@@ -558,7 +556,12 @@ export function JobWatchConfigView() {
         )}
       </Section>
 
-      {/* ── 5. Advanced ── */}
+      {/* ── 5. WebView sessions (LinkedIn, Indeed, HelloWork) ── */}
+      <Section title="Connexions aux sites (LinkedIn, Indeed, HelloWork)" defaultOpen={false}>
+        <SessionManagerPanel />
+      </Section>
+
+      {/* ── 6. Advanced ── */}
       <Section title="Options avancées" defaultOpen={false}>
 
         {/* France Travail credentials */}
