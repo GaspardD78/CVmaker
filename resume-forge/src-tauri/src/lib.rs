@@ -334,19 +334,35 @@ async fn open_login_flow(
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-fn close_login_browser(state: tauri::State<'_, LoginBrowserState>) -> Result<(), String> {
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
-    *guard = None; // Drop → Chrome exits → cookies flushed to disk
+async fn close_login_browser(state: tauri::State<'_, LoginBrowserState>) -> Result<(), String> {
+    // Take the browser out of the state under the mutex, then drop it outside
+    // the critical section so the subsequent flush-delay doesn't hold the lock.
+    let taken = {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.take()
+    };
+    if taken.is_some() {
+        drop(taken);
+        // Give Chrome ~2 s to flush cookies to disk before the tab is fully gone.
+        // Without this, headless_chrome sometimes kills the process faster than
+        // SQLite flushes the cookie store, so sessionExists then returns false.
+        tokio::time::sleep(std::time::Duration::from_millis(2_000)).await;
+    }
     Ok(())
 }
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 fn session_exists(app: tauri::AppHandle, site_id: String) -> bool {
+    // Chrome 110+ moved cookies into Default/Network/Cookies. Older versions
+    // still use Default/Cookies. We accept either path to stay compatible.
     match session_dir(&app, &site_id) {
-        // Chrome lays down Default/Cookies once login completes
-        Ok(dir) => dir.join("Default").join("Cookies").exists(),
-        Err(_)  => false,
+        Ok(dir) => {
+            let default_dir = dir.join("Default");
+            default_dir.join("Network").join("Cookies").exists()
+                || default_dir.join("Cookies").exists()
+        }
+        Err(_) => false,
     }
 }
 
@@ -378,7 +394,7 @@ async fn open_login_flow(_site_id: String, _login_url: String) -> Result<(), Str
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-fn close_login_browser() -> Result<(), String> { Ok(()) }
+async fn close_login_browser() -> Result<(), String> { Ok(()) }
 
 #[cfg(target_os = "android")]
 #[tauri::command]
