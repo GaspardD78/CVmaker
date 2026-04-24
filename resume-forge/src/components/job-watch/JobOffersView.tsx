@@ -62,6 +62,7 @@ export function JobOffersView() {
     batchArchive,
     batchMarkRead,
     purgeOffers,
+    fetchProgress,
   } = useJobWatchStore();
 
   const { createApplication } = useApplicationStore();
@@ -239,6 +240,15 @@ export function JobOffersView() {
             <Trash2 className="w-3.5 h-3.5" />
             Tout purger
           </button>
+          {isFetching && fetchProgress && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={`${fetchProgress.source} : ${fetchProgress.status}`}>
+              {fetchProgress.source}
+              {fetchProgress.total != null && fetchProgress.current != null
+                ? ` ${fetchProgress.current}/${fetchProgress.total}`
+                : null}
+              {' — '}{fetchProgress.status}
+            </span>
+          )}
           <button
             onClick={() => triggerFetch(false)}
             disabled={isFetching}

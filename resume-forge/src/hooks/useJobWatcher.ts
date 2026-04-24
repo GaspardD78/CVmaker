@@ -44,6 +44,7 @@ export function useJobWatcher() {
     settings,
     isFetching,
     setFetching,
+    setFetchProgress,
     setError,
     fetchOffers,
     updateLastFetchedAt,
@@ -120,8 +121,9 @@ export function useJobWatcher() {
     } catch { /* non-critical — decay can be skipped */ }
 
     try {
-      const onProgress = (source: JobSource, status: string) => {
-        console.debug(`[watcher] ${source}: ${status}`);
+      const onProgress = (source: JobSource, status: string, current?: number, total?: number) => {
+        console.debug(`[watcher] ${source}: ${status}`, current !== undefined ? `${current}/${total}` : '');
+        setFetchProgress({ source, status, current, total });
       };
 
       const results: FetchResult[] = await runFetch(configs, settings, onProgress, profileId);
@@ -182,7 +184,7 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [configs, settings, setFetching, setError, fetchOffers, updateLastFetchedAt, profileId]);
+  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, updateLastFetchedAt, profileId]);
 
   // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {

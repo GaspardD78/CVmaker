@@ -155,6 +155,13 @@ async function saveSettingsToDb(settings: JobWatchSettings, profileId: string | 
 
 // ── Store interface ────────────────────────────────────────────────────────────
 
+export interface FetchProgress {
+  source: JobSource;
+  status: string;
+  current?: number;
+  total?: number;
+}
+
 interface JobWatchState {
   offers: JobOffer[];
   configs: JobWatchConfig[];
@@ -163,6 +170,7 @@ interface JobWatchState {
   fetchLogs: FetchLog[];
   isLoading: boolean;
   isFetching: boolean;
+  fetchProgress: FetchProgress | null;
   error: string | null;
   lastFetchedAt: string | null;
 
@@ -199,6 +207,7 @@ interface JobWatchState {
   // UI state
   setFilters: (filters: Partial<JobWatchFilters>) => void;
   setFetching: (v: boolean) => void;
+  setFetchProgress: (progress: FetchProgress | null) => void;
   setError: (msg: string | null) => void;
 
   // Computed
@@ -216,6 +225,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   fetchLogs: [],
   isLoading: false,
   isFetching: false,
+  fetchProgress: null,
   error: null,
   lastFetchedAt: null,
 
@@ -545,7 +555,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     set(state => ({ filters: { ...state.filters, ...filters } }));
   },
 
-  setFetching: (v) => set({ isFetching: v }),
+  setFetching: (v) => set({ isFetching: v, ...(v === false ? { fetchProgress: null } : {}) }),
+
+  setFetchProgress: (progress) => set({ fetchProgress: progress }),
 
   setError: (msg) => set({ error: msg }),
 
