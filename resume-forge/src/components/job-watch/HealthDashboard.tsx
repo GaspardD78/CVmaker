@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronRight, ChevronUp,
-  Circle, Clock, Eye, Info, Target, TrendingUp, X, XCircle,
+  Circle, Clock, Eye, Info, Target, TrendingUp, Wrench, X, XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -14,6 +14,8 @@ import type { JobSource, FetchLog } from '@/types/job-watch';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 import { ALL_SOURCES, SOURCE_LABELS } from '@/lib/watcher/sources';
+import { WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
+import { SelectorDebugPanel } from './SelectorDebugPanel';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -162,7 +164,7 @@ function formatRelativeTime(isoDate: string): string {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function HealthDashboard() {
-  const { offers, configs, settings, fetchLogs, loadFetchLogs, saveSettings } = useJobWatchStore();
+  const { offers, configs, settings, fetchLogs, loadFetchLogs, saveSettings, selectorDebugInfo, selectorOverrides } = useJobWatchStore();
   const { profile, entries } = useProfileStore();
 
   const [analysis, setAnalysis]   = useState<LearningResult | null>(null);
@@ -170,6 +172,7 @@ export function HealthDashboard() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [companySuggestions, setCompanySuggestions] = useState<string[]>([]);
   const [expandedSource, setExpandedSource] = useState<JobSource | null>(null);
+  const [debugSource, setDebugSource] = useState<JobSource | null>(null);
   const [scoringInfoDismissed, setScoringInfoDismissed] = useState(
     () => localStorage.getItem('scoring_info_dismissed') === '1'
   );
@@ -467,6 +470,7 @@ export function HealthDashboard() {
                     <th className="px-2 py-1.5 text-right font-medium">Nouvelles</th>
                     <th className="px-3 py-1.5 text-right font-medium">Date</th>
                     <th className="px-2 py-1.5 w-6" />
+                    <th className="px-2 py-1.5 w-6" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -478,6 +482,10 @@ export function HealthDashboard() {
                       : isConfigured ? 'pending' : 'unconfigured';
                     const history = historyBySource.get(source) ?? [];
                     const isExpanded = expandedSource === source;
+
+                    const hasDebugInfo = WEBVIEW_SOURCES.has(source) && Boolean(selectorDebugInfo[source]);
+                    const hasOverride  = Boolean(selectorOverrides[source]);
+                    const isDebugExpanded = debugSource === source;
 
                     return (
                       <Fragment key={source}>
@@ -524,12 +532,40 @@ export function HealthDashboard() {
                               </button>
                             )}
                           </td>
+                          {/* Debug selector button — WebView sources only */}
+                          <td className="px-2 py-2">
+                            {WEBVIEW_SOURCES.has(source) && (
+                              <button
+                                onClick={() => setDebugSource(isDebugExpanded ? null : source)}
+                                aria-label={isDebugExpanded ? 'Masquer le débogage' : 'Déboguer les sélecteurs'}
+                                title={hasOverride ? 'Correction active' : hasDebugInfo ? 'HTML capturé — débogage disponible' : 'Débogage sélecteurs CSS'}
+                                className={`transition-colors ${
+                                  hasOverride
+                                    ? 'text-green-500 dark:text-green-400'
+                                    : hasDebugInfo
+                                      ? 'text-amber-500 dark:text-amber-400 animate-pulse'
+                                      : 'text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400'
+                                }`}
+                              >
+                                <Wrench className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
                         </tr>
+
+                        {/* Debug panel expand */}
+                        {isDebugExpanded && (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-3 bg-amber-50/40 dark:bg-amber-900/10 border-t border-amber-100 dark:border-amber-800/30">
+                              <SelectorDebugPanel source={source} />
+                            </td>
+                          </tr>
+                        )}
 
                         {/* History expand */}
                         {isExpanded && history.length > 0 && (
                           <tr>
-                            <td colSpan={6} className="px-0 py-0 bg-gray-50 dark:bg-gray-700/20">
+                            <td colSpan={7} className="px-0 py-0 bg-gray-50 dark:bg-gray-700/20">
                               <table className="w-full text-[11px]">
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/30">
                                   {history.map(h => {
