@@ -13,17 +13,7 @@ import type { JobSource, FetchLog } from '@/types/job-watch';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'jobicy', 'france_travail', 'emploi_territorial', 'mantiks'];
-
-const SOURCE_LABELS: Record<JobSource, string> = {
-  apec:               'APEC',
-  wttj:               'Welcome to the Jungle',
-  linkedin_rss:       'LinkedIn',
-  jobicy:             'Jobicy',
-  france_travail:     'France Travail',
-  emploi_territorial: 'Emploi Territorial',
-  mantiks:            'Mantiks',
-};
+import { ALL_SOURCES, SOURCE_LABELS } from '@/lib/watcher/sources';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 

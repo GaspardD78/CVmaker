@@ -229,7 +229,22 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
       return parts.join(' | ');
     }
     case 'linkedin_rss':
-      return 'Via flux RSS (URL configurée)';
+      return 'Via flux RSS tiers (URL configurée)';
+    case 'linkedin': {
+      const kw = profile.jobTitles.join(' OR ') || '(aucun mot-clé)';
+      const loc = profile.location.city || 'France';
+      return `${kw} | ${loc} | session Chrome requise`;
+    }
+    case 'indeed': {
+      const kw = profile.jobTitles.join(' ') || '(aucun mot-clé)';
+      const loc = profile.location.city || 'France';
+      return `${kw} | ${loc} | WebView`;
+    }
+    case 'hellowork': {
+      const kw = profile.jobTitles.join(' ') || '(aucun mot-clé)';
+      const loc = profile.location.city || 'France';
+      return `${kw} | ${loc} | WebView`;
+    }
     case 'jobicy': {
       const tag = profile.jobTitles[0] ?? '';
       return tag ? `tag: ${tag} | remote worldwide` : 'remote worldwide (aucun tag)';
@@ -241,6 +256,11 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
       const parts = [p.query ?? '(mots-clés vides)'];
       if (p.city) parts.push(`ville: ${p.city}`);
       return parts.join(' | ');
+    }
+    default: {
+      // Exhaustiveness guard — forces the switch to cover every JobSource
+      const _exhaustive: never = source;
+      return `Source non prise en charge: ${_exhaustive as string}`;
     }
   }
 }

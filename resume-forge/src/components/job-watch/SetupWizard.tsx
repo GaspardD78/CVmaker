@@ -7,18 +7,10 @@ import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
 import type { JobSource } from '@/types/job-watch';
 import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
 
-const SOURCE_LABELS: Record<JobSource, string> = {
-  apec:               'APEC',
-  wttj:               'Welcome to the Jungle',
-  linkedin_rss:       'LinkedIn (RSS)',
-  jobicy:             'Jobicy (Remote)',
-  france_travail:     'France Travail',
-  emploi_territorial: 'Emploi Territorial',
-  mantiks:            'Mantiks',
-};
+import { SOURCE_LABELS } from '@/lib/watcher/sources';
 
 const DEFAULT_SOURCES: JobSource[] = ['apec', 'wttj'];
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin_rss', 'france_travail', 'emploi_territorial'];
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin', 'france_travail', 'emploi_territorial'];
 
 type Step = 'profile' | 'intent' | 'sources';
 

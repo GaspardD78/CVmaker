@@ -1,4 +1,8 @@
 /**
+ * @deprecated depuis Phase 2 — remplacé par `parseLinkedin` (WebView avec
+ * session utilisateur). Le code reste pour les configs existantes qui
+ * dépendent encore d'un flux RSS tiers (rss.app).
+ *
  * Parser LinkedIn via flux RSS tiers (rss.app, jobicy, ou autre).
  *
  * LinkedIn bloque le scraping direct. L'utilisateur fournit une URL RSS

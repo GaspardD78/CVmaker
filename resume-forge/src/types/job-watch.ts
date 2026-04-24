@@ -1,11 +1,14 @@
 export type JobSource =
   | 'apec'
   | 'wttj'
-  | 'linkedin_rss'
+  | 'linkedin_rss'       // legacy — kept for existing configs, superseded by 'linkedin'
+  | 'linkedin'           // WebView scraping with user session (Phase 2)
+  | 'indeed'             // WebView scraping (Phase 2)
+  | 'hellowork'          // WebView scraping (Phase 2)
   | 'jobicy'
   | 'france_travail'
   | 'emploi_territorial'
-  | 'mantiks';
+  | 'mantiks';           // @deprecated — paid API, low usage
 
 // ── Extraction metadata ──────────────────────────────────────────────────────
 
@@ -291,7 +294,7 @@ export interface JobWatchFilters {
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
-  sources: ['apec', 'wttj', 'linkedin_rss', 'france_travail', 'emploi_territorial', 'mantiks'],
+  sources: ['apec', 'wttj', 'linkedin', 'linkedin_rss', 'indeed', 'hellowork', 'france_travail', 'emploi_territorial'],
   minScore: 0,
   maxCommuteMinutes: null,
   status: 'all',
