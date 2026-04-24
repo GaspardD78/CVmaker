@@ -15,6 +15,7 @@ import {
 } from '@/types/job-watch';
 import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/lib/watcher/learning-engine';
 import type { AIFilterRule } from '@/lib/watcher/ai-filter';
+import type { SelectorOverride, DebugCapture } from '@/lib/watcher/selector-debug';
 
 // ── Settings helpers ────────────────────────────────────────────────────────────
 
@@ -177,6 +178,10 @@ interface JobWatchState {
   lastFetchedAt: string | null;
   /** Optional AI filter rule applied by the scorer as Couche 0.5 (per-profile). */
   aiFilterRule: AIFilterRule | null;
+  /** Per-source selector overrides set by the AI CSS debugger (global, not per-profile). */
+  selectorOverrides: Record<string, SelectorOverride>;
+  /** Last captured debug HTML per WebView source (ephemeral — cleared on reload). */
+  selectorDebugInfo: Record<string, DebugCapture>;
 
   // Init
   initialize: () => Promise<void>;
@@ -212,6 +217,11 @@ interface JobWatchState {
   loadAIFilterRule: () => Promise<void>;
   saveAIFilterRule: (rule: AIFilterRule | null) => Promise<void>;
 
+  // CSS selector overrides (AI debugger)
+  loadSelectorOverrides: () => Promise<void>;
+  saveSelectorOverride: (source: string, override: SelectorOverride | null) => Promise<void>;
+  setSelectorDebugInfo: (source: string, capture: DebugCapture) => void;
+
   // UI state
   setFilters: (filters: Partial<JobWatchFilters>) => void;
   setFetching: (v: boolean) => void;
@@ -237,6 +247,8 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   error: null,
   lastFetchedAt: null,
   aiFilterRule: null,
+  selectorOverrides: {},
+  selectorDebugInfo: {},
 
   initialize: async () => {
     await Promise.all([
@@ -244,6 +256,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       get().fetchConfigs(),
       get().fetchSettings(),
       get().loadAIFilterRule(),
+      get().loadSelectorOverrides(),
     ]);
 
     // Clean up deprecated sources
@@ -598,6 +611,51 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       [pid, value],
     );
     set({ aiFilterRule: rule });
+  },
+
+  // ── CSS selector overrides ──────────────────────────────────────────────────
+  // Stored as global settings (profile_id='') since selectors are site-wide.
+
+  loadSelectorOverrides: async () => {
+    try {
+      const db = await getDb();
+      const rows = await db.select<{ key: string; value: string }[]>(
+        `SELECT key, value FROM job_watch_settings
+         WHERE key LIKE 'selector_override_%' AND profile_id = ''`,
+      );
+      const overrides: Record<string, SelectorOverride> = {};
+      for (const row of rows) {
+        const source = row.key.replace('selector_override_', '');
+        if (row.value) {
+          try { overrides[source] = JSON.parse(row.value) as SelectorOverride; } catch { /* skip */ }
+        }
+      }
+      set({ selectorOverrides: overrides });
+    } catch {
+      set({ selectorOverrides: {} });
+    }
+  },
+
+  saveSelectorOverride: async (source: string, override: SelectorOverride | null) => {
+    const db = await getDb();
+    const key = `selector_override_${source}`;
+    const value = override === null ? '' : JSON.stringify(override);
+    await db.execute(
+      `INSERT INTO job_watch_settings (key, profile_id, value) VALUES (?1, '', ?2)
+       ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
+      [key, value],
+    );
+    set(state => ({
+      selectorOverrides: override === null
+        ? Object.fromEntries(Object.entries(state.selectorOverrides).filter(([k]) => k !== source))
+        : { ...state.selectorOverrides, [source]: override },
+    }));
+  },
+
+  setSelectorDebugInfo: (source: string, capture: DebugCapture) => {
+    set(state => ({
+      selectorDebugInfo: { ...state.selectorDebugInfo, [source]: capture },
+    }));
   },
 
   // ── UI ─────────────────────────────────────────────────────────────────────────

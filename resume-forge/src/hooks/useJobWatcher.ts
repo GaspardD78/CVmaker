@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { runFetch, FetchResult } from '@/lib/watcher/fetcher';
 import { sendDigestEmail } from '@/lib/watcher/email-digest';
 import { decayLearnedDict, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import { getCapturedDebugHtml, WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
 import { getDb } from '@/lib/db';
 import type { JobSource, JobOffer } from '@/types/job-watch';
 
@@ -48,6 +49,7 @@ export function useJobWatcher() {
     setError,
     fetchOffers,
     updateLastFetchedAt,
+    setSelectorDebugInfo,
   } = useJobWatchStore();
 
   const profileId = useAuthStore(s => s.currentUserId);
@@ -128,6 +130,14 @@ export function useJobWatcher() {
 
       const results: FetchResult[] = await runFetch(configs, settings, onProgress, profileId);
 
+      // Push any captured debug HTML to the store so the UI can surface it
+      for (const result of results) {
+        if (WEBVIEW_SOURCES.has(result.source) && result.totalFetched === 0) {
+          const capture = getCapturedDebugHtml(result.source);
+          if (capture) setSelectorDebugInfo(result.source, capture);
+        }
+      }
+
       // Update last_fetched_at for each config
       for (const config of configs.filter(c => c.enabled === 1)) {
         await updateLastFetchedAt(config.id);
@@ -184,7 +194,7 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, updateLastFetchedAt, profileId]);
+  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, updateLastFetchedAt, setSelectorDebugInfo, profileId]);
 
   // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {

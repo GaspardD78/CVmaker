@@ -28,6 +28,7 @@ import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
 import { parseMantiks } from './parsers/mantiks';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
+import type { SelectorOverride } from './selector-debug';
 
 /** Load learned dictionary, company reputation and AI filter rule for scoring, scoped to the profile. */
 async function loadLearnedSignals(
@@ -124,12 +125,16 @@ export interface FetchResult {
 }
 
 /** Run a single parser — settings.searchProfile drives all query parameters */
-async function runParser(config: JobWatchConfig, settings: JobWatchSettings): Promise<RawJobOffer[]> {
+async function runParser(
+  config: JobWatchConfig,
+  settings: JobWatchSettings,
+  override?: SelectorOverride,
+): Promise<RawJobOffer[]> {
   switch (config.source) {
     case 'apec':               return parseApec(config, settings);
     case 'wttj':               return parseWttj(config, settings);
     case 'linkedin_rss':       return parseLinkedinRss(config, settings);
-    case 'linkedin':           return parseLinkedin(config, settings);
+    case 'linkedin':           return parseLinkedin(config, settings, override);
     case 'indeed':             return parseIndeed(config, settings);
     case 'hellowork':          return parseHellowork(config, settings);
     case 'jobicy':             return parseJobicy(config, settings);
@@ -157,6 +162,9 @@ export async function runFetch(
   const results: FetchResult[] = [];
 
   const learned = await loadLearnedSignals(db, profileId ?? null);
+
+  // Load per-source selector overrides from the store (set by the AI CSS debugger)
+  const selectorOverrides = useJobWatchStore.getState().selectorOverrides;
 
   const enabledConfigs = configs.filter(c => c.enabled === 1);
 
@@ -187,7 +195,7 @@ export async function runFetch(
     const sourceStartTime = Date.now();
     let rawOffers: RawJobOffer[];
     try {
-      rawOffers = await runParser(config, settings);
+      rawOffers = await runParser(config, settings, selectorOverrides[config.source]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`Parser error: ${msg}`);

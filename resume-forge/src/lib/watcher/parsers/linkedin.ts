@@ -25,6 +25,7 @@ import { scrapeWithSession, sessionExists } from '../session-manager';
 import { isExcludedByProfile } from '../profile-to-query';
 import { normalizeLocation } from './common/location';
 import { extractContractFromText } from './common/contract-type';
+import { setCapturedDebugHtml, type SelectorOverride } from '../selector-debug';
 
 /**
  * LinkedIn job search URL.
@@ -81,28 +82,36 @@ function isLoginPage(doc: Document): boolean {
   );
 }
 
-function parseCard(card: Element): { title: string; company: string | null; location: string | null; href: string | null } {
-  // Title — try data attribute first, then various class patterns
-  const linkEl = card.querySelector<HTMLAnchorElement>(
-    'a[href*="/jobs/view/"],' +
-    'a.job-card-list__title--link,' +
-    'a[class*="job-card-list__title"],' +
-    'a.base-card__full-link'
-  );
+interface CardSelectors {
+  titleSelector: string;
+  companySelector: string;
+  locationSelector: string;
+  linkSelector: string;
+}
+
+const DEFAULT_CARD_SELECTORS: CardSelectors = {
+  titleSelector:
+    'a[href*="/jobs/view/"], a.job-card-list__title--link, a[class*="job-card-list__title"], a.base-card__full-link',
+  companySelector:
+    '.job-card-container__primary-description, .base-search-card__subtitle, h4',
+  locationSelector:
+    '.job-card-container__metadata-item, .job-search-card__location, [class*="location"]',
+  linkSelector:
+    'a[href*="/jobs/view/"], a.job-card-list__title--link, a.base-card__full-link',
+};
+
+function parseCard(
+  card: Element,
+  sel: CardSelectors = DEFAULT_CARD_SELECTORS,
+): { title: string; company: string | null; location: string | null; href: string | null } {
+  const linkEl = card.querySelector<HTMLAnchorElement>(sel.linkSelector);
   const title =
     linkEl?.getAttribute('aria-label')?.trim() ||
-    card.querySelector('h3, h2, .job-card-list__title, .base-search-card__title')?.textContent?.trim() ||
+    card.querySelector(sel.titleSelector)?.textContent?.trim() ||
     linkEl?.textContent?.trim();
 
-  // Company
-  const company =
-    card.querySelector('.job-card-container__primary-description, .base-search-card__subtitle, h4')?.textContent?.trim() ||
-    null;
-
-  // Location
-  const location =
-    card.querySelector('.job-card-container__metadata-item, .job-search-card__location, [class*="location"]')?.textContent?.trim() ||
-    null;
+  const company = card.querySelector(sel.companySelector)?.textContent?.trim() || null;
+  const location = card.querySelector(sel.locationSelector)?.textContent?.trim() || null;
 
   return { title: title ?? '', company, location, href: linkEl?.getAttribute('href') ?? null };
 }
@@ -110,15 +119,18 @@ function parseCard(card: Element): { title: string; company: string | null; loca
 export async function parseLinkedin(
   _config: JobWatchConfig,
   settings: JobWatchSettings,
+  override?: SelectorOverride,
 ): Promise<RawJobOffer[]> {
   if (!(await sessionExists('linkedin'))) {
     throw new Error('Session LinkedIn absente — connecte-toi depuis Paramètres › Veille › Sessions');
   }
 
   const url = buildLinkedinUrl(settings);
+
+  // Use override wait selector if available
+  const waitSel = override?.waitSelector ?? WAIT_SELECTOR;
   const html = await scrapeWithSession('linkedin', url, {
-    // Best-effort wait — Rust returns HTML even if the selector is never found
-    waitSelector: WAIT_SELECTOR,
+    waitSelector: waitSel,
     timeoutSecs:  30,
   });
 
@@ -131,28 +143,36 @@ export async function parseLinkedin(
     );
   }
 
-  // Try card selectors in priority order
-  let cards: Element[] = [];
-  for (const sel of CARD_SELECTORS) {
-    const found = Array.from(doc.querySelectorAll(sel));
-    if (found.length > 0) {
-      cards = found;
-      break;
-    }
-  }
+  // Build effective card selectors: override has priority, then built-in cascade
+  const cardSelectors = override?.cardSelector
+    ? [override.cardSelector, ...CARD_SELECTORS]
+    : CARD_SELECTORS;
 
+  let cards: Element[] = [];
+  for (const sel of cardSelectors) {
+    const found = Array.from(doc.querySelectorAll(sel));
+    if (found.length > 0) { cards = found; break; }
+  }
   if (cards.length === 0) {
     // Last resort: any element with a job-view link
     cards = Array.from(doc.querySelectorAll('[href*="/jobs/view/"]'))
       .map(el => el.closest('li, article, div[class*="card"]') ?? el)
-      .filter((el, i, arr) => arr.indexOf(el) === i); // deduplicate
+      .filter((el, i, arr) => arr.indexOf(el) === i);
   }
+
+  // Build per-field selectors merging override values over defaults
+  const fieldSelectors: CardSelectors = {
+    titleSelector:    override?.titleSelector    ?? DEFAULT_CARD_SELECTORS.titleSelector,
+    companySelector:  override?.companySelector  ?? DEFAULT_CARD_SELECTORS.companySelector,
+    locationSelector: override?.locationSelector ?? DEFAULT_CARD_SELECTORS.locationSelector,
+    linkSelector:     override?.linkSelector     ?? DEFAULT_CARD_SELECTORS.linkSelector,
+  };
 
   const profile = settings.searchProfile;
   const offers: RawJobOffer[] = [];
 
   for (const card of cards) {
-    const { title, company, location: rawLoc, href } = parseCard(card);
+    const { title, company, location: rawLoc, href } = parseCard(card, fieldSelectors);
     if (!title || !href) continue;
 
     const offerUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
@@ -182,8 +202,15 @@ export async function parseLinkedin(
     });
   }
 
-  return offers.filter(o => {
+  const filtered = offers.filter(o => {
     const text = `${o.title} ${o.company ?? ''}`;
     return !isExcludedByProfile(text, profile);
   });
+
+  // Capture HTML for AI-assisted selector debugging when no cards were found
+  if (filtered.length === 0) {
+    setCapturedDebugHtml('linkedin', html, url);
+  }
+
+  return filtered;
 }
