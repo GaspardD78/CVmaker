@@ -140,6 +140,29 @@ export async function getDb(): Promise<Database> {
         value TEXT
       )
     `);
+    // Fallback: ensure migration 015 schema exists (job_watch_settings per profile).
+    // We detect the old schema (no profile_id column) via pragma_table_info and
+    // recreate the table preserving existing rows as global settings (profile_id='').
+    const cols = await db.select<{ name: string }[]>(
+      `SELECT name FROM pragma_table_info('job_watch_settings')`
+    );
+    const hasProfileId = cols.some(c => c.name === 'profile_id');
+    if (!hasProfileId) {
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS job_watch_settings_new (
+          key        TEXT NOT NULL,
+          profile_id TEXT NOT NULL DEFAULT '',
+          value      TEXT,
+          PRIMARY KEY (key, profile_id)
+        )
+      `);
+      await db.execute(
+        `INSERT OR IGNORE INTO job_watch_settings_new (key, profile_id, value)
+         SELECT key, '', value FROM job_watch_settings`
+      );
+      await db.execute(`DROP TABLE job_watch_settings`);
+      await db.execute(`ALTER TABLE job_watch_settings_new RENAME TO job_watch_settings`);
+    }
     // Fallback: ensure migration 013 table exists (job_watch_fetch_log)
     await db.execute(`
       CREATE TABLE IF NOT EXISTS job_watch_fetch_log (

@@ -191,13 +191,21 @@ export function JobWatchConfigView() {
 
   // ── Save handlers ────────────────────────────────────────────────────────
 
+  const formatError = (err: unknown): string => {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    if (err && typeof err === 'object' && 'message' in err) return String((err as { message: unknown }).message);
+    try { return JSON.stringify(err); } catch { return 'inconnue'; }
+  };
+
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
       await updateSearchProfile(buildProfile());
       toast.success('Profil de recherche sauvegardé');
     } catch (err) {
-      toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
+      console.error('[JobWatchConfig] handleSaveProfile error:', err);
+      toast.error(`Erreur : ${formatError(err)}`);
     } finally {
       setSaving(false);
     }
@@ -209,7 +217,8 @@ export function JobWatchConfigView() {
       await saveSettings({ ...settingsDraft, searchProfile: buildProfile() });
       toast.success('Paramètres sauvegardés');
     } catch (err) {
-      toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
+      console.error('[JobWatchConfig] handleSaveSettings error:', err);
+      toast.error(`Erreur : ${formatError(err)}`);
     } finally {
       setSaving(false);
     }

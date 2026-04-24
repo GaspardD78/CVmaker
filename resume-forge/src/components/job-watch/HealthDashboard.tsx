@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronRight, ChevronUp,
   Circle, Clock, Eye, Info, Target, TrendingUp, X, XCircle,
@@ -480,11 +480,8 @@ export function HealthDashboard() {
                     const isExpanded = expandedSource === source;
 
                     return (
-                      <>
-                        <tr
-                          key={source}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                        >
+                      <Fragment key={source}>
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                           <td className="px-3 py-2 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
                             {SOURCE_LABELS[source]}
                           </td>
@@ -531,7 +528,7 @@ export function HealthDashboard() {
 
                         {/* History expand */}
                         {isExpanded && history.length > 0 && (
-                          <tr key={`${source}-history`}>
+                          <tr>
                             <td colSpan={6} className="px-0 py-0 bg-gray-50 dark:bg-gray-700/20">
                               <table className="w-full text-[11px]">
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/30">
@@ -561,7 +558,7 @@ export function HealthDashboard() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
