@@ -143,7 +143,7 @@ async function runParser(config: JobWatchConfig, settings: JobWatchSettings): Pr
 export async function runFetch(
   configs:     JobWatchConfig[],
   settings:    JobWatchSettings,
-  onProgress?: (source: JobSource, status: string) => void,
+  onProgress?: (source: JobSource, status: string, current?: number, total?: number) => void,
   profileId?:  string | null,
 ): Promise<FetchResult[]> {
   const db = await getDb();
@@ -204,8 +204,18 @@ export async function runFetch(
     result.totalFetched = rawOffers.length;
     result.durationMs = Date.now() - sourceStartTime;
 
-    onProgress?.(config.source, `${rawOffers.length} offres récupérées, déduplication…`);
+    const needsCommute = Boolean(settings.navitiaApiKey && settings.commuteOriginAddress);
 
+    onProgress?.(
+      config.source,
+      needsCommute
+        ? `${rawOffers.length} offres récupérées, calcul des trajets…`
+        : `${rawOffers.length} offres récupérées, déduplication…`,
+      0,
+      rawOffers.length,
+    );
+
+    let commuteIdx = 0;
     for (const raw of rawOffers) {
       try {
         const hash = await computeOfferHash(raw.source, raw.url);
@@ -221,6 +231,12 @@ export async function runFetch(
         let commuteStatus: 'pending' | 'ok' | 'error' | 'not_found' = 'pending';
 
         if (settings.navitiaApiKey && settings.commuteOriginAddress) {
+          commuteIdx++;
+          // Emit commute progress every 5 offers (Navitia calls are the bottleneck)
+          if (commuteIdx === 1 || commuteIdx % 5 === 0) {
+            onProgress?.(config.source, `Calcul trajet…`, commuteIdx, rawOffers.length);
+          }
+
           if (raw.locationLat != null && raw.locationLon != null) {
             const res = await getCommuteMinutesByCoords(
               settings.commuteOriginAddress, raw.locationLat, raw.locationLon,
