@@ -347,7 +347,7 @@ export function Dashboard() {
                       >
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--rf-text)', fontFamily: 'var(--font-body)' }}>{cv.name}</span>
                         <span style={{ fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
-                          Modifié {isValidDate ? format(d, "le dd MMM yyyy", { locale: fr }) : ''}
+                          Modifié {isValidDate ? format(d, "'le' dd MMM yyyy", { locale: fr }) : ''}
                         </span>
                       </div>
                     </Link>
