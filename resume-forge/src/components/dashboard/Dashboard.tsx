@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { format, subDays, startOfDay, isToday, differenceInDays, isBefore } from 'date-fns';
+import { format, subDays, startOfDay, isToday, differenceInDays, isBefore, startOfWeek, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -15,17 +15,62 @@ const safeDate = (val: string | null | undefined): Date | null => {
 const TERMINAL_STATUSES = ['accepted', 'rejected', 'withdrawn', 'ghosted'];
 
 // ── Mini bar chart ──────────────────────────────────────────────────────────────
-function BarChart({ data, color = 'var(--rf-accent)' }: { data: { label: string; v: number }[]; color?: string }) {
+const BAR_W = 28;
+const BAR_GAP = 8;
+const BAR_STEP = BAR_W + BAR_GAP;
+const CHART_H = 90;
+const LABEL_H = 32;
+const MAX_BAR_H = 60;
+
+function BarChart({ data, color = 'var(--rf-accent)' }: { data: { label: string; v: number; monthStart?: boolean }[]; color?: string }) {
   const max = Math.max(...data.map(d => d.v), 1);
+  const vbW = data.length * BAR_STEP + BAR_GAP;
+  const vbH = CHART_H + LABEL_H;
+
   return (
-    <svg width="100%" height={100} viewBox={`0 0 ${data.length * 48} 100`} preserveAspectRatio="none">
+    <svg
+      width="100%"
+      viewBox={`0 0 ${vbW} ${vbH}`}
+      preserveAspectRatio="xMidYMax meet"
+      style={{ display: 'block', overflow: 'visible' }}
+    >
       {data.map((d, i) => {
-        const h = Math.round((d.v / max) * 72);
+        const h = Math.max(Math.round((d.v / max) * MAX_BAR_H), d.v > 0 ? 4 : 0);
+        const x = i * BAR_STEP + BAR_GAP;
+        const barTop = CHART_H - h;
         return (
           <g key={i}>
-            <rect x={i * 48 + 4} y={80 - h} width={40} height={h + 4} rx={6} fill={color} opacity={0.12} />
-            <rect x={i * 48 + 4} y={80 - h} width={40} height={h} rx={6} fill={color} opacity={0.8} />
-            <text x={i * 48 + 24} y={96} textAnchor="middle" fontSize={9} fill="var(--rf-muted)" fontFamily="var(--font-body)">{d.label}</text>
+            {/* Background track */}
+            <rect x={x} y={CHART_H - MAX_BAR_H} width={BAR_W} height={MAX_BAR_H} rx={5} fill={color} opacity={0.07} />
+            {/* Bar */}
+            {h > 0 && (
+              <rect x={x} y={barTop} width={BAR_W} height={h} rx={5} fill={color} opacity={0.82} />
+            )}
+            {/* Value above bar */}
+            {d.v > 0 && (
+              <text x={x + BAR_W / 2} y={barTop - 4} textAnchor="middle" fontSize={8} fontWeight={700} fill={color} fontFamily="var(--font-display)" opacity={0.9}>
+                {d.v}
+              </text>
+            )}
+            {/* Month tick line */}
+            {d.monthStart && (
+              <line x1={x - BAR_GAP / 2} y1={CHART_H + 2} x2={x - BAR_GAP / 2} y2={CHART_H + 8} stroke="var(--rf-border-active)" strokeWidth={1} />
+            )}
+            {/* Label — rotated, only for monthStart or last bar */}
+            {(d.monthStart || i === data.length - 1) && (
+              <text
+                x={x + BAR_W / 2}
+                y={CHART_H + 14}
+                textAnchor="start"
+                fontSize={8.5}
+                fill={d.monthStart ? 'var(--rf-text)' : 'var(--rf-accent)'}
+                fontFamily="var(--font-body)"
+                fontWeight={d.monthStart ? 600 : 700}
+                transform={`rotate(-35, ${x + BAR_W / 2}, ${CHART_H + 14})`}
+              >
+                {d.label}
+              </text>
+            )}
           </g>
         );
       })}
@@ -137,14 +182,21 @@ export function Dashboard() {
         return da.getTime() - db.getTime();
       });
 
-    // Chart data (4 weeks)
-    const chartData = Array.from({ length: 4 }).map((_, i) => {
-      const start = subDays(now, (i + 1) * 7);
-      const end = subDays(now, i * 7);
-      const count = applications.filter(a => { const d = safeDate(a.createdAt); return d && d >= start && d < end; }).length;
-      const labels = ['S-3', 'S-2', 'S-1', 'Cette sem.'];
-      return { label: labels[3 - i], v: count };
-    }).reverse();
+    // Chart data (12 weeks — 3 months)
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const chartData = Array.from({ length: 12 }).map((_, i) => {
+      const weekStart = addDays(currentWeekStart, -(11 - i) * 7);
+      const weekEnd = addDays(weekStart, 7);
+      const count = applications.filter(a => {
+        const d = safeDate(a.createdAt);
+        return d && d >= weekStart && d < weekEnd;
+      }).length;
+      const isLast = i === 11;
+      const label = isLast ? 'Actuelle' : format(weekStart, 'd MMM', { locale: fr });
+      // Mark first week of each month
+      const monthStart = weekStart.getDate() <= 7;
+      return { label, v: count, monthStart: monthStart && !isLast };
+    });
 
     // Source breakdown
     const SOURCE_LABELS: Record<string, string> = { job_board: 'Job board', spontaneous: 'Spontanée', network: 'Réseau', recruiter: 'Recruteur', linkedin: 'LinkedIn', other: 'Autre' };
@@ -253,11 +305,16 @@ export function Dashboard() {
 
             {/* Activity chart */}
             <div style={{ background: 'var(--rf-card)', border: '1px solid var(--rf-border)', borderRadius: 12, padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--rf-text)', fontFamily: 'var(--font-display)' }}>Activité des 4 dernières semaines</h3>
-                <span style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', borderRadius: 99, fontSize: 11, fontWeight: 600, padding: '3px 9px', fontFamily: 'var(--font-body)' }}>Candidatures</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: 'var(--rf-text)', fontFamily: 'var(--font-display)' }}>Activité des 3 derniers mois</h3>
+                  <p style={{ margin: 0, fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>Candidatures créées par semaine</p>
+                </div>
+                <span style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', borderRadius: 99, fontSize: 11, fontWeight: 600, padding: '3px 9px', fontFamily: 'var(--font-body)', flexShrink: 0 }}>12 semaines</span>
               </div>
-              <BarChart data={stats.chartData} />
+              <div style={{ width: '100%' }}>
+                <BarChart data={stats.chartData} />
+              </div>
             </div>
 
             {/* Source breakdown */}
