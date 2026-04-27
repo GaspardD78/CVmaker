@@ -127,20 +127,28 @@ export function KanbanBoard({ searchTerm = '', sourceFilter = 'all', onCardClick
 
   if (applications.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center py-20">
-        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-          <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100%', textAlign: 'center', padding: '80px 0',
+        color: 'var(--rf-muted)', fontFamily: 'var(--font-body)',
+      }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 99,
+          background: 'var(--rf-accent-subtle)', color: 'var(--rf-accent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+        }}>
+          <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-gray-700 mb-1">Aucune candidature</h3>
-        <p className="text-sm text-gray-500">Cliquez sur "Nouvelle candidature" pour commencer le suivi.</p>
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--rf-text)', margin: '0 0 4px' }}>Aucune candidature</p>
+        <p style={{ fontSize: 12, color: 'var(--rf-muted)', margin: 0 }}>Cliquez sur "Nouvelle candidature" pour commencer le suivi.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full gap-6 w-max pb-4 px-2">
+    <div style={{ display: 'flex', height: '100%', gap: 14, width: 'max-content', paddingBottom: 16 }}>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}

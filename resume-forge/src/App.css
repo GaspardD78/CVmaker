@@ -2,167 +2,243 @@
 
 @plugin "tailwindcss-animate";
 
-/* Android / notch safe-area support */
+/* ── ResumeForge Design System — Dark Premium ──────────────────────────────── */
+
+/* Fonts */
+:root {
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body:    'DM Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* Indigo / Slate palette (default) */
+  --rf-bg:            #09090e;
+  --rf-surface:       #111116;
+  --rf-card:          #18181f;
+  --rf-border:        #25252f;
+  --rf-border-active: #3d3d52;
+  --rf-hover:         rgba(255,255,255,.04);
+  --rf-accent:        #6366f1;
+  --rf-accent-hover:  #818cf8;
+  --rf-accent-subtle: rgba(99,102,241,.12);
+  --rf-text:          #ededf0;
+  --rf-muted:         #71717a;
+  --rf-radius:        10px;
+}
+
+/* ── Tailwind theme mapping ─────────────────────────────────────────────────── */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+}
+
+/* ── Base dark theme (always dark) ─────────────────────────────────────────── */
+:root {
+  --radius: 0.625rem;
+  --background: var(--rf-bg);
+  --foreground: var(--rf-text);
+  --card: var(--rf-card);
+  --card-foreground: var(--rf-text);
+  --popover: var(--rf-surface);
+  --popover-foreground: var(--rf-text);
+  --primary: var(--rf-accent);
+  --primary-foreground: #fff;
+  --secondary: var(--rf-surface);
+  --secondary-foreground: var(--rf-text);
+  --muted: var(--rf-surface);
+  --muted-foreground: var(--rf-muted);
+  --accent: var(--rf-accent);
+  --accent-foreground: #fff;
+  --destructive: #f87171;
+  --border: var(--rf-border);
+  --input: var(--rf-card);
+  --ring: var(--rf-accent);
+  --sidebar: var(--rf-surface);
+  --sidebar-foreground: var(--rf-text);
+  --sidebar-primary: var(--rf-accent);
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: var(--rf-accent-subtle);
+  --sidebar-accent-foreground: var(--rf-accent);
+  --sidebar-border: var(--rf-border);
+  --sidebar-ring: var(--rf-accent);
+}
+
+/* .dark mirrors :root since we're always dark */
+.dark {
+  --background: var(--rf-bg);
+  --foreground: var(--rf-text);
+  --card: var(--rf-card);
+  --card-foreground: var(--rf-text);
+  --popover: var(--rf-surface);
+  --popover-foreground: var(--rf-text);
+  --primary: var(--rf-accent);
+  --primary-foreground: #fff;
+  --secondary: var(--rf-surface);
+  --secondary-foreground: var(--rf-text);
+  --muted: var(--rf-surface);
+  --muted-foreground: var(--rf-muted);
+  --accent: var(--rf-accent);
+  --accent-foreground: #fff;
+  --destructive: #f87171;
+  --border: var(--rf-border);
+  --input: var(--rf-card);
+  --ring: var(--rf-accent);
+  --sidebar: var(--rf-surface);
+  --sidebar-foreground: var(--rf-text);
+  --sidebar-primary: var(--rf-accent);
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: var(--rf-accent-subtle);
+  --sidebar-accent-foreground: var(--rf-accent);
+  --sidebar-border: var(--rf-border);
+}
+
+/* ── Global base ────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--rf-bg);
+  color: var(--rf-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Custom scrollbars ──────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rf-border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--rf-border-active); }
+
+/* ── Android / notch safe-area ─────────────────────────────────────────────── */
 .mobile-header {
   padding-top: env(safe-area-inset-top, 0px);
 }
 .mobile-main-content {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem); /* 3rem = h-12 header */
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem); /* 4rem = bottom nav */
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem);
 }
 .mobile-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-@custom-variant dark (&:is(.dark *));
-
-@page {
-  size: A4;
-  margin: 0;
-}
+/* ── Print ──────────────────────────────────────────────────────────────────── */
+@page { size: A4; margin: 0; }
 
 @media print {
-  /* Masquer tout le contenu par défaut */
-  body * {
-    visibility: hidden;
-  }
-
-  /* Rendre visible uniquement le contenu du CV */
-  #printable-cv,
-  #printable-cv * {
-    visibility: visible;
-  }
-
+  body * { visibility: hidden; }
+  #printable-cv, #printable-cv * { visibility: visible; }
   #printable-cv {
     position: fixed;
-    top: 0;
-    left: 0;
-    /* Largeur A4 fixe — fonctionne sur mobile (viewport étroit) comme sur desktop */
+    top: 0; left: 0;
     width: 210mm !important;
     max-width: none !important;
     height: auto;
     zoom: var(--pdf-zoom, 1);
     transform-origin: top left;
   }
-
   body {
     background-color: white !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
-  /* Rendre les liens visibles (et cliquables) dans le PDF généré */
-  #printable-cv a[href] {
-    text-decoration: underline;
-  }
+  #printable-cv a[href] { text-decoration: underline; }
 }
 
-@theme inline {
-    --radius-sm: calc(var(--radius) - 4px);
-    --radius-md: calc(var(--radius) - 2px);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 4px);
-    --radius-2xl: calc(var(--radius) + 8px);
-    --radius-3xl: calc(var(--radius) + 12px);
-    --radius-4xl: calc(var(--radius) + 16px);
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-primary: var(--primary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-secondary: var(--secondary);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-destructive: var(--destructive);
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-    --color-chart-1: var(--chart-1);
-    --color-chart-2: var(--chart-2);
-    --color-chart-3: var(--chart-3);
-    --color-chart-4: var(--chart-4);
-    --color-chart-5: var(--chart-5);
-    --color-sidebar: var(--sidebar);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-ring: var(--sidebar-ring);
+/* ── RF Design utility classes ──────────────────────────────────────────────── */
+.rf-bg      { background: var(--rf-bg); }
+.rf-surface { background: var(--rf-surface); }
+.rf-card    { background: var(--rf-card); }
+.rf-text    { color: var(--rf-text); }
+.rf-muted   { color: var(--rf-muted); }
+.rf-accent  { color: var(--rf-accent); }
+.rf-border  { border-color: var(--rf-border); }
+
+.rf-card-box {
+  background: var(--rf-card);
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius);
 }
 
-:root {
-    --radius: 0.625rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.646 0.222 41.116);
-    --chart-2: oklch(0.6 0.118 184.704);
-    --chart-3: oklch(0.398 0.07 227.392);
-    --chart-4: oklch(0.828 0.189 84.429);
-    --chart-5: oklch(0.769 0.188 70.08);
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+.rf-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background 0.12s ease;
+  border: none;
+  background: var(--rf-accent);
+  color: #fff;
+}
+.rf-btn-primary:hover { background: var(--rf-accent-hover); }
+
+.rf-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  background: transparent;
+  color: var(--rf-text);
+  border: 1px solid var(--rf-border);
+}
+.rf-btn-secondary:hover {
+  background: var(--rf-hover);
+  border-color: var(--rf-border-active);
 }
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.769 0.188 70.08);
-    --chart-4: oklch(0.627 0.265 303.9);
-    --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+/* Kanban drawer slide-in */
+@keyframes drawerIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
+
+/* Modal pop-in */
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }

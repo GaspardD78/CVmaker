@@ -5,9 +5,16 @@ import { KanbanBoard } from './KanbanBoard';
 import { ApplicationFormModal } from './ApplicationFormModal';
 import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
 import { ExportApplicationsModal } from './ExportApplicationsModal';
-import { Search, Filter, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Application, ApplicationSource } from '@/types/application';
+
+const SOURCE_FILTERS: { id: ApplicationSource | 'all'; label: string }[] = [
+  { id: 'all', label: 'Toutes' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'job_board', label: 'Job board' },
+  { id: 'network', label: 'Réseau' },
+  { id: 'recruiter', label: 'Recruteur' },
+];
 
 export function TrackerPage() {
   const location = useLocation();
@@ -19,7 +26,6 @@ export function TrackerPage() {
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [editingApplication, setEditingApplication] = useState<Application | null>(null);
 
-  // Scroll indicators
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -44,11 +50,8 @@ export function TrackerPage() {
     };
   }, [updateScrollIndicators]);
 
-  useEffect(() => {
-    fetchApplications();
-  }, [fetchApplications]);
+  useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
-  // Open application panel from Dashboard navigation state
   const openAppIdHandled = useRef(false);
   useEffect(() => {
     const openId = (location.state as { openApplicationId?: string } | null)?.openApplicationId;
@@ -57,128 +60,171 @@ export function TrackerPage() {
       if (app) {
         setSelectedApplication(app);
         openAppIdHandled.current = true;
-        // Clear the state to prevent re-opening on back navigation
         window.history.replaceState({}, '');
       }
     }
   }, [applications, location.state]);
 
-  // Keep selectedApplication in sync with the store when it changes (e.g. after edit)
   useEffect(() => {
     if (selectedApplication) {
       const fresh = applications.find(a => a.id === selectedApplication.id);
-      if (!fresh) setSelectedApplication(null); // deleted
+      if (!fresh) setSelectedApplication(null);
       else if (fresh !== selectedApplication) setSelectedApplication(fresh);
     }
   }, [applications]);
 
-  useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
+  useEffect(() => { if (error) toast.error(error); }, [error]);
+
+  const active = applications.filter(a => !['rejected', 'withdrawn', 'accepted', 'ghosted'].includes(a.status)).length;
+  const interviews = applications.filter(a => ['interview', 'technical_test', 'offer', 'phone_screen'].includes(a.status)).length;
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-full">
-        <p className="text-gray-500">Chargement des candidatures...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'var(--rf-bg)', color: 'var(--rf-muted)', fontFamily: 'var(--font-body)', fontSize: 14 }}>
+        Chargement des candidatures...
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="p-6 pb-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-between items-center">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--rf-bg)', overflow: 'hidden' }}>
+
+      {/* Page header */}
+      <div style={{
+        background: 'var(--rf-surface)', borderBottom: '1px solid var(--rf-border)',
+        padding: '20px 32px', display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', flexShrink: 0,
+      }}>
         <div>
-          <h1 className="text-2xl font-bold dark:text-gray-100">Suivi des candidatures</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Gérez vos candidatures et leur avancement.
+          <h1 style={{
+            margin: '0 0 3px', fontSize: 22, fontWeight: 700, color: 'var(--rf-text)',
+            fontFamily: 'var(--font-display)', letterSpacing: '-0.4px',
+          }}>Suivi des candidatures</h1>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
+            {applications.length} candidature{applications.length !== 1 ? 's' : ''} · Kanban interactif
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', gap: 8 }}>
           <button
-            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="rf-btn-secondary"
             onClick={() => setIsExportOpen(true)}
-            title="Exporter les candidatures"
           >
-            <Download size={15} />
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 17" /><polyline points="17 6 23 6 23 12" />
+            </svg>
             Exporter
           </button>
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            onClick={() => setIsModalOpen(true)}
-          >
+          <button className="rf-btn-primary" onClick={() => setIsModalOpen(true)}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
             Nouvelle candidature
           </button>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex gap-4 items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Rechercher par entreprise, poste..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-          />
-        </div>
-        <div className="relative flex items-center gap-2">
-          <Filter className="text-gray-400" size={18} />
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value as ApplicationSource | 'all')}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Toutes les sources</option>
-            <option value="job_board">Job Board</option>
-            <option value="spontaneous">Candidature spontanée</option>
-            <option value="network">Réseau</option>
-            <option value="recruiter">Recruteur / Chasseur</option>
-            <option value="linkedin">LinkedIn</option>
-            <option value="other">Autre</option>
-          </select>
-        </div>
+      {/* Stats bar */}
+      <div style={{
+        display: 'flex', gap: 24, padding: '10px 32px',
+        background: 'var(--rf-surface)', borderBottom: '1px solid var(--rf-border)',
+        alignItems: 'center', flexShrink: 0,
+      }}>
+        {[
+          { label: 'Total', value: applications.length, color: 'var(--rf-text)' },
+          { label: 'Actives', value: active, color: '#6366f1' },
+          { label: 'Entretiens', value: interviews, color: '#a78bfa' },
+        ].map(s => (
+          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: s.color, fontFamily: 'var(--font-display)' }}>{s.value}</span>
+            <span style={{ fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>{s.label}</span>
+          </div>
+        ))}
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
+          Glissez les cartes pour changer de statut
+        </span>
       </div>
 
-      <div className="flex-1 relative overflow-hidden bg-gray-50 dark:bg-gray-900">
+      {/* Search + filter row */}
+      <div style={{
+        background: 'var(--rf-surface)', borderBottom: '1px solid var(--rf-border)',
+        padding: '10px 32px', display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0,
+      }}>
+        <div style={{ position: 'relative', width: 260 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--rf-muted)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Filtrer par entreprise, poste…"
+            style={{
+              width: '100%', padding: '7px 10px 7px 28px',
+              background: 'var(--rf-card)', border: '1px solid var(--rf-border)',
+              borderRadius: 7, color: 'var(--rf-text)', fontSize: 12.5,
+              fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box',
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--rf-accent)'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--rf-border)'; }}
+          />
+        </div>
+        {SOURCE_FILTERS.map((f) => {
+          const active = sourceFilter === f.id;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setSourceFilter(f.id)}
+              style={{
+                padding: '5px 11px', borderRadius: 99, fontSize: 11.5,
+                background: active ? 'var(--rf-accent-subtle)' : 'transparent',
+                color: active ? 'var(--rf-accent)' : 'var(--rf-muted)',
+                border: `1px solid ${active ? 'rgba(99,102,241,.2)' : 'var(--rf-border)'}`,
+                cursor: 'pointer', fontFamily: 'var(--font-body)',
+                fontWeight: active ? 600 : 400, transition: 'all 0.12s',
+              }}
+            >{f.label}</button>
+          );
+        })}
+      </div>
+
+      {/* Kanban + drawer */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {canScrollLeft && (
-          <div className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-r from-gray-50 dark:from-gray-900 to-transparent" />
+          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 48, zIndex: 10, pointerEvents: 'none', background: 'linear-gradient(to right, var(--rf-bg), transparent)' }} />
         )}
         {canScrollRight && (
-          <div className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none bg-gradient-to-l from-gray-50 dark:from-gray-900 to-transparent" />
+          <div style={{ position: 'absolute', right: selectedApplication ? 420 : 0, top: 0, bottom: 0, width: 48, zIndex: 10, pointerEvents: 'none', background: 'linear-gradient(to left, var(--rf-bg), transparent)' }} />
         )}
-        <div ref={scrollRef} className="h-full overflow-x-auto p-6">
+        <div ref={scrollRef} style={{ height: '100%', overflowX: 'auto', overflowY: 'hidden', padding: '20px 24px' }}>
           <KanbanBoard
             searchTerm={searchTerm}
             sourceFilter={sourceFilter}
             onCardClick={(app) => setSelectedApplication(app)}
           />
         </div>
-      </div>
 
-      {/* Details panel rendered at TrackerPage level to avoid overflow clipping */}
-      {selectedApplication && (
-        <ApplicationDetailsPanel
-          applicationId={selectedApplication.id}
-          onClose={() => {
-            setSelectedApplication(null);
-            setEditingApplication(null);
-          }}
-          onEdit={() => {
-            setEditingApplication(selectedApplication);
-          }}
-        />
-      )}
+        {selectedApplication && (
+          <div style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, zIndex: 20,
+            boxShadow: '-8px 0 32px rgba(0,0,0,.5)',
+          }}>
+            <ApplicationDetailsPanel
+              applicationId={selectedApplication.id}
+              onClose={() => { setSelectedApplication(null); setEditingApplication(null); }}
+              onEdit={() => setEditingApplication(selectedApplication)}
+            />
+          </div>
+        )}
+      </div>
 
       <ExportApplicationsModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
 
-      {/* New application modal */}
       <ApplicationFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
 
-      {/* Edit application modal */}
       <ApplicationFormModal
         isOpen={editingApplication !== null}
         onClose={() => setEditingApplication(null)}
