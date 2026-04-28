@@ -199,7 +199,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', minHeight: 0 }}>
+        <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.to, item.exact);
             const badge = item.hasBadge ? unreadCount : 0;
@@ -221,78 +221,43 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-        </nav>
 
-        {/* Bottom */}
-        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--rf-border)', display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* Separator */}
+          <div style={{ height: 1, background: 'var(--rf-border)', margin: '4px 0' }} />
+
           {/* Settings */}
-          <Link to="/settings" style={{ textDecoration: 'none' }}
-            title={collapsed ? 'Paramètres' : undefined}
-            onMouseEnter={e => {
-              const el = e.currentTarget.firstElementChild as HTMLElement;
-              if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = 'var(--rf-text)'; }
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget.firstElementChild as HTMLElement;
-              if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; }
-            }}
+          <Link to="/settings" title={collapsed ? 'Paramètres' : undefined} style={{ textDecoration: 'none' }}
+            onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = 'var(--rf-text)'; } }}
+            onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
           >
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: collapsed ? '9px 0' : '9px 12px',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              borderRadius: 8,
-              background: isActive('/settings') ? 'var(--rf-hover)' : 'transparent',
-              color: 'var(--rf-muted)',
-              fontFamily: 'var(--font-body)', fontSize: 14,
-              transition: 'all 0.12s',
-              whiteSpace: 'nowrap',
-            }}>
+            <NavBtn collapsed={collapsed} active={isActive('/settings')} label="Paramètres">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
-              {!collapsed && <span>Paramètres</span>}
-            </div>
+            </NavBtn>
           </Link>
 
-          {/* Logout / user button */}
+          {/* Logout */}
           <button
             onClick={logout}
-            title={`${displayName ?? 'Utilisateur'} — Déconnexion`}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: collapsed ? '9px 0' : '9px 12px',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: 'transparent', transition: 'background 0.12s',
-              width: '100%', marginTop: 4,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--rf-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            title={collapsed ? 'Déconnexion' : undefined}
+            style={{ textDecoration: 'none', background: 'none', border: 'none', padding: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}
+            onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = '#ef4444'; } }}
+            onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
           >
-            <div style={{
-              width: 32, height: 32, borderRadius: 99,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0,
-              fontFamily: 'var(--font-display)',
-            }}>{initials}</div>
-            {!collapsed && (
-              <>
-                <div style={{ overflow: 'hidden', textAlign: 'left', flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--rf-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-body)', maxWidth: 90 }}>{displayName}</div>
-                  {displayTitle && <div style={{ fontSize: 11, color: 'var(--rf-muted)', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{displayTitle}</div>}
-                </div>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--rf-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} title="Déconnexion">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-              </>
-            )}
+            <NavBtn collapsed={collapsed} active={false} label="Déconnexion">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </NavBtn>
           </button>
-        </div>
+        </nav>
 
         {/* Collapse toggle */}
         <button
