@@ -124,7 +124,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
   const location = useLocation();
-  const { logout, user } = useAuthStore();
+  const { logout, currentUserId } = useAuthStore();
   const unreadCount = useJobWatchStore(s => s.unreadCount());
   const profile = useProfileStore(s => s.profile);
 
@@ -136,12 +136,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     exact ? location.pathname === to : location.pathname.startsWith(to);
 
   const initials = profile
-    ? (profile.firstName?.[0] ?? '') + (profile.lastName?.[0] ?? '')
-    : (user?.email?.[0]?.toUpperCase() ?? 'U');
+    ? ((profile.firstName?.[0] ?? '') + (profile.lastName?.[0] ?? '')).toUpperCase() || '?'
+    : (currentUserId?.[0]?.toUpperCase() ?? '?');
 
   const displayName = profile
-    ? `${profile.firstName} ${profile.lastName}`.trim() || user?.email
-    : user?.email;
+    ? `${profile.firstName} ${profile.lastName}`.trim() || currentUserId
+    : currentUserId;
 
   const displayTitle = profile?.title ?? '';
 
@@ -256,57 +256,39 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </Link>
 
-          {/* User info (non-clickable) */}
-          {!collapsed && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 12px', borderRadius: 8, marginTop: 4,
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 99,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0,
-                fontFamily: 'var(--font-display)',
-              }}>{initials}</div>
-              <div style={{ overflow: 'hidden', flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--rf-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-body)', maxWidth: 100 }}>{displayName}</div>
-                {displayTitle && <div style={{ fontSize: 11, color: 'var(--rf-muted)', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{displayTitle}</div>}
-              </div>
-            </div>
-          )}
-
-          {/* Logout button */}
+          {/* Logout / user button */}
           <button
             onClick={logout}
-            title={collapsed ? `${displayName} — Déconnexion` : 'Déconnexion'}
+            title={`${displayName ?? 'Utilisateur'} — Déconnexion`}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: collapsed ? '9px 0' : '9px 12px',
               justifyContent: collapsed ? 'center' : 'flex-start',
               borderRadius: 8, border: 'none', cursor: 'pointer',
               background: 'transparent', transition: 'background 0.12s',
-              width: '100%', color: 'var(--rf-muted)',
+              width: '100%', marginTop: 4,
             }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--rf-hover)'; (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--rf-muted)'; }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--rf-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
-            {collapsed ? (
-              <div style={{
-                width: 32, height: 32, borderRadius: 99,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0,
-                fontFamily: 'var(--font-display)',
-              }}>{initials}</div>
-            ) : (
+            <div style={{
+              width: 32, height: 32, borderRadius: 99,
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0,
+              fontFamily: 'var(--font-display)',
+            }}>{initials}</div>
+            {!collapsed && (
               <>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <div style={{ overflow: 'hidden', textAlign: 'left', flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--rf-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'var(--font-body)', maxWidth: 90 }}>{displayName}</div>
+                  {displayTitle && <div style={{ fontSize: 11, color: 'var(--rf-muted)', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{displayTitle}</div>}
+                </div>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--rf-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} title="Déconnexion">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                   <polyline points="16 17 21 12 16 7"/>
                   <line x1="21" y1="12" x2="9" y2="12"/>
                 </svg>
-                <span style={{ fontSize: 14, fontFamily: 'var(--font-body)' }}>Déconnexion</span>
               </>
             )}
           </button>
