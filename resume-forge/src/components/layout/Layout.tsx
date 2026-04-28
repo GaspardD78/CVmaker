@@ -199,7 +199,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', minHeight: 0 }}>
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.to, item.exact);
             const badge = item.hasBadge ? unreadCount : 0;
@@ -224,7 +224,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Bottom */}
-        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--rf-border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--rf-border)', display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
           {/* Settings */}
           <Link to="/settings" style={{ textDecoration: 'none' }}
             title={collapsed ? 'Paramètres' : undefined}
