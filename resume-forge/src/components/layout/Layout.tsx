@@ -164,7 +164,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           display: 'flex',
           flexDirection: 'column',
           transition: 'width 0.2s cubic-bezier(0.4,0,0.2,1), min-width 0.2s cubic-bezier(0.4,0,0.2,1)',
-          overflow: 'hidden',
+          overflowX: 'clip',
           position: 'relative',
           zIndex: 10,
           flexShrink: 0,
@@ -222,41 +222,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
+          {/* Bottom group: settings + logout */}
+          <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--rf-border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Link to="/settings" title={collapsed ? 'Paramètres' : undefined} style={{ textDecoration: 'none' }}
+              onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = 'var(--rf-text)'; } }}
+              onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
+            >
+              <NavBtn collapsed={collapsed} active={isActive('/settings')} label="Paramètres">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+              </NavBtn>
+            </Link>
 
-          {/* Separator */}
-          <div style={{ height: 1, background: 'var(--rf-border)', margin: '4px 0' }} />
-
-          {/* Settings */}
-          <Link to="/settings" title={collapsed ? 'Paramètres' : undefined} style={{ textDecoration: 'none' }}
-            onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = 'var(--rf-text)'; } }}
-            onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
-          >
-            <NavBtn collapsed={collapsed} active={isActive('/settings')} label="Paramètres">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
-            </NavBtn>
-          </Link>
-
-          {/* Logout */}
-          <button
-            onClick={logout}
-            title={collapsed ? 'Déconnexion' : undefined}
-            style={{ textDecoration: 'none', background: 'none', border: 'none', padding: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}
-            onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = '#ef4444'; } }}
-            onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
-          >
-            <NavBtn collapsed={collapsed} active={false} label="Déconnexion">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
-            </NavBtn>
-          </button>
+            <button
+              onClick={logout}
+              title="Déconnexion"
+              style={{ background: 'none', border: 'none', padding: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = '#ef4444'; } }}
+              onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
+            >
+              <NavBtn collapsed={collapsed} active={false} label="Déconnexion">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+              </NavBtn>
+            </button>
+          </div>
         </nav>
 
         {/* Collapse toggle */}
