@@ -89,7 +89,7 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
       <div className="grid grid-cols-2 gap-x-4">
         {labels.map((label, i) => (
           <div key={i} className={`flex items-baseline cv-badge-item ${itemClass}`}>
-            <span className="mr-1.5 text-gray-400 select-none">•</span>{label}
+            <span className="mr-1.5 select-none">•</span>{label}
           </div>
         ))}
       </div>
@@ -101,7 +101,7 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
       <div className="grid grid-cols-3 gap-x-3">
         {labels.map((label, i) => (
           <div key={i} className={`flex items-baseline cv-badge-item ${itemClass}`}>
-            <span className="mr-1.5 text-gray-400 select-none">•</span>{label}
+            <span className="mr-1.5 select-none">•</span>{label}
           </div>
         ))}
       </div>

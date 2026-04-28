@@ -31,7 +31,7 @@ export const elegant: CVTemplate = {
     entryClass: 'mb-5',
     titleClass: 'font-semibold text-gray-900 text-[14px] [font-family:Georgia,serif]',
     subtitleClass: 'text-indigo-700 text-[12.5px] font-normal italic',
-    dateClass: 'text-gray-500 text-[11.5px] tracking-wide tabular-nums mb-1',
+    dateClass: 'text-gray-600 text-[11.5px] tracking-wide tabular-nums mb-1',
     descriptionClass: 'text-gray-700 text-[12px] whitespace-pre-line leading-relaxed',
     skillsContainerClass: 'list-disc pl-5',
     skillClass: 'text-[12px] text-gray-700',
@@ -39,7 +39,7 @@ export const elegant: CVTemplate = {
     skillBadgeClass: 'inline-block px-2.5 py-0.5 text-[11px] font-medium bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-sm',
     nameClass: 'text-[32px] font-semibold tracking-wide text-gray-900 mb-1 [font-family:Georgia,serif]',
     headerTitleClass: 'text-[17px] font-normal text-indigo-700 italic [font-family:Georgia,serif]',
-    contactClass: 'text-[12px] text-gray-500',
+    contactClass: 'text-[12px] text-gray-600',
     summaryClass: 'text-[12.5px] text-gray-700 leading-relaxed italic',
   },
 };

@@ -79,7 +79,7 @@ export function DesignPanel({
   contactFontSize, setContactFontSize,
 }: DesignPanelProps) {
   return (
-    <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg shadow-sm text-sm flex flex-col min-h-0 flex-shrink-0 max-h-[60vh]">
+    <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg shadow-sm text-sm flex flex-col min-h-0 flex-shrink-0 max-h-[60vh] text-gray-900">
       <div className="p-3 pb-2 border-b border-purple-200 flex-shrink-0">
         <h3 className="font-semibold text-purple-900 mb-2">Design du CV</h3>
         {/* ✨ Magic fit-to-page button */}

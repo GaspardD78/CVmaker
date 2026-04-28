@@ -31,7 +31,7 @@ export const executive: CVTemplate = {
     entryClass: 'mb-5',
     titleClass: 'font-bold text-gray-900 text-[14px]',
     subtitleClass: 'text-red-900 text-[12.5px] italic',
-    dateClass: 'text-gray-500 text-[11.5px] tabular-nums italic mb-1',
+    dateClass: 'text-gray-600 text-[11.5px] tabular-nums italic mb-1',
     descriptionClass: 'text-gray-800 text-[12px] whitespace-pre-line leading-[1.6]',
     skillsContainerClass: 'list-disc pl-5',
     skillClass: 'text-[12px] text-gray-800',

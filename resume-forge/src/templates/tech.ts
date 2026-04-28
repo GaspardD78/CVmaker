@@ -31,7 +31,7 @@ export const tech: CVTemplate = {
     entryClass: 'mb-4',
     titleClass: 'font-semibold text-gray-900 text-[13px]',
     subtitleClass: 'text-indigo-700 text-[12px] font-medium',
-    dateClass: 'text-gray-500 text-[11px] tabular-nums font-mono mb-1',
+    dateClass: 'text-gray-600 text-[11px] tabular-nums font-mono mb-1',
     descriptionClass: 'text-gray-700 text-[11.5px] whitespace-pre-line leading-relaxed',
     skillsContainerClass: 'list-disc pl-5',
     skillClass: 'text-[11.5px] text-gray-700',

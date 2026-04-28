@@ -27,11 +27,11 @@ export const minimalist: CVTemplate = {
   },
   preview: {
     containerClass: 'max-w-[210mm] mx-auto bg-white shadow-lg px-14 py-14 text-gray-800',
-    headingClass: 'text-[11px] font-bold uppercase tracking-[0.32em] text-gray-400 mb-4 mt-10',
+    headingClass: 'text-[11px] font-bold uppercase tracking-[0.32em] text-gray-500 mb-4 mt-10',
     entryClass: 'mb-4',
     titleClass: 'font-semibold text-gray-900 text-[13px]',
     subtitleClass: 'text-gray-500 text-[12.5px] font-normal',
-    dateClass: 'text-gray-400 text-[11px] tabular-nums tracking-wide mb-1',
+    dateClass: 'text-gray-500 text-[11px] tabular-nums tracking-wide mb-1',
     descriptionClass: 'text-gray-600 text-[11.5px] whitespace-pre-line leading-[1.7]',
     skillsContainerClass: 'list-none pl-0',
     skillClass: 'text-[11.5px] text-gray-600',
@@ -39,7 +39,7 @@ export const minimalist: CVTemplate = {
     skillBadgeClass: 'inline-block text-[11px] text-gray-600 after:content-["·"] after:ml-2 last:after:content-[""]',
     nameClass: 'text-[28px] font-light uppercase tracking-[0.18em] text-gray-900 mb-1.5',
     headerTitleClass: 'text-[14px] font-normal text-gray-500 tracking-wider uppercase',
-    contactClass: 'text-[11px] text-gray-400 tracking-wide',
+    contactClass: 'text-[11px] text-gray-500 tracking-wide',
     summaryClass: 'text-[12px] text-gray-600 leading-[1.7]',
   },
 };
