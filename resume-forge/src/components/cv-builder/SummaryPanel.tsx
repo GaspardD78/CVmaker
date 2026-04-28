@@ -27,7 +27,7 @@ export function SummaryPanel({
   summaryLineHeight, setSummaryLineHeight,
 }: SummaryPanelProps) {
   return (
-    <div className="mb-4 bg-green-50 border border-green-200 rounded-lg shadow-sm text-sm flex flex-col min-h-0 flex-shrink-0 max-h-[65vh]">
+    <div className="mb-4 bg-green-50 border border-green-200 rounded-lg shadow-sm text-sm flex flex-col min-h-0 flex-shrink-0 max-h-[65vh] text-gray-900">
       <div className="p-3 pb-2 border-b border-green-200 flex-shrink-0">
         <h3 className="font-semibold text-green-900 flex items-center gap-1.5">
           <FileText className="w-4 h-4" /> Résumé / Accroche

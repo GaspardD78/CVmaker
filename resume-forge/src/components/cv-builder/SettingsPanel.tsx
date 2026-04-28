@@ -13,7 +13,7 @@ export function SettingsPanel({
   customSummary, setCustomSummary,
 }: SettingsPanelProps) {
   return (
-    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm text-sm">
+    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm text-sm text-gray-900">
       <h3 className="font-semibold text-blue-900 mb-2">Paramètres de ce CV</h3>
       <div className="space-y-2">
         <div>

@@ -215,7 +215,7 @@ export function SectionItem({ block }: SectionItemProps) {
 
   if (isEditing) {
     return (
-      <div className="border rounded mb-2 bg-blue-50 flex flex-col p-3 shadow-md border-blue-200">
+      <div className="border rounded mb-2 bg-blue-50 flex flex-col p-3 shadow-md border-blue-200 text-gray-900">
         <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-semibold text-blue-800 uppercase">
             {isSectionHeader ? 'Section' : 'Personnaliser pour ce CV'}
