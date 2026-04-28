@@ -89,7 +89,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-8 max-w-2xl h-full overflow-y-auto">
       <h1 className="text-2xl font-bold mb-1 dark:text-gray-100">Paramètres</h1>
       <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Configuration et gestion des données de l'application.</p>
 
