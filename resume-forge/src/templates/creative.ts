@@ -31,7 +31,7 @@ export const creative: CVTemplate = {
     entryClass: 'mb-5',
     titleClass: 'font-bold text-gray-900 text-[14px]',
     subtitleClass: 'text-orange-700 text-[12.5px] font-semibold',
-    dateClass: 'text-gray-500 text-[11.5px] tabular-nums italic mb-1',
+    dateClass: 'text-gray-600 text-[11.5px] tabular-nums italic mb-1',
     descriptionClass: 'text-gray-700 text-[12px] whitespace-pre-line leading-relaxed',
     skillsContainerClass: 'list-disc pl-5',
     skillClass: 'text-[12px] text-gray-700',

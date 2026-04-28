@@ -31,7 +31,7 @@ export const atsClassic: CVTemplate = {
     entryClass: 'mb-4',
     titleClass: 'font-bold text-gray-900 text-[13.5px]',
     subtitleClass: 'text-gray-700 text-[12.5px]',
-    dateClass: 'text-gray-500 text-[11.5px] tabular-nums mb-1',
+    dateClass: 'text-gray-600 text-[11.5px] tabular-nums mb-1',
     descriptionClass: 'text-gray-800 text-[12px] whitespace-pre-line leading-relaxed',
     skillsContainerClass: 'list-disc pl-5 grid grid-cols-1 gap-y-0.5',
     skillClass: 'text-[12px] text-gray-800',

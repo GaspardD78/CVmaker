@@ -31,7 +31,7 @@ export const atsModern: CVTemplate = {
     entryClass: 'mb-6',
     titleClass: 'font-bold text-gray-900 text-[14px]',
     subtitleClass: 'font-medium text-blue-800 text-[12.5px]',
-    dateClass: 'text-gray-500 text-[11.5px] tabular-nums italic mb-1.5',
+    dateClass: 'text-gray-600 text-[11.5px] tabular-nums italic mb-1.5',
     descriptionClass: 'text-gray-700 text-[12px] whitespace-pre-line leading-relaxed',
     skillsContainerClass: 'list-disc pl-6 grid grid-cols-1 gap-y-0.5',
     skillClass: 'text-[12px] text-gray-700',
@@ -39,7 +39,7 @@ export const atsModern: CVTemplate = {
     skillBadgeClass: 'inline-block px-3 py-1 text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200 rounded-full',
     nameClass: 'text-[32px] font-bold uppercase tracking-[0.08em] text-gray-900 mb-1',
     headerTitleClass: 'text-[18px] font-semibold text-blue-800',
-    contactClass: 'text-[12px] text-gray-500',
+    contactClass: 'text-[12px] text-gray-600',
     summaryClass: 'text-[12px] text-gray-700 leading-relaxed',
   },
 };
