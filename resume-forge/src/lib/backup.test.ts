@@ -16,7 +16,7 @@ mock.module('@/lib/db', () => ({
 
 // Mock validation
 mock.module('./validation', () => ({
-  filterAllowedColumns: (table: string, data: any) => data
+  filterAllowedColumns: (_table: string, data: any) => data
 }));
 
 // Now import applyRows

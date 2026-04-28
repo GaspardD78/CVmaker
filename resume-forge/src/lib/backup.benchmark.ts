@@ -8,7 +8,7 @@ const IPC_LATENCY_MS = 1;
 class MockDb {
   public executeCount = 0;
 
-  async execute(query: string, values?: any[]): Promise<void> {
+  async execute(_query: string, _values?: any[]): Promise<void> {
     this.executeCount++;
     // Simulate IPC latency
     await new Promise(resolve => setTimeout(resolve, IPC_LATENCY_MS));
