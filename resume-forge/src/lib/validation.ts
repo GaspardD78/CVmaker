@@ -159,6 +159,10 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'key',
     'value',
   ],
+  settings: [
+    'key',
+    'value',
+  ],
 };
 
 /**

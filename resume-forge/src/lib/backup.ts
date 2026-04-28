@@ -8,6 +8,7 @@
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { getDb } from '@/lib/db';
+import { filterAllowedColumns } from './validation';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ export interface ImportPlan {
  * - merge: INSERT OR REPLACE (upsert by primary key)
  * - ignore: INSERT OR IGNORE (skip existing by primary key)
  */
-async function applyRows(
+export async function applyRows(
   db: Awaited<ReturnType<typeof getDb>>,
   table: string,
   rows: Record<string, unknown>[],
@@ -170,13 +171,39 @@ async function applyRows(
   if (rows.length === 0) return;
 
   const keyword = strategy === 'merge' ? 'OR REPLACE' : 'OR IGNORE';
-  const columns = Object.keys(rows[0]);
+
+  // Validate and filter columns based on the first row to ensure they're all allowed.
+  // This prevents SQL injection from malicious backup files while maintaining schema compatibility.
+  const filteredFirstRow = filterAllowedColumns(table, rows[0]);
+  const columns = Object.keys(filteredFirstRow);
+  if (columns.length === 0) return;
+
   const colStr = columns.join(', ');
 
-  for (const row of rows) {
-    const values = columns.map(c => row[c]);
-    const placeholders = columns.map((_, i) => `?${i + 1}`).join(', ');
-    await db.execute(`INSERT ${keyword} INTO ${table} (${colStr}) VALUES (${placeholders})`, values);
+  // SQLite has a limit on the number of parameters (?1, ?2) in a single query (often 999).
+  // We chunk the insertions to stay safe.
+  const BATCH_SIZE = 30; // 30 rows * ~15-20 columns < 999
+
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const chunk = rows.slice(i, i + BATCH_SIZE);
+    const allPlaceholders: string[] = [];
+    const allValues: unknown[] = [];
+
+    for (let rowIndex = 0; rowIndex < chunk.length; rowIndex++) {
+      const row = chunk[rowIndex];
+      // Parameter indices must be global for the current query (1 to chunk.length * columns.length)
+      const rowPlaceholders = columns.map((_, colIndex) =>
+        `?${rowIndex * columns.length + colIndex + 1}`
+      ).join(', ');
+      allPlaceholders.push(`(${rowPlaceholders})`);
+
+      for (const col of columns) {
+        allValues.push(row[col]);
+      }
+    }
+
+    const query = `INSERT ${keyword} INTO ${table} (${colStr}) VALUES ${allPlaceholders.join(', ')}`;
+    await db.execute(query, allValues);
   }
 }
 
