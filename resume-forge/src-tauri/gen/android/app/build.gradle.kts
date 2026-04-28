@@ -26,10 +26,26 @@ android {
     }
     signingConfigs {
         create("release") {
-            storeFile = file("resumeforge.keystore")
-            storePassword = "resumeforge123"
-            keyAlias = "resumeforge"
-            keyPassword = "resumeforge123"
+            val keystorePropertiesFile = rootProject.file("key.properties")
+            val keystoreProperties = Properties()
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(keystorePropertiesFile.inputStream())
+            }
+
+            val envStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
+            val propStoreFile = keystoreProperties.getProperty("storeFile")
+            storeFile = when {
+                envStoreFile != null -> file(envStoreFile)
+                propStoreFile != null -> file(propStoreFile)
+                else -> file("resumeforge.keystore")
+            }
+
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                ?: keystoreProperties.getProperty("storePassword")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                ?: keystoreProperties.getProperty("keyAlias")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                ?: keystoreProperties.getProperty("keyPassword")
         }
     }
     buildTypes {
