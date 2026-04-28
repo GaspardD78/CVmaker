@@ -184,6 +184,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       contactFontSize   ? `#printable-cv .cv-contact-info { font-size: ${contactFontSize} !important; }` : '',
       primaryColor       ? `#printable-cv .cv-badge { border-color: ${primaryColor}30; background-color: ${primaryColor}10; color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv { border-color: ${primaryColor}; }` : '',
+      primaryColor       ? `#printable-cv .cv-subtitle { color: ${primaryColor} !important; }` : '',
+      primaryColor       ? `#printable-cv .cv-job-title { color: ${primaryColor} !important; }` : '',
+      primaryColor       ? `#printable-cv h3::after { background-color: ${primaryColor} !important; }` : '',
+      primaryColor       ? `#printable-cv h3::before { color: ${primaryColor} !important; }` : '',
       isBanner ? `#printable-cv .cv-header-block, #printable-cv .cv-header-block * { color: white !important; }` : '',
       isBanner ? `#printable-cv .cv-header-block .cv-badge { background-color: rgba(255,255,255,0.15) !important; border-color: rgba(255,255,255,0.4) !important; color: white !important; }` : '',
     ].filter(Boolean).join('\n');
