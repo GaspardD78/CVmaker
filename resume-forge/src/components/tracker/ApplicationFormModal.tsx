@@ -129,7 +129,6 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
       const displayMessage = application ? "Erreur lors de la mise à jour" : "Erreur lors de l'ajout de la candidature";
       toast.error(`${displayMessage}: ${errorMessage}`);
-      console.error('Form submission error:', error);
     } finally {
       setIsSubmitting(false);
     }
