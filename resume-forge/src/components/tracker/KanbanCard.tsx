@@ -67,8 +67,8 @@ export function KanbanCard({ application, onClick }: KanbanCardProps) {
 
   const urgencyColor = getUrgencyColor(application.nextActionDate);
   const showNextAction = application.nextAction && !TERMINAL_STATUSES.includes(application.status);
-  const srcColor = SOURCE_COLORS[application.source] ?? '#6b7280';
-  const srcLabel = SOURCE_LABELS[application.source] ?? application.source;
+  const srcColor = application.source ? (SOURCE_COLORS[application.source] ?? '#6b7280') : '#6b7280';
+  const srcLabel = application.source ? (SOURCE_LABELS[application.source] ?? application.source) : '';
 
   return (
     <div

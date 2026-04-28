@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { format, subDays, startOfDay, isToday, differenceInDays, isBefore, startOfWeek, addDays } from 'date-fns';
+import { format, subDays, startOfDay, isToday, isBefore, startOfWeek, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -79,24 +79,6 @@ function BarChart({ data, color = 'var(--rf-accent)' }: { data: { label: string;
 }
 
 // ── Score ring ──────────────────────────────────────────────────────────────────
-function ScoreRing({ score }: { score: number }) {
-  const color = score >= 85 ? '#34d399' : score >= 70 ? '#fbbf24' : '#f87171';
-  const r = 16; const circ = 2 * Math.PI * r;
-  return (
-    <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
-      <svg width="44" height="44" viewBox="0 0 44 44" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="22" cy="22" r={r} fill="none" stroke="var(--rf-border)" strokeWidth="3" />
-        <circle cx="22" cy="22" r={r} fill="none" stroke={color} strokeWidth="3"
-          strokeDasharray={circ} strokeDashoffset={circ * (1 - score / 100)} strokeLinecap="round" />
-      </svg>
-      <span style={{
-        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 800, color, fontFamily: 'var(--font-display)',
-      }}>{score}</span>
-    </div>
-  );
-}
-
 // ── KPI card ────────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, iconColor, icon }: {
   label: string; value: string | number; sub?: string; iconColor: string;

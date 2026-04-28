@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
-import { useProfileStore } from '@/stores/profileStore';
 
 const STORAGE_KEY = 'rf_sidebar_collapsed';
 
@@ -124,9 +123,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
   const location = useLocation();
-  const { logout, currentUserId } = useAuthStore();
+  const { logout } = useAuthStore();
   const unreadCount = useJobWatchStore(s => s.unreadCount());
-  const profile = useProfileStore(s => s.profile);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, String(collapsed)); } catch { /* ignore */ }
@@ -134,16 +132,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const isActive = (to: string, exact?: boolean) =>
     exact ? location.pathname === to : location.pathname.startsWith(to);
-
-  const initials = profile
-    ? ((profile.firstName?.[0] ?? '') + (profile.lastName?.[0] ?? '')).toUpperCase() || '?'
-    : (currentUserId?.[0]?.toUpperCase() ?? '?');
-
-  const displayName = profile
-    ? `${profile.firstName} ${profile.lastName}`.trim() || currentUserId
-    : currentUserId;
-
-  const displayTitle = profile?.title ?? '';
 
   return (
     <div style={{
