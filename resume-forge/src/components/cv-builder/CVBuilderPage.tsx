@@ -4,6 +4,8 @@ import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
+import { SidebarNav } from './SidebarNav';
+import type { SidebarTab } from './SidebarNav';
 import { MarkdownEditorPage } from '@/components/markdown-editor/MarkdownEditorPage';
 import { ArrowLeft, Code2, Download, FileText, Loader2, Check } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
@@ -28,6 +30,9 @@ export function CVBuilderPage() {
 
   // Onglet actif sur mobile : 'edit' | 'preview'
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+
+  // Onglet actif de la sidebar desktop (null = panel fermé → preview plein écran)
+  const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab | null>('blocs');
 
   // Détection mobile via matchMedia (évite d'appliquer panelWidth sur petit écran)
   const [isMobile, setIsMobile] = useState(() =>
@@ -159,9 +164,11 @@ export function CVBuilderPage() {
     return <div className="p-8 text-center text-gray-500">Chargement du CV...</div>;
   }
 
-  // Visibilité des panneaux selon le contexte (mobile = onglets, desktop = split)
-  const showLeftPanel = !isMobile || activeTab === 'edit';
-  const showRightPanel = isMobile ? activeTab === 'preview' : true;
+  // Mobile : onglets Éditer/Aperçu
+  const showMobileEdit    = isMobile && activeTab === 'edit';
+  const showMobilePreview = isMobile && activeTab === 'preview';
+  // Desktop : panel de contenu visible si un onglet sidebar est actif
+  const showContentPanel  = !isMobile && activeSidebarTab !== null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-100 dark:bg-gray-900 print:h-auto print:overflow-visible print:bg-white print:block">
@@ -234,7 +241,7 @@ export function CVBuilderPage() {
         </div>
       ) : (
         <>
-          {/* Onglets mobile — masqués sur desktop */}
+          {/* ── Onglets mobile (Éditer / Aperçu) — masqués sur desktop ── */}
           <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 print:hidden shrink-0">
             <button
               onClick={() => setActiveTab('edit')}
@@ -258,29 +265,51 @@ export function CVBuilderPage() {
             </button>
           </div>
 
-          {/* Zone principale – constructeur visuel */}
+          {/* ── Zone principale ── */}
           <div className="flex flex-1 overflow-hidden print:overflow-visible print:block print:h-auto">
-            {/* Panneau gauche – édition */}
-            {showLeftPanel && (
+
+            {/* ── Sidebar d'icônes — desktop uniquement, HORS splitter ── */}
+            {!isMobile && (
+              <SidebarNav
+                activeTab={activeSidebarTab}
+                onTabChange={setActiveSidebarTab}
+              />
+            )}
+
+            {/* ── Panel de contenu desktop (onglet actif) ── */}
+            {showContentPanel && (
               <>
                 <div
-                  style={!isMobile ? { width: panelWidth } : undefined}
-                  className="w-full sm:w-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
+                  style={{ width: panelWidth }}
+                  className="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full overflow-hidden print:hidden flex-shrink-0"
                 >
-                  <LeftPanel cvId={id!} />
-                </div>
-                {/* Splitter draggable — desktop uniquement */}
-                {!isMobile && (
-                  <div
-                    onMouseDown={handleSplitterMouseDown}
-                    className="w-1 hover:w-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
+                  <LeftPanel
+                    cvId={id!}
+                    activeTab={activeSidebarTab!}
+                    onRequestTabChange={setActiveSidebarTab}
                   />
-                )}
+                </div>
+                {/* Splitter draggable */}
+                <div
+                  onMouseDown={handleSplitterMouseDown}
+                  className="w-1 hover:w-1.5 bg-gray-200 dark:bg-gray-600 hover:bg-blue-400 cursor-col-resize flex-shrink-0 transition-colors print:hidden"
+                />
               </>
             )}
 
-            {/* Panneau droit – aperçu */}
-            {showRightPanel && (
+            {/* ── Panel de contenu mobile (onglet Éditer) ── */}
+            {showMobileEdit && (
+              <div className="w-full bg-white dark:bg-gray-800 flex flex-col h-full overflow-hidden print:hidden">
+                <LeftPanel
+                  cvId={id!}
+                  activeTab="blocs"
+                  onRequestTabChange={() => {}}
+                />
+              </div>
+            )}
+
+            {/* ── Preview (toujours visible sur desktop, ou onglet Aperçu mobile) ── */}
+            {(!isMobile || showMobilePreview) && (
               <div className="flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-2 sm:p-8 sm:flex sm:justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto">
                 <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
                   <RightPanel />

@@ -9,13 +9,19 @@ import { BlockList } from './BlockList';
 import { getTemplate } from '@/templates';
 import { DENSITY_PRESETS, type DensityId } from '@/theme/tokens';
 
-import { Settings, Palette, FileText, Sparkles } from 'lucide-react';
 import { AIPromptPanel } from './AIPromptPanel';
+import type { SidebarTab } from './SidebarNav';
 
-export function LeftPanel({ cvId }: { cvId: string }) {
+export function LeftPanel({
+  cvId,
+  activeTab,
+  onRequestTabChange
+}: {
+  cvId: string;
+  activeTab: SidebarTab | 'blocs';
+  onRequestTabChange: (tab: SidebarTab | null) => void;
+}) {
   const { currentCv, currentCvBlocks, createCvBlock, updateCv } = useCvStore();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
 
   // Local state for CV settings
   const [targetJob, setTargetJob] = useState(currentCv?.targetJob || '');
@@ -25,8 +31,6 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const cvSettings = (currentCv?.settings || {}) as Record<string, string>;
-  const [isDesignOpen, setIsDesignOpen] = useState(false);
-  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [fontFamily, setFontFamily] = useState(cvSettings.fontFamily || 'Calibri');
   const [fontSize, setFontSize] = useState(cvSettings.fontSize || '11px');
   const [primaryColor, setPrimaryColor] = useState(cvSettings.primaryColor || '');
@@ -362,142 +366,122 @@ export function LeftPanel({ cvId }: { cvId: string }) {
   };
 
   return (
-    <div className="p-4 h-full flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-bold text-gray-900">Blocs du CV</h2>
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className={`transition-colors p-1 rounded-full hover:bg-gray-100 ${isSettingsOpen ? 'text-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
-            title="Paramètres du CV"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setIsSummaryOpen(!isSummaryOpen)}
-            className={`relative transition-colors p-1 rounded-full hover:bg-gray-100 ${isSummaryOpen ? 'text-green-600' : 'text-gray-500 hover:text-green-600'}`}
-            title="Résumé / Accroche"
-          >
-            <FileText className="w-5 h-5" />
-            {customSummary && (
-              <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full" />
+    <div className="p-4 h-full flex flex-col overflow-hidden">
+      {activeTab === 'resume' && (
+        <div className="flex-1 overflow-auto custom-scrollbar flex flex-col gap-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-2">Résumé & Objectifs</h2>
+          <SettingsPanel
+            targetJob={targetJob} setTargetJob={setTargetJob}
+            targetCompany={targetCompany} setTargetCompany={setTargetCompany}
+            customSummary={customSummary} setCustomSummary={setCustomSummary}
+          />
+          <SummaryPanel
+            customSummary={customSummary} setCustomSummary={setCustomSummary}
+            summaryFontFamily={summaryFontFamily} setSummaryFontFamily={setSummaryFontFamily}
+            summaryFontSize={summaryFontSize} setSummaryFontSize={setSummaryFontSize}
+            summaryFontWeight={summaryFontWeight} setSummaryFontWeight={setSummaryFontWeight}
+            summaryFontStyle={summaryFontStyle} setSummaryFontStyle={setSummaryFontStyle}
+            summaryTextAlign={summaryTextAlign} setSummaryTextAlign={setSummaryTextAlign}
+            summaryLineHeight={summaryLineHeight} setSummaryLineHeight={setSummaryLineHeight}
+          />
+        </div>
+      )}
+
+      {activeTab === 'design' && (
+        <div className="flex-1 overflow-auto custom-scrollbar flex flex-col">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Design du CV</h2>
+          <DesignPanel
+            onFitToPage={handleFitToPage}
+            template={currentTemplate}
+            onApplyDensity={handleApplyDensity}
+            onApplyPalette={handleApplyPalette}
+            fontFamily={fontFamily} setFontFamily={setFontFamily}
+            fontSize={fontSize} setFontSize={setFontSize}
+            primaryColor={primaryColor} setPrimaryColor={setPrimaryColor}
+            headerFontSize={headerFontSize} setHeaderFontSize={setHeaderFontSize}
+            headerFontFamily={headerFontFamily} setHeaderFontFamily={setHeaderFontFamily}
+            headerFontWeight={headerFontWeight} setHeaderFontWeight={setHeaderFontWeight}
+            headerTextTransform={headerTextTransform} setHeaderTextTransform={setHeaderTextTransform}
+            headerTextAlign={headerTextAlign} setHeaderTextAlign={setHeaderTextAlign}
+            subtitleFontSize={subtitleFontSize} setSubtitleFontSize={setSubtitleFontSize}
+            subtitleFontFamily={subtitleFontFamily} setSubtitleFontFamily={setSubtitleFontFamily}
+            subtitleFontStyle={subtitleFontStyle} setSubtitleFontStyle={setSubtitleFontStyle}
+            subtitleFontWeight={subtitleFontWeight} setSubtitleFontWeight={setSubtitleFontWeight}
+            bodyFontFamily={bodyFontFamily} setBodyFontFamily={setBodyFontFamily}
+            bodyFontSize={bodyFontSize} setBodyFontSize={setBodyFontSize}
+            bodyTextAlign={bodyTextAlign} setBodyTextAlign={setBodyTextAlign}
+            bodyLineHeight={bodyLineHeight} setBodyLineHeight={setBodyLineHeight}
+            entrySpacing={entrySpacing} setEntrySpacing={setEntrySpacing}
+            sectionHeaderGap={sectionHeaderGap} setSectionHeaderGap={setSectionHeaderGap}
+            entryTitleGap={entryTitleGap} setEntryTitleGap={setEntryTitleGap}
+            pageMargin={pageMargin} setPageMargin={setPageMargin}
+            sectionBorderStyle={sectionBorderStyle} setSectionBorderStyle={setSectionBorderStyle}
+            photoShape={photoShape} setPhotoShape={setPhotoShape}
+            photoSize={photoSize} setPhotoSize={setPhotoSize}
+            photoBorder={photoBorder} setPhotoBorder={setPhotoBorder}
+            headerStyle={headerStyle} setHeaderStyle={setHeaderStyle}
+            nameFontSize={nameFontSize} setNameFontSize={setNameFontSize}
+            nameFontWeight={nameFontWeight} setNameFontWeight={setNameFontWeight}
+            nameTextTransform={nameTextTransform} setNameTextTransform={setNameTextTransform}
+            nameLineBreak={nameLineBreak} setNameLineBreak={setNameLineBreak}
+            titleFontSize={titleFontSize} setTitleFontSize={setTitleFontSize}
+            titleFontStyle={titleFontStyle} setTitleFontStyle={setTitleFontStyle}
+            contactFontSize={contactFontSize} setContactFontSize={setContactFontSize}
+          />
+        </div>
+      )}
+
+      {activeTab === 'blocs' && (
+        <div className="flex flex-col h-full overflow-hidden">
+          <div className="flex justify-between items-center mb-4 shrink-0">
+            <h2 className="text-lg font-bold text-gray-900">Blocs du CV</h2>
+            {currentCvBlocks.some(b => !b.isVisible) && (
+              <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
+                {currentCvBlocks.filter(b => !b.isVisible).length} masqué(s)
+              </span>
             )}
-          </button>
-          <button
-            onClick={() => setIsDesignOpen(!isDesignOpen)}
-            className={`transition-colors p-1 rounded-full hover:bg-gray-100 ${isDesignOpen ? 'text-purple-600' : 'text-gray-500 hover:text-purple-600'}`}
-            title="Design du CV"
-          >
-            <Palette className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setIsAIPanelOpen(!isAIPanelOpen)}
-            className={`transition-colors p-1 rounded-full hover:bg-gray-100 ${isAIPanelOpen ? 'text-amber-500' : 'text-gray-500 hover:text-amber-500'}`}
-            title="Générateur de prompts IA"
-          >
-            <Sparkles className="w-5 h-5" />
-          </button>
+          </div>
+          <div className="flex-1 overflow-auto bg-gray-50 border border-gray-200 dark:border-gray-700 dark:bg-gray-900 rounded-lg p-3 text-sm text-gray-500 shadow-inner custom-scrollbar min-h-0">
+            <BlockList cvId={cvId} blocks={currentCvBlocks} />
+          </div>
+
+          <div className="mt-4 space-y-2 shrink-0">
+            <div className="flex space-x-2">
+              <select
+                className="bg-gray-50 text-gray-700 py-2 px-3 rounded-lg font-medium border border-gray-300 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleAddSectionHeader(e.target.value);
+                    e.target.value = ''; // reset after selection
+                  }
+                }}
+              >
+                <option value="">+ Ajouter un titre de section...</option>
+                <option value="Expériences Professionnelles">Expériences Professionnelles</option>
+                <option value="Formations">Formations</option>
+                <option value="Compétences">Compétences</option>
+                <option value="Projets Récents">Projets Récents</option>
+                <option value="Certifications">Certifications</option>
+                <option value="Langues">Langues</option>
+                <option value="Centres d'intérêt">Intérêts</option>
+                <option value="Nouvelle Section">Autre...</option>
+              </select>
+
+              <button
+                onClick={handleAddCustomText}
+                className="flex-1 bg-gray-50 text-gray-700 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm text-sm"
+              >
+                + Texte libre
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {isSettingsOpen && (
-        <SettingsPanel
-          targetJob={targetJob} setTargetJob={setTargetJob}
-          targetCompany={targetCompany} setTargetCompany={setTargetCompany}
-          customSummary={customSummary} setCustomSummary={setCustomSummary}
-        />
       )}
 
-      {isSummaryOpen && (
-        <SummaryPanel
-          customSummary={customSummary} setCustomSummary={setCustomSummary}
-          summaryFontFamily={summaryFontFamily} setSummaryFontFamily={setSummaryFontFamily}
-          summaryFontSize={summaryFontSize} setSummaryFontSize={setSummaryFontSize}
-          summaryFontWeight={summaryFontWeight} setSummaryFontWeight={setSummaryFontWeight}
-          summaryFontStyle={summaryFontStyle} setSummaryFontStyle={setSummaryFontStyle}
-          summaryTextAlign={summaryTextAlign} setSummaryTextAlign={setSummaryTextAlign}
-          summaryLineHeight={summaryLineHeight} setSummaryLineHeight={setSummaryLineHeight}
-        />
-      )}
-
-      {isDesignOpen && (
-        <DesignPanel
-          onFitToPage={handleFitToPage}
-          template={currentTemplate}
-          onApplyDensity={handleApplyDensity}
-          onApplyPalette={handleApplyPalette}
-          fontFamily={fontFamily} setFontFamily={setFontFamily}
-          fontSize={fontSize} setFontSize={setFontSize}
-          primaryColor={primaryColor} setPrimaryColor={setPrimaryColor}
-          headerFontSize={headerFontSize} setHeaderFontSize={setHeaderFontSize}
-          headerFontFamily={headerFontFamily} setHeaderFontFamily={setHeaderFontFamily}
-          headerFontWeight={headerFontWeight} setHeaderFontWeight={setHeaderFontWeight}
-          headerTextTransform={headerTextTransform} setHeaderTextTransform={setHeaderTextTransform}
-          headerTextAlign={headerTextAlign} setHeaderTextAlign={setHeaderTextAlign}
-          subtitleFontSize={subtitleFontSize} setSubtitleFontSize={setSubtitleFontSize}
-          subtitleFontFamily={subtitleFontFamily} setSubtitleFontFamily={setSubtitleFontFamily}
-          subtitleFontStyle={subtitleFontStyle} setSubtitleFontStyle={setSubtitleFontStyle}
-          subtitleFontWeight={subtitleFontWeight} setSubtitleFontWeight={setSubtitleFontWeight}
-          bodyFontFamily={bodyFontFamily} setBodyFontFamily={setBodyFontFamily}
-          bodyFontSize={bodyFontSize} setBodyFontSize={setBodyFontSize}
-          bodyTextAlign={bodyTextAlign} setBodyTextAlign={setBodyTextAlign}
-          bodyLineHeight={bodyLineHeight} setBodyLineHeight={setBodyLineHeight}
-          entrySpacing={entrySpacing} setEntrySpacing={setEntrySpacing}
-          sectionHeaderGap={sectionHeaderGap} setSectionHeaderGap={setSectionHeaderGap}
-          entryTitleGap={entryTitleGap} setEntryTitleGap={setEntryTitleGap}
-          pageMargin={pageMargin} setPageMargin={setPageMargin}
-          sectionBorderStyle={sectionBorderStyle} setSectionBorderStyle={setSectionBorderStyle}
-          photoShape={photoShape} setPhotoShape={setPhotoShape}
-          photoSize={photoSize} setPhotoSize={setPhotoSize}
-          photoBorder={photoBorder} setPhotoBorder={setPhotoBorder}
-          headerStyle={headerStyle} setHeaderStyle={setHeaderStyle}
-          nameFontSize={nameFontSize} setNameFontSize={setNameFontSize}
-          nameFontWeight={nameFontWeight} setNameFontWeight={setNameFontWeight}
-          nameTextTransform={nameTextTransform} setNameTextTransform={setNameTextTransform}
-          nameLineBreak={nameLineBreak} setNameLineBreak={setNameLineBreak}
-          titleFontSize={titleFontSize} setTitleFontSize={setTitleFontSize}
-          titleFontStyle={titleFontStyle} setTitleFontStyle={setTitleFontStyle}
-          contactFontSize={contactFontSize} setContactFontSize={setContactFontSize}
-        />
-      )}
-
-      <div className="flex-1 overflow-auto bg-gray-50 border rounded-lg p-3 text-sm text-gray-500 shadow-inner custom-scrollbar">
-        <BlockList cvId={cvId} blocks={currentCvBlocks} />
-      </div>
-
-      <div className="mt-4 space-y-2">
-        <div className="flex space-x-2">
-          <select
-            className="bg-gray-50 text-gray-700 py-2 px-3 rounded-lg font-medium border border-gray-300 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onChange={(e) => {
-              if (e.target.value) {
-                handleAddSectionHeader(e.target.value);
-                e.target.value = ''; // reset after selection
-              }
-            }}
-          >
-            <option value="">+ Ajouter un titre de section...</option>
-            <option value="Expériences Professionnelles">Expériences Professionnelles</option>
-            <option value="Formations">Formations</option>
-            <option value="Compétences">Compétences</option>
-            <option value="Projets Récents">Projets Récents</option>
-            <option value="Certifications">Certifications</option>
-            <option value="Langues">Langues</option>
-            <option value="Centres d'intérêt">Intérêts</option>
-            <option value="Nouvelle Section">Autre...</option>
-          </select>
-
-          <button
-            onClick={handleAddCustomText}
-            className="flex-1 bg-gray-50 text-gray-700 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm text-sm"
-          >
-            + Texte libre
-          </button>
+      {activeTab === 'ia' && (
+        <div className="flex-1 overflow-hidden relative">
+          <AIPromptPanel cvId={cvId} onClose={() => onRequestTabChange(null)} />
         </div>
-      </div>
-
-      {isAIPanelOpen && (
-        <AIPromptPanel cvId={cvId} onClose={() => setIsAIPanelOpen(false)} />
       )}
     </div>
   );

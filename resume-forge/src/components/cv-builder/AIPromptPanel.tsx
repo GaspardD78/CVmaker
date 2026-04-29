@@ -154,7 +154,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
   };
 
   return (
-    <div className="absolute inset-0 z-50 bg-white flex flex-col">
+    <div className="flex flex-col h-full overflow-hidden bg-white">
       {/* Header */}
       <div className="flex flex-col border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center justify-between p-4">
@@ -162,12 +162,6 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
             <Sparkles className="w-4 h-4 text-amber-500" />
             Générateur IA
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
         <div className="flex px-4 gap-4 border-t border-gray-100">
           <button
