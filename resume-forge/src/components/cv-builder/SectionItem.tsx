@@ -310,31 +310,38 @@ export function SectionItem({ block }: SectionItemProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`border rounded mb-1 flex items-center shadow-sm ${
+      className={`group border rounded mb-1 flex items-center shadow-sm transition-colors ${
         isSectionHeader
           ? 'bg-gray-100 border-gray-300 mt-2'
-          : 'bg-white border-gray-200'
-      } ${!block.isVisible ? 'opacity-50' : ''}`}
+          : 'bg-white border-gray-200 hover:border-gray-300'
+      } ${!block.isVisible ? 'opacity-60 bg-gray-50 dark:bg-gray-800/50' : 'dark:bg-gray-800 dark:border-gray-700'}`}
     >
-      <div {...attributes} {...listeners} className="p-2 cursor-grab hover:bg-gray-200 text-gray-400">
+      <div {...attributes} {...listeners} className="p-2 cursor-grab hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity">
         <GripVertical className="w-4 h-4" />
       </div>
 
       <div className="flex-1 py-2 px-1 flex flex-col justify-center truncate">
-        <span className={`text-sm truncate ${isSectionHeader ? 'font-bold uppercase tracking-wide text-gray-600 text-xs' : 'font-medium text-gray-800'}`}>
-          {title}
-        </span>
-        {subtitle && <span className="text-xs text-gray-500 truncate">{subtitle}</span>}
+        <div className="flex items-center gap-2">
+          <span className={`text-sm truncate ${isSectionHeader ? 'font-bold uppercase tracking-wide text-gray-600 dark:text-gray-400 text-xs' : 'font-medium text-gray-800 dark:text-gray-200'}`}>
+            {title}
+          </span>
+          {!block.isVisible && (
+            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+              Masqué
+            </span>
+          )}
+        </div>
+        {subtitle && <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{subtitle}</span>}
       </div>
 
-      <div className="flex p-2 space-x-1 text-gray-400">
-        <button onClick={startEditing} className="hover:text-blue-600 p-1" title="Personnaliser">
+      <div className="flex p-1.5 space-x-0.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+        <button onClick={startEditing} className="flex items-center hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded transition-colors" title="Personnaliser">
           <Edit2 className="w-4 h-4" />
         </button>
-        <button onClick={toggleVisibility} className="hover:text-blue-600 p-1" title={block.isVisible ? "Masquer" : "Afficher"}>
-          {block.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+        <button onClick={toggleVisibility} className={`flex items-center p-1.5 rounded transition-colors ${block.isVisible ? 'hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30' : 'text-amber-600 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50'}`} title={block.isVisible ? "Masquer du CV" : "Réafficher dans le CV"}>
+          {block.isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
-        <button onClick={removeBlock} className="hover:text-red-600 p-1" title="Retirer">
+        <button onClick={removeBlock} className="flex items-center hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 p-1.5 rounded transition-colors" title="Retirer du CV">
           <Trash2 className="w-4 h-4" />
         </button>
       </div>

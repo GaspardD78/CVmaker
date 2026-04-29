@@ -11,6 +11,7 @@ import { DENSITY_PRESETS, type DensityId } from '@/theme/tokens';
 
 import { AIPromptPanel } from './AIPromptPanel';
 import type { SidebarTab } from './SidebarNav';
+import { Plus, ChevronDown, AlignLeft, Type, LayoutTemplate } from 'lucide-react';
 
 export function LeftPanel({
   cvId,
@@ -22,6 +23,19 @@ export function LeftPanel({
   onRequestTabChange: (tab: SidebarTab | null) => void;
 }) {
   const { currentCv, currentCvBlocks, createCvBlock, updateCv } = useCvStore();
+
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(event.target as Node)) {
+        setIsAddMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Local state for CV settings
   const [targetJob, setTargetJob] = useState(currentCv?.targetJob || '');
@@ -445,35 +459,61 @@ export function LeftPanel({
             <BlockList cvId={cvId} blocks={currentCvBlocks} />
           </div>
 
-          <div className="mt-4 space-y-2 shrink-0">
-            <div className="flex space-x-2">
-              <select
-                className="bg-gray-50 text-gray-700 py-2 px-3 rounded-lg font-medium border border-gray-300 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleAddSectionHeader(e.target.value);
-                    e.target.value = ''; // reset after selection
-                  }
-                }}
-              >
-                <option value="">+ Ajouter un titre de section...</option>
-                <option value="Expériences Professionnelles">Expériences Professionnelles</option>
-                <option value="Formations">Formations</option>
-                <option value="Compétences">Compétences</option>
-                <option value="Projets Récents">Projets Récents</option>
-                <option value="Certifications">Certifications</option>
-                <option value="Langues">Langues</option>
-                <option value="Centres d'intérêt">Intérêts</option>
-                <option value="Nouvelle Section">Autre...</option>
-              </select>
+          <div className="mt-4 shrink-0 relative" ref={addMenuRef}>
+            <button
+              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+              className="w-full flex items-center justify-between bg-white text-gray-700 py-2.5 px-4 rounded-lg font-semibold border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm text-sm dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              <span className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Ajouter un bloc
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${isAddMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-              <button
-                onClick={handleAddCustomText}
-                className="flex-1 bg-gray-50 text-gray-700 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm text-sm"
-              >
-                + Texte libre
-              </button>
-            </div>
+            {isAddMenuOpen && (
+              <div className="absolute bottom-full left-0 w-full mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 dark:bg-gray-800 dark:border-gray-700 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Sections classiques
+                </div>
+                {['Expériences Professionnelles', 'Formations', 'Compétences', 'Projets Récents', 'Certifications', 'Langues', 'Centres d\'intérêt'].map(section => (
+                  <button
+                    key={section}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-700 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    onClick={() => {
+                      handleAddSectionHeader(section);
+                      setIsAddMenuOpen(false);
+                    }}
+                  >
+                    <LayoutTemplate className="w-4 h-4 opacity-50" />
+                    {section}
+                  </button>
+                ))}
+                
+                <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                
+                <button
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-700 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    handleAddSectionHeader('Nouvelle Section');
+                    setIsAddMenuOpen(false);
+                  }}
+                >
+                  <AlignLeft className="w-4 h-4 opacity-50" />
+                  Section personnalisée...
+                </button>
+                <button
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-700 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    handleAddCustomText();
+                    setIsAddMenuOpen(false);
+                  }}
+                >
+                  <Type className="w-4 h-4 opacity-50" />
+                  Texte libre
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
