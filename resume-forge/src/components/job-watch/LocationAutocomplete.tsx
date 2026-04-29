@@ -29,11 +29,17 @@ export function LocationAutocomplete({
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [isValid, setIsValid] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState(value);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  
+  const isValid = query.trim().length > 0 && query === selectedLabel;
 
   useEffect(() => {
-    setQuery(value);
+    if (value !== query) {
+      setQuery(value);
+      setSelectedLabel(value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   useEffect(() => {
@@ -47,20 +53,11 @@ export function LocationAutocomplete({
   }, []);
 
   useEffect(() => {
-    if (!query.trim()) {
+    if (!query.trim() || query === selectedLabel) {
       setResults([]);
       setIsOpen(false);
-      setIsValid(false);
       return;
     }
-    
-    // Si la requête correspond exactement à la valeur (qui a été sélectionnée)
-    if (query === value) {
-      setIsValid(true);
-      return;
-    }
-
-    setIsValid(false);
 
     const timer = setTimeout(async () => {
       setIsLoading(true);
@@ -81,11 +78,12 @@ export function LocationAutocomplete({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, value]);
+  }, [query, selectedLabel]);
 
   const handleSelect = (commune: GeoCommune) => {
     const label = `${commune.nom} (${commune.codeDepartement})`;
     setQuery(label);
+    setSelectedLabel(label);
     onChange(label);
     setIsOpen(false);
     onSelect(commune.nom, commune.code, commune.codeDepartement);
@@ -93,9 +91,9 @@ export function LocationAutocomplete({
 
   const handleClear = () => {
     setQuery('');
+    setSelectedLabel('');
     onChange('');
     setResults([]);
-    setIsValid(false);
     onSelect('', '', '');
   };
 
@@ -129,8 +127,12 @@ export function LocationAutocomplete({
           type="text"
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value);
-            onChange(e.target.value);
+            const newQuery = e.target.value;
+            setQuery(newQuery);
+            onChange(newQuery);
+            if (newQuery !== selectedLabel) {
+              onSelect('', '', ''); // Vider les données techniques si l'utilisateur modifie la saisie
+            }
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => {
