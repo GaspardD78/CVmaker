@@ -153,6 +153,16 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Expose bottom-nav height as a custom property for FAB offset */
+:root {
+  --bottom-nav-height: 0px; /* overridden below when mobile nav is visible */
+}
+@media (max-width: 639px) {
+  :root {
+    --bottom-nav-height: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* ── Print ──────────────────────────────────────────────────────────────────── */
 @page { size: A4; margin: 0; }
 

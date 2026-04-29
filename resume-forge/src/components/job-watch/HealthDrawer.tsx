@@ -54,8 +54,9 @@ export function HealthDrawer() {
         onClick={() => setOpen(o => !o)}
         title="Santé de la recherche"
         aria-label="Ouvrir le tableau de bord santé de la recherche"
+        style={{ bottom: 'calc(var(--bottom-nav-height) + 16px)' }}
         className={`
-          fixed bottom-6 right-6 z-40
+          fixed right-4 sm:right-6 z-40
           flex items-center gap-2
           px-3.5 py-2.5
           rounded-full shadow-lg shadow-black/20
