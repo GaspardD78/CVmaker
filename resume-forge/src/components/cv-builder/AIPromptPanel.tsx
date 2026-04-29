@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Copy, Check, Sparkles, Wand2 } from 'lucide-react';
+import { Copy, Check, Sparkles, Wand2 } from 'lucide-react';
 import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
