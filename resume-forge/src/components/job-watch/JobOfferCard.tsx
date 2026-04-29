@@ -121,9 +121,10 @@ interface JobOfferCardProps {
   commuteMaxMinutes: number | null;
   onImportKanban: (offer: JobOffer) => void;
   profileSkills?: string[];
+  viewMode?: 'grid' | 'list';
 }
 
-export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profileSkills = [] }: JobOfferCardProps) {
+export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, profileSkills = [], viewMode = 'grid' }: JobOfferCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { markRead, markArchived, submitFeedback } = useJobWatchStore();
   const { profile, entries } = useProfileStore();

@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { RefreshCw, Trash2, UserRound, Archive, BookmarkCheck, CheckCircle, Settings, Zap, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import { RefreshCw, Trash2, UserRound, Archive, BookmarkCheck, CheckCircle, Settings, Zap, SlidersHorizontal, ChevronDown, ChevronUp, Search, Grid, List, MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -83,6 +83,21 @@ export function JobOffersView() {
   const [savedFilters, setSavedFilters] = useState<{ minScore: number; status: typeof filters.status } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const isTopMatchActive = savedFilters !== null;
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const navitiaEnabled = Boolean(settings.navitiaApiKey);
 
@@ -180,6 +195,17 @@ export function JobOffersView() {
     toast.success('Toutes les offres ont été supprimées');
   };
 
+  // ── Search Filtering ───────────────────────────────────────────────────────
+
+  let displayOffers = offers;
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase();
+    displayOffers = displayOffers.filter(o => 
+      o.title.toLowerCase().includes(q) || 
+      (o.company && o.company.toLowerCase().includes(q))
+    );
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -195,9 +221,39 @@ export function JobOffersView() {
               </span>
             )}
           </h2>
-          <span className="text-sm text-gray-400">({offers.length} affichée{offers.length > 1 ? 's' : ''})</span>
+          <span className="text-sm text-gray-400">({displayOffers.length} affichée{displayOffers.length > 1 ? 's' : ''})</span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Rechercher..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-none w-48 transition-all"
+            />
+          </div>
+
+          {/* View Toggle */}
+          <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              title="Vue Grille"
+            >
+              <Grid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              title="Vue Liste"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* Filter toggle */}
           <button
             onClick={() => setFiltersOpen(o => !o)}
@@ -219,27 +275,43 @@ export function JobOffersView() {
               : <ChevronDown className="w-3 h-3 opacity-60" />}
           </button>
 
-          <button
-            onClick={handleDeleteArchived}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Vider archivées
-          </button>
-          <button
-            onClick={() => setPurgeDialogOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Purger non pertinentes
-          </button>
-          <button
-            onClick={handleClearAllOffers}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Tout purger
-          </button>
+          {/* More Actions Menu */}
+          <div className="relative" ref={moreMenuRef}>
+            <button
+              onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              title="Actions supplémentaires"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            
+            {isMoreMenuOpen && (
+              <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <button
+                  onClick={() => { handleDeleteArchived(); setIsMoreMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5 opacity-60" />
+                  Vider archivées
+                </button>
+                <button
+                  onClick={() => { setPurgeDialogOpen(true); setIsMoreMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5 opacity-60" />
+                  Purger non pertinentes
+                </button>
+                <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                <button
+                  onClick={() => { handleClearAllOffers(); setIsMoreMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5 opacity-60" />
+                  Tout purger
+                </button>
+              </div>
+            )}
+          </div>
           {isFetching && fetchProgress && (
             <span className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={`${fetchProgress.source} : ${fetchProgress.status}`}>
               {fetchProgress.source}
@@ -455,7 +527,7 @@ export function JobOffersView() {
       {/* Offers list */}
       {isLoading ? (
         <div className="text-center py-10 text-gray-400">Chargement…</div>
-      ) : offers.length === 0 ? (
+      ) : displayOffers.length === 0 ? (
         <div className="text-center py-10">
           {isFirstTime ? (
             <div className="max-w-sm mx-auto space-y-4">
@@ -502,14 +574,15 @@ export function JobOffersView() {
           )}
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
-          {offers.map(offer => (
+        <div className={viewMode === 'grid' ? "grid gap-3 sm:grid-cols-1 lg:grid-cols-2" : "flex flex-col gap-3"}>
+          {displayOffers.map(offer => (
             <JobOfferCard
               key={offer.id}
               offer={offer}
               commuteMaxMinutes={settings.commuteMaxMinutes}
               onImportKanban={handleImportKanban}
               profileSkills={profileSkills}
+              viewMode={viewMode}
             />
           ))}
         </div>
