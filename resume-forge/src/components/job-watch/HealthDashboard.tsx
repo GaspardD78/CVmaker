@@ -163,12 +163,12 @@ function formatRelativeTime(isoDate: string): string {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function HealthDashboard() {
+export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: boolean }) {
   const { offers, configs, settings, fetchLogs, loadFetchLogs, saveSettings, selectorDebugInfo, selectorOverrides } = useJobWatchStore();
   const { profile, entries } = useProfileStore();
 
   const [analysis, setAnalysis]   = useState<LearningResult | null>(null);
-  const [expanded, setExpanded]   = useState(false);
+  const [expanded, setExpanded]   = useState(alwaysExpanded);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [companySuggestions, setCompanySuggestions] = useState<string[]>([]);
   const [expandedSource, setExpandedSource] = useState<JobSource | null>(null);
@@ -375,31 +375,37 @@ export function HealthDashboard() {
   // ── Render ─────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-      {/* Toggle header */}
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-            Santé de la recherche
-          </span>
-          {hasAlerts && (
-            <span
-              className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
-              aria-label="Alertes actives"
-            />
-          )}
-        </div>
-        {expanded
-          ? <ChevronUp   className="w-4 h-4 text-gray-400" />
-          : <ChevronDown className="w-4 h-4 text-gray-400" />}
-      </button>
+    <div className={`${
+      alwaysExpanded
+        ? '' // no card wrapper in drawer mode
+        : 'mb-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden'
+    }`}>
+      {/* Toggle header — hidden in drawer mode */}
+      {!alwaysExpanded && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+              Santé de la recherche
+            </span>
+            {hasAlerts && (
+              <span
+                className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
+                aria-label="Alertes actives"
+              />
+            )}
+          </div>
+          {expanded
+            ? <ChevronUp   className="w-4 h-4 text-gray-400" />
+            : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </button>
+      )}
 
       {/* Body */}
-      {expanded && (
-        <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-3 space-y-3">
+      {(expanded || alwaysExpanded) && (
+        <div className={alwaysExpanded ? 'space-y-3' : 'border-t border-gray-100 dark:border-gray-700 px-4 py-3 space-y-3'}>
 
           {/* Warning: no jobTitles configured */}
           {noJobTitles && (

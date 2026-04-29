@@ -3,7 +3,7 @@ import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { JobOffersView } from './JobOffersView';
 import { JobWatchConfigView } from './JobWatchConfig';
-import { HealthDashboard } from './HealthDashboard';
+import { HealthDrawer } from './HealthDrawer';
 import { SetupWizard } from './SetupWizard';
 
 type Tab = 'offers' | 'config';
@@ -100,7 +100,6 @@ export function JobWatchPage() {
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {activeTab === 'offers' && (
               <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <HealthDashboard />
                 <JobOffersView />
               </div>
             )}
@@ -112,6 +111,9 @@ export function JobWatchPage() {
           </div>
         </>
       )}
+
+      {/* Health drawer FAB — only in offers tab */}
+      {!showWizard && activeTab === 'offers' && <HealthDrawer />}
     </div>
   );
 }
