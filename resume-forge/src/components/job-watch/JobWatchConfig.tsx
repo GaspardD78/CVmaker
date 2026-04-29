@@ -14,7 +14,7 @@ import type {
   SearchProfile,
 } from '@/types/job-watch';
 import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
-import { summarizeSourceQuery, isValidInseeCode } from '@/lib/watcher/profile-to-query';
+import { summarizeSourceQuery } from '@/lib/watcher/profile-to-query';
 import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
 import {
   HelpButton,
@@ -25,6 +25,7 @@ import {
   SourcesHelpModal,
   ProfileAssistantModal,
 } from './ConfigHelpModal';
+import { LocationAutocomplete } from './LocationAutocomplete';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -389,66 +390,51 @@ export function JobWatchConfigView() {
 
       {/* ── 2. Location ── */}
       <Section title="Localisation">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Zone de recherche (libellé affiché)" help="Ex: Paris (75)">
-            <input type="text" className={inputCls}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field 
+            label="Zone de recherche" 
+            help="Saisissez une ville pour détecter automatiquement le code INSEE et département"
+          >
+            <LocationAutocomplete
               value={locationLabel}
-              onChange={e => setLocationLabel(e.target.value)}
-              placeholder="Paris (75)"
+              onChange={setLocationLabel}
+              onSelect={(city, insee, dept) => {
+                setLocationCity(city);
+                setInseeCode(insee);
+                setDeptCodes(dept);
+              }}
+              className={inputCls}
             />
           </Field>
 
-          <Field label="Rayon (km)" help="Utilisé par France Travail et APEC">
-            <input type="number" min={0} max={200} className={inputCls}
-              value={radiusKm}
-              onChange={e => setRadiusKm(Number(e.target.value))}
-            />
-          </Field>
-
-          <Field label="Code INSEE — France Travail" help="5 chiffres : 75056 Paris, 69123 Lyon, 13055 Marseille">
-            <input type="text" className={inputCls} maxLength={5}
-              value={inseeCode}
-              onChange={e => setInseeCode(e.target.value.replace(/[^0-9AB]/gi, '').toUpperCase())}
-              placeholder="75056"
-            />
-            {inseeCode && !isValidInseeCode(inseeCode) && (
-              <p className="text-[10px] text-amber-500 mt-0.5">
-                ⚠ Ce n'est pas un code INSEE valide (ce n'est <strong>pas</strong> le code postal).
-                Recherchez-le sur{' '}
-                <a
-                  href="https://www.insee.fr/fr/information/2560452"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-blue-500"
-                >
-                  insee.fr
-                </a>
-                . La recherche basculera sur le département.
-              </p>
-            )}
-            {isValidInseeCode(inseeCode) && parseList(deptCodes).length === 0 && (
-              <p className="text-[10px] text-amber-500 mt-0.5">
-                ⚠ Renseignez aussi le(s) <strong>département(s)</strong> ci-dessous — si l'API rejette le code commune (fréquent pour Paris 75056), la recherche y bascule automatiquement.
-              </p>
-            )}
-          </Field>
-
-          <Field label="Département(s) — APEC &amp; France Travail (repli)" help="Séparés par des virgules : 75, 92, 93">
-            <input type="text" className={inputCls}
-              value={deptCodes}
-              onChange={e => setDeptCodes(e.target.value)}
-              placeholder="75, 92, 93, 78"
-            />
-          </Field>
-
-          <Field label="Ville — WTTJ / Emploi Territorial" help="Nom exact de la ville">
-            <input type="text" className={inputCls}
-              value={locationCity}
-              onChange={e => setLocationCity(e.target.value)}
-              placeholder="Paris"
-            />
+          <Field label="Rayon de recherche (km)" help="S'applique autour de la ville sélectionnée (0 = ville uniquement)">
+            <div className="flex items-center gap-3 h-full">
+              <input type="range" min={0} max={100} step={5} className="flex-1 accent-blue-600"
+                value={radiusKm}
+                onChange={e => setRadiusKm(Number(e.target.value))}
+              />
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 w-12">{radiusKm} km</span>
+            </div>
           </Field>
         </div>
+
+        {/* Champs techniques (cachés par défaut) */}
+        <details className="mt-2 text-xs">
+          <summary className="text-gray-400 hover:text-gray-600 cursor-pointer select-none">
+            Données techniques détectées
+          </summary>
+          <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-md grid gap-3 sm:grid-cols-3">
+            <Field label="Code INSEE">
+              <input type="text" className={inputCls} value={inseeCode} readOnly disabled />
+            </Field>
+            <Field label="Département">
+              <input type="text" className={inputCls} value={deptCodes} readOnly disabled />
+            </Field>
+            <Field label="Ville">
+              <input type="text" className={inputCls} value={locationCity} readOnly disabled />
+            </Field>
+          </div>
+        </details>
       </Section>
 
       {/* ── 3. Contract & salary ── */}
