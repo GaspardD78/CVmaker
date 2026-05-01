@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useJobWatcher } from '@/hooks/useJobWatcher';
 import { useProfileStore } from '@/stores/profileStore';
 import { JobOfferCard } from './JobOfferCard';
+import { CvGeneratorDrawer } from './CvGeneratorDrawer';
 import type { JobOffer, JobSource, SortOption } from '@/types/job-watch';
 import {
   Dialog,
@@ -88,6 +89,7 @@ export function JobOffersView() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const [cvGenOffer, setCvGenOffer] = useState<JobOffer | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -581,6 +583,7 @@ export function JobOffersView() {
               offer={offer}
               commuteMaxMinutes={settings.commuteMaxMinutes}
               onImportKanban={handleImportKanban}
+              onGenerateCv={setCvGenOffer}
               profileSkills={profileSkills}
               viewMode={viewMode}
             />
@@ -608,6 +611,9 @@ export function JobOffersView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* CV Generator Drawer */}
+      <CvGeneratorDrawer offer={cvGenOffer} onClose={() => setCvGenOffer(null)} />
     </div>
   );
 }

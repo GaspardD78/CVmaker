@@ -491,3 +491,73 @@ Ma recherche ne donne pas de bons résultats. Analyse les offres ci-dessus et id
 Sois direct et concret.`;
 }
 
+
+/**
+ * Generates a French cover letter prompt from profile + offer context.
+ */
+export function generateCoverLetterPrompt(
+  profile: Profile,
+  entries: MasterEntry[],
+  jobOfferText: string,
+  options: { contactName?: string; style: 'formal' | 'direct' } = { style: 'direct' }
+): string {
+  const recentExperiences = entries
+    .filter(e => e.entryType === 'experience')
+    .slice(0, 4)
+    .map(e => {
+      const dates = (e.startDate || e.endDate) ? `${e.startDate || '?'} - ${e.endDate || 'Présent'}` : 'Non précisée';
+      return `- ${e.title}${e.subtitle ? ` chez ${e.subtitle}` : ''} (${dates})${e.description ? ` : ${e.description.replace(/\n/g, ' ').slice(0, 120)}` : ''}`;
+    })
+    .join('\n');
+
+  const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title).join(', ');
+  const certifications = entries.filter(e => e.entryType === 'certification').map(e => e.title).join(', ');
+
+  const styleInstruction = options.style === 'formal'
+    ? "Style formel et structuré. Vouvoiement. Introduction conventionnelle mais personnalisée."
+    : "Style direct et humain. Vouvoiement. Aller droit au but dès la première ligne. Pas d'introduction bateau.";
+
+  const contactStr = options.contactName
+    ? `Adressée à : ${options.contactName}`
+    : "Destinataire non renseigné (adapter l'appel)";
+
+  return `Tu es expert en rédaction de lettres de motivation professionnelles en français.
+
+## Règles absolues
+- Jamais de formules creuses : "Je me permets de vous contacter", "Passionné par", "Dynamique", "Rigoureux"
+- Jamais de tiret cadratin "—" : utiliser " - " ou une virgule
+- Jamais de marqueurs IA : "en effet", "il convient de noter", "force est de constater", "dans le cadre de"
+- Ne jamais inventer une compétence, expérience ou certification absente du profil
+- Maximum 3 paragraphes de 4-5 lignes chacun
+- Mettre en **gras** 2-3 éléments différenciants maximum
+- ${styleInstruction}
+- La lettre doit sonner comme écrite par un humain qui connaît bien sa valeur
+
+## Mon profil
+Prénom / Nom : ${profile.firstName} ${profile.lastName}
+Titre actuel : ${profile.title ?? 'Non renseigné'}
+Résumé : ${profile.summary ?? 'Non renseigné'}
+
+## Mes expériences récentes
+${recentExperiences || 'Aucune expérience renseignée'}
+
+## Mes compétences clés
+${skills || 'Aucune compétence renseignée'}
+
+## Certifications
+${certifications || 'Aucune'}
+
+## L'offre à laquelle je postule
+${jobOfferText}
+
+## ${contactStr}
+
+## Ta mission
+Rédige une lettre de motivation en Markdown avec :
+1. Une accroche percutante (1-2 phrases) qui prouve que j'ai lu l'annonce
+2. Un paragraphe "Pourquoi je corresponds" : 2-3 faits concrets directement liés aux exigences
+3. Un paragraphe "Ce que j'apporte" : ma valeur ajoutée spécifique pour CE poste
+4. Une conclusion sobre avec une proposition d'échange claire
+
+Après la lettre, ajoute une section ## Justification avec 3 bullets expliquant tes choix.`;
+}
