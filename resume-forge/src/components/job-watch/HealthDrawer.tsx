@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BarChart2, X } from 'lucide-react';
 import { HealthDashboard } from './HealthDashboard';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -47,7 +48,7 @@ export function HealthDrawer() {
     }
   }, [open]);
 
-  return (
+  return createPortal(
     <>
       {/* ── Floating action button ──────────────────────────────────────── */}
       <button
@@ -56,7 +57,7 @@ export function HealthDrawer() {
         aria-label="Ouvrir le tableau de bord santé de la recherche"
         style={{ bottom: 'calc(var(--bottom-nav-height) + 16px)' }}
         className={`
-          fixed right-4 sm:right-6 z-40
+          fixed right-4 sm:right-6 z-[60]
           flex items-center gap-2
           px-3.5 py-2.5
           rounded-full shadow-lg shadow-black/20
@@ -86,7 +87,7 @@ export function HealthDrawer() {
       {/* ── Backdrop ────────────────────────────────────────────────────── */}
       <div
         className={`
-          fixed inset-0 z-40 bg-black/20 dark:bg-black/40 backdrop-blur-[1px]
+          fixed inset-0 z-[58] bg-black/20 dark:bg-black/40 backdrop-blur-[1px]
           transition-opacity duration-200
           ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
         `}
@@ -97,7 +98,7 @@ export function HealthDrawer() {
       <div
         ref={drawerRef}
         className={`
-          fixed top-0 right-0 z-50 h-full
+          fixed top-0 right-0 z-[59] h-full
           w-full sm:w-[480px] max-w-full
           bg-white dark:bg-gray-900
           border-l border-gray-200 dark:border-gray-700
@@ -137,6 +138,7 @@ export function HealthDrawer() {
           <HealthDashboard alwaysExpanded />
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
