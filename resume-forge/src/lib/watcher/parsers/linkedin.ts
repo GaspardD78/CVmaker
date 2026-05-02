@@ -120,8 +120,9 @@ export async function parseLinkedin(
   _config: JobWatchConfig,
   settings: JobWatchSettings,
   override?: SelectorOverride,
+  profileId?: string | null,
 ): Promise<RawJobOffer[]> {
-  if (!(await sessionExists('linkedin'))) {
+  if (!(await sessionExists('linkedin', profileId))) {
     throw new Error('Session LinkedIn absente — connecte-toi depuis Paramètres › Veille › Sessions');
   }
 
@@ -132,7 +133,7 @@ export async function parseLinkedin(
   const html = await scrapeWithSession('linkedin', url, {
     waitSelector: waitSel,
     timeoutSecs:  30,
-  });
+  }, profileId);
 
   const doc = new DOMParser().parseFromString(html, 'text/html');
 

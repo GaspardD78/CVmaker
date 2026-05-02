@@ -37,10 +37,7 @@ export const ALL_SOURCES: JobSource[] = [
   'hellowork',
   'emploi_territorial',
   'jobicy',
-  // deprecated at the tail
-  'linkedin_rss',
-  'mantiks',
 ];
 
 /** Sources shown by default when adding a new config (excludes deprecated) */
-export const RECOMMENDED_SOURCES: JobSource[] = ALL_SOURCES.filter(s => !DEPRECATED.has(s));
+export const RECOMMENDED_SOURCES: JobSource[] = ALL_SOURCES;

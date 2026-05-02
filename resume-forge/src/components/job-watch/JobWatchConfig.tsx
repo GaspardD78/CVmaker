@@ -21,7 +21,6 @@ import {
   FranceTravailHelpModal,
   NavitiaHelpModal,
   EmailHelpModal,
-  LinkedInRssHelpModal,
   SourcesHelpModal,
   ProfileAssistantModal,
 } from './ConfigHelpModal';
@@ -35,9 +34,7 @@ import { AIFilterGenerator } from './AIFilterGenerator';
 
 const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
   emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
-  mantiks:            '@deprecated — agrégateur FR nécessitant une clé API payante',
-  linkedin:           'Scraping direct via session Chrome (login requis) — Phase 2',
-  linkedin_rss:       '@deprecated — flux RSS tiers (rss.app) ; préférer LinkedIn direct',
+  linkedin:           'Scraping direct via session Chrome (login requis)',
   indeed:             'Scraping via WebView (contourne Cloudflare)',
   hellowork:          'Scraping via WebView (rendu JS)',
   jobicy:             'Offres remote internationales — API JSON, aucune clé requise',
@@ -51,7 +48,7 @@ const ALL_SOURCES: JobSource[] = [
 ];
 
 /** Sources that require an RSS URL (required) */
-const RSS_REQUIRED_SOURCES: JobSource[] = ['linkedin_rss', 'emploi_territorial'];
+const RSS_REQUIRED_SOURCES: JobSource[] = ['emploi_territorial'];
 
 type HelpModal = 'sources' | 'ft' | 'navitia' | 'email' | 'linkedin' | 'assistant' | null;
 
@@ -583,40 +580,6 @@ export function JobWatchConfigView() {
           </div>
         </div>
 
-        {/* Mantiks API key + base URL + location IDs */}
-        <div>
-          <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Mantiks — Clé API</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Field label="Clé API (header x-api-key)">
-              <input type="password" autoComplete="new-password" className={inputCls} placeholder="Clé API Mantiks"
-                value={(settingsDraft as unknown as Record<string, string>)['mantiksApiKey'] ?? ''}
-                onChange={e => setSettingsDraft(d => ({ ...d, mantiksApiKey: e.target.value } as unknown as JobWatchSettings))}
-              />
-            </Field>
-            <Field label="URL de base (optionnel)" help="Laisser vide pour https://api.mantiks.io">
-              <input type="text" className={inputCls}
-                placeholder="https://api.mantiks.io"
-                value={(settingsDraft as unknown as Record<string, string>)['mantiksBaseUrl'] ?? ''}
-                onChange={e => setSettingsDraft(d => ({ ...d, mantiksBaseUrl: e.target.value } as unknown as JobWatchSettings))}
-              />
-            </Field>
-            <Field label="IDs de lieu Mantiks (optionnel)" help="Si vide, résolu automatiquement depuis la ville du profil">
-              <input type="text" className={inputCls}
-                placeholder="2988507, 2643743"
-                value={(settingsDraft as unknown as Record<string, string>)['mantiksLocationIds'] ?? ''}
-                onChange={e => setSettingsDraft(d => ({ ...d, mantiksLocationIds: e.target.value } as unknown as JobWatchSettings))}
-              />
-            </Field>
-          </div>
-          <p className="text-[10px] text-gray-400 mt-1">
-            Mantiks utilise l'endpoint <code>/company/search</code> (recherche par entreprise). Le paramètre{' '}
-            <code>job_location_ids</code> est <strong>obligatoire</strong> côté API — laissez ce champ vide pour
-            qu'il soit résolu automatiquement à partir de la ville de votre profil (via <code>/location/search</code>),
-            ou renseignez manuellement des IDs entiers séparés par virgule. Documentation :{' '}
-            <a href="https://mantiks-api.readme.io/reference/getting-started-with-your-api" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">mantiks-api.readme.io</a>.
-          </p>
-        </div>
-
         {/* Commute */}
         <div>
           <div className="flex items-center gap-2 mb-2">
@@ -730,7 +693,7 @@ export function JobWatchConfigView() {
       {helpModal === 'ft'        && <FranceTravailHelpModal onClose={closeHelp} />}
       {helpModal === 'navitia'   && <NavitiaHelpModal        onClose={closeHelp} />}
       {helpModal === 'email'     && <EmailHelpModal          onClose={closeHelp} />}
-      {helpModal === 'linkedin'  && <LinkedInRssHelpModal    onClose={closeHelp} />}
+      {/* helpModal === 'linkedin': removed (linkedin_rss deprecated) */}
       {helpModal === 'assistant' && (
         <ProfileAssistantModal
           onClose={closeHelp}

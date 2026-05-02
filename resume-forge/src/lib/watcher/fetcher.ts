@@ -129,14 +129,15 @@ async function runParser(
   config: JobWatchConfig,
   settings: JobWatchSettings,
   override?: SelectorOverride,
+  profileId?: string | null,
 ): Promise<RawJobOffer[]> {
   switch (config.source) {
     case 'apec':               return parseApec(config, settings);
     case 'wttj':               return parseWttj(config, settings);
     case 'linkedin_rss':       return parseLinkedinRss(config, settings);
-    case 'linkedin':           return parseLinkedin(config, settings, override);
-    case 'indeed':             return parseIndeed(config, settings);
-    case 'hellowork':          return parseHellowork(config, settings);
+    case 'linkedin':           return parseLinkedin(config, settings, override, profileId);
+    case 'indeed':             return parseIndeed(config, settings, profileId);
+    case 'hellowork':          return parseHellowork(config, settings, profileId);
     case 'jobicy':             return parseJobicy(config, settings);
     case 'france_travail':     return parseFranceTravail(config, settings);
     case 'emploi_territorial': return parseEmploiTerritorial(config, settings);
@@ -195,7 +196,7 @@ export async function runFetch(
     const sourceStartTime = Date.now();
     let rawOffers: RawJobOffer[];
     try {
-      rawOffers = await runParser(config, settings, selectorOverrides[config.source]);
+      rawOffers = await runParser(config, settings, selectorOverrides[config.source], profileId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`Parser error: ${msg}`);

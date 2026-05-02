@@ -36,6 +36,7 @@ export async function scrapeWithSession(
   siteId: SessionSiteId,
   url: string,
   opts: ScrapeOptions = {},
+  profileId?: string | null,
 ): Promise<string> {
   return invoke<string>('scrape_with_session', {
     siteId,
@@ -43,6 +44,7 @@ export async function scrapeWithSession(
     waitSelector: opts.waitSelector ?? null,
     timeoutSecs:  opts.timeoutSecs  ?? 20,
     userAgent:    opts.userAgent    ?? DESKTOP_UA,
+    profileId:    profileId ?? null,
   });
 }
 
@@ -51,8 +53,8 @@ export async function scrapeWithSession(
  * The browser stays alive until `closeLoginBrowser` is called — cookies
  * are flushed to disk on close.
  */
-export async function openLoginFlow(siteId: SessionSiteId, loginUrl: string): Promise<void> {
-  await invoke('open_login_flow', { siteId, loginUrl });
+export async function openLoginFlow(siteId: SessionSiteId, loginUrl: string, profileId?: string | null): Promise<void> {
+  await invoke('open_login_flow', { siteId, loginUrl, profileId: profileId ?? null });
 }
 
 /** Close the login browser — call after the user confirms they're logged in. */
@@ -61,13 +63,13 @@ export async function closeLoginBrowser(): Promise<void> {
 }
 
 /** Check whether we have persisted cookies for `siteId` on disk. */
-export async function sessionExists(siteId: SessionSiteId): Promise<boolean> {
-  return invoke<boolean>('session_exists', { siteId });
+export async function sessionExists(siteId: SessionSiteId, profileId?: string | null): Promise<boolean> {
+  return invoke<boolean>('session_exists', { siteId, profileId: profileId ?? null });
 }
 
 /** Delete the persisted session (force re-login next time). */
-export async function clearSession(siteId: SessionSiteId): Promise<void> {
-  await invoke('clear_session', { siteId });
+export async function clearSession(siteId: SessionSiteId, profileId?: string | null): Promise<void> {
+  await invoke('clear_session', { siteId, profileId: profileId ?? null });
 }
 
 /** Per-site login URLs used by the UI */

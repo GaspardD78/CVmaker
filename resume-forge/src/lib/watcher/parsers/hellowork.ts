@@ -31,12 +31,13 @@ function buildHelloworkUrl(settings: JobWatchSettings): string {
 export async function parseHellowork(
   _config: JobWatchConfig,
   settings: JobWatchSettings,
+  profileId?: string | null,
 ): Promise<RawJobOffer[]> {
   const url = buildHelloworkUrl(settings);
   const html = await scrapeWithSession('hellowork', url, {
     waitSelector: '[data-cy="serpCard"], ul[data-cy="serpList"] li, .tw-relative article',
     timeoutSecs:  25,
-  });
+  }, profileId);
 
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const cards = Array.from(

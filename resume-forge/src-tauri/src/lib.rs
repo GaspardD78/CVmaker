@@ -231,17 +231,26 @@ async fn generate_pdf(_html: String) -> Result<Vec<u8>, String> {
 // by the login-browser state.
 
 #[cfg(not(target_os = "android"))]
-fn session_dir(app: &tauri::AppHandle, site_id: &str) -> Result<std::path::PathBuf, String> {
+fn session_dir(app: &tauri::AppHandle, site_id: &str, profile_id: Option<&str>) -> Result<std::path::PathBuf, String> {
     use tauri::Manager;
     // Sanitize site_id to avoid path traversal
-    let safe = site_id.chars()
+    let safe_site = site_id.chars()
         .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
         .collect::<String>();
-    if safe.is_empty() {
+    if safe_site.is_empty() {
         return Err("site_id invalide".into());
     }
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    Ok(base.join("browser-sessions").join(safe))
+    // If a profile_id is given, isolate sessions per profile to prevent
+    // cookie sharing between different user accounts.
+    if let Some(pid) = profile_id.filter(|p| !p.is_empty()) {
+        let safe_pid = pid.chars()
+            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+            .collect::<String>();
+        Ok(base.join("browser-sessions").join(format!("{}__{}", safe_pid, safe_site)))
+    } else {
+        Ok(base.join("browser-sessions").join(safe_site))
+    }
 }
 
 #[cfg(not(target_os = "android"))]
@@ -253,11 +262,12 @@ async fn scrape_with_session(
     wait_selector: Option<String>,
     timeout_secs: Option<u64>,
     user_agent: Option<String>,
+    profile_id: Option<String>,
 ) -> Result<String, String> {
     // Early check: browser available?
     default_executable().map_err(|e| format!("Chrome/Chromium introuvable: {}", e))?;
 
-    let dir = session_dir(&app, &site_id)?;
+    let dir = session_dir(&app, &site_id, profile_id.as_deref())?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Création dossier session: {}", e))?;
 
     let timeout = std::time::Duration::from_secs(timeout_secs.unwrap_or(20));
@@ -318,12 +328,13 @@ async fn open_login_flow(
     state: tauri::State<'_, LoginBrowserState>,
     site_id: String,
     login_url: String,
+    profile_id: Option<String>,
 ) -> Result<(), String> {
     // Resolve the Chrome/Chromium binary via headless_chrome's locator
     let chrome_path = default_executable()
         .map_err(|e| format!("Chrome/Chromium introuvable: {}", e))?;
 
-    let dir = session_dir(&app, &site_id)?;
+    let dir = session_dir(&app, &site_id, profile_id.as_deref())?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Création dossier session: {}", e))?;
 
     // Close any previous login browser before opening a new one
@@ -378,10 +389,10 @@ async fn close_login_browser(state: tauri::State<'_, LoginBrowserState>) -> Resu
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-fn session_exists(app: tauri::AppHandle, site_id: String) -> bool {
+fn session_exists(app: tauri::AppHandle, site_id: String, profile_id: Option<String>) -> bool {
     // Chrome 110+ moved cookies into Default/Network/Cookies. Older versions
     // still use Default/Cookies. We accept either path to stay compatible.
-    match session_dir(&app, &site_id) {
+    match session_dir(&app, &site_id, profile_id.as_deref()) {
         Ok(dir) => {
             let default_dir = dir.join("Default");
             default_dir.join("Network").join("Cookies").exists()
@@ -393,8 +404,8 @@ fn session_exists(app: tauri::AppHandle, site_id: String) -> bool {
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-fn clear_session(app: tauri::AppHandle, site_id: String) -> Result<(), String> {
-    let dir = session_dir(&app, &site_id)?;
+fn clear_session(app: tauri::AppHandle, site_id: String, profile_id: Option<String>) -> Result<(), String> {
+    let dir = session_dir(&app, &site_id, profile_id.as_deref())?;
     if dir.exists() {
         std::fs::remove_dir_all(&dir).map_err(|e| format!("Suppression session: {}", e))?;
     }
@@ -407,13 +418,14 @@ fn clear_session(app: tauri::AppHandle, site_id: String) -> Result<(), String> {
 async fn scrape_with_session(
     _site_id: String, _url: String, _wait_selector: Option<String>,
     _timeout_secs: Option<u64>, _user_agent: Option<String>,
+    _profile_id: Option<String>,
 ) -> Result<String, String> {
     Err("Scraping WebView non supporté sur Android".into())
 }
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-async fn open_login_flow(_site_id: String, _login_url: String) -> Result<(), String> {
+async fn open_login_flow(_site_id: String, _login_url: String, _profile_id: Option<String>) -> Result<(), String> {
     Err("Login WebView non supporté sur Android".into())
 }
 
@@ -423,11 +435,11 @@ async fn close_login_browser() -> Result<(), String> { Ok(()) }
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-fn session_exists(_site_id: String) -> bool { false }
+fn session_exists(_site_id: String, _profile_id: Option<String>) -> bool { false }
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-fn clear_session(_site_id: String) -> Result<(), String> { Ok(()) }
+fn clear_session(_site_id: String, _profile_id: Option<String>) -> Result<(), String> { Ok(()) }
 
 // ── Point d'entrée ────────────────────────────────────────────────────────────
 

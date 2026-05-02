@@ -13,7 +13,7 @@ import type { JobSource, FetchLog } from '@/types/job-watch';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-import { ALL_SOURCES, SOURCE_LABELS } from '@/lib/watcher/sources';
+import { RECOMMENDED_SOURCES, SOURCE_LABELS } from '@/lib/watcher/sources';
 import { WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
 import { SelectorDebugPanel } from './SelectorDebugPanel';
 
@@ -480,7 +480,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                  {ALL_SOURCES.map(source => {
+                  {RECOMMENDED_SOURCES.map(source => {
                     const log = lastLogBySource.get(source);
                     const isConfigured = configuredSources.has(source);
                     const status: FetchStatus = log

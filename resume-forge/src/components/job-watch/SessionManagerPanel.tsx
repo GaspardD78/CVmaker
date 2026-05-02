@@ -21,6 +21,7 @@ import {
   type SessionSiteId,
 } from '@/lib/watcher/session-manager';
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
+import { useAuthStore } from '@/stores/authStore';
 import type { JobSource } from '@/types/job-watch';
 
 interface SiteRow {
@@ -40,6 +41,7 @@ const SITES: SiteRow[] = [
 ];
 
 export function SessionManagerPanel() {
+  const profileId = useAuthStore(s => s.currentUserId);
   const [status, setStatus] = useState<Record<SessionSiteId, boolean>>({
     linkedin: false, indeed: false, hellowork: false, glassdoor: false, wttj: false,
   });
@@ -47,21 +49,21 @@ export function SessionManagerPanel() {
 
   const refresh = useCallback(async () => {
     const results = await Promise.all(
-      SITES.map(async s => [s.id, await sessionExists(s.id)] as const),
+      SITES.map(async s => [s.id, await sessionExists(s.id, profileId)] as const),
     );
     setStatus(prev => {
       const next = { ...prev };
       for (const [id, has] of results) next[id] = has;
       return next;
     });
-  }, []);
+  }, [profileId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
   const handleLogin = async (site: SiteRow) => {
     try {
       setLoginInProgress(site.id);
-      await openLoginFlow(site.id, LOGIN_URLS[site.id]);
+      await openLoginFlow(site.id, LOGIN_URLS[site.id], profileId);
       toast.info(`Une fenêtre Chrome s'est ouverte — connecte-toi à ${site.label} puis clique sur "J'ai terminé".`);
     } catch (err) {
       setLoginInProgress(null);
@@ -83,7 +85,7 @@ export function SessionManagerPanel() {
   const handleClear = async (site: SiteRow) => {
     if (!confirm(`Supprimer la session ${site.label} ? Tu devras te reconnecter lors de la prochaine collecte.`)) return;
     try {
-      await clearSession(site.id);
+      await clearSession(site.id, profileId);
       await refresh();
       toast.success('Session supprimée');
     } catch (err) {

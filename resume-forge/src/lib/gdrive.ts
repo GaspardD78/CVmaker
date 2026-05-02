@@ -50,9 +50,10 @@ export interface GDriveTokens {
   expiresAt: number; // epoch ms
 }
 
-export async function loadTokens(): Promise<GDriveTokens | null> {
+export async function loadTokens(profileId?: string | null): Promise<GDriveTokens | null> {
   try {
-    const raw = await getSetting('gdrive_tokens');
+    const key = profileId ? `gdrive_tokens_${profileId}` : 'gdrive_tokens';
+    const raw = await getSetting(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as GDriveTokens;
     // Validate shape
@@ -63,16 +64,18 @@ export async function loadTokens(): Promise<GDriveTokens | null> {
   }
 }
 
-async function persistTokens(tokens: GDriveTokens): Promise<void> {
-  await setSetting('gdrive_tokens', JSON.stringify(tokens));
+async function persistTokens(tokens: GDriveTokens, profileId?: string | null): Promise<void> {
+  const key = profileId ? `gdrive_tokens_${profileId}` : 'gdrive_tokens';
+  await setSetting(key, JSON.stringify(tokens));
 }
 
-export async function clearTokens(): Promise<void> {
-  await setSetting('gdrive_tokens', '');
+export async function clearTokens(profileId?: string | null): Promise<void> {
+  const key = profileId ? `gdrive_tokens_${profileId}` : 'gdrive_tokens';
+  await setSetting(key, '');
 }
 
-export async function isConnected(): Promise<boolean> {
-  const t = await loadTokens();
+export async function isConnected(profileId?: string | null): Promise<boolean> {
+  const t = await loadTokens(profileId);
   return t !== null;
 }
 
@@ -166,7 +169,7 @@ export function waitForOAuthCallback(timeoutMs = 120_000): Promise<string | null
 }
 
 /** Exchange the auth code for tokens and persist them. */
-export async function exchangeCode(code: string): Promise<void> {
+export async function exchangeCode(code: string, profileId?: string | null): Promise<void> {
   const verifier = _oauthVerifier;
   const redirectUri = _oauthRedirectUri;
 
@@ -190,14 +193,14 @@ export async function exchangeCode(code: string): Promise<void> {
     accessToken: data.access_token,
     refreshToken: data.refresh_token ?? '',
     expiresAt: Date.now() + (data.expires_in - 60) * 1000,
-  });
+  }, profileId);
 
   _oauthVerifier = '';
   _oauthState = '';
   _oauthRedirectUri = '';
 }
 
-async function refreshAccessToken(tokens: GDriveTokens): Promise<GDriveTokens> {
+async function refreshAccessToken(tokens: GDriveTokens, profileId?: string | null): Promise<GDriveTokens> {
   const resp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -210,7 +213,7 @@ async function refreshAccessToken(tokens: GDriveTokens): Promise<GDriveTokens> {
   });
 
   if (!resp.ok) {
-    await clearTokens();
+    await clearTokens(profileId);
     throw new Error('Session expirée — veuillez reconnecter Google Drive.');
   }
 
@@ -220,15 +223,15 @@ async function refreshAccessToken(tokens: GDriveTokens): Promise<GDriveTokens> {
     accessToken: data.access_token,
     expiresAt: Date.now() + (data.expires_in - 60) * 1000,
   };
-  await persistTokens(updated);
+  await persistTokens(updated, profileId);
   return updated;
 }
 
-async function getValidToken(): Promise<string> {
-  const tokens = await loadTokens();
+async function getValidToken(profileId?: string | null): Promise<string> {
+  const tokens = await loadTokens(profileId);
   if (!tokens) throw new Error('Non connecté à Google Drive.');
   if (Date.now() >= tokens.expiresAt) {
-    const refreshed = await refreshAccessToken(tokens);
+    const refreshed = await refreshAccessToken(tokens, profileId);
     return refreshed.accessToken;
   }
   return tokens.accessToken;
@@ -265,8 +268,8 @@ export interface DriveFile {
   size: string;
 }
 
-export async function listDriveBackups(): Promise<DriveFile[]> {
-  const token = await getValidToken();
+export async function listDriveBackups(profileId?: string | null): Promise<DriveFile[]> {
+  const token = await getValidToken(profileId);
   const folderId = await getOrCreateFolder(token);
   const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
   const resp = await fetch(
@@ -279,9 +282,10 @@ export async function listDriveBackups(): Promise<DriveFile[]> {
 
 export async function uploadToDrive(
   jsonContent: string,
-  fileName: string
+  fileName: string,
+  profileId?: string | null,
 ): Promise<void> {
-  const token = await getValidToken();
+  const token = await getValidToken(profileId);
   const folderId = await getOrCreateFolder(token);
 
   const boundary = '-------ResumeForge314159';
@@ -312,8 +316,8 @@ export async function uploadToDrive(
   if (!resp.ok) throw new Error(`Échec de l'envoi : ${await resp.text()}`);
 }
 
-export async function downloadFromDrive(fileId: string): Promise<string> {
-  const token = await getValidToken();
+export async function downloadFromDrive(fileId: string, profileId?: string | null): Promise<string> {
+  const token = await getValidToken(profileId);
   const resp = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
     { headers: { Authorization: `Bearer ${token}` } }

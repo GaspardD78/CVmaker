@@ -33,12 +33,13 @@ function buildIndeedUrl(settings: JobWatchSettings): string {
 export async function parseIndeed(
   _config: JobWatchConfig,
   settings: JobWatchSettings,
+  profileId?: string | null,
 ): Promise<RawJobOffer[]> {
   const url = buildIndeedUrl(settings);
   const html = await scrapeWithSession('indeed', url, {
     waitSelector: '#mosaic-provider-jobcards, .jobsearch-ResultsList, [data-testid="jobListing"]',
     timeoutSecs:  25,
-  });
+  }, profileId);
 
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const cards = Array.from(

@@ -11,8 +11,10 @@ import {
   type DriveFile,
 } from '@/lib/gdrive';
 import { buildBackupData, importBackup, MODULES, type BackupData, type ImportPlan } from '@/lib/backup';
+import { useAuthStore } from '@/stores/authStore';
 
 export function GoogleDriveSync() {
+  const profileId = useAuthStore(s => s.currentUserId);
   const [connected, setConnected] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -21,19 +23,19 @@ export function GoogleDriveSync() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const checkConnection = useCallback(async () => {
-    setConnected(await isConnected());
-  }, []);
+    setConnected(await isConnected(profileId));
+  }, [profileId]);
 
   const fetchFiles = useCallback(async () => {
     setLoadingFiles(true);
     try {
-      setFiles(await listDriveBackups());
+      setFiles(await listDriveBackups(profileId));
     } catch {
       setConnected(false);
     } finally {
       setLoadingFiles(false);
     }
-  }, []);
+  }, [profileId]);
 
   useEffect(() => {
     checkConnection();
@@ -51,7 +53,7 @@ export function GoogleDriveSync() {
       await startOAuthFlow();
       const code = await waitForOAuthCallback();
       if (!code) throw new Error('Authentification annulée ou délai dépassé.');
-      await exchangeCode(code);
+      await exchangeCode(code, profileId);
       await checkConnection();
       await fetchFiles();
       setStatus({ ok: true, message: 'Connecté à Google Drive !' });
@@ -63,7 +65,7 @@ export function GoogleDriveSync() {
   };
 
   const handleDisconnect = async () => {
-    await clearTokens();
+    await clearTokens(profileId);
     setConnected(false);
     setFiles([]);
     setStatus({ ok: true, message: 'Déconnecté de Google Drive.' });
@@ -77,7 +79,7 @@ export function GoogleDriveSync() {
       const backup = await buildBackupData(MODULES.map(m => m.id));
       const json = JSON.stringify(backup, null, 2);
       const date = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', 'h');
-      await uploadToDrive(json, `resumeforge_backup_${date}.cvmaker`);
+      await uploadToDrive(json, `resumeforge_backup_${date}.cvmaker`, profileId);
       await fetchFiles();
       setStatus({ ok: true, message: 'Sauvegarde envoyée vers Google Drive.' });
     } catch (e) {
@@ -103,7 +105,7 @@ export function GoogleDriveSync() {
 
     setDownloadingId(file.id);
     try {
-      const raw = await downloadFromDrive(file.id);
+      const raw = await downloadFromDrive(file.id, profileId);
       const backup = JSON.parse(raw) as BackupData;
       if (!backup.__cvmaker_backup) throw new Error('Fichier invalide.');
       const plan: ImportPlan = Object.fromEntries(MODULES.map(m => [m.id, 'merge'])) as ImportPlan;
