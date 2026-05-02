@@ -27,7 +27,7 @@ tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
-lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "tokio1", "tokio1-native-tls"] }
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "tokio1", "tokio1-rustls-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 headless_chrome = "1.0.21"
 tempfile = "3.27.0"
