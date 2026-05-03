@@ -87,7 +87,7 @@ function KpiCard({ label, value, sub, iconColor, icon }: {
   return (
     <div style={{
       background: 'var(--rf-card)', border: '1px solid var(--rf-border)',
-      borderRadius: 12, padding: 20, flex: 1, minWidth: 0,
+      borderRadius: 12, padding: 20, flex: 1, minWidth: 140,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
@@ -110,7 +110,7 @@ function KpiCard({ label, value, sub, iconColor, icon }: {
 function PageHeader({ title, subtitle, children }: { title: string; subtitle?: string; children?: React.ReactNode }) {
   return (
     <div style={{
-      padding: '28px 32px 20px',
+      padding: 'clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px) clamp(12px, 3vw, 20px)',
       borderBottom: '1px solid var(--rf-border)',
       display: 'flex', alignItems: 'flex-start',
       justifyContent: 'space-between', gap: 16,
@@ -236,7 +236,7 @@ export function Dashboard() {
         </Link>
       </PageHeader>
 
-      <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ padding: 'clamp(16px, 4vw, 24px) clamp(16px, 5vw, 32px)', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* Today banner */}
         {stats.todayItems.length > 0 && (
@@ -381,8 +381,7 @@ export function Dashboard() {
                         display: 'flex', flexDirection: 'column', gap: 3,
                         transition: 'background 0.12s',
                       }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--rf-hover)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        className="rf-hoverable"
                       >
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--rf-text)', fontFamily: 'var(--font-body)' }}>{cv.name}</span>
                         <span style={{ fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
@@ -401,8 +400,7 @@ export function Dashboard() {
                     color: 'var(--rf-accent)', fontSize: 12, fontWeight: 600,
                     fontFamily: 'var(--font-body)', transition: 'background 0.12s',
                   }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--rf-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    className="rf-hoverable"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Créer un nouveau CV

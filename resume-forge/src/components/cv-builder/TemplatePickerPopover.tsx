@@ -208,6 +208,16 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handle = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handle);
+    return () => mq.removeEventListener('change', handle);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -255,63 +265,85 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
       </button>
 
       {isOpen && (
-        <div
-          ref={dropdownRef}
-          style={dropdownStyle}
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-4 w-[calc(100vw-16px)] sm:w-[620px] max-w-[720px]"
-        >
-          {CATEGORY_ORDER.map(cat => {
-            const items = allTemplates.filter(t => t.category === cat);
-            if (items.length === 0) return null;
-            return (
-              <div key={cat} className="mb-4 last:mb-0">
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
-                    {CATEGORY_LABELS[cat]}
-                  </span>
-                  <span className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {items.map(template => {
-                    const Preview = TEMPLATE_PREVIEWS[template.id];
-                    const isActive = template.id === currentTemplateId;
-                    const accent = template.palettes?.[0]?.accent || '#1f2937';
-                    const ink = template.palettes?.[0]?.ink || '#111827';
-                    return (
-                      <button
-                        key={template.id}
-                        onClick={() => {
-                          onSelect(template.id);
-                          setIsOpen(false);
-                        }}
-                        title={template.description}
-                        className="flex flex-col items-center gap-1.5 group rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                      >
-                        <div
-                          className={`w-full aspect-[80/110] rounded-md border-2 overflow-hidden transition-colors ${
-                            isActive
-                              ? 'border-blue-500 ring-2 ring-blue-200'
-                              : 'border-gray-200 dark:border-gray-700 group-hover:border-blue-300 bg-white'
-                          }`}
-                          style={isActive ? {} : { background: 'white' }}
-                        >
-                          {Preview && <Preview accent={accent} ink={ink} />}
-                        </div>
-                        <span className={`text-[11px] font-medium text-center leading-tight ${
-                          isActive
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-gray-700 dark:text-gray-300'
-                        }`}>
-                          {template.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+        <>
+          {/* Backdrop mobile/desktop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[90] animate-in fade-in duration-200"
+            onClick={() => setIsOpen(false)}
+          />
+
+          <div
+            ref={dropdownRef}
+            style={isMobile ? {} : dropdownStyle}
+            className={`
+              bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl z-[100]
+              ${isMobile 
+                ? 'fixed inset-x-0 bottom-0 rounded-t-2xl max-h-[85vh] animate-in slide-in-from-bottom duration-300' 
+                : 'rounded-xl w-[620px] max-w-[720px]'
+              }
+            `}
+          >
+            {isMobile && (
+              <div className="flex flex-col items-center py-3 shrink-0">
+                <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full mb-2" />
+                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">Choisir un modèle</h3>
               </div>
-            );
-          })}
-        </div>
+            )}
+
+            <div className={`p-4 overflow-y-auto ${isMobile ? 'pb-12' : ''}`}>
+              {CATEGORY_ORDER.map(cat => {
+                const items = allTemplates.filter(t => t.category === cat);
+                if (items.length === 0) return null;
+                return (
+                  <div key={cat} className="mb-4 last:mb-0">
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+                        {CATEGORY_LABELS[cat]}
+                      </span>
+                      <span className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                    </div>
+                    <div className={`grid gap-2.5 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}>
+                      {items.map(template => {
+                        const Preview = TEMPLATE_PREVIEWS[template.id];
+                        const isActive = template.id === currentTemplateId;
+                        const accent = template.palettes?.[0]?.accent || '#1f2937';
+                        const ink = template.palettes?.[0]?.ink || '#111827';
+                        return (
+                          <button
+                            key={template.id}
+                            onClick={() => {
+                              onSelect(template.id);
+                              setIsOpen(false);
+                            }}
+                            className="flex flex-col items-center gap-1.5 group rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                          >
+                            <div
+                              className={`w-full aspect-[80/110] rounded-md border-2 overflow-hidden transition-colors ${
+                                isActive
+                                  ? 'border-blue-500 ring-2 ring-blue-200'
+                                  : 'border-gray-200 dark:border-gray-700 group-hover:border-blue-300 bg-white'
+                              }`}
+                              style={isActive ? {} : { background: 'white' }}
+                            >
+                              {Preview && <Preview accent={accent} ink={ink} />}
+                            </div>
+                            <span className={`text-[11px] font-medium text-center leading-tight ${
+                              isActive
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {template.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

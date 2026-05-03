@@ -514,8 +514,7 @@ export function ProfilePage() {
                 <div key={entry.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   <div
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: editingEntryId === entry.id ? '8px 8px 0 0' : 8, background: 'var(--rf-surface)', border: `1px solid ${editingEntryId === entry.id ? 'var(--rf-accent)' : 'var(--rf-border)'}`, borderBottom: editingEntryId === entry.id ? '1px solid var(--rf-accent)' : undefined }}
-                    onMouseEnter={(e) => { if (editingEntryId !== entry.id) { (e.currentTarget as HTMLElement).style.borderColor = 'var(--rf-border-active)'; } }}
-                    onMouseLeave={(e) => { if (editingEntryId !== entry.id) { (e.currentTarget as HTMLElement).style.borderColor = 'var(--rf-border)'; } }}
+                    className={editingEntryId !== entry.id ? 'rf-hoverable-border' : ''}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--rf-accent)', background: 'var(--rf-accent-subtle)', borderRadius: 99, padding: '2px 8px', fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -535,8 +534,8 @@ export function ProfilePage() {
                         {editingEntryId === entry.id ? 'Annuler' : 'Modifier'}
                       </button>
                       <button onClick={() => handleDeleteEntry(entry.id)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid transparent', background: 'transparent', color: '#f87171', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 0.12s' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(248,113,113,.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+                        className="rf-hoverable-danger"
+                      >
                         Supprimer
                       </button>
                     </div>

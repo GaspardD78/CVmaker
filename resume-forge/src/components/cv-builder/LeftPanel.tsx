@@ -25,6 +25,8 @@ export function LeftPanel({
   const { currentCv, currentCvBlocks, createCvBlock, updateCv } = useCvStore();
 
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [promptingSection, setPromptingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState('Nouvelle Section');
   const addMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -356,12 +358,13 @@ export function LeftPanel({
     });
   };
 
-  const handleAddSectionHeader = async (sectionName: string) => {
-    const nameToUse = sectionName === "Nouvelle Section"
-      ? window.prompt("Nom de la nouvelle section :", "Nouvelle Section")
-      : sectionName;
+    if (sectionName === "Nouvelle Section") {
+      setNewSectionName("Nouvelle Section");
+      setPromptingSection(true);
+      return;
+    }
 
-    if (!nameToUse) return; // User canceled the prompt
+    const nameToUse = sectionName;
 
     const maxOrder = currentCvBlocks.length > 0
       ? Math.max(...currentCvBlocks.map(b => b.sortOrder))
@@ -521,6 +524,48 @@ export function LeftPanel({
       {activeTab === 'ia' && (
         <div className="flex-1 overflow-hidden relative">
           <AIPromptPanel cvId={cvId} onClose={() => onRequestTabChange(null)} />
+        </div>
+      )}
+
+      {/* Modal de renommage de section (Remplacement window.prompt) */}
+      {promptingSection && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Nouvelle section</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Saisissez le nom de la nouvelle section personnalisée :</p>
+            <input
+              autoFocus
+              type="text"
+              value={newSectionName}
+              onChange={(e) => setNewSectionName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddSectionHeader(newSectionName);
+                  setPromptingSection(false);
+                } else if (e.key === 'Escape') {
+                  setPromptingSection(false);
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:bg-gray-700 dark:text-white mb-6 min-h-[44px]"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPromptingSection(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors min-h-[44px]"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  handleAddSectionHeader(newSectionName);
+                  setPromptingSection(false);
+                }}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-md min-h-[44px]"
+              >
+                Ajouter
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

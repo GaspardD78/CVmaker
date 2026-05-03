@@ -24,6 +24,83 @@
   --rf-radius:        10px;
 }
 
+/* ── Utilities — Mobile & Hover Optimization ──────────────────────────────── */
+
+/* Remplacer les inline onMouseEnter JS par cette classe pour éviter le sticky hover Android */
+.rf-hoverable {
+  transition: all 0.12s ease-in-out;
+}
+
+@media (hover: hover) {
+  .rf-hoverable:hover {
+    background-color: var(--rf-hover) !important;
+  }
+}
+
+/* Version spécifique pour les cartes Kanban (avec shadow/translate) */
+.rf-kanban-card-hover {
+  transition: all 0.13s ease-out;
+}
+
+@media (hover: hover) {
+  .rf-kanban-card-hover:hover {
+    background-color: var(--rf-card) !important;
+    border-color: var(--rf-border-active) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0,0,0,.3);
+  }
+}
+
+.rf-hoverable-card {
+  transition: all 0.15s ease;
+}
+
+@media (hover: hover) {
+  .rf-hoverable-card:hover {
+    border-color: var(--rf-accent) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  }
+}
+
+@media (hover: none) {
+  .rf-hoverable-card:active {
+    background-color: var(--rf-accent-subtle) !important;
+    border-color: var(--rf-accent) !important;
+  }
+}
+
+.rf-hoverable-border {
+  transition: border-color 0.12s ease;
+}
+
+@media (hover: hover) {
+  .rf-hoverable-border:hover {
+    border-color: var(--rf-border-active) !important;
+  }
+}
+
+.rf-hoverable-danger {
+  transition: background 0.12s ease;
+}
+
+@media (hover: hover) {
+  .rf-hoverable-danger:hover {
+    background-color: rgba(248, 113, 113, 0.1) !important;
+  }
+}
+
+/* Neutralisation globale des classes hover: de Tailwind sur mobile */
+@media (hover: none) {
+  [class*="hover:"]:hover {
+    background-color: transparent !important;
+    color: inherit !important;
+    border-color: inherit !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+}
+
 /* ── Tailwind theme mapping ─────────────────────────────────────────────────── */
 @custom-variant dark (&:is(.dark *));
 

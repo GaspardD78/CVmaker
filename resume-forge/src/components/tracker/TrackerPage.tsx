@@ -213,7 +213,7 @@ export function TrackerPage() {
           <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 48, zIndex: 10, pointerEvents: 'none', background: 'linear-gradient(to right, var(--rf-bg), transparent)' }} />
         )}
         {canScrollRight && (
-          <div style={{ position: 'absolute', right: selectedApplication ? 420 : 0, top: 0, bottom: 0, width: 48, zIndex: 10, pointerEvents: 'none', background: 'linear-gradient(to left, var(--rf-bg), transparent)' }} />
+          <div style={{ position: 'absolute', right: isMobile ? 0 : (selectedApplication ? 420 : 0), top: 0, bottom: 0, width: 48, zIndex: 10, pointerEvents: 'none', background: 'linear-gradient(to left, var(--rf-bg), transparent)' }} />
         )}
         <div ref={scrollRef} style={{ height: '100%', overflowX: 'auto', overflowY: 'hidden', padding: '20px 24px' }}>
           <KanbanBoard
@@ -224,11 +224,18 @@ export function TrackerPage() {
         </div>
 
         {selectedApplication && (
-          <ApplicationDetailsPanel
-            applicationId={selectedApplication.id}
-            onClose={() => { setSelectedApplication(null); setEditingApplication(null); }}
-            onEdit={() => setEditingApplication(selectedApplication)}
-          />
+          <>
+            {/* Backdrop sur mobile */}
+            <div
+              className="sm:hidden fixed inset-0 bg-black/40 z-[45] animate-in fade-in duration-200"
+              onClick={() => setSelectedApplication(null)}
+            />
+            <ApplicationDetailsPanel
+              applicationId={selectedApplication.id}
+              onClose={() => { setSelectedApplication(null); setEditingApplication(null); }}
+              onEdit={() => setEditingApplication(selectedApplication)}
+            />
+          </>
         )}
       </div>
 

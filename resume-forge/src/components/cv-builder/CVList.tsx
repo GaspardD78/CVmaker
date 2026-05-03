@@ -55,7 +55,6 @@ function CVCard({ cv, onDelete, onDuplicate, onExportDocx, onExportPdf }: {
   onExportDocx: () => void;
   onExportPdf: () => void;
 }) {
-  const [hov, setHov] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const accent = getAccent(cv.templateId);
@@ -63,18 +62,15 @@ function CVCard({ cv, onDelete, onDuplicate, onExportDocx, onExportPdf }: {
   return (
     <div
       onClick={() => navigate(`/cv/${cv.id}`)}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => { setHov(false); setMenuOpen(false); }}
+      className="rf-hoverable-card"
       style={{
         background: 'var(--rf-card)',
-        border: `1px solid ${hov ? 'var(--rf-accent)' : 'var(--rf-border)'}`,
+        border: '1px solid var(--rf-border)',
         borderRadius: 12,
         overflow: 'hidden',
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        transform: hov ? 'translateY(-2px)' : 'none',
-        boxShadow: hov ? '0 12px 32px rgba(0,0,0,.4)' : 'none',
         position: 'relative',
+        transition: 'all 0.15s ease',
       }}
     >
       {/* Mini preview */}
@@ -242,7 +238,7 @@ export function CVList() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', background: 'var(--rf-bg)' }}>
       {/* Header */}
       <div style={{
-        padding: '28px 32px 20px',
+        padding: 'clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px) clamp(12px, 4vw, 20px)',
         borderBottom: '1px solid var(--rf-border)',
         display: 'flex', alignItems: 'flex-start',
         justifyContent: 'space-between', gap: 16,
@@ -275,8 +271,12 @@ export function CVList() {
       </div>
 
       {/* Grid */}
-      <div style={{ padding: '28px 32px', flex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+      <div style={{ padding: 'clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px)', flex: 1 }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(160px, 45vw, 220px), 1fr))', 
+          gap: 'clamp(12px, 4vw, 20px)' 
+        }}>
           {cvs.map(cv => (
             <CVCard
               key={cv.id}
@@ -291,6 +291,7 @@ export function CVList() {
           {/* New CV placeholder */}
           <div
             onClick={() => setShowNewModal(true)}
+            className="rf-hoverable-card"
             style={{
               background: 'transparent',
               border: '1.5px dashed var(--rf-border)',
@@ -298,14 +299,6 @@ export function CVList() {
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
               gap: 12, cursor: 'pointer', transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--rf-accent)';
-              e.currentTarget.style.background = 'var(--rf-accent-subtle)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--rf-border)';
-              e.currentTarget.style.background = 'transparent';
             }}
           >
             <div style={{

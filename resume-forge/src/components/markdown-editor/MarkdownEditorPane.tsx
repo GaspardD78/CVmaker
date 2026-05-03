@@ -10,7 +10,8 @@ export function MarkdownEditorPane({ value, onChange }: MarkdownEditorPaneProps)
         Markdown
       </div>
       <textarea
-        className="flex-1 w-full resize-none font-mono text-sm p-4 outline-none bg-white text-gray-800 leading-relaxed"
+        className="flex-1 w-full resize-none font-mono text-sm p-4 pb-32 outline-none bg-white text-gray-800 leading-relaxed"
+        style={{ touchAction: 'manipulation' }}
         value={value}
         onInput={(e) => onChange((e.target as HTMLTextAreaElement).value)}
         onChange={() => {/* controlled via onInput */}}

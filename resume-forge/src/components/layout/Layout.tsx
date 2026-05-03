@@ -56,9 +56,20 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    to: '/settings',
+    label: 'Paramètres',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    ),
+  },
 ];
 
-const MOBILE_NAV = NAV_ITEMS.slice(0, 5);
+const MOBILE_NAV_PATHS = ['/', '/cv', '/tracker', '/job-watch', '/settings'];
+const MOBILE_NAV = NAV_ITEMS.filter(item => MOBILE_NAV_PATHS.includes(item.to));
 
 function NavBtn({
   collapsed,
@@ -233,6 +244,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <button
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? 'Étendre' : 'Réduire'}
+          className="rf-hoverable-border"
           style={{
             position: 'absolute', top: '50%', right: -12, transform: 'translateY(-50%)',
             width: 24, height: 24, borderRadius: 99,
@@ -241,8 +253,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             cursor: 'pointer', color: 'var(--rf-muted)', transition: 'all 0.15s',
             zIndex: 20,
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--rf-text)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--rf-accent)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--rf-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--rf-border)'; }}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             {collapsed
@@ -266,7 +276,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: 'var(--font-display)',
             marginRight: 10,
           }}>RF</div>
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--rf-text)', fontFamily: 'var(--font-display)' }}>ResumeForge</span>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--rf-text)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>ResumeForge</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--rf-accent)', fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.02em', marginTop: 2 }}>
+              {NAV_ITEMS.find(item => isActive(item.to, item.exact))?.label || 'Application'}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -299,31 +314,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 textDecoration: 'none', transition: 'color 0.12s',
                 fontFamily: 'var(--font-body)',
               }}
+              className="active:opacity-70"
             >
               {item.icon}
-              <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.01em' }}>{item.label.split(' ')[0]}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.01em' }}>{item.label.split(' ')[0]}</span>
             </Link>
           );
         })}
-        <button
-          onClick={logout}
-          title="Déconnexion"
-          style={{
-            flex: 1,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '8px 0', gap: 3, minHeight: 56,
-            color: 'var(--rf-muted)',
-            background: 'none', border: 'none', cursor: 'pointer',
-            transition: 'color 0.12s', fontFamily: 'var(--font-body)',
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-          <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.01em' }}>Quitter</span>
-        </button>
       </nav>
     </div>
   );

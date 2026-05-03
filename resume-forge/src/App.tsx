@@ -134,7 +134,16 @@ function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AppRoutes />
-        <Toaster position="top-right" />
+        <Toaster 
+          position={window.innerWidth < 640 ? "bottom-center" : "top-right"} 
+          toastOptions={{
+            style: { 
+              marginBottom: window.innerWidth < 640 ? '60px' : '0px',
+              fontFamily: 'var(--font-body)',
+              fontSize: '13px'
+            }
+          }}
+        />
       </BrowserRouter>
     </ErrorBoundary>
   );

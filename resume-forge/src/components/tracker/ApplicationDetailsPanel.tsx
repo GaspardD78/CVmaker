@@ -172,7 +172,7 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><MapPin size={12}/> Localisation</label>
-              <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="Ex: Paris" />
+              <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]" placeholder="Ex: Paris" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Télétravail</label>
@@ -180,7 +180,7 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
                 const newValue = e.target.value;
                 setRemotePolicy(newValue);
                 handleSave({ remotePolicy: newValue });
-              }} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none">
+              }} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]">
                 <option value="">Non spécifié</option>
                 <option value="full_remote">100% Télétravail</option>
                 <option value="hybrid">Hybride</option>
@@ -192,17 +192,17 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
           <div className="grid grid-cols-2 gap-4">
              <div>
                <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><DollarSign size={12}/> Salaire Min</label>
-               <input type="number" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value ? Number(e.target.value) : '')} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="40000" />
+               <input type="number" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value ? Number(e.target.value) : '')} onBlur={() => handleSave()} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]" placeholder="40000" />
              </div>
              <div>
                <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1"><DollarSign size={12}/> Salaire Max</label>
-               <input type="number" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value ? Number(e.target.value) : '')} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="50000" />
+               <input type="number" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value ? Number(e.target.value) : '')} onBlur={() => handleSave()} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]" placeholder="50000" />
              </div>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Détail source ({application.source ? SOURCE_LABELS[application.source] || application.source : 'Non spécifié'})</label>
-            <input type="text" value={sourceDetail} onChange={(e) => setSourceDetail(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="Détail..." />
+            <input type="text" value={sourceDetail} onChange={(e) => setSourceDetail(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]" placeholder="Détail..." />
           </div>
         </div>
 
@@ -214,16 +214,16 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
 
           <div>
              <label className="block text-xs font-medium text-gray-500 mb-1">Nom</label>
-             <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="Nom du contact..." />
+             <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]" placeholder="Nom du contact..." />
           </div>
           <div className="grid grid-cols-2 gap-4">
              <div>
                <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
-               <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="email@..." />
+               <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]" placeholder="email@..." />
              </div>
              <div>
                <label className="block text-xs font-medium text-gray-500 mb-1">Téléphone</label>
-               <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-1 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none" placeholder="06..." />
+               <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} onBlur={() => handleSave()} className="w-full px-2 py-2.5 text-sm border-b border-gray-300 bg-transparent focus:border-blue-500 outline-none min-h-[42px]" placeholder="06..." />
              </div>
           </div>
         </div>
@@ -281,7 +281,7 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
               <button
                 onClick={() => handleSave()}
                 disabled={isSaving}
-                className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded hover:bg-orange-700 disabled:opacity-50 transition-colors min-h-[44px]"
               >
                 {isSaving ? 'Enregistrement...' : 'Mettre à jour'}
               </button>

@@ -83,19 +83,8 @@ export function KanbanCard({ application, onClick }: KanbanCardProps) {
         transition: 'all 0.13s',
         ...(isDragging ? { zIndex: 50 } : {}),
       }}
+      className="rf-kanban-card-hover"
       onClick={() => onClick(application)}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--rf-card)';
-        e.currentTarget.style.borderColor = 'var(--rf-border-active)';
-        e.currentTarget.style.transform = 'translateY(-1px)';
-        e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,.3)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'var(--rf-surface)';
-        e.currentTarget.style.borderColor = 'var(--rf-border)';
-        e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
     >
       {/* Drag handle — visible au hover desktop, toujours visible sur mobile (tactile) */}
       <div
