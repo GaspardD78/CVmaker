@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useProfileStore } from '@/stores/profileStore';
 import { parseImportJson } from '@/lib/import/json-validator';
-import type { Profile, MasterEntry } from '@/types/profile';
-import type { ProfileFieldDiff, SelectableEntry } from '@/lib/import/types';
+import { Profile, MasterEntry } from '@/types/profile';
+import { ProfileFieldDiff, SelectableEntry } from '@/lib/import/types';
+import { generateEnrichPrompt } from '@/lib/prompt-templates';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -85,128 +86,11 @@ function StepBar({ current }: { current: WizardStep }) {
 
 // ─── Prompt Generation ────────────────────────────────────────────────────────
 
-function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], jobPosting: string): string {
-  const lines: string[] = [];
+// generateEnrichPrompt moved to src/lib/prompt-templates.ts
 
-  lines.push('Tu es un coach CV expert. Ton rôle est d\'aider l\'utilisateur à enrichir son profil professionnel en posant des questions ciblées, **une question à la fois**, en attendant sa réponse avant de continuer.');
-  lines.push('');
-  lines.push('## Profil actuel à enrichir');
-  lines.push('');
 
-  lines.push('### Informations personnelles');
-  if (profile.firstName || profile.lastName) {
-    lines.push(`- **Nom complet :** ${[profile.firstName, profile.lastName].filter(Boolean).join(' ')}`);
-  }
-  if (profile.title) lines.push(`- **Titre professionnel :** ${profile.title}`);
-  if (profile.email) lines.push(`- **Email :** ${profile.email}`);
-  if (profile.phone) lines.push(`- **Téléphone :** ${profile.phone}`);
-  if (profile.city || profile.country) {
-    lines.push(`- **Localisation :** ${[profile.city, profile.country].filter(Boolean).join(', ')}`);
-  }
-  if (profile.linkedinUrl) lines.push(`- **LinkedIn :** ${profile.linkedinUrl}`);
-  if (profile.githubUrl) lines.push(`- **GitHub :** ${profile.githubUrl}`);
-  if (profile.portfolioUrl) lines.push(`- **Portfolio :** ${profile.portfolioUrl}`);
-  lines.push('');
 
-  if (profile.summary) {
-    lines.push('### Résumé / Accroche');
-    lines.push(profile.summary);
-    lines.push('');
-  }
 
-  const entryTypeOrder = ['experience', 'education', 'skill', 'certification', 'language', 'project', 'interest', 'volunteer'];
-  for (const type of entryTypeOrder) {
-    const typeEntries = entries.filter(e => e.entryType === type);
-    if (typeEntries.length === 0) continue;
-
-    lines.push(`### ${ENTRY_TYPE_LABELS[type]}`);
-    for (const entry of typeEntries) {
-      const meta: string[] = [];
-      if (entry.subtitle) meta.push(entry.subtitle);
-      if (entry.location) meta.push(entry.location);
-      const dateParts = [
-        entry.startDate ?? '',
-        entry.isCurrent ? 'présent' : (entry.endDate ?? ''),
-      ].filter(Boolean);
-      const dateRange = dateParts.length ? ` (${dateParts.join(' – ')})` : '';
-
-      lines.push(`**${entry.title}**${meta.length ? ` — ${meta.join(', ')}` : ''}${dateRange}`);
-      if (entry.description) {
-        lines.push(entry.description);
-      }
-    }
-    lines.push('');
-  }
-
-  if (jobPosting.trim()) {
-    lines.push('---');
-    lines.push('');
-    lines.push('## Offre d\'emploi ciblée');
-    lines.push('');
-    lines.push(jobPosting.trim());
-    lines.push('');
-  }
-
-  lines.push('---');
-  lines.push('');
-  lines.push('## Instructions');
-  lines.push('');
-
-  if (jobPosting.trim()) {
-    lines.push('À partir du profil ci-dessus et en tenant compte de l\'offre d\'emploi ciblée, mène une série de questions pour enrichir ce profil. Concentre-toi sur :');
-  } else {
-    lines.push('À partir du profil ci-dessus, mène une série de questions pour enrichir ce profil. Concentre-toi sur :');
-  }
-
-  lines.push('- Préciser les chiffres et impacts concrets des expériences (ex. : "Vous avez mentionné gérer une équipe, combien de personnes ?", "Quel était le budget géré ?")');
-  lines.push('- Enrichir et détailler les descriptions des postes et formations');
-  lines.push('- Clarifier les niveaux de compétences et de langues');
-  lines.push('- Améliorer le résumé/accroche professionnel pour le rendre plus percutant');
-  if (jobPosting.trim()) {
-    lines.push('- Identifier et mettre en avant les éléments du profil les plus pertinents pour ce poste');
-  }
-  lines.push('');
-  lines.push('**Pose tes questions une par une**, en attendant ma réponse avant de continuer. Commence par la question la plus impactante.');
-  lines.push('');
-  lines.push('---');
-  lines.push('');
-  lines.push('## Format de sortie final');
-  lines.push('');
-  lines.push('Une fois la conversation terminée et toutes tes questions posées, génère un **JSON structuré** contenant **uniquement les champs modifiés ou enrichis** (n\'inclus pas les champs non modifiés), en respectant exactement ce schéma :');
-  lines.push('');
-  lines.push('```json');
-  lines.push('{');
-  lines.push('  "profile": {');
-  lines.push('    "title": "Titre enrichi",');
-  lines.push('    "summary": "Résumé enrichi..."');
-  lines.push('    // uniquement les champs du profil réellement enrichis');
-  lines.push('  },');
-  lines.push('  "entries": [');
-  lines.push('    {');
-  lines.push('      "entryType": "experience",  // experience | education | skill | certification | language | interest | project | volunteer');
-  lines.push('      "title": "Nom exact du poste (identique au profil pour une mise à jour)",');
-  lines.push('      "subtitle": "Entreprise (optionnel)",');
-  lines.push('      "location": "Lieu (optionnel)",');
-  lines.push('      "startDate": "YYYY-MM",');
-  lines.push('      "endDate": "YYYY-MM",');
-  lines.push('      "isCurrent": false,');
-  lines.push('      "description": "Description enrichie avec chiffres et impacts..."');
-  lines.push('    }');
-  lines.push('    // ... autres entrées enrichies');
-  lines.push('  ]');
-  lines.push('}');
-  lines.push('```');
-  lines.push('');
-  lines.push('⚠️ **Important :**');
-  lines.push('- N\'inclus que les champs réellement enrichis grâce à notre échange');
-  lines.push('- Pour mettre à jour une entrée existante, utilise exactement le même `title` que dans le profil');
-  lines.push('- Respecte exactement les noms des champs JSON');
-  lines.push('- Les dates doivent être au format `YYYY-MM` (ex. : `2023-06`)');
-  lines.push('- Les valeurs de `entryType` acceptées : `experience`, `education`, `skill`, `certification`, `language`, `interest`, `project`, `volunteer`');
-  lines.push('- Si rien n\'a été enrichi, réponds `{}` (objet vide)');
-
-  return lines.join('\n');
-}
 
 // ─── Diff helpers ─────────────────────────────────────────────────────────────
 

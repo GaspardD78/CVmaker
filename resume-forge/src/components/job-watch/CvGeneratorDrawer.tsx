@@ -79,12 +79,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText);
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined);
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText);
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined);
   };
 
   const getCoverPrompt = () =>

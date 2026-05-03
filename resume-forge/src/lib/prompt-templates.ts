@@ -7,113 +7,109 @@ import { PromptTemplate } from '@/types/ai-prompt';
 export const DEFAULT_DIFFERENTIATOR =
   'Jeu de cartes pédagogique conçu pour standardiser l\'évaluation technique des candidats';
 
+/**
+ * Shared rules injected into every prompt. Eliminates duplication across
+ * templates and ensures consistent LLM behaviour.
+ * Positioned AFTER data sections in the final prompt for better LLM attention.
+ */
+export const SYSTEM_RULES = `## Règles
+- Factuel uniquement : ne jamais inventer de compétence, certification, expérience ou chiffre absent du profil fourni
+- Ton naturel et direct, comme un professionnel expérimenté — pas comme une IA
+- Phrases courtes, zéro remplissage, pas de superlatifs ("expert reconnu", "passionné", "dynamique")
+- Mettre en **gras** les termes-clés (technologies, certifications, métriques chiffrées)
+- Tirets simples " - " ou virgules, jamais de tiret cadratin "—"
+- Formulations interdites : "en effet", "il convient de noter", "force est de constater", "dans le cadre de", "il est important de souligner", "n'hésitez pas", "je me permets"`;
+
+
+
 export const PROMPT_TEMPLATES: PromptTemplate[] = [
   {
     id: 'adapt-summary',
     name: 'Adapter l\'accroche',
     description: 'Génère 3 versions d\'accroche adaptées à une annonce spécifique',
-    template: `Tu es expert en rédaction de CV professionnels.
+    template: `# Rôle
+Expert en rédaction de CV professionnels.
 
-## Règles absolues
-- Ne jamais inventer une compétence, une certification ou une expérience absente du profil ci-dessous
-- Ne jamais utiliser de superlatifs ("expert reconnu", "passionné", "dynamique", etc.)
-- Rester factuel et mesurable
-- Ton naturel, direct, professionnel - écris comme un humain qui parle, pas comme une IA
-- Ne jamais utiliser le tiret cadratin "—" : utiliser " - " ou une virgule
-- Être synthétique et percutant : phrases courtes, pas de remplissage
-- Mettre en **gras** les termes-clés importants (technologies, certifications, métriques chiffrées)
-- Éviter absolument les marqueurs IA : "en effet", "il convient de noter", "force est de constater", "dans le cadre de", "il est important de souligner", "n'hésitez pas"
-- Les mots-clés de l'annonce doivent apparaître naturellement, pas plaqués artificiellement
-- Fournir les reformulations dans un bloc de code markdown
+## Objectif
+Proposer 3 accroches CV (4-6 lignes max) adaptées à l'annonce ci-dessous.
 
-## Mon profil complet
+## Mon profil
 Nom : {prénom} {nom}
-Titre actuel : {titre}
+Titre : {titre}
 Résumé actuel : {résumé}
-Expériences (dans ce CV) : {liste_postes_cv}
-Compétences déclarées : {compétences}
+Expériences : {liste_postes_cv}
+Compétences : {compétences}
 Certifications : {certifications}
+Formations : {formations}
 
 ## L'annonce
 {texte_annonce}
 
-## Analyse préalable (fais-la avant de rédiger)
-Avant de proposer les accroches, réponds à ces questions :
-- Quels sont les 3 critères prioritaires de cette annonce ?
-- Lesquels correspondent exactement à mon profil ?
-- Lesquels correspondent partiellement ?
-- Lesquels sont absents de mon profil ? (ne pas les mentionner dans l'accroche)
+${SYSTEM_RULES}
+- Les mots-clés de l'annonce doivent apparaître naturellement, pas plaqués artificiellement
+- Si une compétence de l'annonce est absente du profil, ne pas la mentionner
 
-## Ta mission
-Sur la base de cette analyse, propose 3 versions d'accroche (4-6 lignes max chacune) qui mettent en avant les angles les plus pertinents au regard de cette annonce spécifique.
+## Étapes
+1. Identifie les 3 critères prioritaires de l'annonce
+2. Indique lesquels correspondent au profil, partiellement, ou pas du tout
+3. Propose 3 accroches avec des angles réellement différents
 
-Les versions doivent être réellement différentes dans leur angle d'attaque, pas juste des reformulations l'une de l'autre. Elles doivent sonner comme si un professionnel les avait écrites lui-même, pas comme un texte généré.
-
-Pour chaque version, indique en une ligne l'angle choisi et pourquoi il est pertinent pour cette annonce.`,
+## Format de sortie
+Pour chaque version, fournis dans un bloc de code markdown :
+- L'angle choisi (1 ligne)
+- L'accroche (4-6 lignes max)`,
   },
   {
     id: 'ats-keywords',
     name: 'Mots-clés ATS manquants',
     description: 'Analyse les mots-clés ATS manquants par rapport à une annonce',
-    template: `Tu es expert en optimisation ATS pour les CVs professionnels.
+    template: `# Rôle
+Expert en optimisation ATS pour CVs professionnels.
 
-## Règles absolues
-- Ne suggérer d'ajouter un mot-clé que s'il correspond à une réalité du profil (même partielle)
-- Si un mot-clé est absent ET que le profil n'y correspond pas, le signaler honnêtement sans proposer de l'inventer
-- Distinguer ce qui est vraiment manquant de ce qui est simplement mal formulé
-- Ton naturel et direct - pas de langue de bois
-- Ne jamais utiliser le tiret cadratin "—" : utiliser " - " ou une virgule
-- Être synthétique : phrases courtes, pas de remplissage
-- Mettre en **gras** les termes-clés importants
-- Éviter les marqueurs IA : "en effet", "il convient de noter", "force est de constater", "dans le cadre de"
+## Objectif
+Analyser la couverture ATS de mon CV par rapport à l'annonce et proposer un plan d'action priorisé.
 
 ## Mon CV actuel
 Blocs visibles : {liste_blocs_cv}
 Compétences : {compétences}
 Certifications : {certifications}
+Formations : {formations}
 
 ## L'annonce
 {texte_annonce}
 
-## Ta mission
+${SYSTEM_RULES}
+- Ne suggérer un ajout que s'il correspond à une réalité du profil (même partielle)
+- Si un mot-clé est absent ET le profil non compatible, le dire — ne pas inventer
 
-### Étape 1 - Extraction des mots-clés de l'annonce
-Classe-les en :
-- Indispensables (mentionnés plusieurs fois ou marqués "requis")
-- Importants (mentionnés une fois)
-- Secondaires (nice to have)
+## Format de sortie
 
-### Étape 2 - Analyse de correspondance
-Pour chaque mot-clé, statut :
-PRÉSENT et bien formulé
-PRÉSENT mais mal mis en valeur - proposition de reformulation
-ABSENT mais profil compatible - suggestion d'ajout réaliste
-ABSENT et profil non compatible - à ne pas mentionner
+### 1. Mots-clés de l'annonce
+Classe en : **Indispensables** (mentionnés plusieurs fois / "requis") | **Importants** (1 mention) | **Secondaires** (nice to have)
 
-### Étape 3 - Plan d'action priorisé
-Les 5 modifications les plus impactantes à faire dans le CV, dans l'ordre de priorité.
+### 2. Correspondance
+Pour chaque mot-clé, un statut parmi :
+- ✅ PRÉSENT et bien formulé
+- ⚠️ PRÉSENT mais mal mis en valeur → reformulation
+- ➕ ABSENT mais profil compatible → suggestion d'ajout
+- ❌ ABSENT et profil non compatible → ne pas mentionner
 
-### Étape 4 - Correspondance globale
-Score honnête de correspondance profil/annonce (ex: 7/10) avec justification en 2-3 lignes.`,
+### 3. Top 5 actions
+Les 5 modifications les plus impactantes, par ordre de priorité.
+
+### 4. Score
+Score de correspondance /10 avec justification en 2 lignes.`,
   },
   {
     id: 'reformulate-experience',
     name: 'Reformuler une expérience',
     description: 'Reformule un bloc expérience pour l\'adapter à une annonce',
     requiresBlock: true,
-    template: `Tu es expert en rédaction de CV professionnels.
+    template: `# Rôle
+Expert en rédaction de CV professionnels.
 
-## Règles absolues
-- Utiliser uniquement les éléments factuels de la description actuelle
-- Ne jamais inventer de chiffres, de périmètres ou de responsabilités
-- Si la description actuelle est pauvre, proposer des questions à se poser pour l'enrichir plutôt que d'inventer
-- Verbes d'action à l'infinitif, pas de "j'ai", pas de "nous avons"
-- Ton naturel et humain - écris comme un professionnel expérimenté, pas comme une IA
-- Ne jamais utiliser le tiret cadratin "—" : utiliser " - " ou une virgule
-- Être synthétique et percutant : phrases courtes, zéro remplissage
-- Mettre en **gras** les termes-clés importants (technologies, certifications, métriques chiffrées)
-- Éviter absolument : "en effet", "il convient de noter", "force est de constater", "dans le cadre de", "il est important de souligner"
-- Fournir les reformulations dans un bloc de code markdown
+## Objectif
+Reformuler une expérience spécifique pour maximiser sa pertinence par rapport à l'annonce.
 
 ## L'expérience à reformuler
 Poste : {titre_bloc}
@@ -125,88 +121,74 @@ Description actuelle : {description_bloc}
 Poste visé : {poste_cible}
 Entreprise : {entreprise_cible}
 Annonce : {texte_annonce}
+Certifications : {certifications}
 
-## Mon profil
-{certifications}
+${SYSTEM_RULES}
+- Verbes d'action à l'infinitif, pas de "j'ai" ni "nous avons"
+- Si la description est pauvre, poser des questions plutôt qu'inventer
 
-## Ta mission
+## Format de sortie
 
-### Étape 1 - Analyse
-- Quels éléments de cette expérience sont directement pertinents pour l'annonce ?
-- Quels éléments sont neutres ?
-- Y a-t-il des incohérences ou des formulations à risque ?
+### 1. Analyse
+Éléments pertinents vs neutres vs à risque (tableau court).
 
-### Étape 2 - Reformulations
-Version A - Courte (3-4 bullets, max 80 caractères par bullet)
-Version B - Développée (5-6 bullets, avec contexte et impact)
+### 2. Reformulations (dans un bloc de code markdown)
+**Version A** — Courte (3-4 bullets, max 80 car/bullet)
+**Version B** — Développée (5-6 bullets, avec contexte et impact)
 
-### Étape 3 - Questions à compléter
-Si la description actuelle manque d'informations, liste 3-5 questions précises auxquelles je pourrais répondre pour enrichir les versions ci-dessus avec de vraies données.`,
+### 3. Questions d'enrichissement
+3-5 questions précises pour enrichir avec de vraies données.`,
   },
   {
     id: 'prepare-interview',
     name: 'Préparer l\'entretien',
     description: 'Prépare les questions probables et stratégie d\'entretien',
-    template: `Tu es coach spécialisé en préparation d'entretiens professionnels.
+    template: `# Rôle
+Coach en préparation d'entretiens professionnels.
 
-## Règles absolues
-- Construire les suggestions de réponses uniquement à partir des expériences réelles ci-dessous
-- Ne pas inventer d'exemples ou de situations
-- Si une question ne trouve pas de réponse solide dans le profil, le dire clairement plutôt que de suggérer une réponse creuse
-- Ton conversationnel et humain - les réponses suggérées doivent sonner naturelles, pas récitées
-- Ne jamais utiliser le tiret cadratin "—" : utiliser " - " ou une virgule
-- Être synthétique : aller droit au but
-- Mettre en **gras** les points-clés à retenir
-- Éviter les marqueurs IA : "en effet", "il convient de noter", "force est de constater"
+## Objectif
+Préparer un entretien ciblé avec questions probables et stratégie de réponse basée sur MES expériences réelles.
 
 ## Mon profil
-{résumé}
-Expériences clés (dans ce CV) : {liste_postes_cv}
+Résumé : {résumé}
+Expériences clés : {liste_postes_cv}
 Certifications : {certifications}
+Formations : {formations}
 Atout différenciant : {atout_différenciant}
 
 ## Le poste
 Entreprise : {entreprise_cible}
 Poste : {poste_cible}
-Annonce complète : {texte_annonce}
+Annonce : {texte_annonce}
 
-## Ta mission
+${SYSTEM_RULES}
+- Si une question n'a pas de réponse solide dans le profil, le dire clairement
+- Réponses STAR basées uniquement sur les expériences listées ci-dessus
 
-### 1 - Lecture de l'annonce
-Identifie le profil recherché en filigrane : type de structure, niveau de séniorité attendu, culture d'entreprise.
+## Format de sortie
 
-### 2 - Questions probables (5-7 questions)
-Pour chaque question :
-- La question telle qu'elle sera posée
-- Pourquoi cette question dans ce contexte précis
-- Structure de réponse STAR basée sur MES expériences réelles
-- Ce qu'il ne faut pas dire
+### 1. Profil recherché
+Type de structure, séniorité attendue, culture d'entreprise (3-4 lignes).
 
-### 3 - Questions pièges (2-3)
-Questions qui pourraient mettre en difficulté ce profil spécifique.
-Pour chaque : comment la retourner honnêtement sans esquiver.
+### 2. Questions probables (5-7)
+Pour chaque : question | pourquoi | structure STAR | à ne pas dire.
 
-### 4 - Mes questions à poser (3-4)
-Questions pertinentes et différenciantes à poser en fin d'entretien, adaptées à ce poste et cette entreprise spécifique.`,
+### 3. Questions pièges (2-3)
+Questions difficiles pour ce profil + comment les retourner honnêtement.
+
+### 4. Mes questions à poser (3-4)
+Questions différenciantes adaptées à ce poste/entreprise.`,
   },
   {
     id: 'application-message',
     name: 'Message de candidature',
     description: 'Génère des messages LinkedIn, email et InMail adaptés',
     requiresContactName: true,
-    template: `Tu es expert en communication professionnelle pour les candidatures.
+    template: `# Rôle
+Expert en communication professionnelle pour candidatures.
 
-## Règles absolues
-- Maximum 150 mots pour LinkedIn, 200 mots pour l'email
-- Aucune formule d'accroche bateau ("Je me permets", "Très intéressé par", "Passionné par")
-- Un seul fait différenciant mis en avant - pas une liste
-- Ton direct, humain, pas corporate - le message doit sonner comme écrit par une vraie personne
-- Ne jamais utiliser le tiret cadratin "—" : utiliser " - " ou une virgule
-- Ne jamais promettre ce que le profil ne garantit pas
-- L'appel à l'action doit être simple et sans pression
-- Mettre en **gras** un ou deux éléments-clés maximum
-- Éviter absolument : "en effet", "il convient de noter", "force est de constater", "n'hésitez pas"
-- Fournir les messages dans un bloc de code markdown
+## Objectif
+Rédiger des messages de candidature courts, différenciants et humains.
 
 ## Mon profil
 Nom : {prénom} {nom}
@@ -218,28 +200,30 @@ Atout différenciant : {atout_différenciant}
 ## La cible
 Entreprise : {entreprise_cible}
 Poste : {poste_cible}
-Contact (si connu) : {contact_name}
+Contact : {contact_name}
 Annonce : {texte_annonce}
 
-## Analyse préalable (fais-la avant de rédiger)
-- Quel est l'élément le plus distinctif de mon profil par rapport à un candidat classique ?
-- Quel problème concret cette entreprise cherche-t-elle à résoudre avec ce recrutement ?
-- Y a-t-il un point de connexion naturel entre mon parcours et cette entreprise/ce secteur ?
+${SYSTEM_RULES}
+- Maximum 150 mots LinkedIn, 200 mots email
+- Un seul fait différenciant mis en avant, pas une liste
+- Appel à l'action simple et sans pression
+- Ne jamais promettre ce que le profil ne garantit pas
 
-## Ta mission
+## Analyse préalable
+Avant de rédiger, identifie : (1) l'élément le plus distinctif du profil, (2) le problème que l'entreprise résout avec ce recrutement, (3) un point de connexion naturel parcours/entreprise.
 
-### Version LinkedIn (150 mots max)
-Message de prise de contact direct, sans objet.
-Structure : accroche avec un fait concret, lien avec le poste, appel à l'action sobre.
+## Format de sortie (dans des blocs de code markdown)
 
-### Version Email (200 mots max)
-Objet : court, factuel, pas accrocheur.
-Structure : contexte en 1 phrase, valeur ajoutée concrète, 1 question ou proposition d'échange.
+### LinkedIn (150 mots max)
+Accroche factuelle → lien avec le poste → appel à l'action sobre.
 
-### Version InMail candidature spontanée
-Uniquement si {texte_annonce} est vide ou non renseigné : message de contact sans annonce précise, basé uniquement sur la cible entreprise/secteur.
+### Email (200 mots max)
+Objet court et factuel. Contexte 1 phrase → valeur ajoutée → proposition d'échange.
 
-Pour chaque version : note en italique ce que tu as choisi de mettre en avant et pourquoi.`,
+### InMail spontané (si pas d'annonce)
+Uniquement si aucune annonce fournie. Message basé sur la cible entreprise/secteur.
+
+Pour chaque version : *note en italique l'angle choisi et pourquoi*.`,
   },
 ];
 
@@ -247,27 +231,23 @@ export const CV_ANALYSIS_TEMPLATE: PromptTemplate = {
   id: 'cv-analysis',
   name: 'Analyse adéquation CV / Offre',
   description: 'Analyse la correspondance entre le CV et l\'annonce, retourne un JSON structuré',
-  template: `Tu es expert en recrutement et optimisation de CV. Analyse la correspondance entre le CV ci-dessous et l'offre d'emploi, puis retourne UNIQUEMENT un objet JSON valide (sans texte autour, sans markdown, sans \`\`\`json).
+  template: `# Rôle
+Expert en recrutement et optimisation de CV.
 
-## Règles
-- Ne jamais inventer une compétence ou expérience absente du CV
-- Les scores doivent être honnêtes et justifiés par le contenu réel du CV
-- Retourner UNIQUEMENT le JSON, sans aucun texte avant ou après
-- Dans les champs texte du JSON : ton naturel, pas de tiret cadratin "—", phrases courtes et directes
-- Éviter les formulations IA génériques dans la synthèse et les recommandations
+## Objectif
+Analyser la correspondance entre le CV et l'offre d'emploi pour identifier les forces et les manques.
 
-## CV
-Candidat : {prénom} {nom}
-Titre : {titre}
+## Mon profil
 Résumé : {résumé}
-
 {liste_blocs_cv}
 
 ## Offre d'emploi
 {texte_annonce}
 
-## Format de réponse OBLIGATOIRE
-Retourne uniquement ce JSON, en remplissant chaque champ honnêtement :
+${SYSTEM_RULES}
+
+## Format de sortie OBLIGATOIRE
+Retourne UNIQUEMENT un objet JSON valide (pas de markdown, pas de texte autour).
 
 {
   "score_global": <entier 0-100>,
@@ -277,12 +257,12 @@ Retourne uniquement ce JSON, en remplissant chaque champ honnêtement :
     "formation": <entier 0-100>,
     "couverture": <entier 0-100>
   },
-  "points_forts": [<liste de 3 à 5 chaînes de caractères>],
-  "points_friction": [<liste de 2 à 4 chaînes de caractères>],
-  "recommandations": [<liste de 3 à 5 actions concrètes>],
-  "mots_cles_manquants": [<liste des mots-clés importants absents du CV>],
-  "mots_cles_presents": [<liste des mots-clés de l'annonce présents dans le CV>],
-  "synthese": "<2-3 phrases résumant l'adéquation globale>"
+  "points_forts": [<3-5 points clés>],
+  "points_friction": [<2-4 manques ou risques>],
+  "recommandations": [<3-5 actions concrètes pour le CV>],
+  "mots_cles_manquants": [<liste des mots-clés importants absents>],
+  "mots_cles_presents": [<liste des mots-clés présents>],
+  "synthese": "<2-3 phrases de synthèse>"
 }`,
 };
 
@@ -293,82 +273,97 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
 
 import { Profile, MasterEntry } from '@/types/profile';
 
-export function generateFullCVMatchPrompt(profile: Profile, entries: MasterEntry[], jobOfferText: string): string {
-  // Build experience list with IDs and current descriptions
-  const exactExperiences = entries
+export function generateFullCVMatchPrompt(
+  profile: Profile,
+  entries: MasterEntry[],
+  jobOfferText: string,
+  targetCompany?: string
+): string {
+  const experiences = entries
     .filter(e => e.entryType === 'experience')
     .map(e => {
       const dates = (e.startDate || e.endDate) ? `${e.startDate || '?'} - ${e.endDate || 'Présent'}` : 'Non précisée';
-      return `- ID: "${e.id}" | Titre: "${e.title}" | Entreprise: "${e.subtitle ?? ''}" | Dates: "${dates}" | Description actuelle: "${(e.description ?? '').replace(/\n/g, ' ')}"`;
+      return `- ID: "${e.id}" | Titre: "${e.title}" | Entreprise: "${e.subtitle ?? ''}" | Dates: "${dates}" | Description: "${(e.description ?? '').replace(/\n/g, ' ')}"`;
     })
     .join('\n');
 
-  // Build skill list with IDs
-  const exactSkills = entries
+  const skills = entries
     .filter(e => e.entryType === 'skill')
     .map(e => `- ID: "${e.id}" | Titre: "${e.title}"`)
     .join('\n');
 
-  const profileSummary = `Nom : ${profile.firstName} ${profile.lastName}
-Titre : ${profile.title ?? 'Non renseigné'}
-Résumé actuel : ${profile.summary ?? 'Non renseigné'}`;
+  const education = entries
+    .filter(e => e.entryType === 'education')
+    .map(e => `- ID: "${e.id}" | Diplôme: "${e.title}" | École: "${e.subtitle ?? ''}"`)
+    .join('\n');
 
-  return `Agis comme un expert en rédaction de CV ATS et un recruteur de haut niveau.
+  return `# Rôle
+Expert en rédaction de CV ATS et recruteur senior.
 
-## Mon profil
-${profileSummary}
+## Objectif
+Générer un CV sur-mesure (JSON) en sélectionnant et adaptant uniquement les éléments pertinents du profil maître pour l'annonce.
 
-## L'annonce à laquelle je postule
-${jobOfferText}
+## Contexte
+${targetCompany ? `Entreprise cible : ${targetCompany}\n` : ''}Annonce : ${jobOfferText}
 
-## Mes expériences disponibles (profil maître)
-${exactExperiences}
+## Profil Maître (Données sources)
+### Expériences
+${experiences || '(aucune)'}
 
-## Mes compétences disponibles (profil maître)
-${exactSkills}
+### Compétences
+${skills || '(aucune)'}
 
-## Ta mission
-Sélectionne et adapte uniquement ce qui est pertinent pour cette annonce. Tu es un filtre et un reformulateur - JAMAIS un inventeur.
+### Formations
+${education || '(aucune)'}
 
-⚠️ RÈGLES ABSOLUES :
-
-1. **EXPÉRIENCES** :
-   - Entrées pertinentes → \`"visible": true\` avec une \`"description"\` réécrite (puces •, mots-clés annonce en **gras**)
-   - Entrées non pertinentes → \`"visible": false\` (pas de description)
-   - Les métadonnées (titre, entreprise, dates) ne changent pas - tu n'y touches pas
-   - Réécrire les puces en t'appuyant sur la description actuelle, sans rien inventer
-   - Max 5-6 puces par expérience
-
-2. **COMPÉTENCES** :
-   - \`"visible": true\` pour les compétences pertinentes pour l'annonce
-   - \`"visible": false\` pour les compétences hors-sujet
-   - Aucune description à fournir pour les compétences
-
-3. **STYLE** :
-   - Ton humain, factuel, sans jargon
-   - Puces classiques (•)
-   - Mets en **gras** les mots-clés de l'annonce retrouvés dans les expériences
-   - Sélectionne pour tenir sur UNE page
+${SYSTEM_RULES}
+- **SÉLECTION** : Ne garder que ce qui est utile pour l'annonce (\`visible: true\`). Masquer le reste (\`visible: false\`).
+- **ADAPTATION** : Réécrire les descriptions d'expériences en puces (•) percutantes.
+- **RÉALISME** : Ne jamais inventer de chiffres ou de responsabilités.
+- **VOLUME** : Le résultat final doit tenir sur une page (prioriser les 3-5 dernières années).
 
 ## Format de sortie OBLIGATOIRE
-Renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après (ni balise \`\`\`json).
-Toutes les entrées listées ci-dessus (expériences ET compétences) doivent figurer dans "entries", avec \`"visible": true\` ou \`"visible": false\`.
+Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown).
 
 {
-  "title": "Titre du CV (reprendre le titre du poste de l'annonce)",
-  "summary": "Accroche de 2-3 lignes percutante et factuelle",
+  "title": "Titre du poste (reprendre celui de l'annonce)",
+  "summary": "Accroche de 2-3 lignes factuelle et ciblée",
   "entries": [
     {
-      "id": "[ID EXACT DE L'ENTRÉE - recopier tel quel]",
+      "id": "[ID EXACT DE L'ENTRÉE]",
       "visible": true,
-      "description": "• action réécrite avec **mot-clé**\\n• autre action"
-    },
-    {
-      "id": "[ID EXACT D'UNE ENTRÉE À MASQUER]",
-      "visible": false
+      "description": "• action 1 avec **mot-clé**\\n• action 2"
     }
   ]
 }`;
+}
+
+export function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], jobPosting?: string): string {
+  const experiences = entries.filter(e => e.entryType === 'experience');
+  const skills = entries.filter(e => e.entryType === 'skill');
+
+  return `# Rôle
+Coach CV expert.
+
+## Objectif
+Aider l'utilisateur à enrichir son profil professionnel par un dialogue interactif.
+
+## Profil actuel
+Nom : ${profile.firstName} ${profile.lastName}
+Titre : ${profile.title || '(non renseigné)'}
+Résumé : ${profile.summary || '(non renseigné)'}
+Nombre d'expériences : ${experiences.length}
+Nombre de compétences : ${skills.length}
+
+${jobPosting ? `## Offre visée\n${jobPosting.trim()}\n` : ''}
+
+${SYSTEM_RULES}
+- **INTERACTION** : Pose une seule question à la fois. Attends la réponse.
+- **PERTINENCE** : Creuse les résultats chiffrés, les budgets gérés, les outils techniques utilisés.
+- **HIÉRARCHIE** : Commence par l'expérience la plus récente ou la plus importante pour l'objectif visé.
+
+## Mission
+Identifie les zones d'ombre ou les manques du profil par rapport à l'offre (ou au marché) et interroge l'utilisateur pour extraire des détails concrets et mesurables.`;
 }
 
 export function generateSourceConfigPrompt(

@@ -53,11 +53,11 @@ function getVisibleEntryBlocks(
 }
 
 /**
- * Format a list of experience/education/certification entries with descriptions.
+ * Format a list of experience entries with descriptions.
  */
-function formatPostesCV(blocks: CVBlock[], entries: MasterEntry[]): string {
-  const items = getVisibleEntryBlocks(blocks, entries, ['experience', 'education', 'certification']);
-  if (items.length === 0) return '(aucune expérience renseignée)';
+function formatExperiencesCV(blocks: CVBlock[], entries: MasterEntry[]): string {
+  const items = getVisibleEntryBlocks(blocks, entries, ['experience']);
+  if (items.length === 0) return '[AUCUNE EXPÉRIENCE DISPONIBLE]';
 
   return items.map(({ block, entry }) => {
     const data = { ...entry, ...block.overrideData };
@@ -72,6 +72,25 @@ function formatPostesCV(blocks: CVBlock[], entries: MasterEntry[]): string {
 
     return `**${title}** | ${subtitle} (${dates})\n${description}`;
   }).join('\n\n');
+}
+
+/**
+ * Format a list of education entries.
+ */
+function formatFormationsCV(blocks: CVBlock[], entries: MasterEntry[]): string {
+  const items = getVisibleEntryBlocks(blocks, entries, ['education']);
+  if (items.length === 0) return '[AUCUNE FORMATION DISPONIBLE]';
+
+  return items.map(({ block, entry }) => {
+    const data = { ...entry, ...block.overrideData };
+    const title = (data.title as string) || entry.title;
+    const subtitle = (data.subtitle as string) || entry.subtitle || '';
+    const startDate = formatDate((data.startDate as string) || entry.startDate);
+    const endDate = (data.isCurrent || entry.isCurrent)
+      ? 'Présent'
+      : formatDate((data.endDate as string) || entry.endDate);
+    return `**${title}** | ${subtitle} (${startDate} - ${endDate})`;
+  }).join('\n');
 }
 
 /**
@@ -128,7 +147,7 @@ function formatBlocsCV(blocks: CVBlock[], entries: MasterEntry[]): string {
  */
 function formatCompetences(blocks: CVBlock[], entries: MasterEntry[]): string {
   const items = getVisibleEntryBlocks(blocks, entries, ['skill']);
-  if (items.length === 0) return '(aucune compétence renseignée)';
+  if (items.length === 0) return '[AUCUNE COMPÉTENCE DISPONIBLE]';
   return items.map(({ block, entry }) => {
     const data = { ...entry, ...block.overrideData };
     return (data.title as string) || entry.title;
@@ -140,7 +159,7 @@ function formatCompetences(blocks: CVBlock[], entries: MasterEntry[]): string {
  */
 function formatCertifications(blocks: CVBlock[], entries: MasterEntry[]): string {
   const items = getVisibleEntryBlocks(blocks, entries, ['certification']);
-  if (items.length === 0) return '(aucune certification renseignée)';
+  if (items.length === 0) return '[AUCUNE CERTIFICATION DISPONIBLE]';
   return items.map(({ block, entry }) => {
     const data = { ...entry, ...block.overrideData };
     return (data.title as string) || entry.title;
@@ -159,20 +178,21 @@ export function resolvePrompt(templateId: string, context: ResolverContext): str
 
   // Build placeholder map
   const placeholders: Record<string, string> = {
-    '{prénom}': profile.firstName || '(non renseigné)',
-    '{nom}': profile.lastName || '(non renseigné)',
-    '{titre}': cv.targetJob || profile.title || '(non renseigné)',
-    '{résumé}': cv.customSummary || profile.summary || '(non renseigné)',
-    '{liste_postes_cv}': formatPostesCV(blocks, entries),
+    '{prénom}': profile.firstName || '[PRÉNOM NON RENSEIGNÉ]',
+    '{nom}': profile.lastName || '[NOM NON RENSEIGNÉ]',
+    '{titre}': cv.targetJob || profile.title || '[TITRE NON RENSEIGNÉ]',
+    '{résumé}': cv.customSummary || profile.summary || '[RÉSUMÉ NON RENSEIGNÉ]',
+    '{liste_postes_cv}': formatExperiencesCV(blocks, entries),
+    '{formations}': formatFormationsCV(blocks, entries),
     '{liste_postes_courts}': formatPostesCourts(blocks, entries),
     '{liste_blocs_cv}': formatBlocsCV(blocks, entries),
     '{compétences}': formatCompetences(blocks, entries),
     '{certifications}': formatCertifications(blocks, entries),
-    '{texte_annonce}': jobOffer || '(non renseigné)',
-    '{poste_cible}': cv.targetJob || '(non renseigné)',
-    '{entreprise_cible}': cv.targetCompany || '(non renseignée)',
+    '{texte_annonce}': jobOffer || '[AUCUNE ANNONCE FOURNIE]',
+    '{poste_cible}': cv.targetJob || '[POSTE NON PRÉCISÉ]',
+    '{entreprise_cible}': cv.targetCompany || '[ENTREPRISE NON PRÉCISÉE]',
     '{atout_différenciant}': differentiator || DEFAULT_DIFFERENTIATOR,
-    '{contact_name}': contactName || '(non renseigné)',
+    '{contact_name}': contactName || '[NOM DU CONTACT NON RENSEIGNÉ]',
   };
 
   // Block-specific placeholders (for template 'reformulate-experience')
