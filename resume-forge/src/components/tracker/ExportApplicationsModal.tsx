@@ -39,9 +39,9 @@ export function ExportApplicationsModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/40" onClick={handleClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="relative bg-white sm:rounded-xl shadow-2xl w-full max-w-md h-full sm:h-auto p-6 flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between mb-5">
           <div>
@@ -102,7 +102,7 @@ export function ExportApplicationsModal({ isOpen, onClose }: Props) {
         )}
 
         {/* Actions */}
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-auto pt-6 flex justify-end gap-3">
           <button
             onClick={handleClose}
             className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"

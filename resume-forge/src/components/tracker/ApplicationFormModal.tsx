@@ -162,8 +162,7 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
         onClose();
         resetForm();
       }
-    }}>
-      <DialogContent className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full h-full sm:h-auto sm:max-w-md max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg p-4 sm:p-6">
           <DialogTitle className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</DialogTitle>
           <DialogDescription className="sr-only">
             {application ? 'Formulaire pour modifier une candidature' : 'Formulaire pour créer une nouvelle candidature'}

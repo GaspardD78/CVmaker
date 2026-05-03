@@ -282,7 +282,7 @@ export function Dashboard() {
         </div>
 
         {/* Main grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             {/* Activity chart */}

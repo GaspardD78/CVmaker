@@ -113,7 +113,7 @@ export function EventFormModal({ isOpen, onClose, applicationId, applicationCont
     }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl w-full max-w-md p-6 z-50 max-h-[90vh] overflow-y-auto">
+        <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-none sm:rounded-lg shadow-xl w-full h-full sm:h-auto max-w-md p-6 z-50 max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto flex flex-col">
           <div className="flex justify-between items-center mb-4 border-b pb-2">
             <Dialog.Title className="text-lg font-bold">Ajouter un événement</Dialog.Title>
             <Dialog.Close className="text-gray-500 hover:bg-gray-100 p-1 rounded-full">
@@ -207,7 +207,7 @@ export function EventFormModal({ isOpen, onClose, applicationId, applicationCont
               </label>
             )}
 
-            <div className="pt-4 flex justify-end gap-3 border-t">
+            <div className="mt-auto pt-4 flex justify-end gap-3 border-t">
               <Dialog.Close className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
                 Annuler
               </Dialog.Close>

@@ -1,8 +1,13 @@
+import { writeFile } from '@tauri-apps/plugin-fs';
+import { BaseDirectory } from '@tauri-apps/api/path';
+import { isTauri, isAndroid } from './platform';
+import { toast } from 'sonner';
+
 /**
  * Partage et téléchargement de fichiers.
  *
  * Sur Android (WebView Tauri) : utilise la Web Share API avec fichiers
- * si disponible, sinon crée un lien de téléchargement.
+ * si disponible, sinon sauvegarde dans le dossier Téléchargements.
  * Sur Desktop : déclenche un téléchargement via <a> (fallback).
  */
 export async function shareBlob(
@@ -17,9 +22,27 @@ export async function shareBlob(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (navigator as any).canShare?.({ files: [new File([blob], filename, { type: mimeType })] })
   ) {
-    const file = new File([blob], filename, { type: mimeType });
-    await navigator.share({ files: [file], title: filename });
-    return;
+    try {
+      const file = new File([blob], filename, { type: mimeType });
+      await navigator.share({ files: [file], title: filename });
+      return;
+    } catch (e) {
+      console.warn('Share failed or aborted, falling back to download', e);
+    }
+  }
+
+  // Fallback natif pour Android (le <a> ne marche pas dans la WebView)
+  if (isTauri() && isAndroid()) {
+    try {
+      const buffer = await blob.arrayBuffer();
+      await writeFile(filename, new Uint8Array(buffer), { baseDir: BaseDirectory.Download });
+      toast.success(`Sauvegardé dans les téléchargements : ${filename}`);
+      return;
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde Android:', error);
+      toast.error("Impossible de sauvegarder le fichier.");
+      return;
+    }
   }
 
   // Fallback universel : téléchargement via <a>

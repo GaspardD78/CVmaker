@@ -114,10 +114,23 @@ export function MarkdownEditorPage({ cvId }: MarkdownEditorPageProps) {
     performExport();
   };
 
+  // Gestion des onglets sur mobile
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handle = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handle);
+    return () => mq.removeEventListener('change', handle);
+  }, []);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Barre d'état : sauvegarde + bouton export */}
-      <div className="flex items-center justify-between px-3 py-1 bg-white border-b border-gray-200 text-xs shrink-0 h-8">
+      <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 text-xs shrink-0 min-h-[44px]">
         <span className="flex items-center gap-1">
           {saveStatus === 'saving' && (
             <span className="flex items-center gap-1 text-gray-400">
@@ -135,21 +148,51 @@ export function MarkdownEditorPage({ cvId }: MarkdownEditorPageProps) {
         <button
           onClick={handleExportPdf}
           disabled={isExporting}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-gray-800 text-white hover:bg-gray-700 transition disabled:opacity-50 text-xs font-medium"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-gray-800 text-white hover:bg-gray-700 active:bg-gray-900 transition disabled:opacity-50 text-xs font-medium min-h-[40px]"
         >
           <Download className="w-3 h-3" />
           {isExporting ? 'Export…' : 'Exporter PDF'}
         </button>
       </div>
 
-      {/* Zone principale : deux volets côte à côte */}
+      {/* Onglets mobile */}
+      {isMobile && (
+        <div className="flex border-b border-gray-200 bg-white shrink-0">
+          <button
+            onClick={() => setActiveTab('edit')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 min-h-[44px] ${
+              activeTab === 'edit'
+                ? 'text-blue-600 border-blue-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            Éditer
+          </button>
+          <button
+            onClick={() => setActiveTab('preview')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 min-h-[44px] ${
+              activeTab === 'preview'
+                ? 'text-blue-600 border-blue-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            Aperçu
+          </button>
+        </div>
+      )}
+
+      {/* Zone principale : deux volets ou onglets */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-hidden">
-          <MarkdownEditorPane value={rawMarkdown} onChange={handleChange} />
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <MarkdownPreviewPane markdown={previewMarkdown} printableId="markdown-printable" />
-        </div>
+        {(!isMobile || activeTab === 'edit') && (
+          <div className="flex-1 overflow-hidden">
+            <MarkdownEditorPane value={rawMarkdown} onChange={handleChange} />
+          </div>
+        )}
+        {(!isMobile || activeTab === 'preview') && (
+          <div className="flex-1 overflow-hidden">
+            <MarkdownPreviewPane markdown={previewMarkdown} printableId="markdown-printable" />
+          </div>
+        )}
       </div>
 
       {/* T014 : dialogue d'avertissement */}

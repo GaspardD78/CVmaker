@@ -204,8 +204,10 @@ body {
 .rf-btn-primary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 7px 14px;
+  min-height: 44px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -222,8 +224,10 @@ body {
 .rf-btn-secondary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 7px 14px;
+  min-height: 44px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;

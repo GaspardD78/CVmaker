@@ -22,6 +22,7 @@
     "fs:read-all",
     "fs:scope-appcache-recursive",
     "fs:scope-appdata-recursive",
+    "fs:scope-download-recursive",
     "http:default",
     {
       "identifier": "http:allow-fetch",

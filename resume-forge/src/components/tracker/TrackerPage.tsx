@@ -199,7 +199,7 @@ export function TrackerPage() {
                   border: `1px solid ${active ? 'rgba(99,102,241,.2)' : 'var(--rf-border)'}`,
                   cursor: 'pointer', fontFamily: 'var(--font-body)',
                   fontWeight: active ? 600 : 400, transition: 'all 0.12s',
-                  minHeight: 36,
+                  minHeight: 44,
                 }}
               >{f.label}</button>
             );
