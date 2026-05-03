@@ -162,7 +162,9 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
         onClose();
         resetForm();
       }
-      <DialogContent className="w-full h-full sm:h-auto sm:max-w-md max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg p-4 sm:p-6">
+    }}>
+      <DialogContent className="w-full h-full sm:h-auto sm:max-w-md max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg p-0 flex flex-col">
+        <div className="p-4 sm:p-6 flex-1">
           <DialogTitle className="text-lg font-bold">{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</DialogTitle>
           <DialogDescription className="sr-only">
             {application ? 'Formulaire pour modifier une candidature' : 'Formulaire pour créer une nouvelle candidature'}
@@ -400,19 +402,22 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
               </div>
             )}
 
-            <div className="pt-4 flex justify-end gap-3 border-t">
-              <DialogClose className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
+            </div>
+            
+            <div className="mt-auto pt-4 flex sm:flex-row flex-col gap-3 border-t p-4 sm:p-6 bg-gray-50/50">
+              <DialogClose className="flex-1 sm:flex-none px-4 py-2 text-gray-700 bg-white border border-gray-300 active:bg-gray-100 rounded-md min-h-[44px] font-medium transition-colors">
                 Annuler
               </DialogClose>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 sm:flex-none px-6 py-2 bg-blue-600 text-white active:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] font-medium shadow-sm transition-colors"
               >
                 {isSubmitting ? 'Enregistrement...' : (application ? 'Modifier' : 'Ajouter')}
               </button>
             </div>
           </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

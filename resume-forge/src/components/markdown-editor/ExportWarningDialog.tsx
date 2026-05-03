@@ -35,7 +35,7 @@ export function ExportWarningDialog({ open, onConfirm, onCancel, reason }: Expor
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onCancel(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md h-full sm:h-auto sm:rounded-lg rounded-none">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="text-amber-500">⚠</span>
@@ -43,16 +43,16 @@ export function ExportWarningDialog({ open, onConfirm, onCancel, reason }: Expor
           </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 sm:flex-row flex-col mt-auto sm:mt-0">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg active:bg-gray-50 transition-colors min-h-[44px]"
           >
             Annuler
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg active:bg-amber-600 transition-colors min-h-[44px]"
           >
             Exporter quand même
           </button>

@@ -160,7 +160,7 @@ export function ApplicationAttachments({ applicationId }: ApplicationAttachments
         </h3>
         <button
           onClick={handleAddFile}
-          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-3 py-1.5 rounded-full transition-colors"
+          className="flex items-center gap-1.5 text-sm text-blue-600 active:text-blue-800 font-medium bg-blue-50 px-3 py-2 rounded-full transition-colors min-h-[44px]"
         >
           <Plus size={14} /> Ajouter
         </button>
@@ -169,10 +169,10 @@ export function ApplicationAttachments({ applicationId }: ApplicationAttachments
       {attachments.length === 0 ? (
         <button
           onClick={handleAddFile}
-          className="w-full border-2 border-dashed border-gray-200 rounded-lg p-6 text-center text-gray-400 hover:border-blue-300 hover:text-blue-400 transition-colors"
+          className="w-full border-2 border-dashed border-gray-200 rounded-lg p-8 text-center text-gray-400 active:border-blue-300 active:text-blue-400 transition-colors min-h-[100px]"
         >
           <Paperclip size={24} className="mx-auto mb-2 opacity-50" />
-          <p className="text-sm">Cliquer pour ajouter un document</p>
+          <p className="text-sm">Appuyer pour ajouter un document</p>
           <p className="text-xs mt-1">PDF, Word, image…</p>
         </button>
       ) : (
@@ -206,27 +206,24 @@ export function ApplicationAttachments({ applicationId }: ApplicationAttachments
                 ))}
               </select>
 
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-1">
                 <button
                   onClick={() => handleOpen(att.filePath, att.fileName)}
                   title="Ouvrir le fichier"
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  className="flex items-center justify-center min-w-[40px] min-h-[40px] text-gray-400 active:text-blue-600 active:bg-blue-50 rounded transition-colors"
                 >
-                  <ExternalLink size={14} />
+                  <ExternalLink size={16} />
                 </button>
                 <button
                   onClick={() => handleDelete(att.id, att.fileName)}
                   title="Retirer"
-                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  className="flex items-center justify-center min-w-[40px] min-h-[40px] text-gray-400 active:text-red-500 active:bg-red-50 rounded transition-colors"
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={16} />
                 </button>
               </div>
 
-              {/* Badge label always visible on small screens */}
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium group-hover:hidden ${LABEL_COLORS[att.label]}`}>
-                {LABEL_LABELS[att.label]}
-              </span>
+
             </li>
           ))}
         </ul>

@@ -124,23 +124,23 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl z-50 border-l border-gray-200 flex flex-col transform transition-transform duration-300">
-      <div className="flex justify-between items-center p-4 border-b">
-        <div>
-          <h2 className="text-xl font-bold">{application.jobTitle}</h2>
-          <p className="text-gray-600">{application.companyName}</p>
+    <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[500px] bg-white shadow-2xl z-50 sm:border-l border-gray-200 flex flex-col transition-transform duration-300">
+      <div className="flex justify-between items-center px-4 py-3 border-b min-h-[56px]">
+        <div className="flex-1 min-w-0 mr-2">
+          <h2 className="text-lg font-bold truncate">{application.jobTitle}</h2>
+          <p className="text-gray-600 text-sm truncate">{application.companyName}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1 shrink-0">
           {onEdit && (
-            <button onClick={onEdit} className="p-2 hover:bg-blue-50 text-blue-500 rounded-full transition-colors" title="Modifier">
+            <button onClick={onEdit} className="flex items-center justify-center min-w-[44px] min-h-[44px] text-blue-500 active:bg-blue-50 rounded-full transition-colors" title="Modifier">
               <Pencil size={20} />
             </button>
           )}
-          <button onClick={handleDelete} className="p-2 hover:bg-red-50 text-red-500 rounded-full transition-colors" title="Supprimer">
+          <button onClick={handleDelete} className="flex items-center justify-center min-w-[44px] min-h-[44px] text-red-500 active:bg-red-50 rounded-full transition-colors" title="Supprimer">
             <Trash2 size={20} />
           </button>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="flex items-center justify-center min-w-[44px] min-h-[44px] text-gray-500 active:bg-gray-100 rounded-full transition-colors">
+            <X size={22} />
           </button>
         </div>
       </div>

@@ -224,20 +224,11 @@ export function TrackerPage() {
         </div>
 
         {selectedApplication && (
-          <div style={{
-            position: isMobile ? 'fixed' : 'absolute',
-            top: 0, right: 0, bottom: 0,
-            left: isMobile ? 0 : undefined,
-            width: isMobile ? '100%' : 420,
-            zIndex: 30,
-            boxShadow: '-8px 0 32px rgba(0,0,0,.5)',
-          }}>
-            <ApplicationDetailsPanel
-              applicationId={selectedApplication.id}
-              onClose={() => { setSelectedApplication(null); setEditingApplication(null); }}
-              onEdit={() => setEditingApplication(selectedApplication)}
-            />
-          </div>
+          <ApplicationDetailsPanel
+            applicationId={selectedApplication.id}
+            onClose={() => { setSelectedApplication(null); setEditingApplication(null); }}
+            onEdit={() => setEditingApplication(selectedApplication)}
+          />
         )}
       </div>
 

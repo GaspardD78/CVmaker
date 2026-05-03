@@ -218,8 +218,14 @@ body {
   background: var(--rf-accent);
   color: #fff;
 }
-.rf-btn-primary:hover  { background: var(--rf-accent-hover); }
-.rf-btn-primary:active { background: var(--rf-accent-hover); opacity: 0.85; }
+@media (hover: hover) {
+  .rf-btn-primary:hover  { background: var(--rf-accent-hover); }
+}
+.rf-btn-primary:active { 
+  background: var(--rf-accent-hover); 
+  opacity: 0.85; 
+  transform: scale(0.98);
+}
 
 .rf-btn-secondary {
   display: inline-flex;
@@ -238,14 +244,17 @@ body {
   color: var(--rf-text);
   border: 1px solid var(--rf-border);
 }
-.rf-btn-secondary:hover {
-  background: var(--rf-hover);
-  border-color: var(--rf-border-active);
+@media (hover: hover) {
+  .rf-btn-secondary:hover {
+    background: var(--rf-hover);
+    border-color: var(--rf-border-active);
+  }
 }
 .rf-btn-secondary:active {
   background: var(--rf-hover);
   border-color: var(--rf-border-active);
   opacity: 0.8;
+  transform: scale(0.98);
 }
 
 /* Kanban drawer slide-in */
@@ -270,9 +279,11 @@ body {
   border-radius: 8px;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.rf-nav-link:hover .rf-nav-btn:not([data-active='true']) {
-  background: var(--rf-hover) !important;
-  color: var(--rf-text) !important;
+@media (hover: hover) {
+  .rf-nav-link:hover .rf-nav-btn:not([data-active='true']) {
+    background: var(--rf-hover) !important;
+    color: var(--rf-text) !important;
+  }
 }
 .rf-nav-link:active .rf-nav-btn {
   opacity: 0.75;
