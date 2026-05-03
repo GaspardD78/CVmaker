@@ -97,15 +97,19 @@ export function KanbanCard({ application, onClick }: KanbanCardProps) {
         e.currentTarget.style.boxShadow = 'none';
       }}
     >
-      {/* Drag handle */}
+      {/* Drag handle — visible au hover desktop, toujours visible sur mobile (tactile) */}
       <div
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'absolute', top: 8, right: 8,
-          color: 'var(--rf-muted)', cursor: 'grab', padding: 2,
-          opacity: 0, transition: 'opacity 0.12s',
+          position: 'absolute', top: 6, right: 6,
+          color: 'var(--rf-muted)', cursor: 'grab',
+          width: 28, height: 28,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 6,
+          transition: 'opacity 0.12s',
+          touchAction: 'none',   // ← indispensable pour @dnd-kit sur Android
         }}
         className="kanban-drag-handle"
       >

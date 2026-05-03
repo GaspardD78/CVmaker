@@ -8,6 +8,9 @@ import { MasterEntry, Profile, EntryType } from '../types/profile';
 import { CVTemplate } from '../types/template';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
+import { isAndroid } from './platform';
+import { shareBlob } from './share';
+
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -783,13 +786,25 @@ export async function exportToDocx(
 ) {
   try {
     const defaultFilename = `${cv.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ats.docx`;
+    const blob = await generateDocxBlob(cv, profile, blocks, entries, template);
+
+    if (isAndroid()) {
+      // Sur Android : pas de dialogue de sauvegarde natif → Web Share API
+      await shareBlob(
+        blob,
+        defaultFilename,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      );
+      return true;
+    }
+
+    // Desktop : dialogue de sauvegarde natif Tauri
     const filePath = await save({
       defaultPath: defaultFilename,
       filters: [{ name: 'Word Document', extensions: ['docx'] }],
     });
     if (!filePath) return false;
 
-    const blob = await generateDocxBlob(cv, profile, blocks, entries, template);
     await writeFile(filePath, new Uint8Array(await blob.arrayBuffer()));
     return true;
   } catch (error) {

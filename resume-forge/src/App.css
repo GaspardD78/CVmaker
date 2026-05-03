@@ -216,7 +216,8 @@ body {
   background: var(--rf-accent);
   color: #fff;
 }
-.rf-btn-primary:hover { background: var(--rf-accent-hover); }
+.rf-btn-primary:hover  { background: var(--rf-accent-hover); }
+.rf-btn-primary:active { background: var(--rf-accent-hover); opacity: 0.85; }
 
 .rf-btn-secondary {
   display: inline-flex;
@@ -237,6 +238,11 @@ body {
   background: var(--rf-hover);
   border-color: var(--rf-border-active);
 }
+.rf-btn-secondary:active {
+  background: var(--rf-hover);
+  border-color: var(--rf-border-active);
+  opacity: 0.8;
+}
 
 /* Kanban drawer slide-in */
 @keyframes drawerIn {
@@ -252,3 +258,51 @@ body {
 
 /* Spinner */
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Navigation desktop — hover CSS natif (remplace JS onMouseEnter) ───────────── */
+.rf-nav-link {
+  text-decoration: none;
+  display: block;
+  border-radius: 8px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.rf-nav-link:hover .rf-nav-btn:not([data-active='true']) {
+  background: var(--rf-hover) !important;
+  color: var(--rf-text) !important;
+}
+.rf-nav-link:active .rf-nav-btn {
+  opacity: 0.75;
+}
+
+/* — Bottom-nav mobile — feedback tactile ────────────────────────────────── */
+.mobile-bottom-nav a:active,
+.mobile-bottom-nav button:active {
+  opacity: 0.6;
+  transform: scale(0.94);
+}
+
+/* ── Kanban drag handle ─────────────────────────────────────────────────────── */
+/* Desktop : visible au hover de la carte */
+.kanban-drag-handle {
+  opacity: 0;
+}
+@media (hover: hover) {
+  /* Uniquement sur les appareils avec pointeur précis (souris) */
+  *:hover > .kanban-drag-handle,
+  *:hover > div > .kanban-drag-handle {
+    opacity: 1;
+  }
+}
+/* Mobile / tactile : toujours visible */
+@media (hover: none) {
+  .kanban-drag-handle {
+    opacity: 0.5;
+    background: var(--rf-card);
+  }
+}
+
+/* ── touch-action global pour @dnd-kit ────────────────────────────────────── */
+/* Évite que le scroll vertical interfère avec le drag horizontal sur Android */
+[data-dnd-kit-dragging] {
+  touch-action: none;
+}

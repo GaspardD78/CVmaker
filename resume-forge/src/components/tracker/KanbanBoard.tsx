@@ -41,7 +41,9 @@ export function KanbanBoard({ searchTerm = '', sourceFilter = 'all', onCardClick
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5,
+        // 8px de distance pour distinguer tap/scroll d'un drag
+        // Sur mobile Android, PointerSensor utilise pointer events (unifie touch + mouse)
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {

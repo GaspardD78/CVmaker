@@ -27,6 +27,7 @@ export function CVBuilderPage() {
   const { profile, entries, fetchProfile } = useProfileStore();
   const [isExporting, setIsExporting] = useState(false);
   const { status: saveStatus, notifySave } = useSaveIndicator();
+  const [mobileExportOpen, setMobileExportOpen] = useState(false);
 
   // Onglet actif sur mobile : 'edit' | 'preview'
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -215,22 +216,67 @@ export function CVBuilderPage() {
             currentTemplateId={currentCv.templateId}
             onSelect={handleTemplateChange}
           />
-          <button
-            onClick={handleExportDocx}
-            disabled={isExporting}
-            className="bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-blue-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm min-h-[44px]"
-          >
-            <FileText className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter DOCX'}</span>
-          </button>
-          <button
-            onClick={handleExportPdf}
-            disabled={isExporting}
-            className="bg-gray-800 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm min-h-[44px]"
-          >
-            <Download className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter PDF'}</span>
-          </button>
+
+          {/* Boutons export — desktop : visibles individuellement | mobile : regroupés sous "..." */}
+          <div className="hidden sm:flex items-center gap-1.5 sm:gap-3">
+            <button
+              onClick={handleExportDocx}
+              disabled={isExporting}
+              className="bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-blue-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm min-h-[44px]"
+            >
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter DOCX'}</span>
+            </button>
+            <button
+              onClick={handleExportPdf}
+              disabled={isExporting}
+              className="bg-gray-800 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium hover:bg-gray-700 transition flex items-center shadow-sm disabled:opacity-50 text-sm min-h-[44px]"
+            >
+              <Download className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">{isExporting ? 'Export...' : 'Exporter PDF'}</span>
+            </button>
+          </div>
+
+          {/* Bouton "..." mobile — menu déroulant compact */}
+          <div className="relative sm:hidden">
+            <button
+              onClick={() => setMobileExportOpen(o => !o)}
+              disabled={isExporting}
+              className="flex items-center justify-center w-11 h-11 rounded-md border border-gray-300 bg-white text-gray-600 disabled:opacity-50"
+              title="Options d'export"
+              aria-label="Options d'export"
+            >
+              {isExporting
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <span className="text-lg font-bold leading-none">⋯</span>
+              }
+            </button>
+            {mobileExportOpen && (
+              <>
+                {/* Overlay pour fermer en cliquant en dehors */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMobileExportOpen(false)}
+                />
+                <div className="absolute right-0 top-12 z-50 flex flex-col gap-1 bg-white border border-gray-200 rounded-lg shadow-xl p-2 min-w-[160px]">
+                  <button
+                    onClick={() => { setMobileExportOpen(false); handleExportDocx(); }}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 w-full text-left min-h-[44px]"
+                  >
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    Exporter DOCX
+                  </button>
+                  <button
+                    onClick={() => { setMobileExportOpen(false); handleExportPdf(); }}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 w-full text-left min-h-[44px]"
+                  >
+                    <Download className="w-4 h-4 text-gray-800" />
+                    Exporter PDF
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

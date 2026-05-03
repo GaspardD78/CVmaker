@@ -7,6 +7,7 @@ import { ApplicationDetailsPanel } from './ApplicationDetailsPanel';
 import { ExportApplicationsModal } from './ExportApplicationsModal';
 import { toast } from 'sonner';
 import { Application, ApplicationSource } from '@/types/application';
+import { isMobilePlatform } from '@/lib/platform';
 
 const SOURCE_FILTERS: { id: ApplicationSource | 'all'; label: string }[] = [
   { id: 'all', label: 'Toutes' },
@@ -25,6 +26,15 @@ export function TrackerPage() {
   const [sourceFilter, setSourceFilter] = useState<ApplicationSource | 'all'>('all');
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [editingApplication, setEditingApplication] = useState<Application | null>(null);
+  const [isMobile, setIsMobile] = useState(() => isMobilePlatform());
+
+  // Écoute les changements de taille d'écran (rotation, redimensionnement)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handle = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handle);
+    return () => mq.removeEventListener('change', handle);
+  }, []);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -92,19 +102,20 @@ export function TrackerPage() {
       {/* Page header */}
       <div style={{
         background: 'var(--rf-surface)', borderBottom: '1px solid var(--rf-border)',
-        padding: '20px 32px', display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', flexShrink: 0,
+        padding: 'clamp(12px, 4vw, 20px) clamp(16px, 5vw, 32px)',
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', gap: 8,
       }}>
         <div>
           <h1 style={{
-            margin: '0 0 3px', fontSize: 22, fontWeight: 700, color: 'var(--rf-text)',
+            margin: '0 0 3px', fontSize: 'clamp(17px, 5vw, 22px)', fontWeight: 700, color: 'var(--rf-text)',
             fontFamily: 'var(--font-display)', letterSpacing: '-0.4px',
           }}>Suivi des candidatures</h1>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
             {applications.length} candidature{applications.length !== 1 ? 's' : ''} · Kanban interactif
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             className="rf-btn-secondary"
             onClick={() => setIsExportOpen(true)}
@@ -125,7 +136,8 @@ export function TrackerPage() {
 
       {/* Stats bar */}
       <div style={{
-        display: 'flex', gap: 24, padding: '10px 32px',
+        display: 'flex', gap: 16, flexWrap: 'wrap',
+        padding: 'clamp(8px, 2vw, 10px) clamp(16px, 5vw, 32px)',
         background: 'var(--rf-surface)', borderBottom: '1px solid var(--rf-border)',
         alignItems: 'center', flexShrink: 0,
       }}>
@@ -140,17 +152,21 @@ export function TrackerPage() {
           </div>
         ))}
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
-          Glissez les cartes pour changer de statut
-        </span>
+        {!isMobile && (
+          <span style={{ fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
+            Glissez les cartes pour changer de statut
+          </span>
+        )}
       </div>
 
       {/* Search + filter row */}
       <div style={{
         background: 'var(--rf-surface)', borderBottom: '1px solid var(--rf-border)',
-        padding: '10px 32px', display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0,
+        padding: 'clamp(8px, 2vw, 10px) clamp(16px, 5vw, 32px)',
+        display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0,
+        flexWrap: 'wrap',
       }}>
-        <div style={{ position: 'relative', width: 260 }}>
+        <div style={{ position: 'relative', flex: '1 1 160px', maxWidth: 260 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--rf-muted)', pointerEvents: 'none' }}>
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -169,23 +185,26 @@ export function TrackerPage() {
             onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--rf-border)'; }}
           />
         </div>
-        {SOURCE_FILTERS.map((f) => {
-          const active = sourceFilter === f.id;
-          return (
-            <button
-              key={f.id}
-              onClick={() => setSourceFilter(f.id)}
-              style={{
-                padding: '5px 11px', borderRadius: 99, fontSize: 11.5,
-                background: active ? 'var(--rf-accent-subtle)' : 'transparent',
-                color: active ? 'var(--rf-accent)' : 'var(--rf-muted)',
-                border: `1px solid ${active ? 'rgba(99,102,241,.2)' : 'var(--rf-border)'}`,
-                cursor: 'pointer', fontFamily: 'var(--font-body)',
-                fontWeight: active ? 600 : 400, transition: 'all 0.12s',
-              }}
-            >{f.label}</button>
-          );
-        })}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {SOURCE_FILTERS.map((f) => {
+            const active = sourceFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setSourceFilter(f.id)}
+                style={{
+                  padding: '5px 11px', borderRadius: 99, fontSize: 11.5,
+                  background: active ? 'var(--rf-accent-subtle)' : 'transparent',
+                  color: active ? 'var(--rf-accent)' : 'var(--rf-muted)',
+                  border: `1px solid ${active ? 'rgba(99,102,241,.2)' : 'var(--rf-border)'}`,
+                  cursor: 'pointer', fontFamily: 'var(--font-body)',
+                  fontWeight: active ? 600 : 400, transition: 'all 0.12s',
+                  minHeight: 36,
+                }}
+              >{f.label}</button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Kanban + drawer */}
@@ -206,7 +225,11 @@ export function TrackerPage() {
 
         {selectedApplication && (
           <div style={{
-            position: 'absolute', top: 0, right: 0, bottom: 0, zIndex: 20,
+            position: isMobile ? 'fixed' : 'absolute',
+            top: 0, right: 0, bottom: 0,
+            left: isMobile ? 0 : undefined,
+            width: isMobile ? '100%' : 420,
+            zIndex: 30,
             boxShadow: '-8px 0 32px rgba(0,0,0,.5)',
           }}>
             <ApplicationDetailsPanel

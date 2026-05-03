@@ -21,6 +21,11 @@
     "fs:allow-read-file",
     "fs:read-all",
     "fs:scope-appcache-recursive",
-    "fs:scope-appdata-recursive"
+    "fs:scope-appdata-recursive",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+    }
   ]
 }

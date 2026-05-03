@@ -141,15 +141,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
       overflow: 'hidden',
       background: 'var(--rf-bg)',
     }}>
-      {/* ── Sidebar — desktop ── */}
+      {/* ── Sidebar — desktop uniquement (masquée sur mobile) ── */}
       <aside
-        className="print:hidden"
+        className="print:hidden hidden sm:flex sm:flex-col"
         style={{
           width: collapsed ? 60 : 220,
           minWidth: collapsed ? 60 : 220,
           background: 'var(--rf-surface)',
           borderRight: '1px solid var(--rf-border)',
-          display: 'flex',
           flexDirection: 'column',
           transition: 'width 0.2s cubic-bezier(0.4,0,0.2,1), min-width 0.2s cubic-bezier(0.4,0,0.2,1)',
           overflowX: 'clip',
@@ -194,14 +193,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             return (
               <Link key={item.to} to={item.to} title={collapsed ? item.label : undefined}
                 style={{ textDecoration: 'none' }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget.firstElementChild as HTMLElement;
-                  if (!active && el) { el.style.background = 'var(--rf-hover)'; el.style.color = 'var(--rf-text)'; }
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget.firstElementChild as HTMLElement;
-                  if (!active && el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; }
-                }}
               >
                 <NavBtn collapsed={collapsed} active={active} badge={badge} label={item.label}>
                   {item.icon}
@@ -213,8 +204,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Bottom group: settings + logout */}
           <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--rf-border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Link to="/settings" title={collapsed ? 'Paramètres' : undefined} style={{ textDecoration: 'none' }}
-              onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = 'var(--rf-text)'; } }}
-              onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
             >
               <NavBtn collapsed={collapsed} active={isActive('/settings')} label="Paramètres">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -228,8 +217,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={logout}
               title="Déconnexion"
               style={{ background: 'none', border: 'none', padding: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}
-              onMouseEnter={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'var(--rf-hover)'; el.style.color = '#ef4444'; } }}
-              onMouseLeave={e => { const el = e.currentTarget.firstElementChild as HTMLElement; if (el) { el.style.background = 'transparent'; el.style.color = 'var(--rf-muted)'; } }}
             >
               <NavBtn collapsed={collapsed} active={false} label="Déconnexion">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -286,7 +273,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* ── Main content ── */}
       <main
         className="mobile-main-content sm:pt-0 sm:pb-0 print:h-auto print:overflow-visible print:bg-white print:p-0 print:m-0 print:block"
-        style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}
       >
         {children}
       </main>
@@ -329,8 +316,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             background: 'none', border: 'none', cursor: 'pointer',
             transition: 'color 0.12s', fontFamily: 'var(--font-body)',
           }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'var(--rf-muted)')}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>

@@ -2,21 +2,22 @@ import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
+import { isTauri, isAndroid } from './platform';
+import { shareBlob } from './share';
 
 /**
  * Exporte le CV en PDF.
- * Sur Desktop : utilise l'API native `generate_pdf` du backend Rust (Headless Chrome)
- * qui donne un PDF 100% vectoriel, texte sélectionnable et rendu parfait.
- * Si l'environnement Tauri n'est pas détecté ou si l'export natif échoue (ex: Chromium absent),
- * on déclenche un fallback natif via window.print().
+ *
+ * | Plateforme | Stratégie |
+ * |---|---|
+ * | Desktop Tauri | `generate_pdf` Rust via Headless Chrome (vectoriel) |
+ * | Android Tauri | jsPDF + html2canvas (bitmap haute résolution) → Web Share API |
+ * | Navigateur web | `window.print()` système |
  */
 
-function isTauri(): boolean {
-  // Check if Tauri is available (in window object)
-  return '__TAURI_INTERNALS__' in window;
-}
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Convertit une image en data URL
+/** Convertit une URL d'image en data URL base64 pour l'inlining HTML. */
 async function getBase64FromUrl(url: string): Promise<string> {
   try {
     const data = await fetch(url);
@@ -24,9 +25,7 @@ async function getBase64FromUrl(url: string): Promise<string> {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(blob);
-      reader.onloadend = () => {
-        resolve(reader.result as string);
-      };
+      reader.onloadend = () => resolve(reader.result as string);
     });
   } catch (error) {
     console.error(`Impossible de charger l'image ${url}:`, error);
@@ -34,12 +33,10 @@ async function getBase64FromUrl(url: string): Promise<string> {
   }
 }
 
-// ─── Extracteur de styles (inline externe) ───────────────────────────────────
-
 /**
- * Récupère le contenu textuel de tous les stylesheets (y compris les liens externes générés par Vite)
- * et les transforme en balises <style> inline pour que Headless Chrome n'ait pas à
- * résoudre des URLs locales (file://).
+ * Récupère le contenu textuel de tous les stylesheets (y compris les liens
+ * externes générés par Vite) et les transforme en balises <style> inline
+ * pour que Headless Chrome n'ait pas à résoudre des URLs locales (file://).
  */
 async function getInlinedStyles(): Promise<string> {
   const styles: string[] = [];
@@ -56,7 +53,7 @@ async function getInlinedStyles(): Promise<string> {
         styles.push(`<style>${cssText}</style>`);
       } catch (err) {
         console.warn(`Impossible d'inliner le stylesheet: ${href}`, err);
-        styles.push(tag.outerHTML); // fallback
+        styles.push(tag.outerHTML);
       }
     }
   }
@@ -64,18 +61,14 @@ async function getInlinedStyles(): Promise<string> {
   return styles.join('\n');
 }
 
-// ─── Chemin Web Fallback ──────────────────────────────────────────────────────
+// ── Chemin Web Fallback (print système) ───────────────────────────────────────
 
 async function exportPdfWebFallback(): Promise<boolean> {
-  // Affiche un toast informatif car ça ouvre la boîte de dialogue système
-  toast.info("Génération du PDF via le navigateur...", {
+  toast.info('Génération du PDF via le navigateur…', {
     description: "Veuillez cliquer sur 'Enregistrer en PDF' dans la fenêtre d'impression.",
     duration: 5000,
   });
-
-  // Petite pause pour laisser le toast s'afficher
   await new Promise((resolve) => setTimeout(resolve, 500));
-
   try {
     window.print();
     return true;
@@ -85,7 +78,84 @@ async function exportPdfWebFallback(): Promise<boolean> {
   }
 }
 
-// ─── Chemin Desktop (Vectoriel natif via Headless Chrome) ───────────────────
+// ── Chemin Android (jsPDF + html2canvas) ─────────────────────────────────────
+
+async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
+  const el = document.getElementById(sourceElementId);
+  if (!el) {
+    toast.error(`Impossible de trouver l'élément #${sourceElementId} dans le DOM.`);
+    return false;
+  }
+
+  const toastId = toast.loading('Génération du PDF Android…');
+
+  try {
+    // Import dynamique pour ne pas alourdir le bundle desktop
+    const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+      import('jspdf'),
+      import('html2canvas'),
+    ]);
+
+    // Rendu du nœud CV en canvas à 2× pour la qualité (équiv. 144 dpi)
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+    // Format A4 en mm
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pageWidth  = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    // Mise à l'échelle : on remplit la largeur A4, on pagine en hauteur
+    const imgWidthPx  = canvas.width;
+    const imgHeightPx = canvas.height;
+    const ratio       = pageWidth / (imgWidthPx / 2);  // /2 car scale=2
+    const imgHeightMm = (imgHeightPx / 2) * ratio;
+
+    let yPosition = 0;
+    let pageCount = 0;
+
+    while (yPosition < imgHeightMm) {
+      if (pageCount > 0) pdf.addPage();
+
+      pdf.addImage(
+        imgData,
+        'JPEG',
+        0,
+        -yPosition,
+        pageWidth,
+        imgHeightMm,
+      );
+
+      yPosition += pageHeight;
+      pageCount++;
+    }
+
+    toast.dismiss(toastId);
+
+    const blob = pdf.output('blob');
+    await shareBlob(blob, 'cv_export.pdf', 'application/pdf');
+
+    return true;
+  } catch (error) {
+    toast.dismiss(toastId);
+    console.error('Erreur export PDF Android:', error);
+    toast.error(`Échec de l'export PDF : ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+}
+
+// ── Chemin Desktop (Vectoriel natif via Headless Chrome) ─────────────────────
 
 async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
   const cvNode = document.getElementById(sourceElementId);
@@ -94,13 +164,9 @@ async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
     return false;
   }
 
-  // 1. Cloner le nœud pour ne pas affecter le DOM en cours de lecture
   const clonedCv = cvNode.cloneNode(true) as HTMLElement;
-
-  // 2. Extraire et inliner les styles CSS
   const inlinedStyles = await getInlinedStyles();
 
-  // 3. Transformer les SVGs inline et images locales
   const images = clonedCv.querySelectorAll('img');
   for (const img of Array.from(images)) {
     if (img.src && !img.src.startsWith('data:')) {
@@ -108,12 +174,6 @@ async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
     }
   }
 
-  // 4. Construire un document HTML propre
-  // L'ajout d'un script d'attente des fonts (document.fonts.ready) n'est utile
-  // que si on fait exécuter du JS au Headless Chrome. Or printToPdf ne garantit pas
-  // l'exécution asynchrone arbitraire avant impression.
-  // Cependant, wait_until_navigated dans Rust va attendre le load DOM complet.
-  // Les balises <style> inlinées contenant des fontes Google ou locales en Base64 seront lues correctement.
   const htmlContent = `
     <!DOCTYPE html>
     <html lang="fr">
@@ -122,7 +182,6 @@ async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
         <title>CV</title>
         ${inlinedStyles}
         <style>
-          /* Forcer des styles d'impression parfaits */
           body {
             margin: 0;
             padding: 0;
@@ -150,7 +209,6 @@ async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
   `;
 
   try {
-    // 5. Demander à l'utilisateur où sauvegarder
     const filePath = await save({
       defaultPath: 'cv_export.pdf',
       filters: [{ name: 'PDF', extensions: ['pdf'] }],
@@ -158,29 +216,33 @@ async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
 
     if (!filePath) return false;
 
-    // 6. Envoyer le HTML au backend Rust
     const pdfBytes = await invoke<number[]>('generate_pdf', { html: htmlContent });
     const pdfData = new Uint8Array(pdfBytes);
-
-    // 7. Écrire le fichier
     await writeFile(filePath, pdfData);
 
     return true;
   } catch (error) {
     console.error("Erreur lors de l'export PDF vectoriel natif:", error);
-
-    // Fallback gracieux si Headless Chromium n'est pas trouvé ou autre erreur Rust
-    toast.error("L'export natif a échoué. Basculement sur l'impression système...");
+    toast.error("L'export natif a échoué. Basculement sur l'impression système…");
     return exportPdfWebFallback();
   }
 }
 
-// ─── Point d'entrée public ───────────────────────────────────────────────────
+// ── Point d'entrée public ─────────────────────────────────────────────────────
 
-export async function exportNativePdf(sourceElementId: string = 'printable-cv'): Promise<boolean> {
-  // On utilise plus jsPDF/html2canvas sur Android non plus, fallback global sur print
+/**
+ * Exporte le CV en PDF.
+ * - Desktop Tauri   → Headless Chrome (vectoriel)
+ * - Android Tauri   → jsPDF + html2canvas + Web Share API
+ * - Navigateur web  → window.print()
+ */
+export async function exportNativePdf(sourceElementId = 'printable-cv'): Promise<boolean> {
   if (!isTauri()) {
     return exportPdfWebFallback();
+  }
+
+  if (isAndroid()) {
+    return exportPdfAndroid(sourceElementId);
   }
 
   return exportPdfDesktop(sourceElementId);
