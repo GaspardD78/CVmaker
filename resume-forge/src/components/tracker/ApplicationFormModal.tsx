@@ -402,8 +402,6 @@ export function ApplicationFormModal({ isOpen, onClose, application }: Applicati
               </div>
             )}
 
-            </div>
-            
             <div className="mt-auto pt-4 flex sm:flex-row flex-col gap-3 border-t p-4 sm:p-6 bg-gray-50/50">
               <DialogClose className="flex-1 sm:flex-none px-4 py-2 text-gray-700 bg-white border border-gray-300 active:bg-gray-100 rounded-md min-h-[44px] font-medium transition-colors">
                 Annuler

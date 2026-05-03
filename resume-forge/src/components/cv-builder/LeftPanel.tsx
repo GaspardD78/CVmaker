@@ -358,6 +358,7 @@ export function LeftPanel({
     });
   };
 
+  const handleAddSectionHeader = async (sectionName: string) => {
     if (sectionName === "Nouvelle Section") {
       setNewSectionName("Nouvelle Section");
       setPromptingSection(true);
