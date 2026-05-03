@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
+import { useProfileStore } from '@/stores/profileStore';
 
 const STORAGE_KEY = 'rf_sidebar_collapsed';
 
