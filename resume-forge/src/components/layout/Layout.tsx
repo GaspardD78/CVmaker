@@ -68,7 +68,7 @@ const NAV_ITEMS = [
   },
 ];
 
-const MOBILE_NAV_PATHS = ['/', '/cv', '/tracker', '/job-watch', '/settings'];
+const MOBILE_NAV_PATHS = ['/', '/cv', '/tracker', '/job-watch', '/profile', '/settings'];
 const MOBILE_NAV = NAV_ITEMS.filter(item => MOBILE_NAV_PATHS.includes(item.to));
 
 function NavBtn({
@@ -136,6 +136,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { logout } = useAuthStore();
   const unreadCount = useJobWatchStore(s => s.unreadCount());
+  const { profile, fetchProfile } = useProfileStore();
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, String(collapsed)); } catch { /* ignore */ }
@@ -195,6 +200,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
             }}>ResumeForge</span>
           )}
         </div>
+        
+        {/* Current Profile Indicator */}
+        {!collapsed && profile && (
+          <div style={{ 
+            margin: '12px 8px 4px', 
+            padding: '8px 10px', 
+            background: 'var(--rf-accent-subtle)', 
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            border: '1px solid rgba(99, 102, 241, 0.1)'
+          }}>
+            <div style={{ 
+              width: 28, height: 28, 
+              borderRadius: 99, 
+              background: 'var(--rf-accent)', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, color: '#fff',
+              flexShrink: 0
+            }}>
+              {profile.firstName?.[0]}{profile.lastName?.[0]}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ 
+                fontSize: 13, fontWeight: 600, color: 'var(--rf-accent)', 
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
+              }}>
+                {profile.firstName} {profile.lastName}
+              </div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--rf-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Profil actif
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -226,14 +267,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             <button
               onClick={logout}
-              title="Déconnexion"
+              title="Changer de profil / Déconnexion"
               style={{ background: 'none', border: 'none', padding: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}
             >
-              <NavBtn collapsed={collapsed} active={false} label="Déconnexion">
+              <NavBtn collapsed={collapsed} active={false} label="Changer de profil">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M9 7a4 4 0 1 1 0 8 4 4 0 0 1 0-8z" /><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                 </svg>
               </NavBtn>
             </button>

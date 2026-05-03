@@ -287,6 +287,32 @@ export function SettingsPage() {
         </div>
       </section>
 
+      {/* ── Session / Profil ── */}
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mt-6 mb-12">
+        <div className="p-6 border-b dark:border-gray-700">
+          <div className="flex items-center gap-2 mb-1">
+            <Monitor size={18} className="text-gray-500" />
+            <h2 className="text-base font-semibold dark:text-gray-100">Session</h2>
+          </div>
+          <p className="text-sm text-gray-500">
+            Quitter le profil actuel pour en sélectionner un autre ou en créer un nouveau.
+          </p>
+        </div>
+        <div className="p-6">
+          <button
+            onClick={() => {
+              import('@/stores/authStore').then(m => m.useAuthStore.getState().logout());
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors border border-gray-200 dark:border-gray-600"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Changer de profil / Déconnexion
+          </button>
+        </div>
+      </section>
+
       {/* Conflict resolution modal */}
       {pendingBackup && (
         <ImportConflictModal
