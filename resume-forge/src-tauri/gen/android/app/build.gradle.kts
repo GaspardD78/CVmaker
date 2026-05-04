@@ -7,12 +7,31 @@ plugins {
     id("rust")
 }
 
-// Windows: Tauri creates symlinks in jniLibs; Gradle's mergeNativeLibs fails on Windows
-// with AccessDeniedException when symlinks lack SeCreateSymbolicLinkPrivilege.
-// Resolve symlinks to real copies before any merge task runs.
+// Windows compatibility: mergeUniversalReleaseNativeLibs fails with AccessDeniedException
+// on build/intermediates/merged_native_libs when a previous failed build left that directory
+// locked/stale (Windows Defender or read-only NTFS attributes). doFirst runs before the
+// task action, so we force-delete the stale output dir with cmd rmdir (which handles
+// read-only attrs) and replace jniLibs symlinks with real copies.
 gradle.taskGraph.whenReady {
     allTasks.filter { it.name.startsWith("merge") && it.name.endsWith("NativeLibs") }.forEach { task ->
         task.doFirst {
+            val isWindows = System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true
+
+            // Force-delete stale merge intermediates so the task can recreate them cleanly
+            val mergedLibsDir = project.layout.buildDirectory
+                .dir("intermediates/merged_native_libs").get().asFile
+            if (mergedLibsDir.exists()) {
+                if (isWindows) {
+                    Runtime.getRuntime()
+                        .exec(arrayOf("cmd", "/c", "rmdir", "/s", "/q", mergedLibsDir.absolutePath))
+                        .waitFor()
+                } else {
+                    mergedLibsDir.deleteRecursively()
+                }
+            }
+
+            // Replace jniLibs symlinks with real file copies (Windows may deny access
+            // to symlinked .so files without SeCreateSymbolicLinkPrivilege)
             val jniLibsDir = file("src/main/jniLibs")
             if (jniLibsDir.exists()) {
                 jniLibsDir.walkTopDown()
