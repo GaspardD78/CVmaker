@@ -27,13 +27,7 @@ const LABEL_COLORS: Record<AttachmentLabel, string> = {
   other: 'bg-gray-100 text-gray-600',
 };
 
-const LABEL_LABELS: Record<AttachmentLabel, string> = {
-  cv: 'CV',
-  cover_letter: 'LM',
-  portfolio: 'Portfolio',
-  certificate: 'Certificat',
-  other: 'Autre',
-};
+
 
 function getFileIcon(fileType: string | null) {
   if (!fileType) return <File size={16} />;

@@ -274,7 +274,7 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
 import { Profile, MasterEntry } from '@/types/profile';
 
 export function generateFullCVMatchPrompt(
-  profile: Profile,
+  _profile: Profile,
   entries: MasterEntry[],
   jobOfferText: string,
   targetCompany?: string
