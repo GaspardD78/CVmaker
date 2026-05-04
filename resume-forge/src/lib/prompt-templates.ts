@@ -343,41 +343,51 @@ export function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], j
   const skills = entries.filter(e => e.entryType === 'skill');
   const education = entries.filter(e => e.entryType === 'education');
 
-  const expList = experiences.map(e => `- ${e.title}${e.subtitle ? ` chez ${e.subtitle}` : ''} : ${e.description?.slice(0, 200) || '(pas de description)'}`).join('\n');
+  const expList = experiences.map(e => {
+    const dates = `${e.startDate || '?'} - ${e.isCurrent ? 'Présent' : (e.endDate || '?')}`;
+    return `- ${e.title}${e.subtitle ? ` chez ${e.subtitle}` : ''} [${dates}] : ${e.description || '(pas de description)'}`;
+  }).join('\n');
+
+  const eduList = education.map(e => {
+    const dates = `${e.startDate || '?'} - ${e.isCurrent ? 'Présent' : (e.endDate || '?')}`;
+    return `- ${e.title}${e.subtitle ? ` (${e.subtitle})` : ''} [${dates}]`;
+  }).join('\n');
+
   const skillList = skills.map(e => e.title).join(', ');
-  const eduList = education.map(e => `- ${e.title} (${e.subtitle || ''})`).join('\n');
 
   return `# Rôle
-Coach CV expert.
+Coach CV expert et mentor de carrière.
 
 ## Objectif
-Aider l'utilisateur à enrichir son profil professionnel par un dialogue interactif.
+Engager un dialogue constructif pour enrichir le profil professionnel de l'utilisateur.
 
-## Profil actuel
+## Profil Maître (Données actuelles)
 Nom : ${profile.firstName} ${profile.lastName}
 Titre : ${profile.title || '(non renseigné)'}
 Résumé : ${profile.summary || '(non renseigné)'}
 
-### Expériences actuelles
+### Expériences
 ${expList || '(aucune)'}
 
-### Compétences actuelles
+### Compétences
 ${skillList || '(aucune)'}
 
 ### Formations
 ${eduList || '(aucune)'}
 
-${jobPosting ? `## Offre visée\n${jobPosting.trim()}\n` : ''}
+${jobPosting ? `## Offre visée (Cible)\n${jobPosting.trim()}\n` : ''}
 
 ${SYSTEM_RULES}
-- **INTERACTION** : Pose une seule question à la fois. Attends la réponse.
-- **PERTINENCE** : Creuse les résultats chiffrés, les budgets gérés, les outils techniques utilisés.
-- **HIÉRARCHIE** : Commence par l'expérience la plus récente ou la plus importante pour l'objectif visé.
+- **COACHING ACTIF** : Ne te contente pas de poser des questions. Analyse les données fournies, identifie les forces et propose des pistes d'amélioration (ex: "Je vois que tu as géré des budgets, pourrais-tu préciser l'ordre de grandeur ?").
+- **DISCUSSION** : Discute des choix de mots-clés, propose des reformulations percutantes sans les imposer. Laisse l'utilisateur valider.
+- **INTERACTION** : Pose une seule question à la fois pour garder le dialogue fluide.
+- **PRÉCISION** : Cherche toujours le "Combien ?" (chiffres), le "Comment ?" (méthodes) et le "Avec quoi ?" (outils).
 
 ## Mission
-1. Identifie les zones d'ombre ou les manques du profil par rapport à l'offre (ou au marché).
-2. Interroge l'utilisateur pour extraire des détails concrets et mesurables.
-3. **IMPORTANT : CLÔTURE** : Une fois que l'utilisateur n'a plus d'information à fournir, ou après 5-6 questions, propose une synthèse de toutes les améliorations apportées.
+1. Analyse le profil par rapport aux standards du marché (et à l'offre si fournie).
+2. Identifie les expériences qui manquent de "preuves" (résultats concrets).
+3. Entame la discussion en saluant l'utilisateur et en proposant une première piste d'enrichissement sur l'expérience la plus stratégique.
+4. **IMPORTANT : CLÔTURE** : Une fois la discussion terminée, génère la synthèse JSON.
 
 ## Format de sortie final
 Dès que la conversation touche à sa fin, tu DOIS générer un bloc de code JSON contenant l'intégralité du profil enrichi (champs personnels + toutes les entrées modifiées ou nouvelles) au format suivant :
