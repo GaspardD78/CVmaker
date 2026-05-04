@@ -24,7 +24,8 @@ import { extractSalaryFromText } from './common/salary';
 
 function buildIndeedUrl(settings: JobWatchSettings): string {
   const profile = settings.searchProfile;
-  const q = profile.jobTitles.join(' ') || profile.skills[0] || '';
+  const titles = profile.jobTitles.map(t => `"${t.trim()}"`).join(' OR ');
+  const q = titles || profile.skills[0] || '';
   const l = profile.location.city || 'France';
   const params = new URLSearchParams({ q, l, sort: 'date', fromage: '1' });
   return `https://fr.indeed.com/emplois?${params.toString()}`;

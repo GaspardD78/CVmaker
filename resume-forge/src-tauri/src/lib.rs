@@ -279,9 +279,9 @@ async fn scrape_with_session(
             .window_size(Some((1440, 900)));
 
         // Stealth flags — mask `navigator.webdriver`, disable the banner that
-        // broadcasts "automated test software" to anti-bot scripts. We leak
-        // the &str slices (short-lived, per-process).
+        // broadcasts "automated test software" to anti-bot scripts.
         let mut extra_args: Vec<&'static std::ffi::OsStr> = vec![
+            std::ffi::OsStr::new("--disable-infobars"),
             std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
         ];
         if let Some(ua) = user_agent.as_ref() {
@@ -350,9 +350,10 @@ async fn open_login_flow(
     // Spawn Chrome as a pure subprocess — NO --enable-automation, NO CDP.
     let mut cmd = std::process::Command::new(&chrome_path);
     cmd.arg(format!("--user-data-dir={}", dir.display()))
-       .arg("--window-size=1200,800")
+       .arg("--window-size=1440,900")
        .arg("--no-first-run")
        .arg("--no-default-browser-check")
+       .arg("--disable-infobars")
        .arg("--disable-blink-features=AutomationControlled");
 
     if let Some(ua) = user_agent {

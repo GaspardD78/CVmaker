@@ -22,7 +22,7 @@ import { extractSalaryFromText } from './common/salary';
 
 function buildHelloworkUrl(settings: JobWatchSettings): string {
   const profile = settings.searchProfile;
-  const k = profile.jobTitles.join(' ') || '';
+  const k = profile.jobTitles.slice(0, 2).map(t => `"${t.trim()}"`).join(' ') || '';
   const l = profile.location.city || 'France';
   const params = new URLSearchParams({ k, l, d: 'r86400', st: 'date' });
   return `https://www.hellowork.com/fr-fr/emploi/recherche.html?${params.toString()}`;
