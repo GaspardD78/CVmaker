@@ -341,6 +341,11 @@ Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown).
 export function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], jobPosting?: string): string {
   const experiences = entries.filter(e => e.entryType === 'experience');
   const skills = entries.filter(e => e.entryType === 'skill');
+  const education = entries.filter(e => e.entryType === 'education');
+
+  const expList = experiences.map(e => `- ${e.title}${e.subtitle ? ` chez ${e.subtitle}` : ''} : ${e.description?.slice(0, 200) || '(pas de description)'}`).join('\n');
+  const skillList = skills.map(e => e.title).join(', ');
+  const eduList = education.map(e => `- ${e.title} (${e.subtitle || ''})`).join('\n');
 
   return `# Rôle
 Coach CV expert.
@@ -352,8 +357,15 @@ Aider l'utilisateur à enrichir son profil professionnel par un dialogue interac
 Nom : ${profile.firstName} ${profile.lastName}
 Titre : ${profile.title || '(non renseigné)'}
 Résumé : ${profile.summary || '(non renseigné)'}
-Nombre d'expériences : ${experiences.length}
-Nombre de compétences : ${skills.length}
+
+### Expériences actuelles
+${expList || '(aucune)'}
+
+### Compétences actuelles
+${skillList || '(aucune)'}
+
+### Formations
+${eduList || '(aucune)'}
 
 ${jobPosting ? `## Offre visée\n${jobPosting.trim()}\n` : ''}
 
@@ -363,7 +375,32 @@ ${SYSTEM_RULES}
 - **HIÉRARCHIE** : Commence par l'expérience la plus récente ou la plus importante pour l'objectif visé.
 
 ## Mission
-Identifie les zones d'ombre ou les manques du profil par rapport à l'offre (ou au marché) et interroge l'utilisateur pour extraire des détails concrets et mesurables.`;
+1. Identifie les zones d'ombre ou les manques du profil par rapport à l'offre (ou au marché).
+2. Interroge l'utilisateur pour extraire des détails concrets et mesurables.
+3. **IMPORTANT : CLÔTURE** : Une fois que l'utilisateur n'a plus d'information à fournir, ou après 5-6 questions, propose une synthèse de toutes les améliorations apportées.
+
+## Format de sortie final
+Dès que la conversation touche à sa fin, tu DOIS générer un bloc de code JSON contenant l'intégralité du profil enrichi (champs personnels + toutes les entrées modifiées ou nouvelles) au format suivant :
+
+\`\`\`json
+{
+  "profile": {
+    "title": "Titre enrichi",
+    "summary": "Résumé enrichi"
+  },
+  "entries": [
+    {
+      "entryType": "experience",
+      "title": "Titre du poste",
+      "subtitle": "Entreprise",
+      "description": "Description enrichie avec des puces",
+      "startDate": "YYYY-MM",
+      "endDate": "YYYY-MM",
+      "isCurrent": false
+    }
+  ]
+}
+\`\`\``;
 }
 
 export function generateSourceConfigPrompt(
