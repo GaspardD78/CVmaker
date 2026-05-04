@@ -329,6 +329,7 @@ async fn open_login_flow(
     site_id: String,
     login_url: String,
     profile_id: Option<String>,
+    user_agent: Option<String>,
 ) -> Result<(), String> {
     // Resolve the Chrome/Chromium binary via headless_chrome's locator
     let chrome_path = default_executable()
@@ -347,16 +348,18 @@ async fn open_login_flow(
     }
 
     // Spawn Chrome as a pure subprocess — NO --enable-automation, NO CDP.
-    // This avoids `navigator.webdriver = true` and the "Chrome est contrôlé
-    // par un logiciel de test automatisé" banner that makes Cloudflare and
-    // FriendlyCaptcha reject the login form.
-    let child = std::process::Command::new(&chrome_path)
-        .arg(format!("--user-data-dir={}", dir.display()))
-        .arg("--window-size=1200,800")
-        .arg("--no-first-run")
-        .arg("--no-default-browser-check")
-        .arg("--disable-blink-features=AutomationControlled")
-        .arg(&login_url)
+    let mut cmd = std::process::Command::new(&chrome_path);
+    cmd.arg(format!("--user-data-dir={}", dir.display()))
+       .arg("--window-size=1200,800")
+       .arg("--no-first-run")
+       .arg("--no-default-browser-check")
+       .arg("--disable-blink-features=AutomationControlled");
+
+    if let Some(ua) = user_agent {
+        cmd.arg(format!("--user-agent={}", ua));
+    }
+
+    let child = cmd.arg(&login_url)
         .spawn()
         .map_err(|e| format!("Lancement Chrome: {}", e))?;
 
@@ -425,7 +428,7 @@ async fn scrape_with_session(
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-async fn open_login_flow(_site_id: String, _login_url: String, _profile_id: Option<String>) -> Result<(), String> {
+async fn open_login_flow(_site_id: String, _login_url: String, _profile_id: Option<String>, _user_agent: Option<String>) -> Result<(), String> {
     Err("Login WebView non supporté sur Android".into())
 }
 

@@ -53,8 +53,13 @@ export async function scrapeWithSession(
  * The browser stays alive until `closeLoginBrowser` is called — cookies
  * are flushed to disk on close.
  */
-export async function openLoginFlow(siteId: SessionSiteId, loginUrl: string, profileId?: string | null): Promise<void> {
-  await invoke('open_login_flow', { siteId, loginUrl, profileId: profileId ?? null });
+export async function openLoginFlow(
+  siteId: SessionSiteId,
+  loginUrl: string,
+  profileId?: string | null,
+  userAgent: string = DESKTOP_UA,
+): Promise<void> {
+  await invoke('open_login_flow', { siteId, loginUrl, profileId: profileId ?? null, userAgent });
 }
 
 /** Close the login browser — call after the user confirms they're logged in. */

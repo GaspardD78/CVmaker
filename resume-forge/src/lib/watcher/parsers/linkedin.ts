@@ -74,12 +74,20 @@ const CARD_SELECTORS = [
 
 /** Returns true if the page is a login / challenge wall (session expired). */
 function isLoginPage(doc: Document): boolean {
-  return Boolean(
-    doc.querySelector('form[action*="login"], form[action*="uas/login"]') ||
-    doc.querySelector('#username, #password') ||
-    doc.querySelector('[class*="sign-in"], [class*="signin"]') ||
-    (doc.title && /sign in|log in|connexion|challenge/i.test(doc.title))
-  );
+  // If we found actual job cards, it's NOT a login page, even if some login-related
+  // keywords appear in headers/modals.
+  if (doc.querySelector('[data-job-id], [data-occludable-job-id], .scaffold-layout__list-container')) {
+    return false;
+  }
+
+  const hasLoginForm = doc.querySelector('form[action*="login"], form[action*="uas/login"]');
+  const hasAuthInputs = doc.querySelector('#username, #password');
+  const hasLoginTitle = doc.title && /sign in|log in|connexion|challenge/i.test(doc.title);
+
+  // Check for LinkedIn-specific "AuthWall" or "Challenge" indicators
+  const isAuthWall = doc.querySelector('[class*="authwall"]');
+
+  return Boolean(hasLoginForm || hasAuthInputs || hasLoginTitle || isAuthWall);
 }
 
 interface CardSelectors {
@@ -139,6 +147,9 @@ export async function parseLinkedin(
 
   // Detect login redirect before attempting to parse job cards
   if (isLoginPage(doc)) {
+    // Capture HTML for debugging before throwing, so the user can see what LinkedIn is showing
+    setCapturedDebugHtml('linkedin', html, url);
+
     throw new Error(
       'Session LinkedIn expirée — reconnecte-toi depuis Paramètres › Veille › Connexions aux sites'
     );
