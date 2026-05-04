@@ -58,12 +58,6 @@ const WAIT_SELECTOR = [
   // Modern scaffold layout (2024–2026)
   '.scaffold-layout__list-container',
   '.jobs-search-results__list',
-  // Login indicators (to fail fast if session expired)
-  'form[action*="login"]',
-  '#username',
-  '#password',
-  '.authwall',
-  '.challenge-container',
 ].join(', ');
 
 /** Selectors for individual job cards — tried in order, first match wins. */
@@ -78,26 +72,26 @@ const CARD_SELECTORS = [
 
 /** Returns true if the page is a login / challenge wall (session expired). */
 function isLoginPage(doc: Document): boolean {
-  // If we are logged in (Me menu or search bar present), it's definitely not a login page
-  if (doc.querySelector('.global-nav__me, #global-nav-typeahead, .search-global-typeahead, [data-attribute-index="0"]')) {
+  const hasJobs = !!doc.querySelector('[data-job-id], [data-occludable-job-id], .scaffold-layout__list-container');
+  const hasMeMenu = !!doc.querySelector('.global-nav__me, #global-nav-typeahead, .search-global-typeahead');
+
+  // Log state for debugging (visible in console)
+  console.debug(`[linkedin] Page state: jobs=${hasJobs}, meMenu=${hasMeMenu}, title="${doc.title}"`);
+
+  // If we are logged in (Me menu present) OR we found job cards, it's NOT a login page
+  if (hasMeMenu || hasJobs) {
     return false;
   }
 
-  // If we found actual job cards, it's NOT a login page, even if some login-related
-  // keywords appear in headers/modals.
-  if (doc.querySelector('[data-job-id], [data-occludable-job-id], .scaffold-layout__list-container')) {
-    return false;
-  }
-
-  const hasLoginForm = doc.querySelector('form[action*="login"], form[action*="uas/login"]');
-  const hasAuthInputs = doc.querySelector('#username, #password');
-  const hasLoginTitle = doc.title && /sign in|log in|connexion|challenge|s'identifier|identifiez-vous/i.test(doc.title);
-
-  // Check for LinkedIn-specific "AuthWall" or "Challenge" indicators
-  const isAuthWall = doc.querySelector('[class*="authwall"], .authwall');
+  const loginForm = doc.querySelector('form[action*="uas/login"], form#login-form');
+  const authInputs = doc.querySelector('input#username, input#password');
+  const isAuthWall = doc.querySelector('.authwall, [class*="authwall-join-form"]');
   const isChallenge = doc.querySelector('.challenge-container, #challenge-error, [id*="challenge"]');
 
-  return Boolean(hasLoginForm || hasAuthInputs || hasLoginTitle || isAuthWall || isChallenge);
+  // More specific title check to avoid matching search results like "Challenge recruitment"
+  const titleMatch = doc.title && /sign in|log in|connexion|s'identifier|identifiez-vous/i.test(doc.title);
+
+  return Boolean(loginForm || authInputs || isAuthWall || isChallenge || titleMatch);
 }
 
 interface CardSelectors {
