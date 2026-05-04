@@ -308,11 +308,11 @@ async fn scrape_with_session(
                     selector, timeout, e
                 );
                 // Short grace period so client-side rendering has one last chance
-                tokio::time::sleep(std::time::Duration::from_millis(3_000)).await;
+                std::thread::sleep(std::time::Duration::from_millis(3_000));
             }
         } else {
             // No selector — just wait for navigation + JS render grace period
-            tokio::time::sleep(std::time::Duration::from_millis(3_000)).await;
+            std::thread::sleep(std::time::Duration::from_millis(3_000));
         }
 
         tab.get_content().map_err(|e| format!("Extraction HTML: {}", e))
