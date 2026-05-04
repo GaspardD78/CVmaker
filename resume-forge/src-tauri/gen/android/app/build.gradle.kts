@@ -1,9 +1,37 @@
 import java.util.Properties
+import java.nio.file.Files
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("rust")
+}
+
+// Windows: Tauri creates symlinks in jniLibs; Gradle's mergeNativeLibs fails on Windows
+// with AccessDeniedException when symlinks lack SeCreateSymbolicLinkPrivilege.
+// Resolve symlinks to real copies before any merge task runs.
+gradle.taskGraph.whenReady {
+    allTasks.filter { it.name.startsWith("merge") && it.name.endsWith("NativeLibs") }.forEach { task ->
+        task.doFirst {
+            val jniLibsDir = file("src/main/jniLibs")
+            if (jniLibsDir.exists()) {
+                jniLibsDir.walkTopDown()
+                    .filter { it.isFile && it.extension == "so" }
+                    .forEach { soFile ->
+                        val path = soFile.toPath()
+                        if (Files.isSymbolicLink(path)) {
+                            val linkTarget = Files.readSymbolicLink(path)
+                            val realTarget = if (linkTarget.isAbsolute) linkTarget.toFile()
+                                            else soFile.parentFile.resolve(linkTarget.toFile())
+                            if (realTarget.exists()) {
+                                Files.delete(path)
+                                realTarget.copyTo(soFile)
+                            }
+                        }
+                    }
+            }
+        }
+    }
 }
 
 val tauriProperties = Properties().apply {
