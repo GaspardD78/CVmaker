@@ -52,12 +52,15 @@ function buildLinkedinUrl(settings: JobWatchSettings): string {
  * wait, then queried directly in the returned HTML.
  */
 const WAIT_SELECTOR = [
-  // Data attributes (most stable across redesigns)
+  // Logged-in selectors
   '[data-job-id]',
   '[data-occludable-job-id]',
-  // Modern scaffold layout (2024–2026)
   '.scaffold-layout__list-container',
-  '.jobs-search-results__list',
+  // Guest mode selectors
+  '.jobs-search__results-list',
+  '.base-card',
+  '.base-search-card',
+  '.job-search-card',
 ].join(', ');
 
 /** Selectors for individual job cards — tried in order, first match wins. */
@@ -68,18 +71,21 @@ const CARD_SELECTORS = [
   '.jobs-search__results-list li',
   '.scaffold-layout__list-container li',
   '.job-card-container',
+  '.base-card',
+  '.base-search-card',
+  '.job-search-card',
 ];
 
 /** Returns true if the page is a login / challenge wall (session expired). */
 function isLoginPage(doc: Document): boolean {
-  const hasJobs = !!doc.querySelector('[data-job-id], [data-occludable-job-id], .scaffold-layout__list-container');
+  const hasJobs = !!doc.querySelector('[data-job-id], [data-occludable-job-id], .scaffold-layout__list-container, .base-card, .job-search-card');
   const hasMeMenu = !!doc.querySelector('.global-nav__me, #global-nav-typeahead, .search-global-typeahead');
 
   // Log state for debugging (visible in console)
   console.debug(`[linkedin] Page state: jobs=${hasJobs}, meMenu=${hasMeMenu}, title="${doc.title}"`);
 
-  // If we are logged in (Me menu present) OR we found job cards, it's NOT a login page
-  if (hasMeMenu || hasJobs) {
+  // If we found actual job cards OR have a "Me" menu OR the title mentions results, it's NOT a login page
+  if (hasMeMenu || hasJobs || (doc.title && /\d+ (offres|jobs)/i.test(doc.title))) {
     return false;
   }
 
@@ -103,11 +109,11 @@ interface CardSelectors {
 
 const DEFAULT_CARD_SELECTORS: CardSelectors = {
   titleSelector:
-    'a[href*="/jobs/view/"], a.job-card-list__title--link, a[class*="job-card-list__title"], a.base-card__full-link',
+    'a[href*="/jobs/view/"], a.job-card-list__title--link, a[class*="job-card-list__title"], a.base-card__full-link, .base-search-card__title',
   companySelector:
-    '.job-card-container__primary-description, .base-search-card__subtitle, h4',
+    '.job-card-container__primary-description, .base-search-card__subtitle, h4, .base-search-card__subtitle a',
   locationSelector:
-    '.job-card-container__metadata-item, .job-search-card__location, [class*="location"]',
+    '.job-card-container__metadata-item, .job-search-card__location, [class*="location"], .base-search-card__metadata',
   linkSelector:
     'a[href*="/jobs/view/"], a.job-card-list__title--link, a.base-card__full-link',
 };
