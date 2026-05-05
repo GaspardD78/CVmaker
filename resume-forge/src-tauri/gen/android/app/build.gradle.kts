@@ -13,6 +13,25 @@ plugins {
 // 2. Gradle's mergeNativeLibs fails with AccessDeniedException on its own output dir
 //    (arm64-v8a etc.) when a previous build left stale handles — pre-delete it.
 // 3. packageRelease can't delete its incremental/tmp dir for the same reason — pre-delete it.
+fun forceDeleteOnWindows(dir: java.io.File, attempts: Int = 5) {
+    if (!dir.exists()) return
+    val isWin = System.getProperty("os.name").lowercase().contains("win")
+    repeat(attempts) { i ->
+        if (!dir.exists()) return
+        if (isWin) {
+            ProcessBuilder("cmd.exe", "/c", "rmdir", "/s", "/q", dir.absolutePath)
+                .redirectErrorStream(true)
+                .start()
+                .waitFor()
+        } else {
+            dir.deleteRecursively()
+        }
+        if (!dir.exists()) return
+        // Sleep with exponential backoff to let Windows release lingering file handles
+        // (Defender scan, Kotlin daemon, AGP zip-cache) before retrying.
+        Thread.sleep(200L * (1L shl i))
+    }
+}
 gradle.taskGraph.whenReady {
     allTasks.filter { it.name.startsWith("merge") && it.name.endsWith("NativeLibs") }.forEach { task ->
         task.doFirst {
@@ -36,38 +55,20 @@ gradle.taskGraph.whenReady {
             }
             // Pre-delete the merge output dir so Gradle can recreate it without hitting
             // AccessDeniedException on Windows (stale handle from a previous build).
-            // Use cmd.exe rmdir to avoid silent failure from Kotlin's deleteRecursively().
-            val mergeOut = file("build/intermediates/merged_native_libs")
-            if (mergeOut.exists()) {
-                if (System.getProperty("os.name").lowercase().contains("win")) {
-                    ProcessBuilder("cmd.exe", "/c", "rmdir", "/s", "/q", mergeOut.absolutePath)
-                        .redirectErrorStream(true)
-                        .start()
-                        .waitFor()
-                } else {
-                    mergeOut.deleteRecursively()
-                }
-            }
+            forceDeleteOnWindows(file("build/intermediates/merged_native_libs"))
         }
     }
 
     // Windows holds open handles on the incremental/package tmp dirs between builds.
     // Kotlin's deleteRecursively() silently fails when Defender scans zip-cache files;
-    // use cmd.exe rmdir /s /q which forces handle release on Windows.
+    // use cmd.exe rmdir /s /q with retry/backoff to force handle release on Windows.
     allTasks.filter { it.name.startsWith("package") && it.name.endsWith("Release") }.forEach { task ->
-        task.doFirst {
-            val tmpDir = file("build/intermediates/incremental/${task.name}/tmp")
-            if (tmpDir.exists()) {
-                if (System.getProperty("os.name").lowercase().contains("win")) {
-                    ProcessBuilder("cmd.exe", "/c", "rmdir", "/s", "/q", tmpDir.absolutePath)
-                        .redirectErrorStream(true)
-                        .start()
-                        .waitFor()
-                } else {
-                    tmpDir.deleteRecursively()
-                }
-            }
-        }
+        val tmpDir = file("build/intermediates/incremental/${task.name}/tmp")
+        // Pre-delete so AGP's zip-cache flow starts from an empty state.
+        task.doFirst { forceDeleteOnWindows(tmpDir) }
+        // Post-delete so the next build's pre-delete (and AGP's own cleanup) does not race
+        // against handles still held by the Kotlin daemon, Defender, or AGP's zip-cache.
+        task.doLast { forceDeleteOnWindows(tmpDir) }
     }
 }
 
