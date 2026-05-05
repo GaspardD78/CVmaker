@@ -36,20 +36,36 @@ gradle.taskGraph.whenReady {
             }
             // Pre-delete the merge output dir so Gradle can recreate it without hitting
             // AccessDeniedException on Windows (stale handle from a previous build).
+            // Use cmd.exe rmdir to avoid silent failure from Kotlin's deleteRecursively().
             val mergeOut = file("build/intermediates/merged_native_libs")
             if (mergeOut.exists()) {
-                mergeOut.deleteRecursively()
+                if (System.getProperty("os.name").lowercase().contains("win")) {
+                    ProcessBuilder("cmd.exe", "/c", "rmdir", "/s", "/q", mergeOut.absolutePath)
+                        .redirectErrorStream(true)
+                        .start()
+                        .waitFor()
+                } else {
+                    mergeOut.deleteRecursively()
+                }
             }
         }
     }
 
     // Windows holds open handles on the incremental/package tmp dirs between builds.
-    // Force-delete them before any package task so Gradle's own delete doesn't fail.
+    // Kotlin's deleteRecursively() silently fails when Defender scans zip-cache files;
+    // use cmd.exe rmdir /s /q which forces handle release on Windows.
     allTasks.filter { it.name.startsWith("package") && it.name.endsWith("Release") }.forEach { task ->
         task.doFirst {
             val tmpDir = file("build/intermediates/incremental/${task.name}/tmp")
             if (tmpDir.exists()) {
-                tmpDir.deleteRecursively()
+                if (System.getProperty("os.name").lowercase().contains("win")) {
+                    ProcessBuilder("cmd.exe", "/c", "rmdir", "/s", "/q", tmpDir.absolutePath)
+                        .redirectErrorStream(true)
+                        .start()
+                        .waitFor()
+                } else {
+                    tmpDir.deleteRecursively()
+                }
             }
         }
     }
