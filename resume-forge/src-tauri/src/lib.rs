@@ -1,4 +1,6 @@
-use std::sync::{Arc, Mutex, OnceLock};
+#[cfg(not(target_os = "android"))]
+use std::sync::{Arc, Mutex};
+use std::sync::OnceLock;
 #[cfg(not(target_os = "android"))]
 use std::process::Child;
 #[cfg(not(target_os = "android"))]
@@ -13,6 +15,7 @@ pub use email::send_email;
 use headless_chrome::{Browser, LaunchOptions};
 #[cfg(not(target_os = "android"))]
 use headless_chrome::browser::default_executable;
+#[cfg(not(target_os = "android"))]
 use std::io::Write;
 #[cfg(not(target_os = "android"))]
 use tempfile::Builder;
