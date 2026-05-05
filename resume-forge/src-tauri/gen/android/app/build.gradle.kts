@@ -51,21 +51,28 @@ gradle.taskGraph.whenReady {
         }
     }
 
-    // Windows holds open handles on the incremental/package tmp dirs between builds.
+    // Windows holds open handles on the incremental/package dirs between builds.
     // Kotlin's deleteRecursively() silently fails when Defender scans zip-cache files;
     // use cmd.exe rmdir /s /q which forces handle release on Windows.
     allTasks.filter { it.name.contains("package", ignoreCase = true) }.forEach { task ->
         task.doFirst {
-            val tmpDir = file("build/intermediates/incremental/${task.name}/tmp")
-            if (tmpDir.exists()) {
-                if (System.getProperty("os.name").lowercase().contains("win")) {
-                    println("Windows Fix: Pre-deleting locked tmp dir for ${task.name}")
-                    ProcessBuilder("cmd.exe", "/c", "rmdir", "/s", "/q", tmpDir.absolutePath)
-                        .redirectErrorStream(true)
-                        .start()
-                        .waitFor()
-                } else {
-                    tmpDir.deleteRecursively()
+            val pathsToClean = listOf(
+                file("build/intermediates/incremental/${task.name}"),
+                file("build/intermediates/incremental/release/${task.name}"),
+                file("build/intermediates/incremental/universalRelease/${task.name}")
+            )
+            
+            pathsToClean.forEach { dir ->
+                if (dir.exists()) {
+                    if (System.getProperty("os.name").lowercase().contains("win")) {
+                        println("Windows Fix: Pre-deleting locked dir: ${dir.absolutePath}")
+                        ProcessBuilder("cmd.exe", "/c", "rmdir", "/s", "/q", dir.absolutePath)
+                            .redirectErrorStream(true)
+                            .start()
+                            .waitFor()
+                    } else {
+                        dir.deleteRecursively()
+                    }
                 }
             }
         }
