@@ -89,28 +89,35 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    val keystoreProperties = Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(keystorePropertiesFile.inputStream())
+    }
+    val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+        ?: keystoreProperties.getProperty("storePassword")
+    val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+        ?: keystoreProperties.getProperty("keyAlias")
+    val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        ?: keystoreProperties.getProperty("keyPassword")
+    val hasReleaseSigningConfig = releaseStorePassword != null
+        && releaseKeyAlias != null
+        && releaseKeyPassword != null
+
     signingConfigs {
-        create("release") {
-            val keystorePropertiesFile = rootProject.file("key.properties")
-            val keystoreProperties = Properties()
-            if (keystorePropertiesFile.exists()) {
-                keystoreProperties.load(keystorePropertiesFile.inputStream())
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                val envStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
+                val propStoreFile = keystoreProperties.getProperty("storeFile")
+                storeFile = when {
+                    envStoreFile != null -> file(envStoreFile)
+                    propStoreFile != null -> file(propStoreFile)
+                    else -> file("resumeforge.keystore")
+                }
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
-
-            val envStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
-            val propStoreFile = keystoreProperties.getProperty("storeFile")
-            storeFile = when {
-                envStoreFile != null -> file(envStoreFile)
-                propStoreFile != null -> file(propStoreFile)
-                else -> file("resumeforge.keystore")
-            }
-
-            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                ?: keystoreProperties.getProperty("storePassword")
-            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                ?: keystoreProperties.getProperty("keyAlias")
-            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-                ?: keystoreProperties.getProperty("keyPassword")
         }
     }
     buildTypes {
@@ -126,7 +133,15 @@ android {
             }
         }
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseSigningConfig) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "No release keystore configured (key.properties or ANDROID_KEYSTORE_* env vars); " +
+                    "falling back to debug signing. Do NOT distribute this APK."
+                )
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
