@@ -10,6 +10,7 @@ plugins {
 // Windows: Tauri creates symlinks in jniLibs; Gradle's mergeNativeLibs fails on Windows
 // with AccessDeniedException when symlinks lack SeCreateSymbolicLinkPrivilege.
 // Resolve symlinks to real copies before any merge task runs.
+// Also pre-delete the packageRelease tmp dir so Windows doesn't block Gradle from clearing it.
 gradle.taskGraph.whenReady {
     allTasks.filter { it.name.startsWith("merge") && it.name.endsWith("NativeLibs") }.forEach { task ->
         task.doFirst {
@@ -29,6 +30,17 @@ gradle.taskGraph.whenReady {
                             }
                         }
                     }
+            }
+        }
+    }
+
+    // Windows holds open handles on the incremental/package tmp dirs between builds.
+    // Force-delete them before any package task so Gradle's own delete doesn't fail.
+    allTasks.filter { it.name.startsWith("package") && it.name.endsWith("Release") }.forEach { task ->
+        task.doFirst {
+            val tmpDir = file("build/intermediates/incremental/${task.name}/tmp")
+            if (tmpDir.exists()) {
+                tmpDir.deleteRecursively()
             }
         }
     }
