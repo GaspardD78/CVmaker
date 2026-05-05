@@ -24,7 +24,7 @@ import { getSetting, setSetting } from '@/lib/db';
 const CLIENT_ID = import.meta.env.VITE_GDRIVE_CLIENT_ID || '318662236943-ta2c54f7mordbupr7n9dkccnficq0b55.apps.googleusercontent.com';
 const CLIENT_SECRET = import.meta.env.VITE_GDRIVE_CLIENT_SECRET || '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';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const MOBILE_REDIRECT = 'com.jules.resume-forge:/oauth/callback';
+const MOBILE_REDIRECT = 'com.jules.resume-forge://oauth/callback';
 const FOLDER_NAME = 'ResumeForge Backups';
 
 // ── PKCE helpers ─────────────────────────────────────────────────────────────

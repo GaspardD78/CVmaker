@@ -95,12 +95,12 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
+      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b">
+        <div className="flex items-start justify-between p-6 border-b dark:border-gray-700 flex-shrink-0">
           <div>
-            <h2 className="text-lg font-semibold">Résolution des conflits</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h2 className="text-lg font-semibold dark:text-gray-100">Résolution des conflits</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               Sauvegarde du {new Date(backup.exportDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
               {' · '}v{backup.version}
             </p>
@@ -111,8 +111,8 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
         </div>
 
         {/* Module table */}
-        <div className="overflow-y-auto flex-1 p-6">
-          <p className="text-sm text-gray-600 mb-4">
+        <div className="overflow-y-auto flex-1 p-6 min-h-0">
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             Pour chaque module présent dans la sauvegarde, choisissez comment gérer les conflits avec vos données actuelles.
           </p>
 
@@ -126,9 +126,9 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
                 <div key={moduleId} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>
-                      <p className="font-medium text-sm">{meta.label}</p>
-                      <p className="text-xs text-gray-500">{meta.description}</p>
-                      <p className="text-xs text-blue-600 mt-0.5 font-medium">
+                      <p className="font-medium text-sm dark:text-gray-100">{meta.label}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{meta.description}</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 font-medium">
                         {rowCount} enregistrement{rowCount > 1 ? 's' : ''} dans la sauvegarde
                       </p>
                     </div>
@@ -145,7 +145,7 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
                               : strategy === 'merge'
                               ? 'bg-blue-600 text-white border-blue-600'
                               : 'bg-gray-500 text-white border-gray-500'
-                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
                         }`}
                       >
                         {STRATEGY_LABELS[strategy]}
@@ -180,10 +180,10 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t bg-gray-50 rounded-b-xl">
+        <div className="flex justify-end gap-3 p-6 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
             Annuler
           </button>
