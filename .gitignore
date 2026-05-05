@@ -4,3 +4,13 @@ resume-forge/src-tauri/target/
 *.log
 .DS_Store
 Thumbs.db
+# Exports et documents personnels
+*.pdf
+*.docx
+*.rtf
+*.zip
+!template*.docx
+
+# Fichiers de backup locaux
+*.cvmaker
+.portable

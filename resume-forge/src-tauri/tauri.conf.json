@@ -18,7 +18,7 @@
       }
     ],
     "security": {
-      "csp": null
+  "csp": "default-src 'self' tauri: http://tauri.localhost; connect-src 'self' tauri: http://tauri.localhost https://www.googleapis.com https://oauth2.googleapis.com; img-src 'self' tauri: asset: data: blob: https://*.googleusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self' tauri: asset: data:;"
     }
   },
   "bundle": {

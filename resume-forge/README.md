@@ -226,6 +226,7 @@ npm run tauri dev
 
 ---
 
-## Licence
+## ⚖️ Licence
 
-*(À définir)*
+Ce projet est sous licence **GPLv3**. 
+Vous êtes libre d'utiliser, de modifier et de distribuer ce logiciel, à condition que toute version modifiée soit également distribuée sous la même licence open source. Voir le fichier[LICENSE](LICENSE) pour plus de détails.
