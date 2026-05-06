@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { JobOffersView } from './JobOffersView';
 import { JobWatchConfigView } from './JobWatchConfig';
 import { HealthDrawer } from './HealthDrawer';
 import { SetupWizard } from './SetupWizard';
-import { isMobilePlatform } from '@/lib/platform';
 
 type Tab = 'offers' | 'config';
 
 export function JobWatchPage() {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('offers');
   const { initialize, unreadCount, configs } = useJobWatchStore();
   const { profile } = useProfileStore();
@@ -26,8 +23,6 @@ export function JobWatchPage() {
     { id: 'offers', label: 'Offres', badge: unread > 0 ? unread : undefined },
     { id: 'config', label: 'Configuration' },
   ];
-
-  const unread = unreadCount();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', background: 'var(--rf-bg)' }}>
