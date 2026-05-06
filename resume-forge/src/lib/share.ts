@@ -1,5 +1,4 @@
 import { writeFile } from '@tauri-apps/plugin-fs';
-import { BaseDirectory } from '@tauri-apps/api/path';
 import { isTauri, isAndroid } from './platform';
 import { toast } from 'sonner';
 
