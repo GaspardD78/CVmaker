@@ -91,9 +91,13 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
 
   try {
     // Import dynamique pour ne pas alourdir le bundle desktop
+    // html2canvas-pro: fork supporting modern CSS color functions (oklch, lab,
+    // color-mix) used by Tailwind CSS 4. The legacy html2canvas crashes silently
+    // on these and renders text as invisible (only photo + monochrome SVG icons
+    // survive), which was the Android export bug.
     const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
       import('jspdf'),
-      import('html2canvas'),
+      import('html2canvas-pro'),
     ]);
 
     // Rendu du nœud CV en canvas à 2× pour la qualité (équiv. 144 dpi)

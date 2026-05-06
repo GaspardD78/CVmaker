@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isAndroid } from '../platform';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 /** Known site identifiers that support session-based scraping */
 export type SessionSiteId = 'linkedin' | 'indeed' | 'hellowork' | 'glassdoor' | 'wttj';
@@ -102,16 +102,10 @@ export async function openLoginFlow(
   userAgent: string = DESKTOP_UA,
 ): Promise<void> {
   if (isAndroid()) {
-    const webview = new WebviewWindow(`login-${siteId}`, {
-      url: loginUrl,
-      title: `Connexion ${siteId}`,
-      width: 800,
-      height: 600,
-    });
-    
-    webview.once('tauri://error', (e) => {
-      console.error('WebviewWindow error:', e);
-    });
+    // Tauri 2 sur Android ne supporte pas les WebviewWindow multiples (la pile
+    // de fenêtres est limitée à la webview principale). On délègue au navigateur
+    // système via le plugin opener, qui lance Chrome/le navigateur par défaut.
+    await openUrl(loginUrl);
     return;
   }
 
