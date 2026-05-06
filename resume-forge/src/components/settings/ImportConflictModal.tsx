@@ -138,7 +138,7 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
                       <button
                         key={strategy}
                         onClick={() => setStrategy(moduleId, strategy)}
-                        className={`flex-1 text-xs py-1.5 rounded border transition ${
+                        className={`flex-1 text-xs py-3 sm:py-1.5 rounded border transition ${
                           currentStrategy === strategy
                             ? strategy === 'replace'
                               ? 'bg-red-600 text-white border-red-600'
@@ -180,7 +180,7 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 pb-12 sm:pb-6 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl flex-shrink-0">
+        <div className="flex justify-end gap-3 p-6 pb-14 sm:pb-6 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl flex-shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
