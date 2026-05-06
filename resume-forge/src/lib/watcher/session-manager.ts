@@ -32,7 +32,7 @@ export async function scrapeWithSession(
   profileId?: string | null,
 ): Promise<string> {
   if (isAndroid()) {
-    return scrapeWithIframe(url, opts.waitSelector, opts.timeoutSecs);
+    return scrapeWithIframe(url, opts.timeoutSecs);
   }
 
   return invoke<string>('scrape_with_session', {
@@ -48,7 +48,7 @@ export async function scrapeWithSession(
 /**
  * Android-only: Scraping via une iframe cachée.
  */
-async function scrapeWithIframe(url: string, waitSelector?: string, timeoutSecs = 30): Promise<string> {
+async function scrapeWithIframe(url: string, timeoutSecs = 30): Promise<string> {
   return new Promise((resolve, reject) => {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
