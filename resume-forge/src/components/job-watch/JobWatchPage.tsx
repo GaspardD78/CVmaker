@@ -27,34 +27,7 @@ export function JobWatchPage() {
     { id: 'config', label: 'Configuration' },
   ];
 
-  if (isMobilePlatform()) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--rf-bg)' }}>
-        <div style={{
-          padding: 'clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px)',
-          borderBottom: '1px solid var(--rf-border)',
-          background: 'var(--rf-surface)',
-        }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--rf-text)', fontFamily: 'var(--font-display)' }}>Veille Emploi</h1>
-        </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <div style={{
-            background: 'var(--rf-card)', border: '1px solid var(--rf-border)',
-            borderRadius: 16, padding: 32, textAlign: 'center', maxWidth: 400,
-          }}>
-            <div style={{ fontSize: 40, marginBottom: 20 }}>🖥️</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--rf-text)', fontFamily: 'var(--font-display)', marginBottom: 12 }}>Version Desktop Requise</h2>
-            <p style={{ fontSize: 14, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)', lineHeight: 1.6, marginBottom: 24 }}>
-              La veille emploi automatisée utilise des outils de scraping avancés qui ne sont disponibles que sur la version Windows de ResumeForge.
-            </p>
-            <button className="rf-btn-primary" style={{ width: '100%' }} onClick={() => navigate('/')}>
-              Retour au tableau de bord
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const unread = unreadCount();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', background: 'var(--rf-bg)' }}>

@@ -29,6 +29,11 @@ import { parseEmploiTerritorial } from './parsers/emploi-territorial';
 import { parseMantiks } from './parsers/mantiks';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import type { SelectorOverride } from './selector-debug';
+import { 
+  isPermissionGranted, 
+  requestPermission, 
+  sendNotification 
+} from '@tauri-apps/plugin-notification';
 
 /** Load learned dictionary, company reputation and AI filter rule for scoring, scoped to the profile. */
 async function loadLearnedSignals(
@@ -375,6 +380,25 @@ export async function runFetch(
       ftAccessToken:    ftCache.accessToken,
       ftTokenExpiresAt: String(ftCache.expiresAt),
     });
+  }
+
+  const totalNew = results.reduce((acc, r) => acc + r.newOffers, 0);
+  if (totalNew > 0) {
+    try {
+      let permission = await isPermissionGranted();
+      if (!permission) {
+        permission = await requestPermission() === 'granted';
+      }
+      if (permission) {
+        sendNotification({
+          title: 'Nouvelles offres trouvées !',
+          body: `${totalNew} nouvelles offres correspondent à vos critères.`,
+          icon: 'ic_launcher', // Icône Android par défaut
+        });
+      }
+    } catch (err) {
+      console.warn('[fetcher] Erreur notification native:', err);
+    }
   }
 
   return results;

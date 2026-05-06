@@ -95,7 +95,7 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col h-[90vh] sm:max-h-[85vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b dark:border-gray-700 flex-shrink-0">
           <div>
@@ -180,7 +180,7 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl flex-shrink-0">
+        <div className="flex justify-end gap-3 p-6 pb-12 sm:pb-6 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl flex-shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

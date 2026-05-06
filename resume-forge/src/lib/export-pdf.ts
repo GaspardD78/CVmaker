@@ -143,8 +143,11 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
 
     toast.dismiss(toastId);
 
+    const cvName = document.querySelector('h1')?.textContent?.trim() || 'CV';
+    const filename = `${cvName.replace(/[^a-z0-9]/gi, '_')}_export.pdf`;
+
     const blob = pdf.output('blob');
-    await shareBlob(blob, 'cv_export.pdf', 'application/pdf');
+    await shareBlob(blob, filename, 'application/pdf');
 
     return true;
   } catch (error) {

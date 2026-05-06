@@ -76,14 +76,17 @@ function useDeepLinkOAuthForward() {
         const { emit } = await import('@tauri-apps/api/event');
         unlisten = await onOpenUrl((urls) => {
           for (const url of urls) {
-            if (url.includes('/oauth/callback') || url.includes('oauth/callback')) {
+            // Support both com.jules.resume-forge:/oauth/callback and com.jules.resume-forge://oauth/callback
+            if (url.includes('oauth/callback')) {
               try {
-                const u = new URL(url);
-                void emit('oauth://callback', u.search);
-              } catch {
-                // URL may use custom scheme — extract query string manually
-                const qs = url.includes('?') ? url.substring(url.indexOf('?')) : '';
-                if (qs) void emit('oauth://callback', qs);
+                // Extract everything after the ? manually for maximum reliability
+                const qsIndex = url.indexOf('?');
+                if (qsIndex !== -1) {
+                  const qs = url.substring(qsIndex);
+                  void emit('oauth://callback', qs);
+                }
+              } catch (err) {
+                console.error('[deep-link] Failed to process URL:', url, err);
               }
             }
           }

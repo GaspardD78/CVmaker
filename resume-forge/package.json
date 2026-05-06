@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "bun test",
     "tauri": "tauri",
+    "android:build:clean": "powershell -Command \"stop-process -name java -force -ErrorAction SilentlyContinue; cd src-tauri/gen/android; ./gradlew clean; cd ../../..; npm run tauri android build -- --target aarch64 --apk\"",
     "postinstall": "npx patch-package"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-http": "^2.5.7",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-sql": "^2.3.2",

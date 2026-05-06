@@ -13,6 +13,8 @@
     "sql:default",
     "fs:default",
     "dialog:default",
+    "notification:default",
+    "notification:allow-notify",
     "sql:allow-execute",
     "sql:allow-load",
     "sql:allow-select",
