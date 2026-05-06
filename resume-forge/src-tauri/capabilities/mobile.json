@@ -4,7 +4,8 @@
   "description": "Capabilities for Android and iOS",
   "platforms": ["android", "iOS"],
   "windows": [
-    "main"
+    "main",
+    "login-*"
   ],
   "permissions": [
     "core:default",
@@ -29,6 +30,10 @@
     {
       "identifier": "http:allow-fetch",
       "allow": [{ "url": "https://**" }, { "url": "http://**" }]
-    }
+    },
+    "core:window:allow-create-window",
+    "core:webview:allow-create-webview",
+    "core:window:allow-close",
+    "core:window:allow-set-title"
   ]
 }

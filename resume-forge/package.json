@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "bun test",
     "tauri": "tauri",
-    "android:build:clean": "powershell -Command \"Stop-Process -Name java -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force src-tauri/gen/android/build, src-tauri/gen/android/app/build -ErrorAction SilentlyContinue; cd src-tauri/gen/android; ./gradlew clean; cd ../../..; npm run tauri android build -- --target aarch64 --apk\"" ,
+    "android:build:clean": "powershell -Command \"Stop-Process -Name java, cargo, rustc -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force src-tauri/gen/android/build, src-tauri/gen/android/app/build, src-tauri/target -ErrorAction SilentlyContinue; cd src-tauri/gen/android; ./gradlew clean; cd ../../..; npm run tauri android build -- --target aarch64 --apk\"" ,
     "postinstall": "npx patch-package"
   },
   "dependencies": {

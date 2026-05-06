@@ -34,9 +34,17 @@ export async function shareBlob(
   // Fallback natif pour Android (le <a> ne marche pas dans la WebView)
   if (isTauri() && isAndroid()) {
     try {
-      const buffer = await blob.arrayBuffer();
-      await writeFile(filename, new Uint8Array(buffer), { baseDir: BaseDirectory.Download });
-      toast.success(`Sauvegardé dans les téléchargements : ${filename}`);
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const filePath = await save({
+        defaultPath: filename,
+        filters: [{ name: 'Document', extensions: [filename.split('.').pop() || 'pdf'] }]
+      });
+
+      if (filePath) {
+        const buffer = await blob.arrayBuffer();
+        await writeFile(filePath, new Uint8Array(buffer));
+        toast.success(`Fichier enregistré avec succès.`);
+      }
       return;
     } catch (error) {
       console.error('Erreur lors de la sauvegarde Android:', error);
