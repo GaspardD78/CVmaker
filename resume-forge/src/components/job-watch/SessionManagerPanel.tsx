@@ -32,9 +32,10 @@ interface SiteRow {
   description: string;
 }
 
+// LinkedIn retiré : la collecte passe désormais par X-ray search Brave,
+// sans login et sans risque de ban (cf. parsers/linkedin-xray.ts). La clé
+// API Brave se configure dans Options avancées.
 const SITES: SiteRow[] = [
-  { id: 'linkedin',  label: SOURCE_LABELS['linkedin'  as JobSource], requiresAuth: true,
-    description: 'Scraping direct (remplace le flux RSS tiers). Login LinkedIn obligatoire.' },
   { id: 'indeed',    label: SOURCE_LABELS['indeed'    as JobSource], requiresAuth: false,
     description: 'Login optionnel — utile pour passer les challenges Cloudflare plus facilement.' },
   { id: 'hellowork', label: SOURCE_LABELS['hellowork' as JobSource], requiresAuth: false,
