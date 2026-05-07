@@ -28,7 +28,8 @@ import { LocationAutocomplete } from './LocationAutocomplete';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-import { SOURCE_LABELS } from '@/lib/watcher/sources';
+import { SOURCE_LABELS, ANDROID_INCOMPATIBLE } from '@/lib/watcher/sources';
+import { isAndroid } from '@/lib/platform';
 import { SessionManagerPanel } from './SessionManagerPanel';
 import { AIFilterGenerator } from './AIFilterGenerator';
 
@@ -279,7 +280,13 @@ export function JobWatchConfigView() {
 
   // ── Source management ─────────────────────────────────────────────────────
 
-  const unusedSources = ALL_SOURCES.filter(s => !configs.some(c => c.source === s));
+  // Sur Android, on masque les sources qui dépendent de scraping (LinkedIn, Indeed,
+  // HelloWork) — elles n'ont jamais fonctionné de façon fiable et brouillent les
+  // logs. Les desktops continuent à les voir.
+  const platformSources = isAndroid()
+    ? ALL_SOURCES.filter(s => !ANDROID_INCOMPATIBLE.has(s))
+    : ALL_SOURCES;
+  const unusedSources = platformSources.filter(s => !configs.some(c => c.source === s));
 
   const handleAddSource = async (source: JobSource) => {
     await upsertConfig({ source, rssUrl: null, enabled: 1 });
@@ -519,18 +526,20 @@ export function JobWatchConfigView() {
         </p>
 
         <div className="space-y-2">
-          {configs.map(c => (
-            <SourceRow
-              key={c.id}
-              config={c}
-              settings={settingsDraft}
-              onToggle={handleToggle}
-              onDelete={handleDeleteConfig}
-              onSaveRssUrl={handleSaveRssUrl}
-              onUpdateSetting={updateSetting}
-              onOpenHelp={setHelpModal}
-            />
-          ))}
+          {configs
+            .filter(c => !isAndroid() || !ANDROID_INCOMPATIBLE.has(c.source))
+            .map(c => (
+              <SourceRow
+                key={c.id}
+                config={c}
+                settings={settingsDraft}
+                onToggle={handleToggle}
+                onDelete={handleDeleteConfig}
+                onSaveRssUrl={handleSaveRssUrl}
+                onUpdateSetting={updateSetting}
+                onOpenHelp={setHelpModal}
+              />
+            ))}
         </div>
 
         {unusedSources.length > 0 && (

@@ -24,6 +24,26 @@ export const AUTH_REQUIRED: Set<JobSource> = new Set(['linkedin']);
 /** Sources that use the WebView scraping pipeline (headless_chrome) */
 export const USES_WEBVIEW: Set<JobSource> = new Set(['linkedin', 'indeed', 'hellowork']);
 
+/**
+ * Sources non supportées sur Android.
+ *
+ * LinkedIn / Indeed / HelloWork reposent toutes sur du scraping (X-ray DDG +
+ * fetch JSON-LD pour LinkedIn, WebView offscreen pour Indeed/HelloWork). En
+ * pratique, sur Android on observe :
+ *   - LinkedIn : DuckDuckGo HTML rate-limite agressivement les requêtes
+ *     issues d'IPs mobiles, et les pages publiques `linkedin.com/jobs/view/`
+ *     redirigent vers la version mobile sans JSON-LD.
+ *   - Indeed / HelloWork : la WebView Android offscreen peine à passer les
+ *     challenges Cloudflare et le JS-heavy rendering.
+ *
+ * On masque ces sources dans l'UI Android et on les ignore au runtime côté
+ * `runFetch` plutôt que d'afficher des erreurs en boucle. Les utilisateurs
+ * desktop continuent à les utiliser normalement.
+ */
+export const ANDROID_INCOMPATIBLE: Set<JobSource> = new Set([
+  'linkedin', 'linkedin_rss', 'indeed', 'hellowork',
+]);
+
 /** Deprecated sources — hidden from default add-source list but still functional */
 export const DEPRECATED: Set<JobSource> = new Set(['linkedin_rss', 'mantiks']);
 

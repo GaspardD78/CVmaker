@@ -7,10 +7,22 @@
  *
  * Recherche d'offres :
  *   GET https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search
- *   Pagination : 2 pages max (150 offres/page), 400ms entre pages
- *   204 = aucun résultat
+ *   - Pagination : `range` query param, max **0-1149** par requête (≠ 0-299).
+ *   - 200 OK = page complète, 206 Partial Content = page tronquée (succès aussi).
+ *   - 204 No Content = aucun résultat.
+ *   - Rate limit ~3 req/s par token → on étale les requêtes (THROTTLE_MS).
+ *   - Header de réponse `Content-Range: offres 0-149/<total>` indique le total.
  *
- * Qualité d'extraction : HIGH — données structurées avec coordonnées GPS natives.
+ * Stratégie de rappel :
+ *   - `motsCles` ne supporte AUCUN booléen (espace = AND implicite). On itère
+ *     sur chaque jobTitle et on déduplique par `id` côté client.
+ *   - `typeContrat` est CSV — on envoie tous les types souhaités en un coup.
+ *   - `publieeDepuis=7` limite au flux récent (mode veille).
+ *   - `sort=1` (date décroissante) — on veut les plus fraîches en premier.
+ *   - 4 pages max par titre (600 offres/titre) ; arrêt anticipé si Content-Range
+ *     indique qu'on a tout ramené.
+ *
+ * Qualité d'extraction : HIGH — données structurées + coordonnées GPS natives.
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
@@ -19,8 +31,15 @@ import { tauriFetch } from '../http';
 
 const FT_TOKEN_URL  = 'https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire';
 const FT_SEARCH_URL = 'https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search';
+
+/** Taille de page max imposée par l'API. */
 const PAGE_SIZE     = 150;
-const PAGE_DELAY_MS = 400;
+/** Pages max par titre — `range` ne peut pas dépasser 1149 (8 pages × 150). */
+const MAX_PAGES_PER_TITLE = 4;
+/** Index de fin maximal autorisé par l'API (`range=...-1149`). */
+const FT_MAX_END_INDEX = 1149;
+/** Throttle ~3 req/s = 350 ms entre requêtes pour rester sous la limite. */
+const THROTTLE_MS = 350;
 
 // ── OAuth2 token management ──────────────────────────────────────────────────
 
@@ -139,6 +158,10 @@ interface FtSearchResponse {
  * Exponential-backoff retry for transient 5xx errors.
  * France Travail returns HTTP 500 "Erreur technique" fairly regularly; a short
  * retry loop avoids polluting the UI with errors for temporary blips.
+ *
+ * Note : `200` ET `206 Partial Content` sont tous deux des succès — `206` est
+ * renvoyé quand l'API tronque la page (cas le plus fréquent quand on demande
+ * une fenêtre de 150 offres avec un total > 150). `res.ok` couvre les deux.
  */
 async function ftFetchWithRetry(
   url: string,
@@ -170,6 +193,16 @@ async function ftFetchWithRetry(
   throw lastErr ?? new Error('France Travail: fetch failed after retries');
 }
 
+/**
+ * Parse l'en-tête `Content-Range: offres 0-149/4567` → `{ total: 4567 }`.
+ * Permet de s'arrêter dès qu'on a tout ramené, sans pages vides inutiles.
+ */
+function parseContentRangeTotal(header: string | null): number | null {
+  if (!header) return null;
+  const m = header.match(/\/(\d+)\s*$/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
 export async function parseFranceTravail(
   _config: JobWatchConfig,
   settings: JobWatchSettings,
@@ -188,34 +221,61 @@ export async function parseFranceTravail(
   const profile = settings.searchProfile;
 
   // FT's `motsCles` only supports implicit AND (no OR). Joining multiple titles
-  // with spaces requires ALL words to appear — practically returns 0 results.
-  // We issue one request per title and merge results, deduplicating by URL.
+  // avec des espaces requiert que TOUS les mots soient présents — donc on émet
+  // une requête par titre et on déduplique par `id` côté client. Si aucun titre
+  // n'est défini, une requête sans `motsCles` ramène toutes les offres du
+  // périmètre géographique (utile pour un tri par pertinence post-fetch).
   const query = buildFranceTravailQuery(profile);
   const queries: (string | undefined)[] = query.titles.length > 0 ? query.titles : [undefined];
 
-  // Shared across all title queries: commune fallback is sticky once triggered.
+  // Sticky : si une commune INSEE est rejetée sur la première requête, on bascule
+  // définitivement sur `departement` pour toutes les requêtes suivantes.
   let communeDisabled = false;
-  const offersByUrl = new Map<string, RawJobOffer>();
+  const offersById = new Map<string, RawJobOffer>();
+
+  // Construit la base de paramètres communs (location, contrat, fenêtre de
+  // fraîcheur, tri date). Recalculé pour chaque requête car `commune` peut
+  // basculer en cours de boucle.
+  const baseParams = (): URLSearchParams => {
+    const p = new URLSearchParams();
+    if (query.commune && !communeDisabled) {
+      p.set('commune', query.commune);
+    } else if (query.departement) {
+      p.set('departement', query.departement);
+    }
+    if (query.distance)      p.set('distance',      String(query.distance));
+    if (query.typeContrat)   p.set('typeContrat',   query.typeContrat);
+    if (query.publieeDepuis) p.set('publieeDepuis', String(query.publieeDepuis));
+    // sort=1 = date publication décroissante. On veut les nouvelles offres
+    // d'abord — combine bien avec publieeDepuis pour un mode veille.
+    p.set('sort', '1');
+    return p;
+  };
+
+  // Throttle : on espace toutes les requêtes d'au moins THROTTLE_MS pour rester
+  // sous les 3 req/s admis par l'API. Un timestamp partagé évite de se cumuler
+  // entre titres et pages.
+  let lastReqTs = 0;
+  const throttle = async () => {
+    const elapsed = Date.now() - lastReqTs;
+    if (elapsed < THROTTLE_MS) {
+      await new Promise(r => setTimeout(r, THROTTLE_MS - elapsed));
+    }
+    lastReqTs = Date.now();
+  };
 
   for (let t = 0; t < queries.length; t++) {
     const motsCles = queries[t];
 
-    for (let page = 0; page < 2; page++) {
-      const params = new URLSearchParams();
-
+    for (let page = 0; page < MAX_PAGES_PER_TITLE; page++) {
+      const params = baseParams();
       if (motsCles) params.set('motsCles', motsCles);
 
-      // Skip commune if it was rejected on a previous request and fall back to departement
-      if (query.commune && !communeDisabled) {
-        params.set('commune', query.commune);
-      } else if (query.departement) {
-        params.set('departement', query.departement);
-      }
-      if (query.distance)     params.set('distance',    String(query.distance));
-      if (query.typeContrat)  params.set('typeContrat', query.typeContrat);
+      const start = page * PAGE_SIZE;
+      const end   = Math.min(start + PAGE_SIZE - 1, FT_MAX_END_INDEX);
+      params.set('range', `${start}-${end}`);
 
-      params.set('range', `${page * PAGE_SIZE}-${(page + 1) * PAGE_SIZE - 1}`);
-
+      await throttle();
       let res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
 
       // Graceful fallback: if 400 "commune" error, retry without commune
@@ -224,19 +284,25 @@ export async function parseFranceTravail(
         if (/commune/i.test(text)) {
           console.warn(
             `[france-travail] commune "${query.commune}" rejetée par l'API ` +
-            `(${text.slice(0, 120)}). Bascule sur departement="${query.departement ?? '(aucun)'}".`
+            `(${text.slice(0, 120)}). Bascule sur departement="${query.departement ?? '(aucun)'}".`,
           );
           communeDisabled = true;
-          params.delete('commune');
-          if (query.departement) params.set('departement', query.departement);
-          res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${params.toString()}`, token);
+          // Retry avec les paramètres réglés sur le nouveau mode (departement).
+          const retryParams = baseParams();
+          if (motsCles) retryParams.set('motsCles', motsCles);
+          retryParams.set('range', `${start}-${end}`);
+          await throttle();
+          res = await ftFetchWithRetry(`${FT_SEARCH_URL}?${retryParams.toString()}`, token);
         } else {
           throw new Error(`France Travail search error 400: ${text.slice(0, 200)}`);
         }
       }
 
+      // 204 = pas d'offres pour ce critère ; on passe au titre suivant.
       if (res.status === 204) break;
 
+      // 200 OK = page complète, 206 Partial Content = page tronquée. Les deux
+      // sont des succès et `res.ok` couvre les deux.
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(`France Travail search error ${res.status}: ${text.slice(0, 200)}`);
@@ -244,14 +310,18 @@ export async function parseFranceTravail(
 
       const data = await res.json() as FtSearchResponse;
       const resultats = data.resultats ?? [];
+      const total = parseContentRangeTotal(res.headers.get('Content-Range'));
 
       for (const o of resultats) {
-        if (!o.intitule) continue;
+        if (!o.intitule || !o.id) continue;
+
+        // On déduplique par `id` (UID stable côté FT) et non par URL : certaines
+        // offres ont une `urlOrigine` partenaire qui peut varier en cours de
+        // diffusion alors que l'`id` reste constant.
+        if (offersById.has(o.id)) continue;
 
         const url = o.origineOffre?.urlOrigine
-          ?? (o.id ? `https://candidat.francetravail.fr/offres/recherche/detail/${o.id}` : '');
-        if (!url) continue;
-        if (offersByUrl.has(url)) continue;  // dedupe across title queries
+          ?? `https://candidat.francetravail.fr/offres/recherche/detail/${o.id}`;
 
         const { salaryMin, salaryMax, salaryRaw } = parseSalary(o.salaire);
 
@@ -266,7 +336,7 @@ export async function parseFranceTravail(
           contractConfidence: o.typeContrat ? 'high' : 'none',
         };
 
-        offersByUrl.set(url, {
+        offersById.set(o.id, {
           source:             'france_travail',
           url,
           title:              o.intitule,
@@ -284,16 +354,15 @@ export async function parseFranceTravail(
         });
       }
 
+      // Stop early if Content-Range tells us we've consumed everything.
+      if (total != null && end + 1 >= total) break;
+      // Stop early if API returned a partial page (last page reached).
       if (resultats.length < PAGE_SIZE) break;
-      if (page < 1) await new Promise(r => setTimeout(r, PAGE_DELAY_MS));
     }
-
-    // Small pause between title queries to be polite to the API
-    if (t < queries.length - 1) await new Promise(r => setTimeout(r, PAGE_DELAY_MS));
   }
 
   // FT doesn't support server-side exclusion operators — apply post-filter locally
-  const offers = Array.from(offersByUrl.values()).filter(o => {
+  const offers = Array.from(offersById.values()).filter(o => {
     const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`;
     return !isExcludedByProfile(text, profile);
   });

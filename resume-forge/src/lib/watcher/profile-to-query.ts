@@ -91,7 +91,16 @@ export interface FranceTravailQueryParams {
   commune: string | undefined;
   departement: string | undefined;
   distance: number | undefined;
+  /**
+   * CSV de codes contrat FT (`CDI`, `CDD`, `MIS`, `SAI`, `LIB`). L'API accepte
+   * une liste — pas besoin de boucler. Vide → tous types.
+   */
   typeContrat: string | undefined;
+  /**
+   * Fenêtre de fraîcheur — valeurs autorisées par l'API : `1`, `3`, `7`, `14`, `31`
+   * jours. Défaut 7 pour limiter au flux récent (mode veille).
+   */
+  publieeDepuis: number | undefined;
 }
 
 /**
@@ -151,12 +160,22 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
 
   const distance = profile.location.radiusKm > 0 ? profile.location.radiusKm : undefined;
 
-  // Only pass the first contract type to FT (API takes one typeContrat at a time)
-  const typeContrat = profile.contractTypes.length > 0
-    ? FT_CONTRACT_CODES[profile.contractTypes[0]]
-    : undefined;
+  // FT's `typeContrat` accepts a comma-separated list (CSV). On pousse tous
+  // les types souhaités d'un coup au lieu de filtrer côté client — gain de
+  // rappel sans coût réseau supplémentaire.
+  const contractCodes = Array.from(new Set(
+    profile.contractTypes
+      .map(ct => FT_CONTRACT_CODES[ct])
+      .filter((c): c is string => Boolean(c)),
+  ));
+  const typeContrat = contractCodes.length > 0 ? contractCodes.join(',') : undefined;
 
-  return { motsCles, titles, commune, departement, distance, typeContrat };
+  // Fenêtre de fraîcheur. Valeurs autorisées par l'API : 1, 3, 7, 14, 31.
+  // Défaut 7 jours = compromis entre rappel et fraîcheur ; le scorer applique
+  // ensuite un time-decay (-2pt/jour) pour favoriser les plus récentes.
+  const publieeDepuis: number | undefined = 7;
+
+  return { motsCles, titles, commune, departement, distance, typeContrat, publieeDepuis };
 }
 
 // ── WTTJ ─────────────────────────────────────────────────────────────────────
@@ -220,6 +239,7 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
       else if (p.departement) parts.push(`dept: ${p.departement}`);
       if (p.distance) parts.push(`rayon: ${p.distance}km`);
       if (p.typeContrat) parts.push(`contrat: ${p.typeContrat}`);
+      if (p.publieeDepuis) parts.push(`fenêtre: ${p.publieeDepuis}j`);
       return parts.join(' | ');
     }
     case 'wttj': {
