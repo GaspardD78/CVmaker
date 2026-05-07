@@ -36,3 +36,11 @@ tauri-plugin-shell = "2"
 headless_chrome = "1.0.21"
 tempfile = "3.27.0"
 url = "2.5.8"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# JNI bridge to LoginLauncher / LoginActivity for session-cookie login.
+# `ndk-context` exposes the Android Context + JavaVM that the runtime sets
+# up at startup, so we can call our Kotlin helpers without writing a full
+# Tauri Android plugin.
+jni = "0.21"
+ndk-context = "0.1"

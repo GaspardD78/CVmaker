@@ -20,7 +20,10 @@ import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
 import { parseApec } from './parsers/apec';
 import { parseWttj } from './parsers/wttj';
 import { parseLinkedinRss } from './parsers/linkedin-rss';
-import { parseLinkedin } from './parsers/linkedin';
+// LinkedIn passe désormais par X-ray search (Brave) — cf. parsers/linkedin-xray.ts.
+// Le parser WebView connecté (parsers/linkedin.ts) reste en dépôt mais n'est
+// plus utilisé : scraping authentifié = violation TOS LinkedIn + risque ban.
+import { parseLinkedinXray } from './parsers/linkedin-xray';
 import { parseIndeed } from './parsers/indeed';
 import { parseHellowork } from './parsers/hellowork';
 import { parseJobicy } from './parsers/jobicy';
@@ -140,7 +143,7 @@ async function runParser(
     case 'apec':               return parseApec(config, settings);
     case 'wttj':               return parseWttj(config, settings);
     case 'linkedin_rss':       return parseLinkedinRss(config, settings);
-    case 'linkedin':           return parseLinkedin(config, settings, override, profileId);
+    case 'linkedin':           return parseLinkedinXray(config, settings);
     case 'indeed':             return parseIndeed(config, settings, profileId);
     case 'hellowork':          return parseHellowork(config, settings, profileId);
     case 'jobicy':             return parseJobicy(config, settings);

@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { isAndroid } from '@/lib/platform';
 import { CheckCircle2, XCircle, LogIn, LogOut, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,9 +32,10 @@ interface SiteRow {
   description: string;
 }
 
+// LinkedIn retiré : la collecte passe désormais par X-ray search Brave,
+// sans login et sans risque de ban (cf. parsers/linkedin-xray.ts). La clé
+// API Brave se configure dans Options avancées.
 const SITES: SiteRow[] = [
-  { id: 'linkedin',  label: SOURCE_LABELS['linkedin'  as JobSource], requiresAuth: true,
-    description: 'Scraping direct (remplace le flux RSS tiers). Login LinkedIn obligatoire.' },
   { id: 'indeed',    label: SOURCE_LABELS['indeed'    as JobSource], requiresAuth: false,
     description: 'Login optionnel — utile pour passer les challenges Cloudflare plus facilement.' },
   { id: 'hellowork', label: SOURCE_LABELS['hellowork' as JobSource], requiresAuth: false,
@@ -64,7 +66,14 @@ export function SessionManagerPanel() {
     try {
       setLoginInProgress(site.id);
       await openLoginFlow(site.id, LOGIN_URLS[site.id], profileId);
-      toast.info(`Une fenêtre Chrome s'est ouverte — connecte-toi à ${site.label} puis clique sur "J'ai terminé".`);
+      if (isAndroid()) {
+        toast.info(
+          `Connecte-toi à ${site.label} dans la fenêtre qui vient de s'ouvrir, puis ferme-la avec le bouton « Fermer » ou retour. Reviens ici et clique sur « J'ai terminé ».`,
+          { duration: 8000 },
+        );
+      } else {
+        toast.info(`Une fenêtre Chrome s'est ouverte — connecte-toi à ${site.label} puis clique sur "J'ai terminé".`);
+      }
     } catch (err) {
       setLoginInProgress(null);
       toast.error(`Ouverture Chrome : ${err instanceof Error ? err.message : 'erreur'}`);

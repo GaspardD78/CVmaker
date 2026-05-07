@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isAndroid } from '../platform';
-import { openUrl } from '@tauri-apps/plugin-opener';
 
 /** Known site identifiers that support session-based scraping */
 export type SessionSiteId = 'linkedin' | 'indeed' | 'hellowork' | 'glassdoor' | 'wttj';
@@ -101,44 +100,31 @@ export async function openLoginFlow(
   profileId?: string | null,
   userAgent: string = DESKTOP_UA,
 ): Promise<void> {
-  if (isAndroid()) {
-    // Tauri 2 sur Android ne supporte pas les WebviewWindow multiples (la pile
-    // de fenêtres est limitée à la webview principale). On délègue au navigateur
-    // système via le plugin opener, qui lance Chrome/le navigateur par défaut.
-    await openUrl(loginUrl);
-    return;
-  }
-
+  // Android comme desktop : on délègue à Rust. Sur Android, la commande
+  // `open_login_flow` lance la `LoginActivity` Kotlin (WebView in-process)
+  // dont les cookies sont partagés avec la WebView principale Tauri — donc
+  // réutilisables ensuite par `scrapeWithIframe`.
   await invoke('open_login_flow', { siteId, loginUrl, profileId: profileId ?? null, userAgent });
 }
 
 /** Close the login browser — call after the user confirms they're logged in. */
 export async function closeLoginBrowser(): Promise<void> {
-  if (isAndroid()) {
-    // Sur Android, on laisse l'utilisateur fermer la fenêtre lui-même ou on ferme la dernière ouverte
-    // Mais WebviewWindow.getByLabel est utile ici si on veut forcer.
-    return;
-  }
+  // Sur Android, l'utilisateur ferme la `LoginActivity` lui-même via le
+  // bouton « Fermer » ou la touche retour ; la commande Rust est un no-op
+  // mais on l'invoque quand même pour rester symétrique avec le desktop.
   await invoke('close_login_browser');
 }
 
-/** Check whether we have persisted cookies for `siteId` on disk. */
+/** Check whether we have persisted cookies for `siteId` on disk / WebView. */
 export async function sessionExists(siteId: SessionSiteId, profileId?: string | null): Promise<boolean> {
-  if (isAndroid()) {
-    // Sur Android, on ne peut pas facilement lister les cookies HttpOnly.
-    // On renvoie true par défaut, le fetcher gérera l'erreur si la page de login apparaît.
-    return true; 
-  }
+  // Sur Android comme desktop, la commande Rust va vraiment vérifier la
+  // présence de cookies (CookieManager pour Android, fichiers Chromium pour
+  // desktop). Plus de retour optimiste à `true`.
   return invoke<boolean>('session_exists', { siteId, profileId: profileId ?? null });
 }
 
 /** Delete the persisted session (force re-login next time). */
 export async function clearSession(siteId: SessionSiteId, profileId?: string | null): Promise<void> {
-  if (isAndroid()) {
-    // Nettoyer les cookies Android nécessite un plugin natif ou une commande spécifique.
-    // Pour l'instant on se contente de rediriger vers le login.
-    return;
-  }
   await invoke('clear_session', { siteId, profileId: profileId ?? null });
 }
 

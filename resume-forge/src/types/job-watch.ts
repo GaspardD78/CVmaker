@@ -234,6 +234,18 @@ export interface JobWatchSettings {
   ftClientSecret: string;
   ftAccessToken: string;
   ftTokenExpiresAt: string;
+  /**
+   * Brave Search API token, utilisé pour le X-ray search LinkedIn (cf.
+   * `parsers/linkedin-xray.ts`). Le scraping connecté de LinkedIn enfreignant
+   * leurs TOS — et exposant l'utilisateur à un bannissement —, la collecte
+   * passe désormais par une recherche booléenne Brave qui retourne des URLs
+   * publiques `linkedin.com/jobs/view/...`, parsées en JSON-LD.
+   *
+   * Vide → la source LinkedIn est désactivée à l'exécution avec un message
+   * explicite. Obtenir une clé : https://brave.com/search/api/ (2k req/mois
+   * gratuites).
+   */
+  braveSearchApiKey: string;
   /** Score minimum en dessous duquel une offre n'est pas sauvegardée en DB (0-60, défaut 20) */
   minSaveScore: number;
 }
@@ -256,6 +268,7 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   ftClientSecret: '',
   ftAccessToken: '',
   ftTokenExpiresAt: '',
+  braveSearchApiKey: '',
   minSaveScore: 20,
 };
 
