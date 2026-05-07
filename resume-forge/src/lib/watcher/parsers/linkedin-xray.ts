@@ -1,22 +1,26 @@
 /**
- * LinkedIn parser via Google-style X-ray search (Brave Search API).
+ * LinkedIn parser via DuckDuckGo HTML X-ray search (no API key).
  *
- * Pourquoi pas le scraping connecté ?
+ * Pourquoi DuckDuckGo HTML ?
+ *   Brave Search API n'a plus de plan gratuit (avril 2026 : tout est passé en
+ *   abonnement payant « Data for AI »). On retombe sur l'endpoint HTML public
+ *   de DuckDuckGo (https://html.duckduckgo.com/html/) qui s'utilise sans clé,
+ *   sans JS, et accepte les opérateurs `site:`, `"phrase exacte"`, `OR`.
+ *
+ * Pourquoi pas le scraping connecté de LinkedIn ?
  *   LinkedIn interdit explicitement le scraping authentifié dans ses TOS et
- *   bannit régulièrement les comptes détectés (par fingerprint navigateur,
- *   patterns d'accès, IP). Le risque pour l'utilisateur est réel et non
- *   réversible (perte du compte personnel).
+ *   bannit les comptes détectés (fingerprint, patterns d'accès, IP). Le risque
+ *   pour l'utilisateur est réel et non réversible (perte du compte personnel).
  *
  * Approche X-ray :
- *   1. Construire une requête booléenne `site:linkedin.com/jobs/view "..."`
- *      qui restreint Google/Brave aux pages d'offres publiques.
- *   2. Brave Search API renvoie une liste de résultats avec URLs publiques.
- *   3. Chaque URL `https://www.linkedin.com/jobs/view/<id>` est accessible
- *      sans authentification ; LinkedIn y publie un JSON-LD `JobPosting`
- *      complet, plus fiable que le scraping HTML car standardisé schema.org.
+ *   1. Construire une requête booléenne `site:linkedin.com/jobs/view "..."` qui
+ *      restreint DuckDuckGo aux pages d'offres publiques.
+ *   2. DuckDuckGo HTML renvoie une page de résultats où chaque lien pointe vers
+ *      un redirecteur `//duckduckgo.com/l/?uddg=<URL encodée>` ; on extrait l'URL.
+ *   3. Pour chaque URL d'offre publique, on fetch la page LinkedIn ; LinkedIn
+ *      y publie un JSON-LD `JobPosting` complet, schema.org standard.
  *
- * Aucune session, aucun cookie : zéro risque de ban côté LinkedIn, et le
- * code marche identiquement sur desktop et Android.
+ * Aucune session, aucune clé API : le code marche sur desktop comme Android.
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile } from '@/types/job-watch';
@@ -26,12 +30,12 @@ import { isExcludedByProfile } from '../profile-to-query';
 import { normalizeLocation } from './common/location';
 import { extractContractFromText } from './common/contract-type';
 
-const BRAVE_SEARCH_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
+const DDG_HTML_ENDPOINT = 'https://html.duckduckgo.com/html/';
 
 /** Doit matcher uniquement les pages d'offres publiques (pas /jobs/collections/, /jobs/search/, etc.) */
 const LINKEDIN_JOB_VIEW_RE = /^https?:\/\/(?:[\w-]+\.)?linkedin\.com\/jobs\/view\/\d+/i;
 
-/** Cap dur sur le nombre d'URLs récupérées par exécution — protège quota Brave + temps de fetch. */
+/** Cap dur sur le nombre d'URLs récupérées par exécution — protège le temps de fetch et évite de stresser DDG. */
 const MAX_RESULTS_PER_RUN = 20;
 
 const DESKTOP_UA =
@@ -41,13 +45,13 @@ const DESKTOP_UA =
 /**
  * Construit une requête booléenne X-ray à partir du profil de recherche.
  *
- * Format : `site:linkedin.com/jobs/view ("dev" OR "ingénieur") ("Paris" OR "Lyon")`
+ * Format : `site:linkedin.com/jobs/view ("dev" OR "ingénieur") "Paris"`
  *
  * Pourquoi `site:linkedin.com/jobs/view` plutôt que `site:linkedin.com` ?
  *   - exclut les profils d'utilisateurs (`/in/...`)
  *   - exclut les pages entreprises (`/company/...`)
- *   - exclut les listes paginées (`/jobs/search/...`) qui ne contiennent
- *     pas le JSON-LD JobPosting de l'offre individuelle.
+ *   - exclut les listes paginées (`/jobs/search/...`) qui ne contiennent pas
+ *     le JSON-LD JobPosting de l'offre individuelle.
  */
 function buildBooleanQuery(profile: SearchProfile): string {
   const titles = profile.jobTitles.map(t => t.trim()).filter(Boolean);
@@ -63,52 +67,80 @@ function buildBooleanQuery(profile: SearchProfile): string {
   return parts.join(' ');
 }
 
-/** Brave Search response shape — on ne typed que ce qu'on consomme. */
-interface BraveSearchResponse {
-  web?: {
-    results?: Array<{
-      url: string;
-      title?: string;
-      description?: string;
-      age?: string;
-    }>;
-  };
-}
-
 /**
- * Récupère la liste des URLs d'offres LinkedIn via Brave Search.
- * `freshness=pw` = past week — on évite de remonter des offres vieilles
- * de plusieurs mois qui pollueraient le digest.
+ * Récupère la liste des URLs d'offres LinkedIn via DuckDuckGo HTML.
+ *
+ * DuckDuckGo HTML renvoie une page statique avec ~30 résultats par page ; on
+ * cap à `MAX_RESULTS_PER_RUN` après dédup. Pas de pagination dans cette
+ * version : la fraîcheur prime sur l'exhaustivité.
  */
-async function searchBrave(query: string, apiKey: string): Promise<string[]> {
-  const url = new URL(BRAVE_SEARCH_ENDPOINT);
+async function searchDuckDuckGo(query: string): Promise<string[]> {
+  const url = new URL(DDG_HTML_ENDPOINT);
   url.searchParams.set('q', query);
-  url.searchParams.set('count', String(MAX_RESULTS_PER_RUN));
-  url.searchParams.set('country', 'FR');
-  url.searchParams.set('search_lang', 'fr');
-  url.searchParams.set('freshness', 'pw');
-  url.searchParams.set('safesearch', 'off');
+  url.searchParams.set('kl', 'fr-fr');
 
   const res = await fetchResilient(url.toString(), {
     source: 'linkedin',
     headers: {
-      'X-Subscription-Token': apiKey,
-      'Accept':               'application/json',
-      'Accept-Encoding':      'gzip',
+      'User-Agent':       DESKTOP_UA,
+      'Accept':           'text/html,application/xhtml+xml',
+      'Accept-Language':  'fr-FR,fr;q=0.9,en;q=0.8',
     },
     timeoutMs: 15_000,
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Brave Search ${res.status} : ${body.slice(0, 200)}`);
+    throw new Error(`DuckDuckGo HTML ${res.status} : ${body.slice(0, 200)}`);
   }
-  const data = (await res.json()) as BraveSearchResponse;
-  const urls = (data.web?.results ?? [])
-    .map(r => r.url)
-    .filter(u => LINKEDIN_JOB_VIEW_RE.test(u));
-  // Dédoublonnage : Brave peut renvoyer la même offre via plusieurs sous-domaines (fr.linkedin.com / www.linkedin.com).
-  const canonical = urls.map(canonicalizeLinkedinUrl);
-  return Array.from(new Set(canonical));
+  const html = await res.text();
+  return extractLinkedinUrlsFromDdgHtml(html);
+}
+
+/**
+ * Parcourt le DOM de la page DDG HTML et extrait les URLs LinkedIn.
+ *
+ * DuckDuckGo encadre chaque résultat de :
+ *   `<a class="result__a" href="//duckduckgo.com/l/?uddg=<URL encodée>&rut=...">Titre</a>`
+ * On déballe `uddg` pour récupérer l'URL réelle. À défaut, certains liens sont
+ * directs (`https://www.linkedin.com/...`) — on les accepte aussi.
+ */
+function extractLinkedinUrlsFromDdgHtml(html: string): string[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const anchors = Array.from(
+    doc.querySelectorAll<HTMLAnchorElement>('a.result__a, a.result__url'),
+  );
+  const collected: string[] = [];
+  for (const a of anchors) {
+    const href = a.getAttribute('href');
+    if (!href) continue;
+    const real = unwrapDdgRedirect(href);
+    if (real && LINKEDIN_JOB_VIEW_RE.test(real)) {
+      collected.push(real);
+    }
+  }
+  // Dédoublonnage par identifiant LinkedIn (id numérique de l'offre).
+  const canonical = collected.map(canonicalizeLinkedinUrl);
+  return Array.from(new Set(canonical)).slice(0, MAX_RESULTS_PER_RUN);
+}
+
+/**
+ * Retire la redirection DDG : `//duckduckgo.com/l/?uddg=<encoded>&rut=...`
+ * → URL réelle. Renvoie null si l'href n'est pas exploitable.
+ */
+function unwrapDdgRedirect(href: string): string | null {
+  // Liens DDG protocol-relative (`//duckduckgo.com/l/?...`) — ajoute le scheme.
+  const normalized = href.startsWith('//') ? `https:${href}` : href;
+  try {
+    const u = new URL(normalized);
+    if ((u.hostname === 'duckduckgo.com' || u.hostname.endsWith('.duckduckgo.com'))
+        && u.pathname === '/l/') {
+      const target = u.searchParams.get('uddg');
+      if (target) return decodeURIComponent(target);
+    }
+    return u.toString();
+  } catch {
+    return null;
+  }
 }
 
 /** Normalise l'URL en `https://www.linkedin.com/jobs/view/<id>` sans paramètres. */
@@ -195,22 +227,14 @@ export async function parseLinkedinXray(
   _config: JobWatchConfig,
   settings: JobWatchSettings,
 ): Promise<RawJobOffer[]> {
-  const apiKey = settings.braveSearchApiKey?.trim();
-  if (!apiKey) {
-    throw new Error(
-      "LinkedIn (X-ray) : configure ta clé Brave Search API dans " +
-      "Paramètres › Veille › Options avancées (https://brave.com/search/api).",
-    );
-  }
-
   const profile = settings.searchProfile;
-  const query = buildBooleanQuery(profile);
   if (!profile.jobTitles.some(t => t.trim())) {
     // Sans mots-clés, le X-ray remonterait n'importe quoi → on s'abstient.
     return [];
   }
 
-  const urls = await searchBrave(query, apiKey);
+  const query = buildBooleanQuery(profile);
+  const urls = await searchDuckDuckGo(query);
   if (urls.length === 0) return [];
 
   const offers: RawJobOffer[] = [];
