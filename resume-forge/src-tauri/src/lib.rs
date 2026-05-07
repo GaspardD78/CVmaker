@@ -419,7 +419,49 @@ fn clear_session(app: tauri::AppHandle, site_id: String, profile_id: Option<Stri
     Ok(())
 }
 
-// Android stubs — WebView scraping requires a desktop Chromium
+// ── Android : login via WebView in-process ───────────────────────────────────
+//
+// On délègue à la classe Kotlin `com.jules.resume_forge.LoginLauncher` qui :
+//   - lance `LoginActivity` (WebView plein écran) pour le login utilisateur ;
+//   - lit / efface les cookies du `CookieManager` du process — partagé avec
+//     la WebView Tauri principale, donc avec `scrapeWithIframe` côté JS.
+//
+// Le scraping en lui-même reste en JS (`scrapeWithIframe`) ; on garde un stub
+// Rust qui renvoie une erreur si jamais le frontend l'appelle par erreur.
+
+#[cfg(target_os = "android")]
+fn android_domain_for_site(site_id: &str) -> &'static str {
+    match site_id {
+        "linkedin" => "https://www.linkedin.com",
+        "indeed" => "https://secure.indeed.com",
+        "hellowork" => "https://www.hellowork.com",
+        "glassdoor" => "https://www.glassdoor.fr",
+        "wttj" => "https://www.welcometothejungle.com",
+        _ => "",
+    }
+}
+
+#[cfg(target_os = "android")]
+fn with_jni_env<F, R>(f: F) -> Result<R, String>
+where
+    F: for<'a> FnOnce(&mut jni::JNIEnv<'a>, jni::objects::JObject<'a>) -> Result<R, jni::errors::Error>,
+{
+    use jni::objects::JObject;
+    use jni::JavaVM;
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { JavaVM::from_raw(ctx.vm().cast()) }
+        .map_err(|e| format!("JavaVM init: {e}"))?;
+    let mut guard = vm
+        .attach_current_thread()
+        .map_err(|e| format!("attach JNI: {e}"))?;
+    // AttachGuard derefs to JNIEnv ; on prend une réf mutable explicite.
+    let env: &mut jni::JNIEnv = &mut guard;
+    // SAFETY : le pointeur fourni par ndk-context reste valide tant que le
+    // process vit ; on l'utilise comme `Context` (l'application context).
+    let context = unsafe { JObject::from_raw(ctx.context().cast()) };
+    f(env, context).map_err(|e| format!("JNI call: {e}"))
+}
+
 #[cfg(target_os = "android")]
 #[tauri::command]
 async fn scrape_with_session(
@@ -427,26 +469,87 @@ async fn scrape_with_session(
     _timeout_secs: Option<u64>, _user_agent: Option<String>,
     _profile_id: Option<String>,
 ) -> Result<String, String> {
-    Err("Scraping WebView non supporté sur Android".into())
+    // Le scraping passe par `scrapeWithIframe` côté JS ; cet appel ne devrait
+    // jamais arriver sur Android, mais on renvoie un message clair au cas où.
+    Err("Scraping Android : utilise scrapeWithIframe côté JS".into())
 }
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-async fn open_login_flow(_site_id: String, _login_url: String, _profile_id: Option<String>, _user_agent: Option<String>) -> Result<(), String> {
-    Err("Login WebView non supporté sur Android".into())
+async fn open_login_flow(
+    site_id: String,
+    login_url: String,
+    _profile_id: Option<String>,
+    _user_agent: Option<String>,
+) -> Result<(), String> {
+    let _ = site_id; // l'Activity n'a pas besoin du site_id, l'URL suffit
+    with_jni_env(|env, context| {
+        let url = env.new_string(&login_url)?;
+        env.call_static_method(
+            "com/jules/resume_forge/LoginLauncher",
+            "openLogin",
+            "(Landroid/content/Context;Ljava/lang/String;)V",
+            &[(&context).into(), (&url).into()],
+        )?;
+        Ok(())
+    })
 }
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-async fn close_login_browser() -> Result<(), String> { Ok(()) }
+async fn close_login_browser() -> Result<(), String> {
+    // L'utilisateur ferme la `LoginActivity` lui-même via le bouton « Fermer »
+    // (ou le bouton retour). On no-op ici pour préserver la signature commune.
+    Ok(())
+}
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-fn session_exists(_site_id: String, _profile_id: Option<String>) -> bool { false }
+fn session_exists(site_id: String, _profile_id: Option<String>) -> bool {
+    let domain = android_domain_for_site(&site_id);
+    if domain.is_empty() {
+        return false;
+    }
+    let result: Result<bool, String> = with_jni_env(|env, _ctx| {
+        use jni::objects::JString;
+        let domain_j = env.new_string(domain)?;
+        let res = env.call_static_method(
+            "com/jules/resume_forge/LoginLauncher",
+            "getCookies",
+            "(Ljava/lang/String;)Ljava/lang/String;",
+            &[(&domain_j).into()],
+        )?;
+        let obj = res.l()?;
+        if obj.is_null() {
+            return Ok(false);
+        }
+        let jstr = JString::from(obj);
+        let s: String = env.get_string(&jstr)?.into();
+        // Présence d'au moins un cookie côté domaine = session probablement
+        // active. Le scraper détectera une éventuelle redirection vers /login.
+        Ok(!s.trim().is_empty())
+    });
+    result.unwrap_or(false)
+}
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-fn clear_session(_site_id: String, _profile_id: Option<String>) -> Result<(), String> { Ok(()) }
+fn clear_session(site_id: String, _profile_id: Option<String>) -> Result<(), String> {
+    let domain = android_domain_for_site(&site_id);
+    if domain.is_empty() {
+        return Ok(());
+    }
+    with_jni_env(|env, _ctx| {
+        let domain_j = env.new_string(domain)?;
+        env.call_static_method(
+            "com/jules/resume_forge/LoginLauncher",
+            "clearCookiesForDomain",
+            "(Ljava/lang/String;)V",
+            &[(&domain_j).into()],
+        )?;
+        Ok(())
+    })
+}
 
 // ── Point d'entrée ────────────────────────────────────────────────────────────
 

@@ -88,6 +88,18 @@
             <!-- DEEP LINK PLUGIN. AUTO-GENERATED. DO NOT REMOVE. -->
         </activity>
 
+        <!--
+          Activity dédiée au login session-cookies (LinkedIn, Indeed, HelloWork…).
+          Non exportée : lancée uniquement depuis notre code Rust via JNI.
+          Cookies posés ici → CookieManager.getInstance() partagé avec la
+          WebView Tauri principale → réutilisables par scrapeWithIframe().
+        -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode"
+            android:label="Connexion" />
+
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"

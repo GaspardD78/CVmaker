@@ -3753,7 +3753,9 @@ name = "resume-forge"
 version = "1.1.0"
 dependencies = [
  "headless_chrome",
+ "jni",
  "lettre",
+ "ndk-context",
  "serde",
  "serde_json",
  "tauri",

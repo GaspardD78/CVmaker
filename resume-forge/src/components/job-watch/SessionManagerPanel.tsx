@@ -67,7 +67,7 @@ export function SessionManagerPanel() {
       await openLoginFlow(site.id, LOGIN_URLS[site.id], profileId);
       if (isAndroid()) {
         toast.info(
-          `Connecte-toi à ${site.label} dans le navigateur qui vient de s'ouvrir, puis reviens ici et clique "J'ai terminé". Si l'app ${site.label} s'ouvre à la place, ferme-la et choisis "Ouvrir dans Chrome".`,
+          `Connecte-toi à ${site.label} dans la fenêtre qui vient de s'ouvrir, puis ferme-la avec le bouton « Fermer » ou retour. Reviens ici et clique sur « J'ai terminé ».`,
           { duration: 8000 },
         );
       } else {
