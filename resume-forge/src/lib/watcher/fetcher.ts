@@ -136,7 +136,7 @@ export interface FetchResult {
 async function runParser(
   config: JobWatchConfig,
   settings: JobWatchSettings,
-  override?: SelectorOverride,
+  _override?: SelectorOverride,
   profileId?: string | null,
 ): Promise<RawJobOffer[]> {
   switch (config.source) {

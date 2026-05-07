@@ -110,6 +110,7 @@ async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSet
     ftClientSecret:        map['ft_client_secret']        ?? '',
     ftAccessToken:         map['ft_access_token']         ?? '',
     ftTokenExpiresAt:      map['ft_token_expires_at']     ?? '',
+    braveSearchApiKey:     map['brave_search_api_key']    ?? '',
     minSaveScore:         parseInt(map['min_save_score']  ?? '20', 10),
     // Mantiks fields are persisted as untyped extras (parser reads via cast).
     mantiksApiKey:         map['mantiks_api_key']         ?? '',
@@ -140,6 +141,7 @@ async function saveSettingsToDb(settings: JobWatchSettings, profileId: string | 
     ['ft_client_secret',       settings.ftClientSecret],
     ['ft_access_token',        settings.ftAccessToken],
     ['ft_token_expires_at',    settings.ftTokenExpiresAt],
+    ['brave_search_api_key',   settings.braveSearchApiKey],
     ['min_save_score',         String(settings.minSaveScore)],
     ['mantiks_api_key',        anySettings['mantiksApiKey']       ?? ''],
     ['mantiks_base_url',       anySettings['mantiksBaseUrl']      ?? ''],
