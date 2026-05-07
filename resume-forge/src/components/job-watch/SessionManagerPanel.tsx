@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { isAndroid } from '@/lib/platform';
 import { CheckCircle2, XCircle, LogIn, LogOut, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,7 +65,14 @@ export function SessionManagerPanel() {
     try {
       setLoginInProgress(site.id);
       await openLoginFlow(site.id, LOGIN_URLS[site.id], profileId);
-      toast.info(`Une fenêtre Chrome s'est ouverte — connecte-toi à ${site.label} puis clique sur "J'ai terminé".`);
+      if (isAndroid()) {
+        toast.info(
+          `Connecte-toi à ${site.label} dans le navigateur qui vient de s'ouvrir, puis reviens ici et clique "J'ai terminé". Si l'app ${site.label} s'ouvre à la place, ferme-la et choisis "Ouvrir dans Chrome".`,
+          { duration: 8000 },
+        );
+      } else {
+        toast.info(`Une fenêtre Chrome s'est ouverte — connecte-toi à ${site.label} puis clique sur "J'ai terminé".`);
+      }
     } catch (err) {
       setLoginInProgress(null);
       toast.error(`Ouverture Chrome : ${err instanceof Error ? err.message : 'erreur'}`);

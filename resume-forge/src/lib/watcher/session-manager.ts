@@ -102,14 +102,49 @@ export async function openLoginFlow(
   userAgent: string = DESKTOP_UA,
 ): Promise<void> {
   if (isAndroid()) {
-    // Tauri 2 sur Android ne supporte pas les WebviewWindow multiples (la pile
-    // de fenêtres est limitée à la webview principale). On délègue au navigateur
-    // système via le plugin opener, qui lance Chrome/le navigateur par défaut.
-    await openUrl(loginUrl);
+    // Tauri 2 sur Android ne supporte pas les WebviewWindow multiples : on délègue
+    // au navigateur système via le plugin opener.
+    //
+    // ⚠ Piège LinkedIn/Indeed/HelloWork : ces sites publient des App Links
+    // (autoVerify=true), donc une URL https:// est interceptée par leur app
+    // native installée au lieu d'ouvrir un navigateur — l'utilisateur tombe
+    // sur le profil/feed de l'app, pas sur la page de login OAuth.
+    //
+    // Contournement : on force d'abord un schéma propriétaire de navigateur
+    // (Chrome, Edge, Firefox) qu'aucune app native ne peut revendiquer. Si
+    // aucun de ces navigateurs n'est installé, on retombe sur l'URL https
+    // brute (au pire l'app native s'ouvre, comportement actuel).
+    await openInBrowserAndroid(loginUrl);
     return;
   }
 
   await invoke('open_login_flow', { siteId, loginUrl, profileId: profileId ?? null, userAgent });
+}
+
+/**
+ * Tente d'ouvrir `loginUrl` dans un vrai navigateur sur Android, en évitant
+ * que les App Links (LinkedIn, Indeed, HelloWork…) ne redirigent vers l'app
+ * native. On essaie en cascade Chrome → Edge → Firefox → URL https brute.
+ */
+async function openInBrowserAndroid(loginUrl: string): Promise<void> {
+  const encoded = encodeURIComponent(loginUrl);
+  // Schémas propriétaires : seul le navigateur correspondant les gère, donc
+  // aucune app native (LinkedIn, Indeed…) ne peut intercepter.
+  const candidates = [
+    `googlechrome://navigate?url=${encoded}`,
+    `microsoft-edge:${loginUrl}`,
+    `firefox://open-url?url=${encoded}`,
+  ];
+  for (const candidate of candidates) {
+    try {
+      await openUrl(candidate);
+      return;
+    } catch {
+      // navigateur non installé — on essaie le suivant
+    }
+  }
+  // Dernier recours : URL https brute (peut être interceptée par l'app native).
+  await openUrl(loginUrl);
 }
 
 /** Close the login browser — call after the user confirms they're logged in. */
