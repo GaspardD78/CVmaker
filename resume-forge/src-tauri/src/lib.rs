@@ -465,13 +465,61 @@ where
 #[cfg(target_os = "android")]
 #[tauri::command]
 async fn scrape_with_session(
-    _site_id: String, _url: String, _wait_selector: Option<String>,
-    _timeout_secs: Option<u64>, _user_agent: Option<String>,
+    site_id: String,
+    url: String,
+    wait_selector: Option<String>,
+    timeout_secs: Option<u64>,
+    user_agent: Option<String>,
     _profile_id: Option<String>,
 ) -> Result<String, String> {
-    // Le scraping passe par `scrapeWithIframe` côté JS ; cet appel ne devrait
-    // jamais arriver sur Android, mais on renvoie un message clair au cas où.
-    Err("Scraping Android : utilise scrapeWithIframe côté JS".into())
+    // L'iframe côté JS échouait systématiquement (X-Frame-Options DENY +
+    // SecurityError sur cross-origin contentDocument). On délègue désormais
+    // à `BackgroundScraper.scrapePageBlocking` côté Kotlin : WebView offscreen
+    // qui partage le `CookieManager` avec `LoginActivity`, donc bénéficie des
+    // sessions ouvertes par l'utilisateur. L'appel est bloquant côté JNI ;
+    // on l'isole dans `spawn_blocking` pour ne pas geler le runtime tokio.
+    let _ = site_id;
+    let timeout = timeout_secs.unwrap_or(20) as i64;
+
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        with_jni_env(|env, context| {
+            use jni::objects::{JObject, JString, JValue};
+
+            // Conversion en JObject explicite : JString → JObject sans
+            // ambiguïté de borrow, et JObject::null() pour les Options vides.
+            let url_obj: JObject = env.new_string(&url)?.into();
+            let selector_obj: JObject = match wait_selector.as_deref() {
+                Some(s) if !s.is_empty() => env.new_string(s)?.into(),
+                _ => JObject::null(),
+            };
+            let ua_obj: JObject = match user_agent.as_deref() {
+                Some(s) if !s.is_empty() => env.new_string(s)?.into(),
+                _ => JObject::null(),
+            };
+
+            let res = env.call_static_method(
+                "com/jules/resume_forge/BackgroundScraper",
+                "scrapePageBlocking",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)Ljava/lang/String;",
+                &[
+                    JValue::Object(&context),
+                    JValue::Object(&url_obj),
+                    JValue::Object(&selector_obj),
+                    JValue::Long(timeout),
+                    JValue::Object(&ua_obj),
+                ],
+            )?;
+            let obj = res.l()?;
+            if obj.is_null() {
+                return Ok(String::new());
+            }
+            let jstr = JString::from(obj);
+            let s: String = env.get_string(&jstr)?.into();
+            Ok(s)
+        })
+    })
+    .await
+    .map_err(|e| format!("Tâche scraping interrompue: {}", e))?
 }
 
 #[cfg(target_os = "android")]

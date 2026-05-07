@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { isAndroid } from '../platform';
 
 /** Known site identifiers that support session-based scraping */
 export type SessionSiteId = 'linkedin' | 'indeed' | 'hellowork' | 'glassdoor' | 'wttj';
@@ -19,10 +18,16 @@ export const DESKTOP_UA =
   '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 /**
- * Fetch a fully-rendered page through a headless Chrome that carries the
- * user's cookies for `siteId`. Returns the page's HTML after JS rendering.
+ * Fetch a fully-rendered page through a session-aware browser.
  *
- * Sur Android : utilise une iframe cachée car elle partage le cookie jar de la WebView.
+ * Desktop : headless Chrome avec un `user_data_dir` par site (cookies persistés sur disque).
+ * Android : `BackgroundScraper.scrapePageBlocking` (WebView offscreen Kotlin)
+ *           qui partage `CookieManager.getInstance()` avec `LoginActivity`.
+ *
+ * L'approche iframe précédente échouait systématiquement : LinkedIn, Indeed
+ * et HelloWork envoient `X-Frame-Options: DENY` (et CSP `frame-ancestors`),
+ * et même si le chargement passait, l'accès cross-origin à `contentDocument`
+ * léverait `SecurityError`.
  */
 export async function scrapeWithSession(
   siteId: SessionSiteId,
@@ -30,10 +35,6 @@ export async function scrapeWithSession(
   opts: ScrapeOptions = {},
   profileId?: string | null,
 ): Promise<string> {
-  if (isAndroid()) {
-    return scrapeWithIframe(url, opts.waitSelector, opts.timeoutSecs);
-  }
-
   return invoke<string>('scrape_with_session', {
     siteId,
     url,
@@ -41,51 +42,6 @@ export async function scrapeWithSession(
     timeoutSecs:  opts.timeoutSecs  ?? 20,
     userAgent:    opts.userAgent    ?? DESKTOP_UA,
     profileId:    profileId ?? null,
-  });
-}
-
-/**
- * Android-only: Scraping via une iframe cachée.
- */
-async function scrapeWithIframe(url: string, _waitSelector?: string, timeoutSecs = 30): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = url;
-
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error(`Timeout de collecte (Android Iframe) sur ${url}`));
-    }, timeoutSecs * 1000);
-
-    const cleanup = () => {
-      clearTimeout(timeout);
-      document.body.removeChild(iframe);
-    };
-
-    iframe.onload = () => {
-      try {
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (!doc) throw new Error("Impossible d'accéder au document de l'iframe");
-
-        // On attend un court instant que le JS de la page s'exécute
-        setTimeout(() => {
-          const html = doc.documentElement.innerHTML;
-          cleanup();
-          resolve(html);
-        }, 3000);
-      } catch (err) {
-        cleanup();
-        reject(err);
-      }
-    };
-
-    iframe.onerror = (err) => {
-      cleanup();
-      reject(new Error(`Erreur de chargement iframe: ${String(err)}`));
-    };
-
-    document.body.appendChild(iframe);
   });
 }
 
