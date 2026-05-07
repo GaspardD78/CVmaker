@@ -136,7 +136,6 @@ export interface FetchResult {
 async function runParser(
   config: JobWatchConfig,
   settings: JobWatchSettings,
-  override?: SelectorOverride,
   profileId?: string | null,
 ): Promise<RawJobOffer[]> {
   switch (config.source) {
@@ -204,7 +203,7 @@ export async function runFetch(
     const sourceStartTime = Date.now();
     let rawOffers: RawJobOffer[];
     try {
-      rawOffers = await runParser(config, settings, selectorOverrides[config.source], profileId);
+      rawOffers = await runParser(config, settings, profileId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`Parser error: ${msg}`);
