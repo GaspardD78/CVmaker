@@ -31,7 +31,6 @@ import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
 import { parseMantiks } from './parsers/mantiks';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
-import type { SelectorOverride } from './selector-debug';
 import { 
   isPermissionGranted, 
   requestPermission, 
@@ -171,8 +170,6 @@ export async function runFetch(
 
   const learned = await loadLearnedSignals(db, profileId ?? null);
 
-  // Load per-source selector overrides from the store (set by the AI CSS debugger)
-  const selectorOverrides = useJobWatchStore.getState().selectorOverrides;
 
   const enabledConfigs = configs.filter(c => c.enabled === 1);
 
