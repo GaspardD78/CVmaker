@@ -20,7 +20,7 @@ import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
 import { parseApec } from './parsers/apec';
 import { parseWttj } from './parsers/wttj';
 import { parseLinkedinRss } from './parsers/linkedin-rss';
-// LinkedIn passe désormais par X-ray search (Brave) — cf. parsers/linkedin-xray.ts.
+// LinkedIn passe désormais par X-ray search DuckDuckGo HTML — cf. parsers/linkedin-xray.ts.
 // Le parser WebView connecté (parsers/linkedin.ts) reste en dépôt mais n'est
 // plus utilisé : scraping authentifié = violation TOS LinkedIn + risque ban.
 import { parseLinkedinXray } from './parsers/linkedin-xray';

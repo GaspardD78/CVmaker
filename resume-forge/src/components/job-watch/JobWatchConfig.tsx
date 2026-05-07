@@ -562,22 +562,6 @@ export function JobWatchConfigView() {
       {/* ── 7. Advanced ── */}
       <Section title="Options avancées" defaultOpen={false}>
 
-        {/* Brave Search API key — required for LinkedIn X-ray collection */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">LinkedIn (X-ray) — Clé Brave Search API</p>
-          </div>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
-            La collecte LinkedIn passe par une recherche booléenne Brave (URLs publiques) — pas de login, pas de risque de ban.
-            2 000 requêtes/mois gratuites sur <a className="underline" href="https://brave.com/search/api/" target="_blank" rel="noreferrer">brave.com/search/api</a>.
-          </p>
-          <input type="password" autoComplete="new-password" className={inputCls}
-            value={settingsDraft.braveSearchApiKey}
-            onChange={e => updateSetting('braveSearchApiKey', e.target.value)}
-            placeholder="BSA_..."
-          />
-        </div>
-
         {/* France Travail credentials */}
         <div>
           <div className="flex items-center gap-2 mb-2">

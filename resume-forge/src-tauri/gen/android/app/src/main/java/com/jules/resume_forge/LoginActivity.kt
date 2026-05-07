@@ -1,6 +1,5 @@
 package com.jules.resume_forge
 
-import android.app.Activity
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.View
@@ -11,6 +10,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Activity dédiée à la connexion utilisateur sur LinkedIn / Indeed / HelloWork.
@@ -24,13 +24,13 @@ import android.widget.TextView
  *
  * Solution : un WebView Android in-process. `CookieManager.getInstance()` est
  * un singleton partagé par toutes les WebView du process → les cookies posés
- * ici sont automatiquement disponibles pour `scrapeWithIframe()`.
+ * ici sont automatiquement disponibles pour `BackgroundScraper`.
  *
  * Anti-bypass App Links : `WebViewClient.shouldOverrideUrlLoading` retourne
  * toujours `false` → toutes les URLs (y compris les redirects post-login vers
  * /feed/) restent dans la WebView, jamais déléguées au système.
  */
-class LoginActivity : Activity() {
+class LoginActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_URL = "url"
@@ -108,6 +108,7 @@ class LoginActivity : Activity() {
         wv.visibility = View.VISIBLE
     }
 
+    @Suppress("DEPRECATION")
     override fun onBackPressed() {
         if (::webView.isInitialized && webView.canGoBack()) {
             webView.goBack()
