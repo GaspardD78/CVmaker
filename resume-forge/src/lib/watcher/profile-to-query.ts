@@ -13,21 +13,18 @@
  */
 
 import type { SearchProfile, JobSource } from '@/types/job-watch';
+import { APEC_TYPES_CONTRAT, apecLieuFromDeptCode } from './parsers/apec-ids';
 
 // ── APEC ─────────────────────────────────────────────────────────────────────
 
-/** APEC typeContrat codes */
-const APEC_CONTRACT_CODES: Record<string, number> = {
-  'CDI':        101888,
-  'CDD':        101887,
-  'Intérim':    101886,
-  'Stage':      101885,
-  'Alternance': 101884,
-};
-
 export interface ApecQueryParams {
   motsCles: string | undefined;
-  lieux: string[];
+  /**
+   * Liste d'IDs APEC entiers (issus de `apec-ids.ts`). Les départements absents
+   * de la table sont laissés au post-filter client. Un tableau vide laisse
+   * l'API renvoyer toute la France.
+   */
+  lieux: number[];
   typesContrat: number[];
 }
 
@@ -62,11 +59,16 @@ export function buildApecQuery(profile: SearchProfile): ApecQueryParams {
 
   // Map contract types to APEC numeric codes
   const typesContrat = profile.contractTypes
-    .map(ct => APEC_CONTRACT_CODES[ct])
+    .map(ct => APEC_TYPES_CONTRAT[ct])
     .filter((code): code is number => code !== undefined);
 
-  // Map department codes from profile
-  const lieux = profile.location.departmentCodes.filter(Boolean);
+  // Map department codes (string) → APEC integer IDs. Les départements non
+  // tabulés tombent silencieusement et seront filtrés post-fetch côté client.
+  const lieux: number[] = [];
+  for (const code of profile.location.departmentCodes) {
+    const id = apecLieuFromDeptCode(code);
+    if (id !== undefined) lieux.push(id);
+  }
 
   return { motsCles, lieux, typesContrat };
 }

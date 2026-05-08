@@ -17,19 +17,18 @@
  *   2. APEC accepte les opérateurs `ET`, `OU`, `SAUF` (en MAJUSCULES) et les
  *      guillemets pour phrases exactes. `buildApecQuery` les utilise déjà.
  *
- *   3. Le paramètre `lieux` attend des **identifiants APEC numériques** (ex.
- *      `711` pour le département 75), pas des codes département (`"75"`).
- *      Sans table de mapping publique fiable, on n'envoie pas `lieux` et on
- *      filtre post-fetch sur `lieuTexte` à partir des `departmentCodes` /
- *      `city` du profil. Quitte à fetcher plus d'offres, c'est plus fiable
- *      que d'envoyer une valeur silencieusement ignorée.
+ *   3. Le paramètre `lieux` attend des **entiers** (les codes département
+ *      en eux-mêmes : 75 = Paris, 92 = Hauts-de-Seine, etc., et 711 =
+ *      Île-de-France entière). Une string `"75"` est silencieusement
+ *      ignorée — c'était le bug initial qui faisait remonter Lyon/Lille
+ *      sur une recherche "Paris". Le mapping vit dans `apec-ids.ts` et
+ *      s'enrichit via `tools/apec-id-mapper-extension/`. Pour les
+ *      départements non encore tabulés, le post-filter client garde la main.
  *
- *      Pour cartographier les IDs `lieux` (et `fonctions`, `secteursActivite`…)
- *      il y a une extension Chrome dédiée dans le repo :
- *      `tools/apec-id-mapper-extension/`. Elle intercepte les requêtes que le
- *      site apec.fr fait vers `rechercheOffre` quand l'utilisateur coche un
- *      filtre, agrège les IDs et les exporte au format TypeScript prêt à
- *      coller. Voir le README de l'extension pour la procédure pas-à-pas.
+ *      Le tableau complet des IDs (lieux, fonctions, contrats, niveaux
+ *      d'expérience, types de convention) est centralisé dans
+ *      `apec-ids.ts`. Pour l'étendre : suivre la procédure dans
+ *      `tools/apec-id-mapper-extension/README.md`.
  *
  * Qualité d'extraction : HIGH (titre API) / MEDIUM (lieu API text) / HIGH (contrat code).
  */
@@ -37,6 +36,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
 import { buildApecQuery, isExcludedByProfile } from '../profile-to-query';
+import { APEC_TYPES_CONTRAT_LABEL } from './apec-ids';
 
 const APEC_OFFER_BASE = 'https://www.apec.fr/candidat/recherche-emploi.html/emploi/detail-offre';
 
@@ -62,13 +62,9 @@ const CITY_TO_DEPT: Record<string, string> = {
   nanterre: '92', argenteuil: '95', montreuil: '93',
 };
 
-const CONTRACT_TYPE_MAP: Record<number, string> = {
-  101888: 'CDI',
-  101887: 'CDD',
-  101886: 'Intérim',
-  101885: 'Stage',
-  101884: 'Alternance',
-};
+// Le mapping ID → libellé canonique vit dans `apec-ids.ts` ; on importe
+// directement la version inversée pour ne pas dupliquer les codes ici.
+const CONTRACT_TYPE_MAP: Record<number, string> = APEC_TYPES_CONTRAT_LABEL;
 
 interface ApecSearchResult {
   numeroOffre:      string;
@@ -160,15 +156,15 @@ export async function parseApec(
   // Pré-calcule l'ensemble des départements attendus, utilisé pour le post-filter.
   const expectedDepts = expectedDepartments(profile);
 
-  // On ne pousse PAS `lieux` à l'API tant qu'on n'a pas la table de mapping
-  // ID-APEC ; le filtrage géographique passe par le post-fetch ci-dessous.
-  // (Si on en envoyait des `string` "75" en l'état, l'API les ignore en silence.)
+  // `query.lieux` est désormais une liste d'IDs APEC entiers (mapping dans
+  // `apec-ids.ts`). Si elle est vide (département absent de la table), on
+  // laisse le post-filter client en filet de sécurité — voir plus bas.
   const collected = new Map<string, RawJobOffer>();
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const body = {
       motsCles:          query.motsCles,
-      lieux:             [],
+      lieux:             query.lieux,
       typesContrat:      query.typesContrat,
       niveauxExperience: [],
       typeClient:        'CADRE',

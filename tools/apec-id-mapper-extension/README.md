@@ -136,16 +136,82 @@ exposée en `web_accessible_resources`. Les messages remontent via
 
 ---
 
-## Mapping connu (à compléter)
+## Mapping connu
 
-| Code département | Libellé      | ID APEC (`lieux`) | Source       |
-|------------------|--------------|-------------------|--------------|
-| `75`             | Paris        | `711`             | Inspection   |
-| _autres_         | _à compléter_ | _à compléter_     | _à compléter_ |
+La source de vérité vit dans `resume-forge/src/lib/watcher/parsers/apec-ids.ts`.
+Toute capture validée doit y être ajoutée — pas dans ce README, qui n'est
+qu'un récapitulatif humain.
 
-Quand tu cartographies un nouveau département, ajoute la ligne ici et
-ouvre une PR — le parser pourra ensuite envoyer `lieux: [711, ...]` à l'API
-et faire baisser le volume de bruit.
+### Lieux
+
+Bonne nouvelle : pour les **départements**, l'ID APEC est simplement le code
+département en entier (et non un ID opaque comme on le craignait initialement).
+Le piège était le typage : `["75"]` (string) est silencieusement ignoré
+côté API ; il faut envoyer `[75]` (number).
+
+| Code dept | Libellé          | ID APEC (`lieux`) |
+|-----------|------------------|-------------------|
+| `75`      | Paris            | `75`              |
+| `77`      | Seine-et-Marne   | `77`              |
+| `78`      | Yvelines         | `78`              |
+| `92`      | Hauts-de-Seine   | `92`              |
+| `95`      | Val-d'Oise       | `95`              |
+
+Régions (utiles pour pousser un filtre large) :
+
+| Libellé         | ID APEC (`lieux`) |
+|-----------------|-------------------|
+| Île-de-France   | `711`             |
+| France entière  | `799`             |
+
+### Types de contrat
+
+⚠ Les codes `Intérim` et `Alternance` étaient **faux** dans la première
+version du parser (copiés à vue depuis l'UI sans validation). Capture
+réelle :
+
+| Libellé    | ID APEC | Ancien code (faux) |
+|------------|---------|--------------------|
+| CDI        | `101888` | —                  |
+| CDD        | `101887` | —                  |
+| Intérim    | `101930` | `101886` ❌        |
+| Alternance | `20053`  | `101884` ❌        |
+
+### Fonctions (extrait — domaine RH)
+
+| Libellé                                 | ID APEC |
+|------------------------------------------|---------|
+| Ressources Humaines (catégorie)          | `101818` |
+| Administration RH                        | `101817` |
+| Direction RH                             | `101819` |
+| Développement RH                         | `101835` |
+| Chargé de recrutement                    | `600120` |
+| Responsable recrutement                  | `600121` |
+| Responsable gestion de carrières         | `600125` |
+| Conseiller en insertion pro              | `600123` |
+
+### Niveaux d'expérience
+
+| Libellé           | ID APEC |
+|-------------------|---------|
+| Débutant          | `101881` |
+| 3 à 5 ans         | `20043`  |
+| 6 à 9 ans         | `20044`  |
+| 10 ans et plus    | `20045`  |
+
+### Types de convention
+
+| Libellé                  | ID APEC |
+|--------------------------|---------|
+| Entreprise               | `143684` |
+| Cabinet de recrutement   | `143685` |
+| Agence d'emploi          | `143686` |
+| ESN/SSII                 | `143687` |
+| Partenaire               | `143706` |
+
+Quand tu cartographies un nouvel ID via l'extension, ajoute-le dans
+`apec-ids.ts` avec son libellé et mets à jour les tableaux ci-dessus dans
+la même PR.
 
 ---
 
