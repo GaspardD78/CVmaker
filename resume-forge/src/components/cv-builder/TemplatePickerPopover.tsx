@@ -277,8 +277,8 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
             style={isMobile ? {} : dropdownStyle}
             className={`
               bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl z-[100]
-              ${isMobile 
-                ? 'fixed inset-x-0 bottom-0 rounded-t-2xl max-h-[85vh] animate-in slide-in-from-bottom duration-300' 
+              ${isMobile
+                ? 'fixed inset-x-0 bottom-0 rounded-t-2xl max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300'
                 : 'rounded-xl w-[620px] max-w-[720px]'
               }
             `}
@@ -290,7 +290,12 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
               </div>
             )}
 
-            <div className={`p-4 overflow-y-auto ${isMobile ? 'pb-12' : ''}`}>
+            <div
+              className={`p-4 overflow-y-auto overscroll-contain flex-1 min-h-0 ${
+                isMobile ? 'pb-[calc(env(safe-area-inset-bottom)+1.5rem)]' : ''
+              }`}
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
               {CATEGORY_ORDER.map(cat => {
                 const items = allTemplates.filter(t => t.category === cat);
                 if (items.length === 0) return null;

@@ -1,9 +1,12 @@
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { getTemplate } from '@/templates';
 import { PrintableCV } from '../export/PrintableCV';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+
+const A4_WIDTH_PX = 794;   // 210mm at 96dpi
+const A4_HEIGHT_PX = 1123; // 297mm at 96dpi
+const MOBILE_PADDING_PX = 16;
 
 export function RightPanel() {
   const { currentCv, currentCvBlocks } = useCvStore();
@@ -20,6 +23,46 @@ export function RightPanel() {
     mq.addEventListener('change', handle);
     return () => mq.removeEventListener('change', handle);
   }, []);
+
+  // Mobile-only: track container width + content height to drive a CSS scale
+  // transform. Native vertical scroll handles long CVs; the wrapper is sized
+  // to the *visual* (post-scale) dimensions so scrolling and clipping behave
+  // like a regular page, not a zoom-pan canvas.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.5);
+  const [contentHeight, setContentHeight] = useState(A4_HEIGHT_PX);
+
+  useLayoutEffect(() => {
+    if (!isMobile) return;
+    const updateScale = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const w = el.clientWidth;
+      if (w <= 0) return;
+      const next = Math.min(1, Math.max(0.2, (w - MOBILE_PADDING_PX) / A4_WIDTH_PX));
+      setScale(next);
+    };
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    if (containerRef.current) ro.observe(containerRef.current);
+    window.addEventListener('orientationchange', updateScale);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('orientationchange', updateScale);
+    };
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = innerRef.current;
+    if (!el) return;
+    const update = () => setContentHeight(Math.max(A4_HEIGHT_PX, el.offsetHeight));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isMobile, currentCv, currentCvBlocks]);
 
   if (!currentCv || !profile) return <div>Chargement...</div>;
 
@@ -46,24 +89,34 @@ export function RightPanel() {
   );
 
   if (isMobile) {
-    const mmInPx = 794;
-    // Initial scale to fit the screen width, assuming some padding
-    const initialScale = typeof window !== 'undefined' ? Math.min((window.innerWidth - 16) / mmInPx, 1) : 0.5;
-
     return (
-      <div className="w-full h-full relative overflow-hidden">
-        <TransformWrapper
-          initialScale={initialScale}
-          minScale={0.1}
-          maxScale={3}
-          centerOnInit={true}
-          wheel={{ step: 0.1 }}
-          pinch={{ step: 5 }}
+      <div
+        ref={containerRef}
+        className="w-full h-full overflow-y-auto overscroll-contain bg-gray-200 dark:bg-gray-900 py-3"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div
+          style={{
+            width: A4_WIDTH_PX * scale,
+            height: contentHeight * scale,
+            margin: '0 auto',
+            position: 'relative',
+          }}
         >
-          <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+          <div
+            ref={innerRef}
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              width: A4_WIDTH_PX,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+            }}
+          >
             {content}
-          </TransformComponent>
-        </TransformWrapper>
+          </div>
+        </div>
       </div>
     );
   }

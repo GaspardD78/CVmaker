@@ -81,13 +81,38 @@ async function exportPdfWebFallback(): Promise<boolean> {
 // ── Chemin Android (jsPDF + html2canvas) ─────────────────────────────────────
 
 async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
-  const el = document.getElementById(sourceElementId);
-  if (!el) {
+  const original = document.getElementById(sourceElementId);
+  if (!original) {
     toast.error(`Impossible de trouver l'élément #${sourceElementId} dans le DOM.`);
     return false;
   }
 
   const toastId = toast.loading('Génération du PDF Android…');
+
+  // Render html2canvas on an off-screen, transform-free clone. The live
+  // preview on Android wraps #printable-cv in a CSS-scaled container so the
+  // page fits the screen — capturing the live element produced overlapping/
+  // garbled text in the PDF because html2canvas-pro inherited that transform.
+  const stage = document.createElement('div');
+  stage.setAttribute('aria-hidden', 'true');
+  stage.style.cssText = [
+    'position: fixed',
+    'left: -10000px',
+    'top: 0',
+    'width: 210mm',
+    'background: #ffffff',
+    'z-index: -1',
+    'transform: none',
+    'pointer-events: none',
+  ].join(';');
+
+  const clone = original.cloneNode(true) as HTMLElement;
+  clone.style.transform = 'none';
+  clone.style.boxShadow = 'none';
+  clone.style.margin = '0';
+  clone.style.width = '210mm';
+  stage.appendChild(clone);
+  document.body.appendChild(stage);
 
   try {
     // Import dynamique pour ne pas alourdir le bundle desktop
@@ -100,15 +125,20 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
       import('html2canvas-pro'),
     ]);
 
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
     // Rendu du nœud CV en canvas à 2× pour la qualité (équiv. 144 dpi)
-    const canvas = await html2canvas(el, {
+    const canvas = await html2canvas(clone, {
       scale: 2,
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
+      windowWidth: clone.scrollWidth,
+      windowHeight: clone.scrollHeight,
     });
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
     // Format A4 en mm
     const pdf = new jsPDF({
@@ -117,31 +147,44 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
       format: 'a4',
     });
 
-    const pageWidth  = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
+    const pageWidthMm  = pdf.internal.pageSize.getWidth();   // 210
+    const pageHeightMm = pdf.internal.pageSize.getHeight();  // 297
 
-    // Mise à l'échelle : on remplit la largeur A4, on pagine en hauteur
-    const imgWidthPx  = canvas.width;
-    const imgHeightPx = canvas.height;
-    const ratio       = pageWidth / (imgWidthPx / 2);  // /2 car scale=2
-    const imgHeightMm = (imgHeightPx / 2) * ratio;
+    // Slice the source canvas into page-sized bitmaps. The previous approach
+    // (single image + negative-y offset on each page) relied on jsPDF clipping
+    // to the page bounds; on Android WebView this produced overlapping text.
+    const canvasWidthPx  = canvas.width;
+    const canvasHeightPx = canvas.height;
+    const pxPerMm        = canvasWidthPx / pageWidthMm;
+    const pageSlicePx    = Math.max(1, Math.floor(pageHeightMm * pxPerMm));
 
-    let yPosition = 0;
+    let yPx = 0;
     let pageCount = 0;
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = canvasWidthPx;
+    sliceCanvas.height = pageSlicePx;
+    const ctx = sliceCanvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context indisponible');
 
-    while (yPosition < imgHeightMm) {
+    while (yPx < canvasHeightPx) {
       if (pageCount > 0) pdf.addPage();
 
-      pdf.addImage(
-        imgData,
-        'JPEG',
-        0,
-        -yPosition,
-        pageWidth,
-        imgHeightMm,
-      );
+      const remainingPx = canvasHeightPx - yPx;
+      const slicePx = Math.min(pageSlicePx, remainingPx);
 
-      yPosition += pageHeight;
+      // Resize for the (possibly shorter) final slice
+      if (sliceCanvas.height !== slicePx) {
+        sliceCanvas.height = slicePx;
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasWidthPx, slicePx);
+      ctx.drawImage(canvas, 0, -yPx);
+
+      const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.92);
+      const sliceHeightMm = slicePx / pxPerMm;
+      pdf.addImage(sliceData, 'JPEG', 0, 0, pageWidthMm, sliceHeightMm);
+
+      yPx += slicePx;
       pageCount++;
     }
 
@@ -159,6 +202,8 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
     console.error('Erreur export PDF Android:', error);
     toast.error(`Échec de l'export PDF : ${error instanceof Error ? error.message : String(error)}`);
     return false;
+  } finally {
+    stage.remove();
   }
 }
 
