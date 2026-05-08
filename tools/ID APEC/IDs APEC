@@ -1,0 +1,225 @@
+
+{
+  "fonctions": [
+    {
+      "id": 101801,
+      "label": "Commercial, commerce, ventes",
+      "children": [
+        { "id": 600010, "label": "Chef de vente" },
+        { "id": 600011, "label": "Commercial sédentaire" },
+        { "id": 600012, "label": "Responsable grands comptes" }
+      ]
+    },
+    {
+      "id": 101802,
+      "label": "Marketing, stratégie clients et produits",
+      "children": [
+        { "id": 600020, "label": "Chef de produit" },
+        { "id": 600021, "label": "Chef de marché" },
+        { "id": 600022, "label": "Directeur marketing" }
+      ]
+    },
+    {
+      "id": 101803,
+      "label": "Communication, création et culture",
+      "children": [
+        { "id": 600030, "label": "Chargé de communication" },
+        { "id": 600031, "label": "Chef de pub" },
+        { "id": 600032, "label": "Responsable événementiel" }
+      ]
+    },
+    {
+      "id": 101804,
+      "label": "Direction générale, adjoint de direction",
+      "children": [
+        { "id": 600040, "label": "Directeur général" },
+        { "id": 600041, "label": "Adjoint de direction" },
+        { "id": 600042, "label": "Directeur de centre de profit" }
+      ]
+    },
+    {
+      "id": 101805,
+      "label": "Ingénierie, études, R&D",
+      "children": [
+        { "id": 600050, "label": "Ingénieur études" },
+        { "id": 600051, "label": "Chef de projet R&D" },
+        { "id": 600052, "label": "Ingénieur qualité" }
+      ]
+    },
+    {
+      "id": 101806,
+      "label": "Finance, comptabilité et gestion",
+      "children": [
+        { "id": 600060, "label": "Contrôleur de gestion" },
+        { "id": 600061, "label": "Directeur financier" },
+        { "id": 600062, "label": "Comptable" }
+      ]
+    },
+    {
+      "id": 101807,
+      "label": "Administratif, organisation et juridique",
+      "children": [
+        { "id": 600070, "label": "Assistant de direction" },
+        { "id": 600071, "label": "Juriste d'entreprise" },
+        { "id": 600072, "label": "Responsable achat" }
+      ]
+    },
+    {
+      "id": 101808,
+      "label": "Informatique et systèmes d'information",
+      "children": [
+        { "id": 600080, "label": "Développeur" },
+        { "id": 600081, "label": "Chef de projet IT" },
+        { "id": 600082, "label": "Administrateur systèmes" },
+        { "id": 600083, "label": "Data scientist" }
+      ]
+    },
+    {
+      "id": 101809,
+      "label": "Production industrielle et maintenance",
+      "children": [
+        { "id": 600090, "label": "Chef d'atelier" },
+        { "id": 600091, "label": "Ingénieur production" },
+        { "id": 600092, "label": "Responsable maintenance" }
+      ]
+    },
+    {
+      "id": 101810,
+      "label": "Travaux et chantier",
+      "children": [
+        { "id": 600100, "label": "Chef de chantier" },
+        { "id": 600101, "label": "Conducteur de travaux" },
+        { "id": 600102, "label": "Métreur" }
+      ]
+    },
+    {
+      "id": 101818,
+      "label": "Ressources Humaines",
+      "children": [
+        {
+          "id": 101817,
+          "label": "Administration RH"
+        },
+        {
+          "id": 101819,
+          "label": "Direction RH"
+        },
+        {
+          "id": 101835,
+          "label": "Développement RH",
+          "children": [
+            { "id": 600120, "label": "Chargé de recrutement" },
+            { "id": 600121, "label": "Responsable recrutement" },
+            { "id": 600125, "label": "Responsable gestion de carrières" },
+            { "id": 600123, "label": "Conseiller en insertion pro" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 101811,
+      "label": "Santé, social et médico-social",
+      "children": [
+        { "id": 600110, "label": "Cadre de santé" },
+        { "id": 600111, "label": "Directeur d'établissement social" },
+        { "id": 600112, "label": "Psychologue" }
+      ]
+    }
+  ],
+  "lieux": [
+    {
+      "id": 799,
+      "label": "France",
+      "children": [
+        {
+          "id": 711,
+          "label": "Île-de-France",
+          "children": [
+            { "id": 75, "label": "Paris" },
+            { "id": 78, "label": "Yvelines" },
+            { "id": 92, "label": "Hauts-de-Seine" },
+            { "id": 77, "label": "Seine-et-Marne" },
+            { "id": 95, "label": "Val-d'Oise" },
+            { "id": 93, "label": "Seine-Saint-Denis" },
+            { "id": 94, "label": "Val-de-Marne" },
+            { "id": 91, "label": "Essonne" }
+          ]
+        },
+        {
+          "id": 712,
+          "label": "Auvergne-Rhône-Alpes",
+          "children": [
+            { "id": 69, "label": "Rhône" },
+            { "id": 38, "label": "Isère" },
+            { "id": 73, "label": "Savoie" },
+            { "id": 74, "label": "Haute-Savoie" },
+            { "id": 42, "label": "Loire" }
+          ]
+        },
+        {
+          "id": 713,
+          "label": "Occitanie",
+          "children": [
+            { "id": 31, "label": "Haute-Garonne" },
+            { "id": 34, "label": "Hérault" },
+            { "id": 65, "label": "Hautes-Pyrénées" },
+            { "id": 66, "label": "Pyrénées-Orientales" }
+          ]
+        },
+        {
+          "id": 714,
+          "label": "Nouvelle-Aquitaine",
+          "children": [
+            { "id": 33, "label": "Gironde" },
+            { "id": 64, "label": "Pyrénées-Atlantiques" },
+            { "id": 24, "label": "Dordogne" },
+            { "id": 87, "label": "Haute-Vienne" }
+          ]
+        }
+      ]
+    }
+  ],
+  "niveauxExperience": [
+    { "id": 101881, "label": "Débutant" },
+    { "id": 20043, "label": "3 à 5 ans" },
+    { "id": 20044, "label": "6 à 9 ans" },
+    { "id": 20045, "label": "10 ans et plus" }
+  ],
+  "typesContrat": [
+    { "id": 101888, "label": "CDI" },
+    { "id": 101887, "label": "CDD" },
+    { "id": 20053, "label": "Alternance" },
+    { "id": 101930, "label": "Intérim" }
+  ],
+  "typesConvention": [
+    { "id": 143684, "label": "Entreprise" },
+    { "id": 143685, "label": "Cabinet de recrutement" },
+    { "id": 143686, "label": "Agence d'emploi" },
+    { "id": 143687, "label": "ESN/SSII" },
+    { "id": 143706, "label": "Partenaire" }
+  ],
+  "secteurs": [
+    { "id": 100001, "label": "Commercial, Marketing" },
+    { "id": 100002, "label": "Communication, Création" },
+    { "id": 100003, "label": "Direction d'entreprise" },
+    { "id": 100004, "label": "Finance, Audit" },
+    { "id": 100005, "label": "Fonctions supports" },
+    { "id": 100006, "label": "Informatique, Télécom" },
+    { "id": 100007, "label": "Ingénierie, Etudes R&D" },
+    { "id": 100008, "label": "Juridique" },
+    { "id": 100009, "label": "Production, Logistique" },
+    { "id": 100010, "label": "Ressources Humaines" }
+  ],
+  "teletravail": [
+    { "id": 101950, "label": "Télétravail ponctuel autorisé" },
+    { "id": 101951, "label": "Télétravail régulier" },
+    { "id": 101952, "label": "100% télétravail" }
+  ],
+  "salaires": [
+    { "id": 20001, "label": "Moins de 40k€" },
+    { "id": 20002, "label": "40-50k€" },
+    { "id": 20003, "label": "50-70k€" },
+    { "id": 20004, "label": "70k€ et plus" }
+  ]
+}
+
