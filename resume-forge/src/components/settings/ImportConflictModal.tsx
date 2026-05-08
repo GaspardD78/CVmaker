@@ -62,6 +62,10 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
         const { useApplicationStore } = await import('@/stores/applicationStore');
         await useApplicationStore.getState().fetchApplications();
       }
+      if (plan.jobWatch && plan.jobWatch !== 'ignore') {
+        const { useJobWatchStore } = await import('@/stores/jobWatchStore');
+        await useJobWatchStore.getState().initialize();
+      }
 
       setDone(true);
     } catch (err) {

@@ -17,7 +17,8 @@ export type ModuleId =
   | 'masterEntries'
   | 'cvDocuments'
   | 'applications'
-  | 'settings';
+  | 'settings'
+  | 'jobWatch';
 
 export interface ModuleMeta {
   id: ModuleId;
@@ -57,6 +58,18 @@ export const MODULES: ModuleMeta[] = [
     label: 'Paramètres application',
     description: 'Template par défaut, langue, thème',
     tables: ['settings'],
+  },
+  {
+    id: 'jobWatch',
+    label: 'Veille emploi',
+    description: 'Recherches enregistrées, paramètres de veille et offres sauvegardées',
+    tables: [
+      'job_watch_config',
+      'job_watch_settings',
+      'job_offers',
+      'job_watch_fetch_log',
+      'job_offer_feedback',
+    ],
   },
 ];
 
@@ -154,6 +167,7 @@ export interface ImportPlan {
   cvDocuments?: ImportStrategy;
   applications?: ImportStrategy;
   settings?: ImportStrategy;
+  jobWatch?: ImportStrategy;
 }
 
 /**
@@ -212,12 +226,17 @@ export async function applyRows(
  * Only deletes from tables included in the module.
  */
 const DELETE_ORDER: string[] = [
+  'job_offer_feedback',
   'application_attachments',
   'application_events',
+  'job_offers',
   'cv_blocks',
   'applications',
   'cv_documents',
   'master_entries',
+  'job_watch_config',
+  'job_watch_fetch_log',
+  'job_watch_settings',
   'profiles',
   'settings',
 ];
@@ -243,7 +262,14 @@ export async function importBackup(backup: BackupData, plan: ImportPlan): Promis
         }
       }
       // Remap profile_id in FK-linked tables
-      const tablesWithProfileId = ['master_entries', 'cv_documents', 'applications'];
+      const tablesWithProfileId = [
+        'master_entries',
+        'cv_documents',
+        'applications',
+        'job_watch_config',
+        'job_offers',
+        'job_watch_settings'
+      ];
       for (const table of tablesWithProfileId) {
         const rows = backup.modules[table];
         if (!rows) continue;
@@ -260,12 +286,17 @@ export async function importBackup(backup: BackupData, plan: ImportPlan): Promis
   const insertOrder: string[] = [
     'profiles',
     'settings',
+    'job_watch_settings',
+    'job_watch_config',
     'master_entries',
     'cv_documents',
     'cv_blocks',
     'applications',
     'application_events',
     'application_attachments',
+    'job_offers',
+    'job_offer_feedback',
+    'job_watch_fetch_log',
   ];
 
   // Collect which tables need DELETE (replace strategy)
@@ -283,7 +314,14 @@ export async function importBackup(backup: BackupData, plan: ImportPlan): Promis
 
       if (currentUserId && table === 'profiles') {
         await db.execute('DELETE FROM profiles WHERE id = ?1', [currentUserId]);
-      } else if (currentUserId && ['master_entries', 'cv_documents', 'applications'].includes(table)) {
+      } else if (currentUserId && [
+        'master_entries',
+        'cv_documents',
+        'applications',
+        'job_watch_config',
+        'job_offers',
+        'job_watch_settings'
+      ].includes(table)) {
         await db.execute(`DELETE FROM ${table} WHERE profile_id = ?1`, [currentUserId]);
       } else {
         await db.execute(`DELETE FROM ${table}`);
