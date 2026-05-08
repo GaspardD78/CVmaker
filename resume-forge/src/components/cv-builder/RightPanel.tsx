@@ -26,7 +26,7 @@ export function RightPanel() {
   const template = getTemplate(currentCv.templateId);
 
   const content = (
-    <div className="w-[210mm] min-h-[297mm] bg-white relative print:w-full print:min-h-0 print:m-0 print:p-0 shadow-lg print:shadow-none mx-auto origin-top">
+    <div className="w-[210mm] min-h-[297mm] shrink-0 bg-white relative print:w-full print:min-h-0 print:m-0 print:p-0 shadow-lg print:shadow-none mx-auto origin-top">
       {/* A4 Page Limit Guide - slightly less than 297mm to account for browser print margins */}
       <div
         className="absolute top-[295mm] left-0 w-full border-t-2 border-dashed border-red-400 opacity-50 print:hidden z-50 pointer-events-none"
@@ -60,7 +60,7 @@ export function RightPanel() {
           wheel={{ step: 0.1 }}
           pinch={{ step: 5 }}
         >
-          <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+          <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: 'max-content', height: 'max-content', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
             {content}
           </TransformComponent>
         </TransformWrapper>

@@ -276,10 +276,10 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
             ref={dropdownRef}
             style={isMobile ? {} : dropdownStyle}
             className={`
-              bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl z-[100]
+              bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl z-[100] flex flex-col
               ${isMobile 
                 ? 'fixed inset-x-0 bottom-0 rounded-t-2xl max-h-[85vh] animate-in slide-in-from-bottom duration-300' 
-                : 'rounded-xl w-[620px] max-w-[720px]'
+                : 'rounded-xl w-[620px] max-w-[720px] max-h-[85vh]'
               }
             `}
           >

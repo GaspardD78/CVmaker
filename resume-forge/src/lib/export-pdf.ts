@@ -89,19 +89,35 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
 
   const toastId = toast.loading('Génération du PDF Android…');
 
+  let cloneWrapper: HTMLDivElement | null = null;
+
   try {
-    // Import dynamique pour ne pas alourdir le bundle desktop
-    // html2canvas-pro: fork supporting modern CSS color functions (oklch, lab,
-    // color-mix) used by Tailwind CSS 4. The legacy html2canvas crashes silently
-    // on these and renders text as invisible (only photo + monochrome SVG icons
-    // survive), which was the Android export bug.
     const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
       import('jspdf'),
       import('html2canvas-pro'),
     ]);
 
+    // Create an off-screen pristine wrapper to avoid react-zoom-pan-pinch transforms
+    // which severely break html2canvas coordinate calculations (overlapping text)
+    cloneWrapper = document.createElement('div');
+    cloneWrapper.style.position = 'absolute';
+    cloneWrapper.style.left = '-9999px';
+    cloneWrapper.style.top = '0';
+    cloneWrapper.style.width = '210mm';
+    cloneWrapper.style.minHeight = '297mm';
+    cloneWrapper.style.background = 'white';
+
+    const clonedEl = el.cloneNode(true) as HTMLElement;
+    clonedEl.style.transform = 'none';
+    
+    cloneWrapper.appendChild(clonedEl);
+    document.body.appendChild(cloneWrapper);
+
+    // Wait for the layout of the clone to settle
+    await new Promise(r => setTimeout(r, 150));
+
     // Rendu du nœud CV en canvas à 2× pour la qualité (équiv. 144 dpi)
-    const canvas = await html2canvas(el, {
+    const canvas = await html2canvas(clonedEl, {
       scale: 2,
       useCORS: true,
       backgroundColor: '#ffffff',
@@ -159,6 +175,10 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
     console.error('Erreur export PDF Android:', error);
     toast.error(`Échec de l'export PDF : ${error instanceof Error ? error.message : String(error)}`);
     return false;
+  } finally {
+    if (cloneWrapper && document.body.contains(cloneWrapper)) {
+      document.body.removeChild(cloneWrapper);
+    }
   }
 }
 
