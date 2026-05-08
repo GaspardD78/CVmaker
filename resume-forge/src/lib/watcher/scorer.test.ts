@@ -29,6 +29,7 @@ function makeProfile(overrides: Partial<SearchProfile> = {}): SearchProfile {
     salary: { min: null, target: null },
     scoring: { mode: 'balanced' },
     blacklistedCompanies: [],
+    apecFonctions: [],
     ...overrides,
   };
 }

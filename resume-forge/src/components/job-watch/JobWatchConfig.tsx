@@ -32,6 +32,7 @@ import { SOURCE_LABELS, ANDROID_INCOMPATIBLE } from '@/lib/watcher/sources';
 import { isAndroid } from '@/lib/platform';
 import { SessionManagerPanel } from './SessionManagerPanel';
 import { AIFilterGenerator } from './AIFilterGenerator';
+import { APEC_FONCTIONS_HIERARCHY } from '@/lib/watcher/parsers/apec-ids';
 
 const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
   emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
@@ -136,6 +137,7 @@ export function JobWatchConfigView() {
   const [salaryMin,        setSalaryMin]        = useState(sp.salary.min != null ? String(sp.salary.min) : '');
   const [salaryTarget,     setSalaryTarget]     = useState(sp.salary.target != null ? String(sp.salary.target) : '');
   const [scoringMode,      setScoringMode]      = useState<'loose' | 'balanced' | 'strict'>(sp.scoring.mode);
+  const [apecFonctions,    setApecFonctions]    = useState<string[]>(sp.apecFonctions ?? []);
 
   // ── Settings draft ────────────────────────────────────────────────────────
 
@@ -158,6 +160,7 @@ export function JobWatchConfigView() {
     setSalaryMin(sp2.salary.min != null ? String(sp2.salary.min) : '');
     setSalaryTarget(sp2.salary.target != null ? String(sp2.salary.target) : '');
     setScoringMode(sp2.scoring.mode);
+    setApecFonctions(sp2.apecFonctions ?? []);
     setSettingsDraft(settings);
   }, [settings]);
 
@@ -187,6 +190,7 @@ export function JobWatchConfigView() {
     },
     scoring: { mode: scoringMode },
     blacklistedCompanies: parseList(blacklistText),
+    apecFonctions,
   });
 
   // ── Save handlers ────────────────────────────────────────────────────────
@@ -240,7 +244,8 @@ export function JobWatchConfigView() {
       setSalaryMin(partial.salary.min    != null ? String(partial.salary.min)    : '');
       setSalaryTarget(partial.salary.target != null ? String(partial.salary.target) : '');
     }
-    if (partial.scoring?.mode)  setScoringMode(partial.scoring.mode);
+    if (partial.scoring?.mode)      setScoringMode(partial.scoring.mode);
+    if (partial.apecFonctions)      setApecFonctions(partial.apecFonctions);
     if (partial.location) {
       if (partial.location.label)           setLocationLabel(partial.location.label);
       if (partial.location.city)            setLocationCity(partial.location.city);
@@ -276,6 +281,13 @@ export function JobWatchConfigView() {
   const toggleContract = (ct: string) =>
     setContractTypes(prev =>
       prev.includes(ct) ? prev.filter(c => c !== ct) : [...prev, ct]
+    );
+
+  // ── APEC function toggle ──────────────────────────────────────────────────
+
+  const toggleApecFonction = (label: string) =>
+    setApecFonctions(prev =>
+      prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
     );
 
   // ── Source management ─────────────────────────────────────────────────────
@@ -519,7 +531,81 @@ export function JobWatchConfigView() {
         </button>
       </Section>
 
-      {/* ── 4. Sources ── */}
+      {/* ── 4. APEC — Filtre par métier ── */}
+      <Section title="APEC — Filtre par métier (facultatif)" defaultOpen={false}>
+        <p className="text-xs text-gray-400 dark:text-gray-500 -mt-1">
+          Filtre exact envoyé à l'API APEC côté serveur — élimine les offres
+          hors-cible sans dépendre des mots-clés. Recommandé pour préciser la
+          recherche quand <em>motsCles</em> remonte trop de bruit.
+          Laissez vide pour ne pas filtrer par métier.
+        </p>
+
+        <div className="space-y-3">
+          {APEC_FONCTIONS_HIERARCHY.map(cat => (
+            <div key={cat.label}>
+              {/* Category header — clickable to select/deselect the parent ID */}
+              <div className="flex items-center gap-2 mb-1.5">
+                {cat.id !== null ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleApecFonction(cat.label)}
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${
+                      apecFonctions.includes(cat.label)
+                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-indigo-400'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ) : (
+                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{cat.label}</span>
+                )}
+                <span className="text-[10px] text-gray-400">{cat.children.length} sous-fonctions</span>
+              </div>
+              {/* Sub-functions */}
+              <div className="flex flex-wrap gap-1.5 pl-2">
+                {cat.children.map(child => (
+                  <button
+                    key={child.label}
+                    type="button"
+                    onClick={() => toggleApecFonction(child.label)}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                      apecFonctions.includes(child.label)
+                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-indigo-400'
+                    }`}
+                  >
+                    {child.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {apecFonctions.length > 0 && (
+          <div className="flex items-start gap-2 pt-1">
+            <div className="flex-1 text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded px-2 py-1">
+              {apecFonctions.length} filtre{apecFonctions.length > 1 ? 's' : ''} actif{apecFonctions.length > 1 ? 's' : ''} :{' '}
+              {apecFonctions.join(', ')}
+            </div>
+            <button
+              type="button"
+              onClick={() => setApecFonctions([])}
+              className="text-[11px] text-gray-400 hover:text-red-500 transition-colors whitespace-nowrap"
+            >
+              Tout effacer
+            </button>
+          </div>
+        )}
+
+        <p className="text-[10px] text-gray-400 dark:text-gray-500">
+          Seuls les domaines dont les IDs ont été capturés sont affichés.
+          Pour en ajouter, utiliser l'extension <code>tools/apec-id-mapper-extension/</code>.
+        </p>
+      </Section>
+
+      {/* ── 5. Sources ── */}
       <Section title="Sources actives">
         <p className="text-xs text-gray-400 dark:text-gray-500 -mt-1">
           Les critères de votre profil (ci-dessus) sont envoyés automatiquement à chaque source active.
@@ -558,17 +644,17 @@ export function JobWatchConfigView() {
         )}
       </Section>
 
-      {/* ── 5. WebView sessions (LinkedIn, Indeed, HelloWork) ── */}
+      {/* ── 6. WebView sessions (LinkedIn, Indeed, HelloWork) ── */}
       <Section title="Connexions aux sites (LinkedIn, Indeed, HelloWork)" defaultOpen={false}>
         <SessionManagerPanel />
       </Section>
 
-      {/* ── 6. AI filter rule (prompt-importable) ── */}
+      {/* ── 7. AI filter rule (prompt-importable) ── */}
       <Section title="Filtre IA par prompt" defaultOpen={false}>
         <AIFilterGenerator />
       </Section>
 
-      {/* ── 7. Advanced ── */}
+      {/* ── 8. Advanced ── */}
       <Section title="Options avancées" defaultOpen={false}>
 
         {/* France Travail credentials */}

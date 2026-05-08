@@ -13,22 +13,25 @@
  */
 
 import type { SearchProfile, JobSource } from '@/types/job-watch';
+import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode } from './parsers/apec-ids';
 
 // ── APEC ─────────────────────────────────────────────────────────────────────
 
-/** APEC typeContrat codes */
-const APEC_CONTRACT_CODES: Record<string, number> = {
-  'CDI':        101888,
-  'CDD':        101887,
-  'Intérim':    101886,
-  'Stage':      101885,
-  'Alternance': 101884,
-};
-
 export interface ApecQueryParams {
   motsCles: string | undefined;
-  lieux: string[];
+  /**
+   * Liste d'IDs APEC entiers (issus de `apec-ids.ts`). Les départements absents
+   * de la table sont laissés au post-filter client. Un tableau vide laisse
+   * l'API renvoyer toute la France.
+   */
+  lieux: number[];
   typesContrat: number[];
+  /**
+   * IDs de fonctions APEC (`fonctions` dans `rechercheOffre`). Filtre exact
+   * côté serveur — remplace avantageusement `motsCles` pour les domaines
+   * cartographiés dans `APEC_FONCTIONS`. Un tableau vide = aucun filtre.
+   */
+  fonctions: number[];
 }
 
 /** Quote a term if it contains whitespace, so multi-word titles are matched as a phrase */
@@ -62,13 +65,24 @@ export function buildApecQuery(profile: SearchProfile): ApecQueryParams {
 
   // Map contract types to APEC numeric codes
   const typesContrat = profile.contractTypes
-    .map(ct => APEC_CONTRACT_CODES[ct])
+    .map(ct => APEC_TYPES_CONTRAT[ct])
     .filter((code): code is number => code !== undefined);
 
-  // Map department codes from profile
-  const lieux = profile.location.departmentCodes.filter(Boolean);
+  // Map department codes (string) → APEC integer IDs. Les départements non
+  // tabulés tombent silencieusement et seront filtrés post-fetch côté client.
+  const lieux: number[] = [];
+  for (const code of profile.location.departmentCodes) {
+    const id = apecLieuFromDeptCode(code);
+    if (id !== undefined) lieux.push(id);
+  }
 
-  return { motsCles, lieux, typesContrat };
+  // Map selected function labels → APEC integer IDs. Les libellés absents de
+  // la table (non encore capturés) sont silencieusement ignorés.
+  const fonctions: number[] = (profile.apecFonctions ?? [])
+    .map(label => APEC_FONCTIONS[label])
+    .filter((id): id is number => id !== undefined);
+
+  return { motsCles, lieux, typesContrat, fonctions };
 }
 
 // ── France Travail ────────────────────────────────────────────────────────────
@@ -230,6 +244,11 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
         parts.push(`depts: ${profile.location.departmentCodes.join(', ')}`);
       }
       if (p.typesContrat.length > 0) parts.push(`contrats: ${profile.contractTypes.join(', ')}`);
+      if (p.fonctions.length > 0) {
+        const labels = (profile.apecFonctions ?? []).slice(0, 3);
+        const suffix = (profile.apecFonctions?.length ?? 0) > 3 ? ` +${(profile.apecFonctions?.length ?? 0) - 3}` : '';
+        parts.push(`fonctions: ${labels.join(', ')}${suffix}`);
+      }
       return parts.join(' | ');
     }
     case 'france_travail': {
