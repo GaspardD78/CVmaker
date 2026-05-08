@@ -13,7 +13,9 @@
  */
 
 import { getDb } from '@/lib/db';
+import { isAndroid } from '@/lib/platform';
 import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource, FetchLog } from '@/types/job-watch';
+import { ANDROID_INCOMPATIBLE } from './sources';
 import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } from './deduplicator';
 import { computeScore, LearnedSignals } from './scorer';
 import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
@@ -171,7 +173,19 @@ export async function runFetch(
   const learned = await loadLearnedSignals(db, profileId ?? null);
 
 
-  const enabledConfigs = configs.filter(c => c.enabled === 1);
+  // Sur Android, on saute silencieusement les sources de scraping (LinkedIn,
+  // Indeed, HelloWork) qui ne fonctionnent pas de façon fiable sur mobile
+  // (cf. ANDROID_INCOMPATIBLE). Mieux vaut les ignorer que de polluer l'UI
+  // d'erreurs récurrentes.
+  const onAndroid = isAndroid();
+  const enabledConfigs = configs.filter(c => {
+    if (c.enabled !== 1) return false;
+    if (onAndroid && ANDROID_INCOMPATIBLE.has(c.source)) {
+      console.info(`[fetcher] ${c.source} ignoré sur Android (non supporté).`);
+      return false;
+    }
+    return true;
+  });
 
   interface ProcessedOffer {
     raw: RawJobOffer;

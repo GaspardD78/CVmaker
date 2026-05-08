@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>APEC ID Mapper</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>APEC ID Mapper</h1>
+    <p class="hint">
+      Coche un département / une fonction / un secteur sur
+      <a href="https://cadres.apec.fr/home/mes-offres/recherche-des-offres-demploi.html" target="_blank" rel="noreferrer">apec.fr</a>
+      &mdash; les IDs internes apparaîtront ici.
+    </p>
+  </header>
+
+  <section id="empty" class="empty" hidden>
+    <p>Aucune capture pour le moment.</p>
+    <ol>
+      <li>Ouvre l'onglet <em>Recherche d'offres</em> sur cadres.apec.fr.</li>
+      <li>Coche un filtre (par exemple <em>Lieux &gt; Paris</em>).</li>
+      <li>Reviens ici : l'ID APEC du filtre apparaîtra dans la liste.</li>
+    </ol>
+  </section>
+
+  <section id="results" hidden>
+    <div class="actions">
+      <button id="btn-copy-ts" type="button">Copier en TypeScript</button>
+      <button id="btn-copy-json" type="button">Copier en JSON</button>
+      <button id="btn-clear" type="button" class="danger">Effacer</button>
+    </div>
+    <div id="buckets"></div>
+    <details id="captures-detail">
+      <summary>Dernières captures (<span id="captures-count">0</span>)</summary>
+      <ul id="captures-list"></ul>
+    </details>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>

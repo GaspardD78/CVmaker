@@ -6,18 +6,24 @@
  *
  * Intégration : flux RSS/ATOM 2.0
  * URL type : https://www.emploi-territorial.fr/rss/offres-emploi.rss
- *   Paramètres supportés :
- *   - q       : mots-clés
+ *   Paramètres GET observés (filtre côté serveur best-effort, pas garanti) :
+ *   - q       : mots-clés (FAQ : phrase exacte avec `"..."`, `or` minuscule entre alternatives)
  *   - lieu    : ville ou département
  *   - contrat : CDD, CDI, Fonctionnaire, Contractuel, Stage, Apprentissage
+ *
+ * NB : la doc publique est très lacunaire (le site bloque les inspections
+ * automatisées). On part du principe que `q` et `lieu` réduisent le dataset
+ * mais ne le filtrent pas strictement, et on applique un **post-filter strict**
+ * côté client pour la précision.
  *
  * Qualité d'extraction :
  *   Titre    : HIGH (champ <title> RSS propre)
  *   Lieu     : MEDIUM (dans le titre ou la description)
  *   Contrat  : MEDIUM (dans le titre ou la description)
  *
- * Note : le flux retourne les N dernières offres publiées.
- * Les mots-clés sont filtrés localement après récupération (pas d'API de recherche).
+ * Une API JSON officielle existe sur https://www.emploi-territorial.fr/api/
+ * (référencée sur data.gouv.fr) — meilleure piste pour le rappel à terme,
+ * mais sa doc publique est inaccessible aux fetch automatisés. À suivre.
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
@@ -76,22 +82,78 @@ function extractLocationFromText(text: string): string | null {
 
 /** Build the RSS URL with optional keyword/location params */
 function buildRssUrl(config: JobWatchConfig, settings: JobWatchSettings): string {
+  // L'utilisateur a fourni une URL complète custom : on la respecte telle quelle.
+  if (config.rssUrl) return config.rssUrl;
+
   const profile = settings.searchProfile;
   const params  = new URLSearchParams();
 
-  // Keywords: job titles + skills
-  const keywords = [...profile.jobTitles, ...profile.skills].filter(Boolean).join(' ');
-  if (keywords) params.set('q', keywords);
+  // Mots-clés : on n'envoie QUE les jobTitles, joints avec `or` (minuscule, le
+  // moteur emploi-territorial.fr ne reconnaît pas `OU` ni `OR`). Ajouter les
+  // skills comme dans la version précédente intersectait à zéro pour la plupart
+  // des profils tech (skills ATS / SaaS / Recruiter rares en territorial).
+  const titles = profile.jobTitles.map(t => t.trim()).filter(Boolean);
+  if (titles.length > 0) {
+    // FAQ ET : phrase exacte via `"..."` ; `or` (lowercase) pour alternatives.
+    const expr = titles.length === 1
+      ? `"${titles[0]}"`
+      : titles.map(t => `"${t}"`).join(' or ');
+    params.set('q', expr);
+  }
 
-  // Location: city or department
-  const city = profile.location.city;
-  if (city) params.set('lieu', city);
-
-  // Use rssUrl override if provided
-  if (config.rssUrl) return config.rssUrl;
+  // Localisation : on préfère le code département (2 chiffres) — plus stable
+  // que le nom de ville pour le filtre serveur. Repli sur la ville si pas de
+  // département. Le post-filter client repassera dessus de toute façon.
+  const dept = profile.location.departmentCodes[0];
+  if (dept) params.set('lieu', dept);
+  else if (profile.location.city) params.set('lieu', profile.location.city);
 
   const queryString = params.toString();
   return queryString ? `${ET_RSS_BASE}?${queryString}` : ET_RSS_BASE;
+}
+
+/**
+ * Vérifie qu'au moins un jobTitle apparaît dans le titre de l'offre, avec
+ * frontière de mot. Évite les sous-chaînes parasites (ex. "comm" matchant
+ * "commercial"). Si `jobTitles` est vide on accepte tout.
+ */
+function titleMatchesAnyJobTitle(title: string, jobTitles: string[]): boolean {
+  const targets = jobTitles.map(t => t.trim()).filter(Boolean);
+  if (targets.length === 0) return true;
+  for (const t of targets) {
+    const re = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (re.test(title)) return true;
+  }
+  return false;
+}
+
+/**
+ * Vérifie que le lieu d'une offre correspond aux départements / ville attendus.
+ * Cherche un code département (2 chiffres) précédé d'une frontière non-numérique
+ * dans le texte du lieu, ou la ville en clair.
+ */
+function locationMatchesProfile(
+  location: string | null,
+  expectedDepts: Set<string>,
+  expectedCity: string | null,
+): boolean {
+  if (expectedDepts.size === 0 && !expectedCity) return true;
+  if (!location) return false;
+
+  if (expectedCity) {
+    const re = new RegExp('\\b' + expectedCity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (re.test(location)) return true;
+  }
+
+  if (expectedDepts.size > 0) {
+    const matches = location.match(/(?:^|\D)(\d{2,3})(?:$|\D)/g) ?? [];
+    for (const m of matches) {
+      const code = m.replace(/\D/g, '');
+      if (expectedDepts.has(code)) return true;
+      if (code.length === 3 && expectedDepts.has(code.slice(0, 2))) return true;
+    }
+  }
+  return false;
 }
 
 export async function parseEmploiTerritorial(
@@ -143,9 +205,36 @@ export async function parseEmploiTerritorial(
     } satisfies RawJobOffer;
   });
 
-  // Apply exclusion filter
-  return offers.filter(o => {
+  // Post-filter strict côté client : le RSS est faiblement filtré côté serveur,
+  // on rejette ici les offres qui ne matchent pas le profil pour limiter le bruit.
+  const expectedDepts = new Set(profile.location.departmentCodes.map(c => c.trim()).filter(Boolean));
+  const expectedCity  = profile.location.city?.trim() || null;
+
+  let droppedTitle = 0, droppedLocation = 0, droppedExclusion = 0;
+  const filtered: RawJobOffer[] = [];
+  for (const o of offers) {
+    if (!titleMatchesAnyJobTitle(o.title, profile.jobTitles)) {
+      droppedTitle++;
+      continue;
+    }
+    if (!locationMatchesProfile(o.location, expectedDepts, expectedCity)) {
+      droppedLocation++;
+      continue;
+    }
     const text = `${o.title} ${o.descriptionSnippet ?? ''}`;
-    return !isExcludedByProfile(text, profile);
-  });
+    if (isExcludedByProfile(text, profile)) {
+      droppedExclusion++;
+      continue;
+    }
+    filtered.push(o);
+  }
+
+  if (droppedTitle + droppedLocation + droppedExclusion > 0) {
+    console.debug(
+      `[emploi-territorial] post-filter : ${filtered.length}/${offers.length} retenues ` +
+      `(rejets — titre : ${droppedTitle}, lieu : ${droppedLocation}, exclusion : ${droppedExclusion}).`,
+    );
+  }
+
+  return filtered;
 }
