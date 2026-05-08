@@ -346,18 +346,25 @@ export function CVBuilderPage() {
             {/* ── Panel de contenu mobile (onglet Éditer) ── */}
             {showMobileEdit && (
               <div className="w-full bg-white dark:bg-gray-800 flex flex-col h-full overflow-hidden print:hidden">
-                <LeftPanel
-                  cvId={id!}
-                  activeTab="blocs"
-                  onRequestTabChange={() => {}}
+                <div className="flex-1 overflow-hidden">
+                  <LeftPanel
+                    cvId={id!}
+                    activeTab={activeSidebarTab || 'blocs'}
+                    onRequestTabChange={setActiveSidebarTab}
+                  />
+                </div>
+                <SidebarNav
+                  activeTab={activeSidebarTab || 'blocs'}
+                  onTabChange={setActiveSidebarTab}
+                  layout="horizontal"
                 />
               </div>
             )}
 
             {/* ── Preview (toujours visible sur desktop, ou onglet Aperçu mobile) ── */}
             {(!isMobile || showMobilePreview) && (
-              <div className="flex-1 h-full overflow-auto bg-gray-50 dark:bg-gray-900 p-2 sm:p-8 sm:flex sm:justify-center print:p-0 print:bg-white print:overflow-visible print:block print:h-auto">
-                <div className="print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible">
+              <div className={`flex-1 h-full bg-gray-50 dark:bg-gray-900 ${isMobile ? 'p-0 overflow-hidden' : 'p-8 overflow-auto flex justify-center'} print:p-0 print:bg-white print:overflow-visible print:block print:h-auto`}>
+                <div className={`${isMobile ? 'w-full h-full' : ''} print:w-full print:max-w-none print:shadow-none print:m-0 print:border-none print:overflow-visible`}>
                   <RightPanel />
                 </div>
               </div>
