@@ -7,7 +7,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { X, Copy, Check, ExternalLink, HelpCircle, Sparkles, Wand2, ListChecks, AlignLeft, ClipboardPaste, AlertCircle } from 'lucide-react';
 import type { SearchProfile } from '@/types/job-watch';
-import { APEC_FONCTIONS_ALL_LABELS } from '@/lib/watcher/parsers/apec-ids';
+import { APEC_FONCTIONS_HIERARCHY, APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
 // ── Primitives ───────────────────────────────────────────────────────────────
 
@@ -613,7 +613,12 @@ const EXPERIENCE_OPTIONS = [
 function buildLlmPrompt(userContext: string): string {
   const trimmed = userContext.trim() || '[Décrivez ici en français votre parcours, vos compétences, le type de poste que vous cherchez, votre localisation, vos contraintes (télétravail, salaire, secteurs à éviter…).]';
 
-  const apecLabels = APEC_FONCTIONS_ALL_LABELS.join('", "');
+  const apecFonctionsStr = APEC_FONCTIONS_HIERARCHY.map(c => 
+    `- ${c.label} (ID: ${c.id})\n` + c.children.map(ch => `  - ${ch.label} (ID: ${ch.id})`).join('\n')
+  ).join('\n');
+  const apecSecteursStr = Object.entries(APEC_SECTEURS).map(([k, v]) => `- ${k} (ID: ${v})`).join('\n');
+  const apecTeletravailStr = Object.entries(APEC_TELETRAVAIL).map(([k, v]) => `- ${k} (ID: ${v})`).join('\n');
+  const apecSalairesStr = Object.entries(APEC_SALAIRES).map(([k, v]) => `- ${k} (ID: ${v})`).join('\n');
 
   return `Tu es un coach emploi français. Je veux configurer un profil de recherche pour un agrégateur d'offres (APEC, France Travail, Welcome to the Jungle, LinkedIn, Mantiks).
 
@@ -642,13 +647,32 @@ Rédige un profil de recherche optimal au format JSON strict, qui respecte EXACT
   "salary": { "min": 40000, "target": 50000 },
   "scoring": { "mode": "balanced" }, // loose | balanced | strict
   "blacklistedCompanies": [],
-  "apecFonctions": []             // filtre métier APEC exact côté serveur (voir liste ci-dessous)
+  "apecFonctions": [],            // tableau d'IDs (entiers) pour le filtre métier APEC (voir liste ci-dessous)
+  "apecSecteurs": [],             // tableau d'IDs (entiers)
+  "apecTeletravail": [],          // tableau d'IDs (entiers)
+  "apecSalaires": []              // tableau d'IDs (entiers)
 }
 \`\`\`
 
-## Valeurs autorisées pour apecFonctions
-Utilise UNIQUEMENT les libellés exacts suivants (tableau vide si aucun ne correspond) :
-"${apecLabels}"
+## Valeurs autorisées pour apecFonctions (IDs APEC)
+Utilise UNIQUEMENT les IDs numériques suivants (tableau d'entiers, vide si aucun ne correspond) :
+${apecFonctionsStr}
+
+## Valeurs autorisées pour apecSecteurs (IDs APEC) :
+${apecSecteursStr}
+
+## Valeurs autorisées pour apecTeletravail (IDs APEC) :
+${apecTeletravailStr}
+
+## Valeurs autorisées pour apecSalaires (IDs APEC) :
+${apecSalairesStr}
+
+## Utilisation des Filtres APEC
+Appliquez les IDs en combinaisons ciblées pour 50-200 résultats optimaux.
+- Fonctions : Privilégiez IDs feuilles (600xxx) pour précision ; combinez 2-3 max. Exemple: IT + RH : 600080,600120.
+- Lieux : Région + 1-3 départements ; évitez "France" seul (trop large). Exemple: Île-de-France : 711 ou 75,78,92.
+- Contrat/Exp : CDI prioritaire (101888) ; 6+ ans pour cadres (20044+). Exemple: CDI 10+ ans : 101888,20045.
+- Autres : Ajoutez télétravail (101951) si pertinent ; salaire min pour filtrer. Exemple: Télétravail régulier + >50k€.
 
 ## Règles
 1. Ne propose QUE du JSON valide, rien d'autre avant ni après.
@@ -657,7 +681,7 @@ Utilise UNIQUEMENT les libellés exacts suivants (tableau vide si aucun ne corre
 4. Pour \`inseeCode\` : ATTENTION, ce n'est PAS le code postal. Si tu n'es pas sûr, mets une chaîne vide \`""\` et je rechercherai moi-même sur insee.fr.
 5. Pour \`departmentCodes\` : donne 1 à 5 départements cohérents avec la zone visée.
 6. Le \`scoring.mode\` recommandé est \`"balanced"\` sauf demande explicite.
-7. Pour \`apecFonctions\` : sélectionne les libellés EXACTS qui correspondent au métier visé. Si le métier n'est pas dans la liste, laisse un tableau vide.
+7. Pour \`apecFonctions\`, \`apecSecteurs\`, \`apecTeletravail\`, \`apecSalaires\` : sélectionne les IDs EXACTS qui correspondent. Si rien ne correspond, laisse un tableau vide.
 8. Si une info manque dans mon profil, choisis une valeur raisonnable sans demander de clarification.
 
 Rends-moi uniquement le JSON.`;
@@ -717,6 +741,23 @@ function parseLlmProfileJson(raw: string): ParseResult {
     return out.length > 0 ? out : undefined;
   };
 
+  const asNumberArray = (v: unknown, field: string): number[] | undefined => {
+    if (v === undefined || v === null) return undefined;
+    if (!Array.isArray(v)) { warnings.push(`${field} n'est pas un tableau — ignoré`); return undefined; }
+    const out = v.filter((x): x is number => typeof x === 'number');
+    return out.length > 0 ? out : undefined;
+  };
+
+  // Maps inversées pour récupérer les libellés depuis les IDs
+  const APEC_FONCTIONS_MAP: Record<number, string> = {};
+  APEC_FONCTIONS_HIERARCHY.forEach(c => {
+    if (c.id !== null) APEC_FONCTIONS_MAP[c.id] = c.label;
+    c.children.forEach(ch => { APEC_FONCTIONS_MAP[ch.id] = ch.label; });
+  });
+  const APEC_SECTEURS_MAP = Object.fromEntries(Object.entries(APEC_SECTEURS).map(([k,v]) => [v, k]));
+  const APEC_TELETRAVAIL_MAP = Object.fromEntries(Object.entries(APEC_TELETRAVAIL).map(([k,v]) => [v, k]));
+  const APEC_SALAIRES_MAP = Object.fromEntries(Object.entries(APEC_SALAIRES).map(([k,v]) => [v, k]));
+
   if (typeof data.name === 'string' && data.name.trim()) profile.name = data.name.trim();
 
   const jobTitles = asStringArray(data.jobTitles, 'jobTitles');
@@ -732,14 +773,31 @@ function parseLlmProfileJson(raw: string): ParseResult {
   const blacklistedCompanies = asStringArray(data.blacklistedCompanies, 'blacklistedCompanies');
   if (blacklistedCompanies) profile.blacklistedCompanies = blacklistedCompanies;
 
-  const apecFonctionsRaw = asStringArray(data.apecFonctions, 'apecFonctions');
-  if (apecFonctionsRaw) {
-    const kept = apecFonctionsRaw.filter(f => APEC_FONCTIONS_ALL_LABELS.includes(f));
-    if (kept.length < apecFonctionsRaw.length) {
-      const unknown = apecFonctionsRaw.filter(f => !APEC_FONCTIONS_ALL_LABELS.includes(f));
-      warnings.push(`apecFonctions : libellés inconnus ignorés — ${unknown.join(', ')}`);
+  const apecFonctionsIds = asNumberArray(data.apecFonctions, 'apecFonctions');
+  if (apecFonctionsIds) {
+    const kept = apecFonctionsIds.map(id => APEC_FONCTIONS_MAP[id]).filter(Boolean);
+    if (kept.length < apecFonctionsIds.length) {
+      warnings.push(`apecFonctions : IDs inconnus ignorés`);
     }
     profile.apecFonctions = kept;
+  }
+
+  const apecSecteursIds = asNumberArray(data.apecSecteurs, 'apecSecteurs');
+  if (apecSecteursIds) {
+    const kept = apecSecteursIds.map(id => APEC_SECTEURS_MAP[id]).filter(Boolean);
+    profile.apecSecteurs = kept;
+  }
+
+  const apecTeletravailIds = asNumberArray(data.apecTeletravail, 'apecTeletravail');
+  if (apecTeletravailIds) {
+    const kept = apecTeletravailIds.map(id => APEC_TELETRAVAIL_MAP[id]).filter(Boolean);
+    profile.apecTeletravail = kept;
+  }
+
+  const apecSalairesIds = asNumberArray(data.apecSalaires, 'apecSalaires');
+  if (apecSalairesIds) {
+    const kept = apecSalairesIds.map(id => APEC_SALAIRES_MAP[id]).filter(Boolean);
+    profile.apecSalaires = kept;
   }
 
   if (typeof data.location === 'object' && data.location !== null && !Array.isArray(data.location)) {

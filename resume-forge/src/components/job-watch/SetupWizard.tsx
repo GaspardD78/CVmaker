@@ -8,6 +8,7 @@ import type { JobSource } from '@/types/job-watch';
 import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
 
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
+import { APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
 const DEFAULT_SOURCES: JobSource[] = ['apec', 'wttj'];
 const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin', 'france_travail', 'emploi_territorial'];
@@ -42,6 +43,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [mustExcludeText, setMustExcludeText] = useState('');
   const [salaryTarget, setSalaryTarget] = useState('');
   const [locationText, setLocationText] = useState(profile?.city ?? '');
+  const [apecSecteurs, setApecSecteurs] = useState<string[]>([]);
+  const [apecTeletravail, setApecTeletravail] = useState<string[]>([]);
+  const [apecSalaires, setApecSalaires] = useState<string[]>([]);
 
   // Step 3: Source selection
   const hasFtCredentials = Boolean(settings.ftClientId && settings.ftClientSecret);
@@ -62,6 +66,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       prev.includes(source) ? prev.filter(s => s !== source) : [...prev, source],
     );
   };
+
+  const toggleApecSecteur = (label: string) =>
+    setApecSecteurs(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
+  const toggleApecTeletravail = (label: string) =>
+    setApecTeletravail(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
+  const toggleApecSalaire = (label: string) =>
+    setApecSalaires(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
 
   const steps: Step[] = ['profile', 'intent', 'sources'];
   const currentIndex = steps.indexOf(step);
@@ -85,6 +96,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         min:    null,
         target: salaryTarget ? Number(salaryTarget) : null,
       },
+      apecSecteurs,
+      apecTeletravail,
+      apecSalaires,
     };
 
     await saveSettings({ ...settings, searchProfile: newProfile });
@@ -269,6 +283,76 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                     className="w-full text-sm px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Paris"
                   />
+                </div>
+              </div>
+
+              {/* APEC Filters block */}
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+                <label className="block text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-2">
+                  Filtres spécifiques APEC (Optionnel)
+                </label>
+                
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[11px] text-gray-500 mb-1">Secteurs</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.keys(APEC_SECTEURS).map(label => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => toggleApecSecteur(label)}
+                          className={`px-2 py-1 rounded text-[11px] border transition-colors ${
+                            apecSecteurs.includes(label)
+                              ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">Télétravail</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.keys(APEC_TELETRAVAIL).map(label => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => toggleApecTeletravail(label)}
+                            className={`px-2 py-1 rounded text-[11px] border transition-colors ${
+                              apecTeletravail.includes(label)
+                                ? 'bg-indigo-600 border-indigo-600 text-white'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">Salaire</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.keys(APEC_SALAIRES).map(label => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => toggleApecSalaire(label)}
+                            className={`px-2 py-1 rounded text-[11px] border transition-colors ${
+                              apecSalaires.includes(label)
+                                ? 'bg-indigo-600 border-indigo-600 text-white'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

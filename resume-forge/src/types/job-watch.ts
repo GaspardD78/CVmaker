@@ -123,6 +123,15 @@ export interface SearchProfile {
    * Vide = aucun filtre fonctions envoyé à l'API.
    */
   apecFonctions: string[];
+
+  /** Secteurs APEC sélectionnés */
+  apecSecteurs?: string[];
+
+  /** Options de télétravail APEC sélectionnées */
+  apecTeletravail?: string[];
+
+  /** Tranches de salaires APEC sélectionnées */
+  apecSalaires?: string[];
 }
 
 export const DEFAULT_SEARCH_PROFILE: SearchProfile = {
@@ -144,6 +153,9 @@ export const DEFAULT_SEARCH_PROFILE: SearchProfile = {
   scoring: { mode: 'balanced' },
   blacklistedCompanies: [],
   apecFonctions: [],
+  apecSecteurs: [],
+  apecTeletravail: [],
+  apecSalaires: [],
 };
 
 // ── Legacy SearchIntent (kept for backward-compat migration only) ─────────────

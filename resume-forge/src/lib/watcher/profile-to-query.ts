@@ -13,7 +13,7 @@
  */
 
 import type { SearchProfile, JobSource } from '@/types/job-watch';
-import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode } from './parsers/apec-ids';
+import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode, APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from './parsers/apec-ids';
 
 // ── APEC ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,9 @@ export interface ApecQueryParams {
    * cartographiés dans `APEC_FONCTIONS`. Un tableau vide = aucun filtre.
    */
   fonctions: number[];
+  secteurs: number[];
+  teletravail: number[];
+  salaires: number[];
 }
 
 /** Quote a term if it contains whitespace, so multi-word titles are matched as a phrase */
@@ -82,7 +85,19 @@ export function buildApecQuery(profile: SearchProfile): ApecQueryParams {
     .map(label => APEC_FONCTIONS[label])
     .filter((id): id is number => id !== undefined);
 
-  return { motsCles, lieux, typesContrat, fonctions };
+  const secteurs: number[] = (profile.apecSecteurs ?? [])
+    .map(label => APEC_SECTEURS[label])
+    .filter((id): id is number => id !== undefined);
+
+  const teletravail: number[] = (profile.apecTeletravail ?? [])
+    .map(label => APEC_TELETRAVAIL[label])
+    .filter((id): id is number => id !== undefined);
+
+  const salaires: number[] = (profile.apecSalaires ?? [])
+    .map(label => APEC_SALAIRES[label])
+    .filter((id): id is number => id !== undefined);
+
+  return { motsCles, lieux, typesContrat, fonctions, secteurs, teletravail, salaires };
 }
 
 // ── France Travail ────────────────────────────────────────────────────────────

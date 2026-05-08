@@ -470,6 +470,10 @@ export function generatePerformanceOptimizationPrompt(
     `Compétences : ${searchProfile.skills.join(', ') || 'Non définies'}`,
     `Secteurs : ${searchProfile.domains.join(', ') || 'Aucun'}`,
     `Salaire cible : ${searchProfile.salary.target ? `${searchProfile.salary.target}€/an` : 'Non défini'}`,
+    `Fonctions APEC : ${(searchProfile.apecFonctions || []).join(', ') || 'Aucun'}`,
+    `Secteurs APEC : ${(searchProfile.apecSecteurs || []).join(', ') || 'Aucun'}`,
+    `Télétravail APEC : ${(searchProfile.apecTeletravail || []).join(', ') || 'Aucun'}`,
+    `Salaires APEC : ${(searchProfile.apecSalaires || []).join(', ') || 'Aucun'}`,
   ].join('\n');
 
   return `Agis comme un expert en sourcing et optimisation de veille emploi.
@@ -519,6 +523,10 @@ export function generateDiagnosticPrompt(
 - Exclure : ${searchProfile.excludeTitles.join(', ') || 'Aucun'}
 - Domaine requis : ${searchProfile.skills.join(', ') || 'Non défini'}
 - Domaine préféré : ${searchProfile.domains.join(', ') || 'Aucun'}
+- Fonctions APEC : ${(searchProfile.apecFonctions || []).join(', ') || 'Aucun'}
+- Secteurs APEC : ${(searchProfile.apecSecteurs || []).join(', ') || 'Aucun'}
+- Télétravail APEC : ${(searchProfile.apecTeletravail || []).join(', ') || 'Aucun'}
+- Salaires APEC : ${(searchProfile.apecSalaires || []).join(', ') || 'Aucun'}
 
 ## Mes 20 dernières offres (avec score et action)
 ${offersStr}

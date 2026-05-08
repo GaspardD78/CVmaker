@@ -32,7 +32,7 @@ import { SOURCE_LABELS, ANDROID_INCOMPATIBLE } from '@/lib/watcher/sources';
 import { isAndroid } from '@/lib/platform';
 import { SessionManagerPanel } from './SessionManagerPanel';
 import { AIFilterGenerator } from './AIFilterGenerator';
-import { APEC_FONCTIONS_HIERARCHY } from '@/lib/watcher/parsers/apec-ids';
+import { APEC_FONCTIONS_HIERARCHY, APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
 const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
   emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
@@ -138,6 +138,9 @@ export function JobWatchConfigView() {
   const [salaryTarget,     setSalaryTarget]     = useState(sp.salary.target != null ? String(sp.salary.target) : '');
   const [scoringMode,      setScoringMode]      = useState<'loose' | 'balanced' | 'strict'>(sp.scoring.mode);
   const [apecFonctions,    setApecFonctions]    = useState<string[]>(sp.apecFonctions ?? []);
+  const [apecSecteurs,     setApecSecteurs]     = useState<string[]>(sp.apecSecteurs ?? []);
+  const [apecTeletravail,  setApecTeletravail]  = useState<string[]>(sp.apecTeletravail ?? []);
+  const [apecSalaires,     setApecSalaires]     = useState<string[]>(sp.apecSalaires ?? []);
 
   // ── Settings draft ────────────────────────────────────────────────────────
 
@@ -161,6 +164,9 @@ export function JobWatchConfigView() {
     setSalaryTarget(sp2.salary.target != null ? String(sp2.salary.target) : '');
     setScoringMode(sp2.scoring.mode);
     setApecFonctions(sp2.apecFonctions ?? []);
+    setApecSecteurs(sp2.apecSecteurs ?? []);
+    setApecTeletravail(sp2.apecTeletravail ?? []);
+    setApecSalaires(sp2.apecSalaires ?? []);
     setSettingsDraft(settings);
   }, [settings]);
 
@@ -191,6 +197,9 @@ export function JobWatchConfigView() {
     scoring: { mode: scoringMode },
     blacklistedCompanies: parseList(blacklistText),
     apecFonctions,
+    apecSecteurs,
+    apecTeletravail,
+    apecSalaires,
   });
 
   // ── Save handlers ────────────────────────────────────────────────────────
@@ -246,6 +255,9 @@ export function JobWatchConfigView() {
     }
     if (partial.scoring?.mode)      setScoringMode(partial.scoring.mode);
     if (partial.apecFonctions)      setApecFonctions(partial.apecFonctions);
+    if (partial.apecSecteurs)       setApecSecteurs(partial.apecSecteurs);
+    if (partial.apecTeletravail)    setApecTeletravail(partial.apecTeletravail);
+    if (partial.apecSalaires)       setApecSalaires(partial.apecSalaires);
     if (partial.location) {
       if (partial.location.label)           setLocationLabel(partial.location.label);
       if (partial.location.city)            setLocationCity(partial.location.city);
@@ -287,6 +299,21 @@ export function JobWatchConfigView() {
 
   const toggleApecFonction = (label: string) =>
     setApecFonctions(prev =>
+      prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
+    );
+
+  const toggleApecSecteur = (label: string) =>
+    setApecSecteurs(prev =>
+      prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
+    );
+
+  const toggleApecTeletravail = (label: string) =>
+    setApecTeletravail(prev =>
+      prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
+    );
+
+  const toggleApecSalaire = (label: string) =>
+    setApecSalaires(prev =>
       prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
     );
 
@@ -531,14 +558,81 @@ export function JobWatchConfigView() {
         </button>
       </Section>
 
-      {/* ── 4. APEC — Filtre par métier ── */}
-      <Section title="APEC — Filtre par métier (facultatif)" defaultOpen={false}>
+      {/* ── 4. APEC — Filtres spécifiques ── */}
+      <Section title="APEC — Filtres spécifiques (facultatif)" defaultOpen={false}>
         <p className="text-xs text-gray-400 dark:text-gray-500 -mt-1">
-          Filtre exact envoyé à l'API APEC côté serveur — élimine les offres
-          hors-cible sans dépendre des mots-clés. Recommandé pour préciser la
-          recherche quand <em>motsCles</em> remonte trop de bruit.
-          Laissez vide pour ne pas filtrer par métier.
+          Filtres exacts envoyés à l'API APEC côté serveur — éliminent les offres
+          hors-cible sans dépendre des mots-clés. Laissez vide pour ne pas restreindre.
         </p>
+
+        {/* Secteurs */}
+        <div className="pt-2">
+          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Secteurs d'activité</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.keys(APEC_SECTEURS).map(label => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => toggleApecSecteur(label)}
+                className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                  apecSecteurs.includes(label)
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Télétravail & Salaires */}
+        <div className="grid sm:grid-cols-2 gap-4 pt-2">
+          <div>
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Télétravail</p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.keys(APEC_TELETRAVAIL).map(label => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => toggleApecTeletravail(label)}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                    apecTeletravail.includes(label)
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Salaire (APEC)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.keys(APEC_SALAIRES).map(label => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => toggleApecSalaire(label)}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                    apecSalaires.includes(label)
+                      ? 'bg-green-600 border-green-600 text-white'
+                      : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-green-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <hr className="my-2 border-gray-200 dark:border-gray-700" />
+
+        {/* Fonctions */}
+        <div>
+          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-3">Fonctions (Métiers)</p>
 
         <div className="space-y-3">
           {APEC_FONCTIONS_HIERARCHY.map(cat => (
@@ -599,10 +693,11 @@ export function JobWatchConfigView() {
           </div>
         )}
 
-        <p className="text-[10px] text-gray-400 dark:text-gray-500">
+        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">
           Seuls les domaines dont les IDs ont été capturés sont affichés.
           Pour en ajouter, utiliser l'extension <code>tools/apec-id-mapper-extension/</code>.
         </p>
+        </div>
       </Section>
 
       {/* ── 5. Sources ── */}
