@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { PrintableCV } from '@/components/export/PrintableCV';
 import { getTemplate } from '@/templates';
 import { CVDocument, CVBlock } from '@/types/cv';
@@ -45,6 +45,9 @@ export default function PrintView() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printed, setPrinted] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [wrapperHeight, setWrapperHeight] = useState<number | 'auto'>('auto');
+  const printRootRef = useRef<HTMLDivElement>(null);
 
   // Load data from sessionStorage on mount
   useEffect(() => {
@@ -82,17 +85,66 @@ export default function PrintView() {
 
       if (cancelled) return;
 
-      setPrinted(true);
-      window.print();
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-      // After print dialog closes, close the window if it was opened by window.open.
-      // If the user navigated here directly, the close() will be ignored by the browser.
-      setTimeout(() => window.close(), 300);
+      setPrinted(true);
+
+      // Auto-print ONLY on non-mobile devices
+      if (!isMobile) {
+        window.print();
+        // After print dialog closes, close the window if it was opened by window.open.
+        // If the user navigated here directly, the close() will be ignored by the browser.
+        setTimeout(() => window.close(), 300);
+      }
     };
 
     doPrint();
     return () => { cancelled = true; };
   }, [data, printed]);
+
+  // Responsive scaling for preview (fit-to-width)
+  useEffect(() => {
+    const updateScale = () => {
+      const mmInPx = 794; // approx 210mm at 96dpi
+      const screenWidth = window.innerWidth;
+      if (screenWidth < mmInPx) {
+        setScale(screenWidth / mmInPx);
+      } else {
+        setScale(1);
+      }
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
+
+  // Update wrapper height to prevent excessive scrolling space
+  useEffect(() => {
+    if (!printRootRef.current || scale === 1) {
+      setWrapperHeight('auto');
+      return;
+    }
+    const updateHeight = () => {
+      if (printRootRef.current) {
+        setWrapperHeight(printRootRef.current.offsetHeight * scale);
+      }
+    };
+    updateHeight();
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(printRootRef.current);
+    return () => ro.disconnect();
+  }, [scale, data]);
+
+  // Modifying viewport for native pinch-to-zoom and touch scrolling
+  useEffect(() => {
+    let meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'viewport');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0, minimum-scale=0.1, maximum-scale=5.0, user-scalable=yes');
+  }, []);
 
   if (error) {
     return (
@@ -127,28 +179,57 @@ export default function PrintView() {
         html, body {
           margin: 0 !important;
           padding: 0 !important;
-          width: 210mm;
-          background: white;
+          background: #f3f4f6; /* Soft gray background for preview */
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
           color-adjust: exact;
+          /* Smooth scrolling on mobile */
+          -webkit-overflow-scrolling: touch;
+          width: 100%;
         }
         body {
-          overflow: visible !important;
+          overflow-y: auto !important;
           height: auto !important;
+          padding-bottom: 80px !important; /* Space for fixed controls */
         }
+        
+        .preview-wrapper {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+          overflow-x: hidden; /* Hide the overflow from the 210mm child */
+        }
+
         #print-root {
           width: 210mm;
+          min-height: 297mm;
           margin: 0 auto;
           background: white;
+          box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+          transform-origin: top center;
         }
+
+        /* Prevent page breaks inside entries during printing */
+        .cv-entry, .cv-section, h3, .cv-badge-group, .cv-desc li {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        h3 {
+          page-break-after: avoid;
+          break-after: avoid;
+        }
+
         @media print {
-          /* Hide EVERYTHING in body, then selectively re-show */
-          body > * {
-            display: none !important;
+          html, body {
+            background: white;
+            padding-bottom: 0 !important;
+            overflow: visible !important;
+            width: 210mm !important;
           }
-          body > div:first-child {
+          .preview-wrapper {
             display: block !important;
+            overflow: visible !important;
+            height: auto !important;
           }
           #print-root {
             display: block !important;
@@ -156,6 +237,16 @@ export default function PrintView() {
             margin: 0 !important;
             padding: 0 !important;
             width: 210mm !important;
+            min-height: auto !important;
+            box-shadow: none !important;
+            transform: none !important;
+          }
+          /* Hide EVERYTHING in body, then selectively re-show */
+          body > * {
+            display: none !important;
+          }
+          body > div:first-child {
+            display: block !important;
           }
           #print-root * {
             visibility: visible !important;
@@ -179,38 +270,48 @@ export default function PrintView() {
 
       {/* Controls — visible on screen, hidden when printing */}
       <div className="print-controls" style={{
-        padding: '8px 16px',
-        background: '#f3f4f6',
-        borderBottom: '1px solid #e5e7eb',
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        padding: '12px 16px',
+        background: 'rgba(243, 244, 246, 0.95)',
+        backdropFilter: 'blur(8px)',
+        borderTop: '1px solid #e5e7eb',
         display: 'flex',
-        gap: '8px',
+        gap: '12px',
+        justifyContent: 'center',
         alignItems: 'center',
         fontFamily: 'sans-serif',
         fontSize: '14px',
+        boxShadow: '0 -4px 6px -1px rgba(0,0,0,0.05)',
       }}>
         <button
           onClick={() => { window.print(); }}
-          style={{ padding: '4px 12px', cursor: 'pointer', background: '#1f2937', color: 'white', border: 'none', borderRadius: '4px' }}
+          style={{ padding: '8px 24px', cursor: 'pointer', background: '#1f2937', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 500, flex: 1, maxWidth: '250px' }}
         >
           Imprimer / Enregistrer PDF
         </button>
         <button
           onClick={() => window.close()}
-          style={{ padding: '4px 12px', cursor: 'pointer', border: '1px solid #d1d5db', borderRadius: '4px', background: 'white' }}
+          style={{ padding: '8px 24px', cursor: 'pointer', border: '1px solid #d1d5db', borderRadius: '6px', background: 'white', fontWeight: 500, flex: 1, maxWidth: '250px' }}
         >
           Fermer
         </button>
       </div>
 
       {/* CV render — clean, unconstrained, full width */}
-      <div id="print-root">
-        <PrintableCV
-          cv={data.cv}
-          profile={data.profile}
-          blocks={data.blocks}
-          entries={data.entries}
-          template={data.template}
-        />
+      <div className="preview-wrapper" style={{ height: wrapperHeight }}>
+        <div id="print-root" ref={printRootRef} style={{ transform: `scale(${scale})` }}>
+          <PrintableCV
+            cv={data.cv}
+            profile={data.profile}
+            blocks={data.blocks}
+            entries={data.entries}
+            template={data.template}
+          />
+        </div>
       </div>
     </>
   );
