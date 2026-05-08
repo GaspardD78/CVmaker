@@ -541,46 +541,43 @@ export function JobWatchConfigView() {
         </p>
 
         <div className="space-y-3">
-          {APEC_FONCTIONS_HIERARCHY.map(cat => (
-            <div key={cat.label}>
-              {/* Category header — clickable to select/deselect the parent ID */}
-              <div className="flex items-center gap-2 mb-1.5">
-                {cat.id !== null ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleApecFonction(cat.label)}
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${
-                      apecFonctions.includes(cat.label)
-                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-indigo-400'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ) : (
-                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{cat.label}</span>
-                )}
-                <span className="text-[10px] text-gray-400">{cat.children.length} sous-fonctions</span>
-              </div>
-              {/* Sub-functions */}
-              <div className="flex flex-wrap gap-1.5 pl-2">
-                {cat.children.map(child => (
-                  <button
-                    key={child.label}
-                    type="button"
-                    onClick={() => toggleApecFonction(child.label)}
-                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                      apecFonctions.includes(child.label)
-                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-indigo-400'
-                    }`}
-                  >
-                    {child.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+          {APEC_FONCTIONS_HIERARCHY.map(node => {
+            const renderNode = (n: any, depth: number) => {
+              const hasChildren = n.children && n.children.length > 0;
+              return (
+                <div key={n.label} className={depth > 0 ? "mt-1.5" : ""}>
+                  {/* Header */}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {n.id !== null ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleApecFonction(n.label)}
+                        className={`${depth === 0 ? 'px-2.5 py-0.5 font-semibold' : 'px-2.5 py-1'} rounded-full text-xs border transition-colors ${
+                          apecFonctions.includes(n.label)
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            : `bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 ${depth === 0 ? 'text-gray-700 dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'} hover:border-indigo-400`
+                        }`}
+                      >
+                        {n.label}
+                      </button>
+                    ) : (
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{n.label}</span>
+                    )}
+                    {hasChildren && depth === 0 && (
+                      <span className="text-[10px] text-gray-400">{n.children!.length} sous-fonctions</span>
+                    )}
+                  </div>
+                  {/* Sub-functions */}
+                  {hasChildren && (
+                    <div className="flex flex-wrap gap-1.5 pl-2">
+                      {n.children!.map((child: any) => renderNode(child, depth + 1))}
+                    </div>
+                  )}
+                </div>
+              );
+            };
+            return renderNode(node, 0);
+          })}
         </div>
 
         {apecFonctions.length > 0 && (
