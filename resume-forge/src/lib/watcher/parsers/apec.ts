@@ -24,6 +24,13 @@
  *      `city` du profil. Quitte à fetcher plus d'offres, c'est plus fiable
  *      que d'envoyer une valeur silencieusement ignorée.
  *
+ *      Pour cartographier les IDs `lieux` (et `fonctions`, `secteursActivite`…)
+ *      il y a une extension Chrome dédiée dans le repo :
+ *      `tools/apec-id-mapper-extension/`. Elle intercepte les requêtes que le
+ *      site apec.fr fait vers `rechercheOffre` quand l'utilisateur coche un
+ *      filtre, agrège les IDs et les exporte au format TypeScript prêt à
+ *      coller. Voir le README de l'extension pour la procédure pas-à-pas.
+ *
  * Qualité d'extraction : HIGH (titre API) / MEDIUM (lieu API text) / HIGH (contrat code).
  */
 

@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "APEC ID Mapper",
+  "version": "1.0.0",
+  "description": "Capture les identifiants internes APEC (lieux, fonctions, secteurs, etc.) en les espionnant directement sur apec.fr / cadres.apec.fr — pour générer un mapping à coller dans le parser APEC.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://*.apec.fr/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.apec.fr/*",
+        "https://cadres.apec.fr/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": [
+        "https://www.apec.fr/*",
+        "https://cadres.apec.fr/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "APEC ID Mapper"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
