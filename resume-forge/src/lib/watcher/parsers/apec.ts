@@ -165,6 +165,7 @@ export async function parseApec(
     const body = {
       motsCles:          query.motsCles,
       lieux:             query.lieux,
+      fonctions:         query.fonctions,
       typesContrat:      query.typesContrat,
       niveauxExperience: [],
       typeClient:        'CADRE',

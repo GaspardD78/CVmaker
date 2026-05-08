@@ -7,6 +7,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { X, Copy, Check, ExternalLink, HelpCircle, Sparkles, Wand2, ListChecks, AlignLeft, ClipboardPaste, AlertCircle } from 'lucide-react';
 import type { SearchProfile } from '@/types/job-watch';
+import { APEC_FONCTIONS_ALL_LABELS } from '@/lib/watcher/parsers/apec-ids';
 
 // ── Primitives ───────────────────────────────────────────────────────────────
 
@@ -538,6 +539,7 @@ const PROFILE_PRESETS: Array<{
       contractTypes: ['CDI'],
       salary: { min: 40000, target: 50000 },
       scoring: { mode: 'balanced' },
+      apecFonctions: ['Chargé de recrutement', 'Responsable recrutement', 'Développement RH'],
     },
   },
   {
@@ -611,6 +613,8 @@ const EXPERIENCE_OPTIONS = [
 function buildLlmPrompt(userContext: string): string {
   const trimmed = userContext.trim() || '[Décrivez ici en français votre parcours, vos compétences, le type de poste que vous cherchez, votre localisation, vos contraintes (télétravail, salaire, secteurs à éviter…).]';
 
+  const apecLabels = APEC_FONCTIONS_ALL_LABELS.join('", "');
+
   return `Tu es un coach emploi français. Je veux configurer un profil de recherche pour un agrégateur d'offres (APEC, France Travail, Welcome to the Jungle, LinkedIn, Mantiks).
 
 ## Mon profil / mon besoin
@@ -637,18 +641,24 @@ Rédige un profil de recherche optimal au format JSON strict, qui respecte EXACT
   "contractTypes": ["CDI"],       // parmi: CDI, CDD, Freelance, Alternance, Stage
   "salary": { "min": 40000, "target": 50000 },
   "scoring": { "mode": "balanced" }, // loose | balanced | strict
-  "blacklistedCompanies": []
+  "blacklistedCompanies": [],
+  "apecFonctions": []             // filtre métier APEC exact côté serveur (voir liste ci-dessous)
 }
 \`\`\`
+
+## Valeurs autorisées pour apecFonctions
+Utilise UNIQUEMENT les libellés exacts suivants (tableau vide si aucun ne correspond) :
+"${apecLabels}"
 
 ## Règles
 1. Ne propose QUE du JSON valide, rien d'autre avant ni après.
 2. Les intitulés (\`jobTitles\`) doivent être les plus susceptibles de matcher des offres réelles en France — évite les anglicismes internes aux entreprises.
 3. Pour \`excludeTitles\`, pense aux faux positifs courants du métier visé (ex: un recruteur tech exclura "ingénieur", "technicien", "commercial").
-4. Pour \`inseeCode\` : ATTENTION, ce n'est PAS le code postal. Si tu n'es pas sûr, mets une chaîne vide \`""\` et je recherchera moi-même sur insee.fr.
+4. Pour \`inseeCode\` : ATTENTION, ce n'est PAS le code postal. Si tu n'es pas sûr, mets une chaîne vide \`""\` et je rechercherai moi-même sur insee.fr.
 5. Pour \`departmentCodes\` : donne 1 à 5 départements cohérents avec la zone visée.
 6. Le \`scoring.mode\` recommandé est \`"balanced"\` sauf demande explicite.
-7. Si une info manque dans mon profil, choisis une valeur raisonnable sans demander de clarification.
+7. Pour \`apecFonctions\` : sélectionne les libellés EXACTS qui correspondent au métier visé. Si le métier n'est pas dans la liste, laisse un tableau vide.
+8. Si une info manque dans mon profil, choisis une valeur raisonnable sans demander de clarification.
 
 Rends-moi uniquement le JSON.`;
 }
@@ -721,6 +731,16 @@ function parseLlmProfileJson(raw: string): ParseResult {
   if (excludeDomains) profile.excludeDomains = excludeDomains;
   const blacklistedCompanies = asStringArray(data.blacklistedCompanies, 'blacklistedCompanies');
   if (blacklistedCompanies) profile.blacklistedCompanies = blacklistedCompanies;
+
+  const apecFonctionsRaw = asStringArray(data.apecFonctions, 'apecFonctions');
+  if (apecFonctionsRaw) {
+    const kept = apecFonctionsRaw.filter(f => APEC_FONCTIONS_ALL_LABELS.includes(f));
+    if (kept.length < apecFonctionsRaw.length) {
+      const unknown = apecFonctionsRaw.filter(f => !APEC_FONCTIONS_ALL_LABELS.includes(f));
+      warnings.push(`apecFonctions : libellés inconnus ignorés — ${unknown.join(', ')}`);
+    }
+    profile.apecFonctions = kept;
+  }
 
   if (typeof data.location === 'object' && data.location !== null && !Array.isArray(data.location)) {
     const loc = data.location as Record<string, unknown>;
@@ -911,6 +931,14 @@ export function ProfileAssistantModal({
             <FieldHelp label="Rayon (km)" example="ex : 30">
               Distance autour de votre localisation. 30 km est un bon défaut pour une grande
               agglomération.
+            </FieldHelp>
+
+            <FieldHelp label="APEC — Filtre par métier" example='ex : "Chargé de recrutement", "Développement RH"'>
+              Filtre <strong>exact côté serveur</strong> spécifique à APEC. Sélectionnez les
+              sous-fonctions qui correspondent à votre métier — l'API renvoie uniquement les
+              offres classées dans ces catégories. Plus précis que les mots-clés, qui cherchent
+              aussi dans le corps de l'offre.{' '}
+              <em>Facultatif</em> : si vide, APEC applique uniquement le filtre mots-clés.
             </FieldHelp>
 
             <FieldHelp label="Mode de scoring">

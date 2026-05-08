@@ -29,7 +29,22 @@ export const APEC_LIEUX_BY_DEPT_CODE: Record<string, number> = {
   '77': 77, // Seine-et-Marne
   '78': 78, // Yvelines
   '92': 92, // Hauts-de-Seine
+  '93': 93, // Seine-Saint-Denis
+  '94': 94, // Val-de-Marne
   '95': 95, // Val-d'Oise
+  '91': 91, // Essonne
+  '69': 69, // Rhône
+  '13': 13, // Bouches-du-Rhône
+  '33': 33, // Gironde
+  '31': 31, // Haute-Garonne
+  '59': 59, // Nord
+  '67': 67, // Bas-Rhin
+  '34': 34, // Hérault
+  '44': 44, // Loire-Atlantique
+  '06': 6,  // Alpes-Maritimes
+  '35': 35, // Ille-et-Vilaine
+  '38': 38, // Isère
+  '76': 76, // Seine-Maritime
 };
 
 /**
@@ -102,25 +117,79 @@ export const APEC_TYPES_CONVENTION: Record<string, number> = {
   Partenaire:                143706,
 };
 
-// ── Fonctions ────────────────────────────────────────────────────────────────
+// ── Fonctions (hiérarchie) ────────────────────────────────────────────────────
 
 /**
- * Mapping libellé → ID APEC `fonctions`. Permettra à terme de remplacer la
- * recherche par `motsCles` (qui matche titre + description et génère du bruit)
- * par un filtre `fonctions` exact côté API.
- *
- * À étendre au fur et à mesure des captures via l'extension.
+ * Catégorie de fonction APEC avec ses sous-fonctions.
+ * `id` = ID APEC de la catégorie parente (`null` = catégorie non encore capturée).
  */
-export const APEC_FONCTIONS: Record<string, number> = {
-  // Ressources Humaines
-  'Ressources Humaines':                101818,
-  'Administration RH':                  101817,
-  'Direction RH':                       101819,
-  'Développement RH':                   101835,
+export interface ApecFonctionCategory {
+  label: string;
+  id: number | null;
+  children: Array<{ label: string; id: number }>;
+}
 
-  // Spécialisations RH (sous-fonctions de Développement RH)
-  'Chargé de recrutement':              600120,
-  'Responsable recrutement':            600121,
-  'Responsable gestion de carrières':   600125,
-  'Conseiller en insertion pro':        600123,
-};
+/**
+ * Hiérarchie des fonctions APEC groupée par domaine, destinée à l'UI multi-select.
+ * Ces IDs correspondent au paramètre `fonctions` de `rechercheOffre`.
+ *
+ * Source de vérité : captures faites via `tools/apec-id-mapper-extension/`.
+ * Les domaines marqués `id: null` n'ont pas encore d'ID parent capturé —
+ * seuls leurs enfants peuvent être envoyés à l'API.
+ *
+ * Pour étendre : capter l'ID via l'extension, ajouter ici ET mettre à jour
+ * le README `tools/apec-id-mapper-extension/README.md`.
+ */
+export const APEC_FONCTIONS_HIERARCHY: ApecFonctionCategory[] = [
+  {
+    label: 'Ressources Humaines',
+    id: 101818,
+    children: [
+      { label: 'Administration RH',                       id: 101817 },
+      { label: 'Direction RH',                            id: 101819 },
+      { label: 'Développement RH',                        id: 101835 },
+      { label: 'Chargé de recrutement',                   id: 600120 },
+      { label: 'Responsable recrutement',                 id: 600121 },
+      { label: 'Responsable gestion de carrières',        id: 600125 },
+      { label: 'Conseiller en insertion professionnelle', id: 600123 },
+    ],
+  },
+  // ── À capturer via l'extension ──────────────────────────────────────────────
+  // {
+  //   label: 'Informatique / Télécommunications',
+  //   id: null, // TODO: capturer via extension
+  //   children: [
+  //     // { label: 'Développement informatique', id: ??? },
+  //     // { label: 'Infrastructure / Réseaux',   id: ??? },
+  //   ],
+  // },
+  // {
+  //   label: 'Finance / Comptabilité',
+  //   id: null,
+  //   children: [],
+  // },
+  // {
+  //   label: 'Commercial / Ventes',
+  //   id: null,
+  //   children: [],
+  // },
+];
+
+/**
+ * Mapping plat label → ID APEC dérivé de `APEC_FONCTIONS_HIERARCHY`.
+ * Inclut les catégories parentes (quand leur ID est connu) ET les sous-fonctions.
+ *
+ * Utilisé par `profile-to-query.ts` pour convertir les libellés sélectionnés
+ * dans l'UI en IDs numériques envoyés à l'API.
+ */
+export const APEC_FONCTIONS: Record<string, number> = {};
+for (const cat of APEC_FONCTIONS_HIERARCHY) {
+  if (cat.id !== null) APEC_FONCTIONS[cat.label] = cat.id;
+  for (const child of cat.children) APEC_FONCTIONS[child.label] = child.id;
+}
+
+/**
+ * Liste de tous les libellés sélectionnables (catégories avec ID + sous-fonctions).
+ * Utile pour valider les valeurs stockées dans `SearchProfile.apecFonctions`.
+ */
+export const APEC_FONCTIONS_ALL_LABELS: string[] = Object.keys(APEC_FONCTIONS);

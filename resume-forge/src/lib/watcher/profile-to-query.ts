@@ -13,7 +13,7 @@
  */
 
 import type { SearchProfile, JobSource } from '@/types/job-watch';
-import { APEC_TYPES_CONTRAT, apecLieuFromDeptCode } from './parsers/apec-ids';
+import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode } from './parsers/apec-ids';
 
 // ── APEC ─────────────────────────────────────────────────────────────────────
 
@@ -26,6 +26,12 @@ export interface ApecQueryParams {
    */
   lieux: number[];
   typesContrat: number[];
+  /**
+   * IDs de fonctions APEC (`fonctions` dans `rechercheOffre`). Filtre exact
+   * côté serveur — remplace avantageusement `motsCles` pour les domaines
+   * cartographiés dans `APEC_FONCTIONS`. Un tableau vide = aucun filtre.
+   */
+  fonctions: number[];
 }
 
 /** Quote a term if it contains whitespace, so multi-word titles are matched as a phrase */
@@ -70,7 +76,13 @@ export function buildApecQuery(profile: SearchProfile): ApecQueryParams {
     if (id !== undefined) lieux.push(id);
   }
 
-  return { motsCles, lieux, typesContrat };
+  // Map selected function labels → APEC integer IDs. Les libellés absents de
+  // la table (non encore capturés) sont silencieusement ignorés.
+  const fonctions: number[] = (profile.apecFonctions ?? [])
+    .map(label => APEC_FONCTIONS[label])
+    .filter((id): id is number => id !== undefined);
+
+  return { motsCles, lieux, typesContrat, fonctions };
 }
 
 // ── France Travail ────────────────────────────────────────────────────────────
@@ -232,6 +244,11 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
         parts.push(`depts: ${profile.location.departmentCodes.join(', ')}`);
       }
       if (p.typesContrat.length > 0) parts.push(`contrats: ${profile.contractTypes.join(', ')}`);
+      if (p.fonctions.length > 0) {
+        const labels = (profile.apecFonctions ?? []).slice(0, 3);
+        const suffix = (profile.apecFonctions?.length ?? 0) > 3 ? ` +${(profile.apecFonctions?.length ?? 0) - 3}` : '';
+        parts.push(`fonctions: ${labels.join(', ')}${suffix}`);
+      }
       return parts.join(' | ');
     }
     case 'france_travail': {

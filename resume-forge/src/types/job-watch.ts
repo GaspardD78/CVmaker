@@ -112,6 +112,17 @@ export interface SearchProfile {
   // ── Company blacklist ─────────────────────────────────────────────────────
   /** Companies to always exclude from results (score → 0). */
   blacklistedCompanies: string[];
+
+  // ── APEC-specific ─────────────────────────────────────────────────────────
+  /**
+   * Libellés de fonctions APEC sélectionnés (ex. ["Chargé de recrutement", "Développement RH"]).
+   * Traduits en IDs entiers via `APEC_FONCTIONS` et poussés dans le paramètre
+   * `fonctions` de l'API `rechercheOffre`. Filtre exact côté serveur — élimine
+   * les offres hors-cible sans reposer sur `motsCles` (qui cherche dans
+   * titre + description et génère du bruit).
+   * Vide = aucun filtre fonctions envoyé à l'API.
+   */
+  apecFonctions: string[];
 }
 
 export const DEFAULT_SEARCH_PROFILE: SearchProfile = {
@@ -132,6 +143,7 @@ export const DEFAULT_SEARCH_PROFILE: SearchProfile = {
   salary: { min: null, target: null },
   scoring: { mode: 'balanced' },
   blacklistedCompanies: [],
+  apecFonctions: [],
 };
 
 // ── Legacy SearchIntent (kept for backward-compat migration only) ─────────────
