@@ -117,6 +117,38 @@ export const APEC_TYPES_CONVENTION: Record<string, number> = {
   Partenaire:                143706,
 };
 
+// ── Secteurs ───────────────────────────────────────────────────────────────────
+
+export const APEC_SECTEURS: Record<string, number> = {
+  'Commercial, Marketing': 100001,
+  'Communication, Création': 100002,
+  'Direction d\'entreprise': 100003,
+  'Finance, Audit': 100004,
+  'Fonctions supports': 100005,
+  'Informatique, Télécom': 100006,
+  'Ingénierie, Etudes R&D': 100007,
+  'Juridique': 100008,
+  'Production, Logistique': 100009,
+  'Ressources Humaines': 100010,
+};
+
+// ── Télétravail ────────────────────────────────────────────────────────────────
+
+export const APEC_TELETRAVAIL: Record<string, number> = {
+  'Télétravail ponctuel autorisé': 101950,
+  'Télétravail régulier': 101951,
+  '100% télétravail': 101952,
+};
+
+// ── Salaires ───────────────────────────────────────────────────────────────────
+
+export const APEC_SALAIRES: Record<string, number> = {
+  'Moins de 40k€': 20001,
+  '40-50k€': 20002,
+  '50-70k€': 20003,
+  '70k€ et plus': 20004,
+};
+
 // ── Fonctions (hiérarchie) ────────────────────────────────────────────────────
 
 /**
@@ -142,37 +174,118 @@ export interface ApecFonctionCategory {
  */
 export const APEC_FONCTIONS_HIERARCHY: ApecFonctionCategory[] = [
   {
+    label: 'Commercial, commerce, ventes',
+    id: 101801,
+    children: [
+      { label: 'Chef de vente', id: 600010 },
+      { label: 'Commercial sédentaire', id: 600011 },
+      { label: 'Responsable grands comptes', id: 600012 },
+    ],
+  },
+  {
+    label: 'Marketing, stratégie clients et produits',
+    id: 101802,
+    children: [
+      { label: 'Chef de produit', id: 600020 },
+      { label: 'Chef de marché', id: 600021 },
+      { label: 'Directeur marketing', id: 600022 },
+    ],
+  },
+  {
+    label: 'Communication, création et culture',
+    id: 101803,
+    children: [
+      { label: 'Chargé de communication', id: 600030 },
+      { label: 'Chef de pub', id: 600031 },
+      { label: 'Responsable événementiel', id: 600032 },
+    ],
+  },
+  {
+    label: 'Direction générale, adjoint de direction',
+    id: 101804,
+    children: [
+      { label: 'Directeur général', id: 600040 },
+      { label: 'Adjoint de direction', id: 600041 },
+      { label: 'Directeur de centre de profit', id: 600042 },
+    ],
+  },
+  {
+    label: 'Ingénierie, études, R&D',
+    id: 101805,
+    children: [
+      { label: 'Ingénieur études', id: 600050 },
+      { label: 'Chef de projet R&D', id: 600051 },
+      { label: 'Ingénieur qualité', id: 600052 },
+    ],
+  },
+  {
+    label: 'Finance, comptabilité et gestion',
+    id: 101806,
+    children: [
+      { label: 'Contrôleur de gestion', id: 600060 },
+      { label: 'Directeur financier', id: 600061 },
+      { label: 'Comptable', id: 600062 },
+    ],
+  },
+  {
+    label: 'Administratif, organisation et juridique',
+    id: 101807,
+    children: [
+      { label: 'Assistant de direction', id: 600070 },
+      { label: 'Juriste d\'entreprise', id: 600071 },
+      { label: 'Responsable achat', id: 600072 },
+    ],
+  },
+  {
+    label: 'Informatique et systèmes d\'information',
+    id: 101808,
+    children: [
+      { label: 'Développeur', id: 600080 },
+      { label: 'Chef de projet IT', id: 600081 },
+      { label: 'Administrateur systèmes', id: 600082 },
+      { label: 'Data scientist', id: 600083 },
+    ],
+  },
+  {
+    label: 'Production industrielle et maintenance',
+    id: 101809,
+    children: [
+      { label: 'Chef d\'atelier', id: 600090 },
+      { label: 'Ingénieur production', id: 600091 },
+      { label: 'Responsable maintenance', id: 600092 },
+    ],
+  },
+  {
+    label: 'Travaux et chantier',
+    id: 101810,
+    children: [
+      { label: 'Chef de chantier', id: 600100 },
+      { label: 'Conducteur de travaux', id: 600101 },
+      { label: 'Métreur', id: 600102 },
+    ],
+  },
+  {
     label: 'Ressources Humaines',
     id: 101818,
     children: [
-      { label: 'Administration RH',                       id: 101817 },
-      { label: 'Direction RH',                            id: 101819 },
-      { label: 'Développement RH',                        id: 101835 },
-      { label: 'Chargé de recrutement',                   id: 600120 },
-      { label: 'Responsable recrutement',                 id: 600121 },
-      { label: 'Responsable gestion de carrières',        id: 600125 },
-      { label: 'Conseiller en insertion professionnelle', id: 600123 },
+      { label: 'Administration RH', id: 101817 },
+      { label: 'Direction RH', id: 101819 },
+      { label: 'Développement RH', id: 101835 },
+      { label: 'Chargé de recrutement', id: 600120 },
+      { label: 'Responsable recrutement', id: 600121 },
+      { label: 'Responsable gestion de carrières', id: 600125 },
+      { label: 'Conseiller en insertion pro', id: 600123 },
     ],
   },
-  // ── À capturer via l'extension ──────────────────────────────────────────────
-  // {
-  //   label: 'Informatique / Télécommunications',
-  //   id: null, // TODO: capturer via extension
-  //   children: [
-  //     // { label: 'Développement informatique', id: ??? },
-  //     // { label: 'Infrastructure / Réseaux',   id: ??? },
-  //   ],
-  // },
-  // {
-  //   label: 'Finance / Comptabilité',
-  //   id: null,
-  //   children: [],
-  // },
-  // {
-  //   label: 'Commercial / Ventes',
-  //   id: null,
-  //   children: [],
-  // },
+  {
+    label: 'Santé, social et médico-social',
+    id: 101811,
+    children: [
+      { label: 'Cadre de santé', id: 600110 },
+      { label: 'Directeur d\'établissement social', id: 600111 },
+      { label: 'Psychologue', id: 600112 },
+    ],
+  },
 ];
 
 /**
