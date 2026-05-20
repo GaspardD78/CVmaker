@@ -696,6 +696,12 @@ pub fn run() {
             sql: include_str!("../migrations/015_settings_per_profile.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 16,
+            description: "linkedin_rss_to_linkedin",
+            sql: include_str!("../migrations/016_linkedin_rss_to_linkedin.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]
