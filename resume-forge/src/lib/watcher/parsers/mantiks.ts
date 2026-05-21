@@ -207,6 +207,10 @@ async function resolveLocationIds(
 
 // ── Main parser ──────────────────────────────────────────────────────────────
 
+/**
+ * @deprecated API payante peu utilisée — conservée pour les configs existantes,
+ * masquée de l'ajout de sources par défaut (cf. `sources.ts` → DEPRECATED).
+ */
 export async function parseMantiks(
   _config: JobWatchConfig,
   settings: JobWatchSettings,

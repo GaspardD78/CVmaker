@@ -186,6 +186,21 @@ export async function getDb(): Promise<Database> {
     await db.execute(
       `ALTER TABLE job_watch_fetch_log ADD COLUMN offers_filtered INTEGER NOT NULL DEFAULT 0`
     ).catch(() => {/* already exists */});
+    // Fallback: migration 016 — consolide la source LinkedIn 'linkedin_rss' → 'linkedin'.
+    // Supprime d'abord les doublons (config 'linkedin' déjà présente pour le profil),
+    // puis bascule le reste. Idempotent : no-op une fois les lignes legacy migrées.
+    await db.execute(
+      `DELETE FROM job_watch_config
+       WHERE source = 'linkedin_rss'
+         AND EXISTS (
+           SELECT 1 FROM job_watch_config existing
+           WHERE existing.source = 'linkedin'
+             AND existing.profile_id IS job_watch_config.profile_id
+         )`
+    ).catch(() => {/* table absente ou rien à migrer */});
+    await db.execute(
+      `UPDATE job_watch_config SET source = 'linkedin' WHERE source = 'linkedin_rss'`
+    ).catch(() => {/* table absente ou rien à migrer */});
 
     const defaultSettings: Array<[string, string]> = [
       ['fetch_interval_hours',  '4'],
