@@ -746,6 +746,12 @@ pub fn run() {
             dev_logger::dev_read_errors,
             dev_logger::dev_clear_errors,
             dev_logger::dev_log_path,
+            dev_logger::dev_save_bug_report,
+            dev_logger::dev_list_bug_reports,
+            dev_logger::dev_read_bug_report,
+            dev_logger::dev_update_bug_report,
+            dev_logger::dev_delete_bug_report,
+            dev_logger::dev_open_bug_report_dir,
             #[cfg(not(target_os = "android"))]
             start_oauth_server,
         ])

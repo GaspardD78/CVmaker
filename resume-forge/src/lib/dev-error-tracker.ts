@@ -18,6 +18,7 @@ export type DevErrorSource =
   | 'react'
   | 'window.onerror'
   | 'unhandledrejection'
+  | 'console.error'
   | 'manual'
   | 'rust-panic';
 
@@ -56,6 +57,16 @@ export const useDevErrorStore = create<DevErrorState>((set) => ({
   setAll: (entries) => set({ entries: entries.slice(0, MAX_ENTRIES) }),
   clear: () => set({ entries: [] }),
 }));
+
+function formatConsoleArg(arg: unknown): string {
+  if (typeof arg === 'string') return arg;
+  if (arg instanceof Error) return arg.message || arg.name;
+  try {
+    return JSON.stringify(arg);
+  } catch {
+    return String(arg);
+  }
+}
 
 function normalizeError(err: unknown): { message: string; stack?: string } {
   if (err instanceof Error) {
@@ -125,6 +136,20 @@ export function installGlobalHandlers(): void {
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
     reportError({ source: 'unhandledrejection', error: event.reason });
   });
+
+  // Capture des erreurs de la console : on enveloppe console.error en
+  // préservant le comportement d'origine (log natif conservé).
+  const originalConsoleError = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    originalConsoleError(...args);
+    try {
+      const errorArg = args.find((a) => a instanceof Error) as Error | undefined;
+      const message = args.map(formatConsoleArg).join(' ');
+      reportError({ source: 'console.error', error: errorArg, message });
+    } catch {
+      /* ne jamais laisser la journalisation casser la journalisation */
+    }
+  };
 
   // Aide au débogage manuel depuis la console : window.__rfReportError("msg")
   (window as unknown as { __rfReportError?: (m: string) => void }).__rfReportError = (m: string) =>

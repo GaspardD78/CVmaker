@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -99,6 +100,127 @@ pub fn dev_clear_errors(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn dev_log_path(app: AppHandle) -> Result<String, String> {
     Ok(log_path(&app)?.to_string_lossy().into_owned())
+}
+
+// ── Bug reports ───────────────────────────────────────────────────────────
+//
+// A bug report is a folder under `<app log dir>/bug-reports/<id>/` containing
+// a human- and AI-readable `report.md` (description + environment + captured
+// error journal) and an optional `screenshot.png`. The id is the creation
+// epoch-ms, so listing sorts chronologically.
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BugReportMeta {
+    pub id: String,
+    pub title: String,
+    pub timestamp: i64,
+}
+
+fn bug_reports_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|e| e.to_string())?
+        .join("bug-reports");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+/// Keep ids filesystem-safe and free of path traversal.
+fn sanitize_id(id: &str) -> String {
+    id.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect()
+}
+
+/// Create a bug report folder with `report.md` and an optional screenshot.
+/// `screenshot_base64` is the raw base64 PNG payload (no data-URL prefix).
+/// Returns the report folder path.
+#[tauri::command]
+pub fn dev_save_bug_report(
+    app: AppHandle,
+    id: String,
+    markdown: String,
+    screenshot_base64: Option<String>,
+) -> Result<String, String> {
+    let id = sanitize_id(&id);
+    if id.is_empty() {
+        return Err("id de rapport invalide".into());
+    }
+    let dir = bug_reports_dir(&app)?.join(&id);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::write(dir.join("report.md"), markdown).map_err(|e| e.to_string())?;
+    if let Some(b64) = screenshot_base64.filter(|s| !s.is_empty()) {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(b64.as_bytes())
+            .map_err(|e| format!("décodage screenshot: {e}"))?;
+        fs::write(dir.join("screenshot.png"), bytes).map_err(|e| e.to_string())?;
+    }
+    Ok(dir.to_string_lossy().into_owned())
+}
+
+/// List saved bug reports, newest first.
+#[tauri::command]
+pub fn dev_list_bug_reports(app: AppHandle) -> Result<Vec<BugReportMeta>, String> {
+    let dir = bug_reports_dir(&app)?;
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Ok(out);
+    };
+    for entry in entries.flatten() {
+        if !entry.path().is_dir() {
+            continue;
+        }
+        let id = entry.file_name().to_string_lossy().into_owned();
+        let md = fs::read_to_string(entry.path().join("report.md")).unwrap_or_default();
+        let title = md
+            .lines()
+            .find_map(|l| l.strip_prefix("# "))
+            .unwrap_or("(sans titre)")
+            .trim()
+            .to_string();
+        let timestamp = id.parse::<i64>().unwrap_or(0);
+        out.push(BugReportMeta { id, title, timestamp });
+    }
+    out.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    Ok(out)
+}
+
+/// Read a report's markdown for display / editing.
+#[tauri::command]
+pub fn dev_read_bug_report(app: AppHandle, id: String) -> Result<String, String> {
+    let path = bug_reports_dir(&app)?.join(sanitize_id(&id)).join("report.md");
+    fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+/// Overwrite a report's markdown.
+#[tauri::command]
+pub fn dev_update_bug_report(app: AppHandle, id: String, markdown: String) -> Result<(), String> {
+    let path = bug_reports_dir(&app)?.join(sanitize_id(&id)).join("report.md");
+    if !path.exists() {
+        return Err("rapport introuvable".into());
+    }
+    fs::write(&path, markdown).map_err(|e| e.to_string())
+}
+
+/// Delete a report folder.
+#[tauri::command]
+pub fn dev_delete_bug_report(app: AppHandle, id: String) -> Result<(), String> {
+    let dir = bug_reports_dir(&app)?.join(sanitize_id(&id));
+    if dir.exists() {
+        fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Open a report folder in the OS file manager (to grab screenshot.png / report.md).
+#[tauri::command]
+pub fn dev_open_bug_report_dir(app: AppHandle, id: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = bug_reports_dir(&app)?.join(sanitize_id(&id));
+    app.opener()
+        .open_path(dir.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 /// Install a panic hook that appends Rust panics to the log, then delegates to
