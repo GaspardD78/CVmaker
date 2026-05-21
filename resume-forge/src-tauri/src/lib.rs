@@ -11,6 +11,8 @@ use tauri_plugin_http::reqwest;
 mod email;
 pub use email::send_email;
 
+mod dev_logger;
+
 #[cfg(not(target_os = "android"))]
 use headless_chrome::{Browser, LaunchOptions};
 #[cfg(not(target_os = "android"))]
@@ -726,6 +728,10 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .setup(|app| {
+            dev_logger::install_panic_hook(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_db_uri,
             send_email,
@@ -736,6 +742,10 @@ pub fn run() {
             close_login_browser,
             session_exists,
             clear_session,
+            dev_logger::dev_log_error,
+            dev_logger::dev_read_errors,
+            dev_logger::dev_clear_errors,
+            dev_logger::dev_log_path,
             #[cfg(not(target_os = "android"))]
             start_oauth_server,
         ])

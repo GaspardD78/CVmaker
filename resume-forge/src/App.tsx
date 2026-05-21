@@ -15,6 +15,8 @@ import { useJobWatcher } from "@/hooks/useJobWatcher";
 import PrintView from "@/pages/PrintView";
 import { Toaster } from "sonner";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { DevErrorPanel } from "@/components/dev/DevErrorPanel";
+import { isDevTrackerEnabled } from "@/lib/dev-error-tracker";
 import "./App.css";
 
 /** Mounts the job watcher scheduler when authenticated. */
@@ -134,21 +136,24 @@ function App() {
   useAndroidBackGuard();
 
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <AppRoutes />
-        <Toaster 
-          position={window.innerWidth < 640 ? "bottom-center" : "top-right"} 
-          toastOptions={{
-            style: { 
-              marginBottom: window.innerWidth < 640 ? '60px' : '0px',
-              fontFamily: 'var(--font-body)',
-              fontSize: '13px'
-            }
-          }}
-        />
-      </BrowserRouter>
-    </ErrorBoundary>
+    <>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <AppRoutes />
+          <Toaster
+            position={window.innerWidth < 640 ? "bottom-center" : "top-right"}
+            toastOptions={{
+              style: {
+                marginBottom: window.innerWidth < 640 ? '60px' : '0px',
+                fontFamily: 'var(--font-body)',
+                fontSize: '13px'
+              }
+            }}
+          />
+        </BrowserRouter>
+      </ErrorBoundary>
+      {isDevTrackerEnabled() && <DevErrorPanel />}
+    </>
   );
 }
 
