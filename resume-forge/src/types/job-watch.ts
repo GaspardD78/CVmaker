@@ -259,9 +259,9 @@ export interface JobWatchSettings {
   ftAccessToken: string;
   ftTokenExpiresAt: string;
   /**
-   * @deprecated Brave Search API n'a plus de plan gratuit ; le X-ray LinkedIn
-   * utilise désormais DuckDuckGo HTML (cf. `parsers/linkedin-xray.ts`), aucune
-   * clé n'est requise. Le champ reste pour ne pas casser les configs SQL
+   * @deprecated Brave Search API n'a plus de plan gratuit ; LinkedIn passe
+   * désormais par l'API publique « jobs-guest » (cf. `parsers/linkedin-xray.ts`),
+   * aucune clé n'est requise. Le champ reste pour ne pas casser les configs SQL
    * existantes mais sa valeur est ignorée.
    */
   braveSearchApiKey: string;

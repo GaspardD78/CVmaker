@@ -32,8 +32,8 @@ interface SiteRow {
   description: string;
 }
 
-// LinkedIn retiré : la collecte passe désormais par X-ray search DuckDuckGo
-// HTML, sans login, sans clé API et sans risque de ban (cf. parsers/linkedin-xray.ts).
+// LinkedIn retiré : la collecte passe désormais par l'API publique « jobs-guest »
+// de LinkedIn, sans login, sans clé API et sans risque de ban (cf. parsers/linkedin-xray.ts).
 const SITES: SiteRow[] = [
   { id: 'indeed',    label: SOURCE_LABELS['indeed'    as JobSource], requiresAuth: false,
     description: 'Login optionnel — utile pour passer les challenges Cloudflare plus facilement.' },

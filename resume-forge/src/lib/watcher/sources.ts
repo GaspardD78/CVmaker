@@ -27,12 +27,12 @@ export const USES_WEBVIEW: Set<JobSource> = new Set(['linkedin', 'indeed', 'hell
 /**
  * Sources non supportées sur Android.
  *
- * LinkedIn / Indeed / HelloWork reposent toutes sur du scraping (X-ray DDG +
- * fetch JSON-LD pour LinkedIn, WebView offscreen pour Indeed/HelloWork). En
+ * LinkedIn / Indeed / HelloWork reposent toutes sur du scraping (API jobs-guest
+ * + fetch JSON-LD pour LinkedIn, WebView offscreen pour Indeed/HelloWork). En
  * pratique, sur Android on observe :
- *   - LinkedIn : DuckDuckGo HTML rate-limite agressivement les requêtes
- *     issues d'IPs mobiles, et les pages publiques `linkedin.com/jobs/view/`
- *     redirigent vers la version mobile sans JSON-LD.
+ *   - LinkedIn : l'API guest et les pages publiques `linkedin.com/jobs/view/`
+ *     rate-limitent agressivement les requêtes issues d'IPs mobiles et
+ *     redirigent souvent vers la version mobile sans JSON-LD.
  *   - Indeed / HelloWork : la WebView Android offscreen peine à passer les
  *     challenges Cloudflare et le JS-heavy rendering.
  *
