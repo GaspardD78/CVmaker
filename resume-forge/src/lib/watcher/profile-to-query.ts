@@ -287,7 +287,7 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
     case 'linkedin': {
       const kw = profile.jobTitles.join(' OR ') || '(aucun mot-clé)';
       const loc = profile.location.city || 'France';
-      return `${kw} | ${loc} | X-ray Brave Search (URLs publiques)`;
+      return `${kw} | ${loc} | API jobs-guest LinkedIn (offres publiques)`;
     }
     case 'indeed': {
       const kw = profile.jobTitles.join(' ') || '(aucun mot-clé)';
