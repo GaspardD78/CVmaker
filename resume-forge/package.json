@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "test": "bun test",
     "tauri": "tauri",
-    "android:build:clean": "powershell -Command \"Stop-Process -Name java, cargo, rustc -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force src-tauri/gen/android/build, src-tauri/gen/android/app/build, src-tauri/target -ErrorAction SilentlyContinue; cd src-tauri/gen/android; ./gradlew clean; cd ../../..; npm run tauri android build -- --target aarch64 --apk\"",
-    "postinstall": "npx patch-package"
+    "android:build:clean": "powershell -Command \"Stop-Process -Name java, cargo, rustc -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force src-tauri/gen/android/build, src-tauri/gen/android/app/build, src-tauri/target -ErrorAction SilentlyContinue; cd src-tauri/gen/android; ./gradlew clean; cd ../../..; bun run tauri android build -- --target aarch64 --apk\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -30,8 +29,6 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-sql": "^2.3.2",
-    "@types/jszip": "^3.4.0",
-    "bun-types": "^1.3.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -58,6 +55,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.0",
+    "@types/jszip": "^3.4.0",
+    "bun-types": "^1.3.10",
     "@types/node": "^25.3.3",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",

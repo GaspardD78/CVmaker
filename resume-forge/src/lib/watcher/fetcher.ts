@@ -21,7 +21,6 @@ import { computeScore, LearnedSignals } from './scorer';
 import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
 import { parseApec } from './parsers/apec';
 import { parseWttj } from './parsers/wttj';
-import { parseLinkedinRss } from './parsers/linkedin-rss';
 // LinkedIn passe désormais par l'API publique « jobs-guest » — cf. parsers/linkedin-xray.ts.
 // Le parser WebView connecté (parsers/linkedin.ts) reste en dépôt mais n'est
 // plus utilisé : scraping authentifié = violation TOS LinkedIn + risque ban.
@@ -31,7 +30,6 @@ import { parseHellowork } from './parsers/hellowork';
 import { parseJobicy } from './parsers/jobicy';
 import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
-import { parseMantiks } from './parsers/mantiks';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { 
   isPermissionGranted, 
@@ -58,7 +56,9 @@ async function loadLearnedSignals(
 
     let aiFilterRule: LearnedSignals['aiFilterRule'] = null;
     if (map['ai_filter_rule']) {
-      try { aiFilterRule = JSON.parse(map['ai_filter_rule']); } catch { /* ignore malformed rule */ }
+      try { aiFilterRule = JSON.parse(map['ai_filter_rule']); } catch (e) {
+        console.warn('[watcher] ai_filter_rule corrompu — ignoré', e);
+      }
     }
 
     return {
@@ -69,7 +69,8 @@ async function loadLearnedSignals(
       companyReputation: map['company_reputation'] ? JSON.parse(map['company_reputation']) : {},
       aiFilterRule,
     };
-  } catch {
+  } catch (e) {
+    console.warn('[watcher] échec du chargement des signaux appris — scoring sans eux', e);
     return {};
   }
 }
@@ -142,14 +143,18 @@ async function runParser(
   switch (config.source) {
     case 'apec':               return parseApec(config, settings);
     case 'wttj':               return parseWttj(config, settings);
-    case 'linkedin_rss':       return parseLinkedinRss(config, settings);
     case 'linkedin':           return parseLinkedinXray(config, settings);
     case 'indeed':             return parseIndeed(config, settings, profileId);
     case 'hellowork':          return parseHellowork(config, settings, profileId);
     case 'jobicy':             return parseJobicy(config, settings);
     case 'france_travail':     return parseFranceTravail(config, settings);
     case 'emploi_territorial': return parseEmploiTerritorial(config, settings);
-    case 'mantiks':            return parseMantiks(config, settings);
+    // Sources dépréciées — parsers supprimés. Les valeurs restent dans JobSource
+    // pour l'affichage des offres historiques ; la migration 016 convertit les
+    // configs linkedin_rss → linkedin.
+    case 'linkedin_rss':
+    case 'mantiks':
+      throw new Error(`Source dépréciée: ${config.source}`);
     default:
       throw new Error(`Source inconnue: ${config.source as string}`);
   }
