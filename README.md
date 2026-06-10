@@ -7,3 +7,4 @@ Construite avec [Tauri 2](https://tauri.app), React 19 et TypeScript. Toutes les
 → Voir la documentation complète dans [`resume-forge/README.md`](resume-forge/README.md)
 → Plan technique détaillé dans [`ResumeForge-Plan-Technique.md`](ResumeForge-Plan-Technique.md)
 → Historique des versions dans [`CHANGELOG.md`](CHANGELOG.md)
+→ Audit du dépôt et chantiers en cours dans [`AUDIT-PLAN-AMELIORATION.md`](AUDIT-PLAN-AMELIORATION.md)

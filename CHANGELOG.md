@@ -5,6 +5,27 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [Non publié] - 2026-06-10
+
+### Audit du dépôt & quick wins (voir `AUDIT-PLAN-AMELIORATION.md`)
+
+#### Sécurité
+- **Corrigé** : le client secret Google Drive n'est plus embarqué dans le code — il se fournit au build via `VITE_GDRIVE_CLIENT_SECRET` (fichier `.env` ignoré par git, voir README) ; sans lui, la connexion Drive affiche une erreur explicite
+- **Corrigé** : le keystore Android (`resumeforge.keystore`) n'est plus suivi par git ; `*.keystore`, `key.properties` et `.env` ajoutés aux `.gitignore`
+- **Ajout** : `src/lib/css-sanitize.ts` — validation des réglages de design du CV (couleurs, tailles, polices) avant injection dans la feuille de style de `PrintableCV`
+
+#### Outillage
+- **Ajout** : CI GitHub Actions (`.github/workflows/ci.yml`) — `tsc --noEmit` + `bun test` + `cargo clippy -D warnings` sur chaque PR et push `main`
+- **Modifié** : bun devient le gestionnaire de paquets unique (`package-lock.json` supprimé ; README, `setup-ubuntu.sh` et `tauri.conf.json` alignés)
+- **Modifié** : `@types/jszip` et `bun-types` déplacés en devDependencies ; hook `postinstall` patch-package retiré
+
+#### Nettoyage
+- **Supprimé** : parsers dépréciés `mantiks` et `linkedin-rss` (les offres historiques restent affichables ; la migration 016 convertit les configs `linkedin_rss` → `linkedin`)
+- **Supprimé** : fichiers non référencés `script.js`, `benchmark.ts`, `backup.benchmark.ts`, `test-jspdf-output2.ts`, `Test01.pdf`, `Test01.docx`
+- **Modifié** : les erreurs avalées silencieusement (signaux appris du watcher, migration `search_intent`, resets de stores au login/logout) sont désormais tracées en console
+
+---
+
 ## [1.2.0] - 2026-03-22
 
 ### Synchronisation Google Drive

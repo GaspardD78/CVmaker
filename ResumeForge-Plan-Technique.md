@@ -297,9 +297,9 @@ Application Tauri qui démarre, avec navigation, base SQLite initialisée, et CR
 
 ```bash
 # Prérequis : Node.js 18+, Rust (via rustup), prérequis système Tauri v2
-npm create tauri-app@latest resume-forge -- --template react-ts
+bun create tauri-app@latest resume-forge -- --template react-ts
 cd resume-forge
-npm install
+bun install
 ```
 
 **Structure cible du projet :**
@@ -769,9 +769,9 @@ Tauri 2 supporte nativement Android via le même codebase React/Rust. Le fronten
 ### Commandes
 
 ```bash
-npm run tauri android init   # Génère src-tauri/gen/android/ (une seule fois)
-npm run tauri android dev    # Lance sur émulateur ou appareil
-npm run tauri android build  # Compile l'APK
+bun run tauri android init   # Génère src-tauri/gen/android/ (une seule fois)
+bun run tauri android dev    # Lance sur émulateur ou appareil
+bun run tauri android build  # Compile l'APK
 ```
 
 ### Adaptations apportées
@@ -921,7 +921,7 @@ L'utilisateur doit créer son propre projet Google Cloud et enregistrer les URI 
 
 ## Checklist de Qualité — Android & Drive
 
-- [ ] L'APK se compile sans erreur (`npm run tauri android build`)
+- [ ] L'APK se compile sans erreur (`bun run tauri android build`)
 - [ ] L'app démarre sur Android 7+ (API 24)
 - [ ] La navigation bottom bar est fonctionnelle sur petit écran
 - [ ] Le drag-and-drop fonctionne avec le tactile (à valider avec @dnd-kit touch sensors)
