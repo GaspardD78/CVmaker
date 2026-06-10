@@ -26,7 +26,8 @@ Disponible sur **Windows, macOS, Linux** et **Android** (APK).
 
 ### Prérequis
 
-- **Node.js** 18+
+- **Bun** 1.x : `curl -fsSL https://bun.sh/install | bash`
+- **Node.js** 18+ *(requis par certains outils de la chaîne Tauri)*
 - **Rust** via `rustup` :
   ```bash
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -46,14 +47,14 @@ Disponible sur **Windows, macOS, Linux** et **Android** (APK).
 ```bash
 git clone https://github.com/GaspardD78/CVmaker.git
 cd CVmaker/resume-forge
-npm install
-npm run tauri dev
+bun install
+bun run tauri dev
 ```
 
 ### Compilation desktop (production)
 
 ```bash
-npm run tauri build
+bun run tauri build
 ```
 
 L'exécutable se trouve dans `src-tauri/target/release/bundle/`.
@@ -80,13 +81,13 @@ L'exécutable se trouve dans `src-tauri/target/release/bundle/`.
 
 ```bash
 # 1. Initialiser le projet Android (une seule fois)
-npm run tauri android init
+bun run tauri android init
 
 # 2. Développement sur émulateur ou appareil connecté
-npm run tauri android dev
+bun run tauri android dev
 
 # 3. Compiler l'APK de release
-npm run tauri android build
+bun run tauri android build
 ```
 
 L'APK se trouve dans `src-tauri/gen/android/app/build/outputs/apk/`.
@@ -108,6 +109,11 @@ La synchronisation est optionnelle et utilise votre propre projet Google Cloud. 
    - `http://127.0.0.1` *(PC — Google accepte tous les ports loopback)*
    - `com.jules.resume-forge:/oauth/callback` *(Android)*
 5. Copier le **Client ID** dans l'application : **Paramètres → Synchronisation Google Drive**
+6. Fournir le **Client Secret** au moment du build via un fichier `.env` (ignoré par git) à la racine de `resume-forge/` :
+   ```bash
+   VITE_GDRIVE_CLIENT_SECRET=GOCSPX-xxxxxxxx
+   ```
+   Sans cette variable, l'application fonctionne normalement mais la connexion Drive affiche une erreur explicite. *(Le secret n'est plus embarqué dans le code source ; pour une app de bureau en flux PKCE, Google le considère comme non confidentiel, mais il n'a pas sa place dans un dépôt.)*
 
 ### Utilisation
 
@@ -209,10 +215,10 @@ settings (key/value)
 ### Commandes utiles
 
 ```bash
-npm run dev          # Frontend seul (Vite)
-npm run tauri dev    # App Tauri complète (frontend + backend Rust)
-npm run build        # Build frontend (TypeScript + Vite)
-npm run tauri build  # Build desktop (exécutable natif)
+bun run dev          # Frontend seul (Vite)
+bun run tauri dev    # App Tauri complète (frontend + backend Rust)
+bun run build        # Build frontend (TypeScript + Vite)
+bun run tauri build  # Build desktop (exécutable natif)
 bun test             # Tests unitaires
 ```
 
@@ -221,7 +227,7 @@ bun test             # Tests unitaires
 ```bash
 rm -rf dist
 cd src-tauri && cargo clean && cd ..
-npm run tauri dev
+bun run tauri dev
 ```
 
 ---

@@ -7,6 +7,7 @@ import { CVSectionHeader } from './CVSectionHeader';
 import { CVEntryBlock } from './CVEntryBlock';
 import { CVBadgeGroup } from './CVBadgeGroup';
 import { CVCustomText } from './CVCustomText';
+import { safeCssValue, type CssValueKind } from '../../lib/css-sanitize';
 
 const FONT_STACKS: Record<string, string> = {
   'Calibri': "'Calibri', 'Arial', sans-serif",
@@ -36,36 +37,42 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const title = cv.targetJob || profile.title;
     const summary = cv.customSummary || profile.summary;
 
-    // Design settings
+    // Design settings — chaque valeur interpolée dans cssOverrides passe par
+    // safeCssValue : les réglages viennent de la DB (backup/sync importables)
+    // et ne doivent pas pouvoir injecter de CSS arbitraire.
     const settings = (cv.settings || {}) as Record<string, string>;
-    const fontFamily = FONT_STACKS[settings.fontFamily || 'Calibri'] || FONT_STACKS['Calibri'];
-    const fontSize = settings.fontSize || '11px';
-    const primaryColor = settings.primaryColor || '';
-    const pageMargin = settings.pageMargin || '';
-    const sectionBorderStyle = settings.sectionBorderStyle || '';
+    const s = (key: string, kind: CssValueKind): string => safeCssValue(settings[key] || '', kind);
+    const fontStack = (key: string): string =>
+      settings[key] ? (FONT_STACKS[settings[key]] || s(key, 'fontFamily')) : '';
 
-    const headerFontSize      = settings.headerFontSize      || '';
-    const headerFontFamily    = settings.headerFontFamily    ? (FONT_STACKS[settings.headerFontFamily]    || settings.headerFontFamily)    : '';
-    const headerFontWeight    = settings.headerFontWeight    || '';
-    const headerTextTransform = settings.headerTextTransform || '';
-    const headerTextAlign     = settings.headerTextAlign     || '';
-    const subtitleFontSize    = settings.subtitleFontSize    || '';
-    const subtitleFontFamily  = settings.subtitleFontFamily  ? (FONT_STACKS[settings.subtitleFontFamily]  || settings.subtitleFontFamily)  : '';
-    const subtitleFontStyle   = settings.subtitleFontStyle   || '';
-    const subtitleFontWeight  = settings.subtitleFontWeight  || '';
-    const bodyFontFamily      = settings.bodyFontFamily      ? (FONT_STACKS[settings.bodyFontFamily]      || settings.bodyFontFamily)      : '';
-    const bodyFontSize        = settings.bodyFontSize        || '';
-    const bodyTextAlign       = settings.bodyTextAlign       || '';
-    const bodyLineHeight      = settings.bodyLineHeight      || '';
-    const entrySpacing        = settings.entrySpacing        || '';
-    const sectionHeaderGap    = settings.sectionHeaderGap    || '';
-    const entryTitleGap       = settings.entryTitleGap       || '';
-    const summaryFontFamily   = settings.summaryFontFamily   ? (FONT_STACKS[settings.summaryFontFamily]   || settings.summaryFontFamily)   : '';
-    const summaryFontSize     = settings.summaryFontSize     || '';
-    const summaryFontStyle    = settings.summaryFontStyle    || '';
-    const summaryFontWeight   = settings.summaryFontWeight   || '';
-    const summaryTextAlign    = settings.summaryTextAlign    || '';
-    const summaryLineHeight   = settings.summaryLineHeight   || '';
+    const fontFamily = FONT_STACKS[settings.fontFamily || 'Calibri'] || FONT_STACKS['Calibri'];
+    const fontSize = s('fontSize', 'length') || '11px';
+    const primaryColor = s('primaryColor', 'color');
+    const pageMargin = s('pageMargin', 'length');
+    const sectionBorderStyle = s('sectionBorderStyle', 'keyword');
+
+    const headerFontSize      = s('headerFontSize', 'length');
+    const headerFontFamily    = fontStack('headerFontFamily');
+    const headerFontWeight    = s('headerFontWeight', 'keyword');
+    const headerTextTransform = s('headerTextTransform', 'keyword');
+    const headerTextAlign     = s('headerTextAlign', 'keyword');
+    const subtitleFontSize    = s('subtitleFontSize', 'length');
+    const subtitleFontFamily  = fontStack('subtitleFontFamily');
+    const subtitleFontStyle   = s('subtitleFontStyle', 'keyword');
+    const subtitleFontWeight  = s('subtitleFontWeight', 'keyword');
+    const bodyFontFamily      = fontStack('bodyFontFamily');
+    const bodyFontSize        = s('bodyFontSize', 'length');
+    const bodyTextAlign       = s('bodyTextAlign', 'keyword');
+    const bodyLineHeight      = s('bodyLineHeight', 'length');
+    const entrySpacing        = s('entrySpacing', 'length');
+    const sectionHeaderGap    = s('sectionHeaderGap', 'length');
+    const entryTitleGap       = s('entryTitleGap', 'length');
+    const summaryFontFamily   = fontStack('summaryFontFamily');
+    const summaryFontSize     = s('summaryFontSize', 'length');
+    const summaryFontStyle    = s('summaryFontStyle', 'keyword');
+    const summaryFontWeight   = s('summaryFontWeight', 'keyword');
+    const summaryTextAlign    = s('summaryTextAlign', 'keyword');
+    const summaryLineHeight   = s('summaryLineHeight', 'length');
 
     // Photo settings
     const photoShape  = settings.photoShape  || '';
@@ -76,13 +83,13 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const headerStyle = settings.headerStyle || '';
 
     // CV header (name / job title / contact) settings
-    const nameFontSize      = settings.nameFontSize      || '';
-    const nameFontWeight    = settings.nameFontWeight    || '';
-    const nameTextTransform = settings.nameTextTransform || '';
+    const nameFontSize      = s('nameFontSize', 'length');
+    const nameFontWeight    = s('nameFontWeight', 'keyword');
+    const nameTextTransform = s('nameTextTransform', 'keyword');
     const nameLineBreak     = settings.nameLineBreak     || '';
-    const titleFontSize     = settings.titleFontSize     || '';
-    const titleFontStyle    = settings.titleFontStyle    || '';
-    const contactFontSize   = settings.contactFontSize   || '';
+    const titleFontSize     = s('titleFontSize', 'length');
+    const titleFontStyle    = s('titleFontStyle', 'keyword');
+    const contactFontSize   = s('contactFontSize', 'length');
     const isBanner = ['accent-banner', 'dark-banner', 'gradient-banner'].includes(headerStyle);
 
     // Compute effective container padding for full-width banner bleed (negative margin trick)
