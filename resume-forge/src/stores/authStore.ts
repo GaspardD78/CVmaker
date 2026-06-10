@@ -43,7 +43,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       import('@/stores/profileStore').then(m => m.useProfileStore.getState().reset()),
       import('@/stores/cvStore').then(m => m.useCvStore.getState().reset()),
       import('@/stores/applicationStore').then(m => m.useApplicationStore.getState().reset()),
-    ]).catch(() => {});
+    ]).catch(e => console.error('[auth] échec du reset des stores au login', e));
     set({ currentUserId: profileId, isAuthenticated: true, hasExplicitlyLoggedOut: false });
   },
 
@@ -57,7 +57,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       import('@/stores/profileStore').then(m => m.useProfileStore.getState().reset()),
       import('@/stores/cvStore').then(m => m.useCvStore.getState().reset()),
       import('@/stores/applicationStore').then(m => m.useApplicationStore.getState().reset()),
-    ]).catch(() => {});
+    ]).catch(e => console.error('[auth] échec du reset des stores au logout', e));
     set({ currentUserId: null, isAuthenticated: false, hasExplicitlyLoggedOut: true });
   },
 }));
