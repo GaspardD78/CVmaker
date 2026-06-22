@@ -17,6 +17,7 @@ import { isAndroid } from '@/lib/platform';
 import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource, FetchLog } from '@/types/job-watch';
 import { ANDROID_INCOMPATIBLE } from './sources';
 import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } from './deduplicator';
+import { isOperationalSourceError } from './source-error';
 import { computeScore, LearnedSignals } from './scorer';
 import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
 import { parseApec } from './parsers/apec';
@@ -225,7 +226,19 @@ export async function runFetch(
       result.errors.push(`Parser error: ${msg}`);
       result.durationMs = Date.now() - sourceStartTime;
       result.status = 'error';
-      console.error(`[fetcher] Erreur source ${config.source}:`, err);
+      // Une panne de source tierce (HTTP 4xx/5xx renvoyé par le service, réseau,
+      // anti-bot, rate-limit) n'est pas un bug applicatif : la source est déjà
+      // retryée côté parser, son échec est tracé ci-dessous dans le
+      // HealthDashboard (writeFetchLog) et les autres sources continuent. On la
+      // logue donc en `console.warn` (opérationnel) pour ne pas la faire remonter
+      // comme un bug dans le suivi d'erreurs, qui n'enveloppe que `console.error`.
+      // Les vraies erreurs (bug de parsing, invariant cassé) restent en
+      // `console.error` → visibles comme de vrais bugs.
+      if (isOperationalSourceError(msg)) {
+        console.warn(`[fetcher] Source ${config.source} indisponible (opérationnel) : ${msg}`);
+      } else {
+        console.error(`[fetcher] Erreur source ${config.source}:`, err);
+      }
       results.push(result);
       await writeFetchLog(db, {
         source:          result.source,
