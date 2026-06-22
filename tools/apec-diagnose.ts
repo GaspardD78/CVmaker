@@ -1,96 +1,110 @@
 /**
- * apec-diagnose.ts — diagnostic ciblé de l'erreur « APEC HTTP 500 ».
+ * apec-diagnose.ts — diagnostic « APEC HTTP 500 » (v2).
  *
- * Pourquoi ce script ?
- *   L'API interne APEC (`POST /cms/webservices/rechercheOffre`) renvoie un 500
- *   persistant sur certaines requêtes du watcher. On ne peut pas le reproduire
- *   depuis l'environnement Claude Code (allowlist d'egress), donc ce script se
- *   lance EN LOCAL (accès direct à apec.fr) et isole la cause en testant des
- *   variantes du corps qui a échoué en production.
+ * Constat v1 : TOUTES les variantes de corps renvoient 500, même un corps
+ * minimal — et la réponse est un JSON d'erreur (pas une page HTML). Le contenu
+ * du corps n'est donc pas en cause : la requête atteint l'app APEC qui renvoie
+ * une 500 applicative. Cette v2 cherche POURQUOI : elle dumpe le corps + les
+ * headers de la réponse, et teste 4 hypothèses (cookies de session, variantes
+ * de headers, endpoint, méthode).
  *
- * Lancement :
+ * Lancement EN LOCAL (accès direct à apec.fr) :
  *   bun tools/apec-diagnose.ts
- *   (ou : node tools/apec-diagnose.ts  — Node ≥ 18 pour `fetch` global)
  *
- * Lecture du résultat :
- *   - A est le corps exact qui échoue en prod (attendu : 500).
- *   - Si B (sans « ET NON ») passe en 200 → l'opérateur d'exclusion est en cause.
- *   - Si C (« SAUF ») passe en 200 → le bon opérateur d'exclusion est SAUF.
- *   - Si D (lieux:[]) passe en 200 → ce sont les `lieux` (IDs) qui sont rejetés.
- *   - Si E (minimal) échoue aussi → indisponibilité / évolution API côté APEC.
- *   - F/G isolent le type de contrat et la taille de page.
- *
- * Aucune donnée personnelle, aucun envoi ailleurs que vers apec.fr.
+ * Colle TOUTE la sortie : le corps de l'erreur 500 dira ce qu'APEC réclame.
+ * Aucune donnée perso, aucun envoi ailleurs que vers apec.fr.
  */
 
-const URL = 'https://www.apec.fr/cms/webservices/rechercheOffre';
+const API = 'https://www.apec.fr/cms/webservices/rechercheOffre';
+const SEARCH_PAGE = 'https://www.apec.fr/candidat/recherche-emploi.html/emploi';
 
-// Mêmes en-têtes que la commande Rust `fetch_apec_api` (src-tauri/src/lib.rs).
-const HEADERS: Record<string, string> = {
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-    '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+const BASE_HEADERS: Record<string, string> = {
+  'User-Agent': UA,
   'Content-Type': 'application/json; charset=utf-8',
   'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Referer': 'https://www.apec.fr/candidat/recherche-emploi.html/emploi',
+  'Referer': SEARCH_PAGE,
   'Origin': 'https://www.apec.fr',
 };
 
-// Corps de base commun (cf. parsers/apec.ts).
-const base = {
-  motsCles: '',
-  lieux: [] as number[],
-  fonctions: [] as number[],
-  secteursActivite: [] as number[],
-  typesTeletravail: [] as number[],
-  salaires: [] as number[],
-  typesContrat: [] as number[],
-  niveauxExperience: [] as number[],
+const MINIMAL_BODY = {
+  motsCles: 'Recruteur',
+  lieux: [], fonctions: [], secteursActivite: [], typesTeletravail: [],
+  salaires: [], typesContrat: [], niveauxExperience: [],
   typeClient: 'CADRE',
   sorts: [{ type: 'DATE', direction: 'DESCENDING' }],
   pagination: { range: 50, startIndex: 0 },
   activeFiltre: true,
 };
 
-// motsCles réellement envoyé en prod (extrait des logs).
-const OR_GROUP =
-  '(Recruteur OU "Talent Acquisition Manager" OU "Talent Partner" OU "Chargé de recrutement")';
-const EXCL_GROUP =
-  '(stagiaire OU alternant OU ingénieur OU technicien OU commercial OU vendeur OU cariste OU électricien OU BTP OU Restauration OU VPC)';
+const SEP = '─'.repeat(72);
 
-const full = `${OR_GROUP} ET NON ${EXCL_GROUP}`;
-const sauf = `${OR_GROUP} SAUF ${EXCL_GROUP}`;
-const idf = [78, 92, 75, 95, 93];
-
-const cases: Array<[string, Record<string, unknown>]> = [
-  ['A. corps exact (échoue en prod)', { ...base, motsCles: full, lieux: idf, typesContrat: [101888] }],
-  ['B. sans "ET NON" (OR group seul)', { ...base, motsCles: OR_GROUP, lieux: idf, typesContrat: [101888] }],
-  ['C. "SAUF" au lieu de "ET NON"', { ...base, motsCles: sauf, lieux: idf, typesContrat: [101888] }],
-  ['D. corps exact mais lieux:[]', { ...base, motsCles: full, lieux: [], typesContrat: [101888] }],
-  ['E. minimal (1 mot, 0 filtre)', { ...base, motsCles: 'Recruteur' }],
-  ['F. corps exact mais typesContrat:[]', { ...base, motsCles: full, lieux: idf }],
-  ['G. corps exact mais pagination.range:20', { ...base, motsCles: full, lieux: idf, typesContrat: [101888], pagination: { range: 20, startIndex: 0 } }],
-];
-
-function snippet(text: string): string {
-  return text.replace(/\s+/g, ' ').trim().slice(0, 160);
-}
-
-for (const [label, body] of cases) {
-  try {
-    const res = await fetch(URL, { method: 'POST', headers: HEADERS, body: JSON.stringify(body) });
-    const text = await res.text();
-    let info = '';
-    try {
-      const json = JSON.parse(text) as { totalCount?: number; resultats?: unknown[] };
-      info = `totalCount=${json.totalCount ?? '?'} resultats=${json.resultats?.length ?? '?'}`;
-    } catch {
-      info = `body: ${snippet(text)}`;
-    }
-    console.log(`${res.status}  ${label}  →  ${info}`);
-  } catch (e) {
-    console.log(`ERR  ${label}  →  ${(e as Error).message}`);
+function dumpHeaders(h: Headers): void {
+  const interesting = [
+    'content-type', 'server', 'date', 'cache-control', 'x-cache',
+    'cf-ray', 'x-amzn-requestid', 'x-amzn-errortype', 'via', 'x-powered-by',
+    'www-authenticate', 'retry-after',
+  ];
+  for (const k of interesting) {
+    const v = h.get(k);
+    if (v) console.log(`    ${k}: ${v}`);
   }
-  await new Promise((r) => setTimeout(r, 700)); // throttle léger
+  const sc = (h as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
+  if (sc.length) console.log(`    set-cookie (${sc.length}): ${sc.map((c) => c.split(';')[0]).join('; ')}`);
 }
+
+async function probe(label: string, url: string, init: RequestInit): Promise<void> {
+  console.log(`\n${SEP}\n▶ ${label}`);
+  try {
+    const res = await fetch(url, init);
+    console.log(`  status: ${res.status} ${res.statusText}`);
+    dumpHeaders(res.headers);
+    const text = await res.text();
+    console.log(`  body (${text.length} chars):`);
+    console.log(text.slice(0, 2000).replace(/^/gm, '    '));
+  } catch (e) {
+    console.log(`  ERREUR fetch: ${(e as Error).message}`);
+  }
+}
+
+// ── 1) POST direct : voir le corps EXACT de l'erreur 500 ──────────────────────
+await probe('1) POST direct (headers actuels du parser)', API, {
+  method: 'POST',
+  headers: BASE_HEADERS,
+  body: JSON.stringify(MINIMAL_BODY),
+});
+
+// ── 2) Cookies de session : GET la page de recherche, rejouer les cookies ─────
+console.log(`\n${SEP}\n▶ 2) Amorçage cookies via GET ${SEARCH_PAGE}`);
+let cookieHeader = '';
+try {
+  const page = await fetch(SEARCH_PAGE, { headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' } });
+  console.log(`  GET status: ${page.status}`);
+  const sc = (page.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
+  cookieHeader = sc.map((c) => c.split(';')[0]).join('; ');
+  console.log(`  cookies récupérés: ${cookieHeader || '(aucun)'}`);
+} catch (e) {
+  console.log(`  ERREUR GET page: ${(e as Error).message}`);
+}
+await probe('   puis POST avec ces cookies', API, {
+  method: 'POST',
+  headers: { ...BASE_HEADERS, ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
+  body: JSON.stringify(MINIMAL_BODY),
+});
+
+// ── 3) Variante headers : Content-Type sans charset + X-Requested-With ────────
+await probe('3) POST + X-Requested-With, Content-Type sans charset', API, {
+  method: 'POST',
+  headers: { ...BASE_HEADERS, 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+  body: JSON.stringify(MINIMAL_BODY),
+});
+
+// ── 4) Sanity : GET sur l'endpoint (méthode inattendue → indice sur la route) ─
+await probe('4) GET sur l’endpoint (sanity route)', API, {
+  method: 'GET',
+  headers: { 'User-Agent': UA, Accept: 'application/json, text/plain, */*' },
+});
