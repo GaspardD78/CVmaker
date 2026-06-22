@@ -171,7 +171,11 @@ export async function parseApec(
       fonctions:         query.fonctions,
       secteursActivite:  query.secteurs,
       typesTeletravail:  query.teletravail,
-      salaires:          query.salaires,
+      // Pas de champ `salaires` : le DTO APEC (RechercheOffreCriteriaDto) ne
+      // l'expose pas (il connaît seulement `salaireMinimum`/`salaireMaximum`).
+      // L'envoyer — même vide — déclenchait un 500 « Unrecognized field
+      // "salaires" » qui cassait TOUTES les recherches APEC. Le filtrage par
+      // salaire reste assuré côté scorer via `profile.salary` (cf. scorer.ts).
       typesContrat:      query.typesContrat,
       niveauxExperience: [],
       typeClient:        'CADRE',

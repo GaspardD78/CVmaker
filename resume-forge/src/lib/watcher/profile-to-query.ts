@@ -13,7 +13,7 @@
  */
 
 import type { SearchProfile, JobSource } from '@/types/job-watch';
-import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode, APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from './parsers/apec-ids';
+import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode, APEC_SECTEURS, APEC_TELETRAVAIL } from './parsers/apec-ids';
 
 // ── APEC ─────────────────────────────────────────────────────────────────────
 
@@ -34,7 +34,6 @@ export interface ApecQueryParams {
   fonctions: number[];
   secteurs: number[];
   teletravail: number[];
-  salaires: number[];
 }
 
 /** Quote a term if it contains whitespace, so multi-word titles are matched as a phrase */
@@ -93,11 +92,12 @@ export function buildApecQuery(profile: SearchProfile): ApecQueryParams {
     .map(label => APEC_TELETRAVAIL[label])
     .filter((id): id is number => id !== undefined);
 
-  const salaires: number[] = (profile.apecSalaires ?? [])
-    .map(label => APEC_SALAIRES[label])
-    .filter((id): id is number => id !== undefined);
-
-  return { motsCles, lieux, typesContrat, fonctions, secteurs, teletravail, salaires };
+  // NB : `profile.apecSalaires` n'est volontairement PAS traduit en paramètre
+  // d'API. APEC filtre le salaire via `salaireMinimum`/`salaireMaximum` (et non
+  // via une liste de tranches), et le scorer applique déjà ce critère à partir
+  // de `profile.salary`. Voir le commentaire sur le corps de requête dans
+  // `parsers/apec.ts`.
+  return { motsCles, lieux, typesContrat, fonctions, secteurs, teletravail };
 }
 
 // ── France Travail ────────────────────────────────────────────────────────────
