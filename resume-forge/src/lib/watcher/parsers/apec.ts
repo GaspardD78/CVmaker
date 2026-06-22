@@ -163,7 +163,10 @@ export async function parseApec(
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const body = {
-      motsCles:          query.motsCles,
+      // Toujours envoyer une chaîne : `undefined` serait omis par
+      // `JSON.stringify`, et le backend APEC peut renvoyer un 500 sur un champ
+      // `motsCles` absent. Le site officiel envoie `""` quand aucun mot-clé.
+      motsCles:          query.motsCles ?? '',
       lieux:             query.lieux,
       fonctions:         query.fonctions,
       secteursActivite:  query.secteurs,
