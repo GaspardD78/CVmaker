@@ -1,6 +1,6 @@
 #!/bin/bash
 # Setup script for ResumeForge on Ubuntu/Debian
-# Run this once before your first `npm run tauri dev`
+# Run this once before your first `bun run tauri dev`
 
 set -e
 
@@ -20,7 +20,7 @@ sudo apt-get install -y \
   librsvg2-dev
 
 echo "==> Installing Node.js dependencies..."
-npm install
+bun install
 
 echo ""
-echo "Setup complete. You can now run: npm run tauri dev"
+echo "Setup complete. You can now run: bun run tauri dev"

@@ -182,7 +182,7 @@ pub fn dev_list_bug_reports(app: AppHandle) -> Result<Vec<BugReportMeta>, String
         let timestamp = id.parse::<i64>().unwrap_or(0);
         out.push(BugReportMeta { id, title, timestamp });
     }
-    out.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    out.sort_by_key(|r| std::cmp::Reverse(r.timestamp));
     Ok(out)
 }
 

@@ -76,7 +76,9 @@ async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSet
           target: intent.salary?.target      ?? null,
         },
       };
-    } catch { /* ignore — keep default */ }
+    } catch (e) {
+      console.warn('[job-watch] search_intent (v2) illisible — migration ignorée, profil par défaut conservé', e);
+    }
   }
 
   // Further legacy migration from flat positive/negative keywords (v1)

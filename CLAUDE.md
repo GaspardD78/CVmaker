@@ -17,7 +17,14 @@ tests/
 
 ## Commands
 
-cargo test; cargo clippy
+Depuis `resume-forge/` (bun est le gestionnaire de paquets unique — pas de package-lock.json) :
+
+- `bun install` — dépendances frontend
+- `bunx tsc --noEmit` — type-check
+- `bun test` — tests frontend (Bun)
+- `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings` — lint Rust
+
+La CI (`.github/workflows/ci.yml`) exécute ces commandes sur chaque PR. Plan d'amélioration en cours : voir `AUDIT-PLAN-AMELIORATION.md`.
 
 ## Code Style
 
