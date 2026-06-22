@@ -116,39 +116,75 @@ fn get_db_uri() -> String {
 /// repli (chaque octet Latin-1 correspond au même point de code Unicode).
 #[tauri::command]
 async fn fetch_apec_api(body: String) -> Result<String, String> {
+    // APEC's search backend regularly returns transient 5xx ("Erreur technique").
+    // We retry up to 3 times with exponential backoff (500ms, 1s) — same pattern
+    // as the France Travail parser — to avoid polluting the UI with errors for
+    // server-side blips. 4xx are NOT retried (bad query, no point hammering).
+    const MAX_ATTEMPTS: u32 = 3;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| format!("APEC client: {}", e))?;
 
-    let resp = client
-        .post("https://www.apec.fr/cms/webservices/rechercheOffre")
-        .header(reqwest::header::USER_AGENT,
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-             (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-        .header(reqwest::header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .header(reqwest::header::ACCEPT, "application/json, text/plain, */*")
-        .header(reqwest::header::ACCEPT_LANGUAGE, "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
-        .header(reqwest::header::REFERER,
-            "https://www.apec.fr/candidat/recherche-emploi.html/emploi")
-        .header("Origin", "https://www.apec.fr")
-        .body(body)
-        .send()
-        .await
-        .map_err(|e| format!("APEC réseau: {}", e))?;
+    let mut last_status: Option<u16> = None;
+    let mut last_net_err: Option<String> = None;
 
-    if !resp.status().is_success() {
-        return Err(format!("APEC HTTP {}", resp.status().as_u16()));
+    for attempt in 0..MAX_ATTEMPTS {
+        let send_result = client
+            .post("https://www.apec.fr/cms/webservices/rechercheOffre")
+            .header(reqwest::header::USER_AGENT,
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+                 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .header(reqwest::header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .header(reqwest::header::ACCEPT, "application/json, text/plain, */*")
+            .header(reqwest::header::ACCEPT_LANGUAGE, "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+            .header(reqwest::header::REFERER,
+                "https://www.apec.fr/candidat/recherche-emploi.html/emploi")
+            .header("Origin", "https://www.apec.fr")
+            .body(body.clone())
+            .send()
+            .await;
+
+        let resp = match send_result {
+            Ok(r) => r,
+            Err(e) => {
+                last_net_err = Some(format!("APEC réseau: {}", e));
+                if attempt + 1 < MAX_ATTEMPTS {
+                    let backoff_ms = 500u64 << attempt; // 500, 1000
+                    tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                    continue;
+                }
+                return Err(last_net_err.unwrap());
+            }
+        };
+
+        let status = resp.status();
+        if status.is_success() {
+            let bytes = resp.bytes().await
+                .map_err(|e| format!("APEC lecture corps: {}", e))?;
+            // UTF-8 strict d'abord, repli Latin-1 (ISO-8859-1) si échec.
+            return match std::str::from_utf8(&bytes) {
+                Ok(text) => Ok(text.to_string()),
+                Err(_)   => Ok(bytes.iter().map(|&b| b as char).collect()),
+            };
+        }
+
+        last_status = Some(status.as_u16());
+
+        // Retry only on 5xx — 4xx means the request itself is bad.
+        if status.is_server_error() && attempt + 1 < MAX_ATTEMPTS {
+            let backoff_ms = 500u64 << attempt; // 500, 1000
+            tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+            continue;
+        }
+
+        return Err(format!("APEC HTTP {}", status.as_u16()));
     }
 
-    let bytes = resp.bytes().await
-        .map_err(|e| format!("APEC lecture corps: {}", e))?;
-
-    // Tentative UTF-8 stricte, repli Latin-1 (ISO-8859-1) si échec.
-    match std::str::from_utf8(&bytes) {
-        Ok(text) => Ok(text.to_string()),
-        Err(_)   => Ok(bytes.iter().map(|&b| b as char).collect()),
-    }
+    Err(last_status
+        .map(|s| format!("APEC HTTP {}", s))
+        .unwrap_or_else(|| last_net_err.unwrap_or_else(|| "APEC: échec après plusieurs tentatives".into())))
 }
 
 #[cfg(not(target_os = "android"))]

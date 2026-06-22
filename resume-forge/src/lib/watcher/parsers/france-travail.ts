@@ -209,8 +209,13 @@ export async function parseFranceTravail(
 ): Promise<RawJobOffer[]> {
   const { ftClientId, ftClientSecret } = settings;
 
+  // Missing credentials = source needs configuration, not a runtime error.
+  // Returning [] makes the source appear as "empty" in the fetch log (instead
+  // of "error") and avoids spamming console.error on every fetch cycle until
+  // the user enters their keys in Settings.
   if (!ftClientId || !ftClientSecret) {
-    throw new Error('France Travail : client_id et client_secret requis');
+    console.info('[france-travail] client_id/client_secret non configurés — source ignorée.');
+    return [];
   }
 
   if (!tokenCache && settings.ftAccessToken && settings.ftTokenExpiresAt) {
