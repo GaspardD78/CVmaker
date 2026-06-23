@@ -239,6 +239,9 @@ export interface JobWatchConfig {
   createdAt: string;
 }
 
+/** Ancienneté par défaut (en jours) au-delà de laquelle une offre est considérée périmée. */
+export const DEFAULT_EXPIRED_MAX_AGE_DAYS = 30;
+
 export interface JobWatchSettings {
   fetchIntervalHours: number;
   emailDigestEnabled: boolean;
@@ -267,6 +270,10 @@ export interface JobWatchSettings {
   braveSearchApiKey: string;
   /** Score minimum en dessous duquel une offre n'est pas sauvegardée en DB (0-60, défaut 20) */
   minSaveScore: number;
+  /** Supprime automatiquement les offres périmées (plus de `expiredMaxAgeDays` jours) à chaque collecte */
+  autoCleanExpiredEnabled: boolean;
+  /** Ancienneté (en jours) au-delà de laquelle une offre est considérée périmée et nettoyée */
+  expiredMaxAgeDays: number;
 }
 
 export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
@@ -289,6 +296,8 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   ftTokenExpiresAt: '',
   braveSearchApiKey: '',
   minSaveScore: 20,
+  autoCleanExpiredEnabled: true,
+  expiredMaxAgeDays: DEFAULT_EXPIRED_MAX_AGE_DAYS,
 };
 
 // ── Fetch log ─────────────────────────────────────────────────────────────────

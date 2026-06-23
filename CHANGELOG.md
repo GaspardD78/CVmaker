@@ -7,6 +7,13 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-06-10
 
+### Veille emploi — nettoyage des offres périmées
+
+- **Ajout** : les offres périmées (plus anciennes qu'un seuil configurable, 30 jours par défaut) sont automatiquement supprimées à chaque collecte. L'ancienneté est mesurée depuis `published_at` (sinon `fetched_at`) ; les offres importées dans le Kanban sont conservées.
+- **Ajout** : action manuelle « Nettoyer périmées » dans le menu « ⋮ » de la liste des offres.
+- **Ajout** : réglages « Nettoyage des offres périmées » (activation + seuil) dans Configuration → Options avancées.
+- **Ajout** : `src/lib/watcher/cleanup.ts` (+ tests) — logique pure de détection des offres périmées ; `jobWatchStore.purgeExpiredOffers()` effectue la suppression en SQL.
+
 ### Audit du dépôt & quick wins (voir `AUDIT-PLAN-AMELIORATION.md`)
 
 #### Sécurité

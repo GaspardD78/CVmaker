@@ -51,6 +51,7 @@ export function useJobWatcher() {
     loadFetchLogs,
     updateLastFetchedAt,
     setSelectorDebugInfo,
+    purgeExpiredOffers,
   } = useJobWatchStore();
 
   const profileId = useAuthStore(s => s.currentUserId);
@@ -144,6 +145,17 @@ export function useJobWatcher() {
         await updateLastFetchedAt(config.id);
       }
 
+      // Nettoyage des offres périmées (plus anciennes que le seuil configuré) —
+      // non bloquant. S'appuie sur published_at (sinon fetched_at) et conserve
+      // les offres déjà importées dans le Kanban.
+      if (settings.autoCleanExpiredEnabled) {
+        try {
+          await purgeExpiredOffers(settings.expiredMaxAgeDays);
+        } catch (e) {
+          console.warn('[useJobWatcher] nettoyage des offres périmées ignoré (non bloquant)', e);
+        }
+      }
+
       await fetchOffers();
       // Rafraîchit les logs de collecte pour que la table « Dernières collectes »
       // du HealthDashboard reflète ce run. Le dashboard vit dans un drawer
@@ -201,7 +213,7 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, setSelectorDebugInfo, profileId]);
+  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, setSelectorDebugInfo, purgeExpiredOffers, profileId]);
 
   // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {
