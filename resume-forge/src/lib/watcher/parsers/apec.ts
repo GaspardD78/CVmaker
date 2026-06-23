@@ -110,19 +110,55 @@ function expectedDepartments(profile: { location: { departmentCodes: string[]; c
 }
 
 /**
- * Vérifie qu'au moins un jobTitle apparaît dans le titre de l'offre, avec
- * frontière de mot (`\b`) pour éviter les sous-chaînes parasites (ex. "comm"
- * matchant "commercial"). Si `jobTitles` est vide on accepte tout — on ne
- * peut pas filtrer ce que l'utilisateur n'a pas spécifié.
+ * Mots vides ignorés lors du découpage d'un intitulé en tokens : ils ne portent
+ * pas de sens métier et fausseraient le ratio de recouvrement.
  */
-function titleMatchesAnyJobTitle(title: string, jobTitles: string[]): boolean {
-  const targets = jobTitles.map(t => t.trim()).filter(Boolean);
-  if (targets.length === 0) return true;
-  for (const t of targets) {
-    const re = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
-    if (re.test(title)) return true;
+const TITLE_STOPWORDS = new Set([
+  'de', 'des', 'du', 'la', 'le', 'les', 'et', 'en', 'un', 'une', 'au', 'aux',
+  'of', 'the', 'and', 'for', 'to', 'in',
+]);
+
+/**
+ * Part minimale des tokens significatifs d'un intitulé qui doivent apparaître
+ * dans le titre de l'offre pour conclure à une correspondance. 0.6 ⇒ un intitulé
+ * à 1 token exige un match exact, 2 tokens exigent les deux, 3 tokens en
+ * tolèrent un manquant (« Talent Acquisition Manager » matche « Talent
+ * Acquisition Specialist »). Compromis rappel / précision.
+ */
+const TITLE_TOKEN_MATCH_RATIO = 0.6;
+
+/** Découpe une chaîne en tokens significatifs : minuscule, sans accents, sans mots vides. */
+function significantTokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // retire les accents (diacritiques combinants)
+    .split(/[^a-z0-9]+/)
+    .filter(t => t.length >= 2 && !TITLE_STOPWORDS.has(t));
+}
+
+/**
+ * Vérifie qu'au moins un jobTitle « recouvre » le titre de l'offre. La comparaison
+ * se fait par tokens (et non plus par sous-chaîne exacte) : un intitulé matche si
+ * au moins `TITLE_TOKEN_MATCH_RATIO` de ses tokens significatifs sont présents
+ * dans le titre, indépendamment de l'ordre et des accents. Cela rattrape les
+ * variantes proches (« …Specialist » vs « …Manager ») que le filtre exact
+ * précédent rejetait, tout en restant assez strict pour écarter le bruit
+ * (« Chargé de clientèle » ne matche pas « Chargé de recrutement » : 1 token sur 2).
+ *
+ * Si `jobTitles` est vide — ou ne contient aucun token exploitable — on accepte
+ * tout : on ne peut pas filtrer sur ce que l'utilisateur n'a pas spécifié.
+ */
+export function titleMatchesAnyJobTitle(title: string, jobTitles: string[]): boolean {
+  const offerTokens = new Set(significantTokens(title));
+  let anyTargetHadTokens = false;
+  for (const raw of jobTitles) {
+    const wanted = significantTokens(raw);
+    if (wanted.length === 0) continue;
+    anyTargetHadTokens = true;
+    const present = wanted.filter(w => offerTokens.has(w)).length;
+    if (present / wanted.length >= TITLE_TOKEN_MATCH_RATIO) return true;
   }
-  return false;
+  return !anyTargetHadTokens;
 }
 
 /**
