@@ -206,7 +206,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     return d.toISOString();
   }, []);
 
-  const { volume, volumeAlert, pertinence, conversion, conversionAlert } = useMemo(() => {
+  const { volume, volumeAlert, pertinence, conversion, conversionAlert, kanbanCount } = useMemo(() => {
     const volume = offers.filter(o => o.fetchedAt >= weekCutoff).length;
     const active  = offers.filter(o => o.isArchived === 0);
     const total   = active.length;
@@ -218,6 +218,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       pertinence:      total > 0 ? Math.round((read   / total) * 100) : null,
       conversion:      total > 0 ? Math.round((kanban / total) * 100) : null,
       conversionAlert: total > 0 && kanban / total < 0.05,
+      kanbanCount:     kanban,
     };
   }, [offers, weekCutoff]);
 
@@ -249,6 +250,26 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     }
     return map;
   }, [fetchLogs]);
+
+  // Explique une conversion faible plutôt que d'accuser systématiquement le score :
+  // si une large part des offres récupérées tombe sous le score minimum, le seuil
+  // est sans doute trop haut ; sinon, c'est simplement qu'aucune offre n'a encore
+  // été glissée dans le Kanban (signal d'usage, pas de scoring).
+  const conversionAlertMessage = useMemo(() => {
+    if (!conversionAlert) return null;
+    let fetched = 0;
+    let filtered = 0;
+    for (const log of lastLogBySource.values()) {
+      fetched  += log.offersFetched;
+      filtered += log.offersFiltered;
+    }
+    const filterRate = fetched > 0 ? filtered / fetched : 0;
+    if (filterRate >= 0.5) {
+      return `Score minimum trop élevé ? ${Math.round(filterRate * 100)} % des offres filtrées`;
+    }
+    if (kanbanCount === 0) return 'Aucune offre importée dans le Kanban';
+    return 'Peu d\'offres importées dans le Kanban';
+  }, [conversionAlert, kanbanCount, lastLogBySource]);
 
   // ── Learning suggestions ──────────────────────────────────────────────────────
 
@@ -457,7 +478,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
               value={conversion}
               unit="%"
               subtitle="importées Kanban"
-              alert={conversionAlert ? 'Score minimum trop élevé ?' : null}
+              alert={conversionAlertMessage}
             />
           </div>
 

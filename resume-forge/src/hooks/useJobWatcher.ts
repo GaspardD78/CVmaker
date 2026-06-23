@@ -48,6 +48,7 @@ export function useJobWatcher() {
     setFetchProgress,
     setError,
     fetchOffers,
+    loadFetchLogs,
     updateLastFetchedAt,
     setSelectorDebugInfo,
   } = useJobWatchStore();
@@ -144,6 +145,12 @@ export function useJobWatcher() {
       }
 
       await fetchOffers();
+      // Rafraîchit les logs de collecte pour que la table « Dernières collectes »
+      // du HealthDashboard reflète ce run. Le dashboard vit dans un drawer
+      // toujours monté qui ne charge les logs qu'au mount : sans ceci, il
+      // continuerait d'afficher le statut du run précédent (p. ex. une erreur
+      // APEC périmée après une collecte réussie).
+      await loadFetchLogs();
 
       const totalNew  = results.reduce((acc, r) => acc + r.newOffers, 0);
       const hasErrors = results.some(r => r.errors.length > 0);
@@ -194,7 +201,7 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, updateLastFetchedAt, setSelectorDebugInfo, profileId]);
+  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, setSelectorDebugInfo, profileId]);
 
   // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {
