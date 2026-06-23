@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
-import { RefreshCw, Trash2, UserRound, Archive, BookmarkCheck, CheckCircle, Settings, Zap, SlidersHorizontal, ChevronDown, ChevronUp, Search, Grid, List, MoreVertical } from 'lucide-react';
+import { RefreshCw, Trash2, UserRound, Archive, BookmarkCheck, CheckCircle, Settings, Zap, SlidersHorizontal, ChevronDown, ChevronUp, Search, Grid, List, MoreVertical, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -10,6 +10,7 @@ import { useProfileStore } from '@/stores/profileStore';
 import { JobOfferCard } from './JobOfferCard';
 import { CvGeneratorDrawer } from './CvGeneratorDrawer';
 import type { JobOffer, JobSource, SortOption } from '@/types/job-watch';
+import { DEFAULT_EXPIRED_MAX_AGE_DAYS } from '@/types/job-watch';
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ export function JobOffersView() {
     batchArchive,
     batchMarkRead,
     purgeOffers,
+    purgeExpiredOffers,
     fetchProgress,
   } = useJobWatchStore();
 
@@ -184,6 +186,17 @@ export function JobOffersView() {
     toast.success(`${deleted} offre${deleted !== 1 ? 's' : ''} supprimée${deleted !== 1 ? 's' : ''}`);
   };
 
+  const handlePurgeExpired = async () => {
+    const days = settings.expiredMaxAgeDays || DEFAULT_EXPIRED_MAX_AGE_DAYS;
+    if (!window.confirm(
+      `Supprimer définitivement les offres de plus de ${days} jours ?\n\nLes offres importées dans le Kanban sont conservées. Cette action est irréversible.`
+    )) {
+      return;
+    }
+    const deleted = await purgeExpiredOffers(days);
+    toast.success(`${deleted} offre${deleted !== 1 ? 's' : ''} périmée${deleted !== 1 ? 's' : ''} supprimée${deleted !== 1 ? 's' : ''}`);
+  };
+
   const handleDeleteArchived = async () => {
     await deleteArchivedOffers();
     toast.success('Offres archivées supprimées');
@@ -302,6 +315,13 @@ export function JobOffersView() {
                 >
                   <Trash2 className="w-3.5 h-3.5 opacity-60" />
                   Purger non pertinentes
+                </button>
+                <button
+                  onClick={() => { handlePurgeExpired(); setIsMoreMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2"
+                >
+                  <Clock className="w-3.5 h-3.5 opacity-60" />
+                  Nettoyer périmées (&gt; {settings.expiredMaxAgeDays} j)
                 </button>
                 <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                 <button

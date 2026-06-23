@@ -11,6 +11,7 @@ import {
   DEFAULT_JOB_WATCH_SETTINGS,
   DEFAULT_SEARCH_PROFILE,
   DEFAULT_FILTERS,
+  DEFAULT_EXPIRED_MAX_AGE_DAYS,
   JobSource,
 } from '@/types/job-watch';
 import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/lib/watcher/learning-engine';
@@ -25,6 +26,7 @@ const PROFILE_SETTINGS_KEYS = new Set([
   'fetch_interval_hours', 'email_digest_enabled', 'email_digest_time', 'email_to',
   'search_profile', 'commute_origin_address', 'commute_departure_time',
   'commute_max_minutes', 'min_save_score',
+  'auto_clean_expired_enabled', 'expired_max_age_days',
   'learned_dict_positive', 'learned_dict_negative', 'learned_dict_decayed_at',
   'company_reputation',
   'ai_filter_rule',
@@ -114,6 +116,8 @@ async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSet
     ftTokenExpiresAt:      map['ft_token_expires_at']     ?? '',
     braveSearchApiKey:     map['brave_search_api_key']    ?? '',
     minSaveScore:         parseInt(map['min_save_score']  ?? '20', 10),
+    autoCleanExpiredEnabled: (map['auto_clean_expired_enabled'] ?? '1') === '1',
+    expiredMaxAgeDays:    parseInt(map['expired_max_age_days'] ?? String(DEFAULT_EXPIRED_MAX_AGE_DAYS), 10),
     // Mantiks fields are persisted as untyped extras (parser reads via cast).
     mantiksApiKey:         map['mantiks_api_key']         ?? '',
     mantiksBaseUrl:        map['mantiks_base_url']        ?? '',
@@ -145,6 +149,8 @@ async function saveSettingsToDb(settings: JobWatchSettings, profileId: string | 
     ['ft_token_expires_at',    settings.ftTokenExpiresAt],
     ['brave_search_api_key',   settings.braveSearchApiKey],
     ['min_save_score',         String(settings.minSaveScore)],
+    ['auto_clean_expired_enabled', settings.autoCleanExpiredEnabled ? '1' : '0'],
+    ['expired_max_age_days',   String(settings.expiredMaxAgeDays)],
     ['mantiks_api_key',        anySettings['mantiksApiKey']       ?? ''],
     ['mantiks_base_url',       anySettings['mantiksBaseUrl']      ?? ''],
     ['mantiks_location_ids',   anySettings['mantiksLocationIds']  ?? ''],
@@ -199,6 +205,7 @@ interface JobWatchState {
   deleteArchivedOffers: () => Promise<void>;
   clearAllOffers: () => Promise<void>;
   purgeOffers: (minScore: number) => Promise<number>;
+  purgeExpiredOffers: (maxAgeDays: number) => Promise<number>;
   submitFeedback: (offerId: string, action: string, timeToAction?: number) => Promise<void>;
   batchArchive: (ids: string[]) => Promise<void>;
   batchMarkRead: (ids: string[]) => Promise<void>;
@@ -465,6 +472,35 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       `DELETE FROM job_offers WHERE score < ?1 AND is_archived = 0`,
       [minScore]
     );
+    await get().fetchOffers();
+    return result.rowsAffected;
+  },
+
+  purgeExpiredOffers: async (maxAgeDays) => {
+    const db = await getDb();
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    // Supprime les offres dont l'âge dépasse le seuil. L'âge est mesuré depuis
+    // published_at quand il est exploitable, sinon depuis fetched_at (toujours un
+    // timestamp SQLite valide). julianday() renvoie NULL sur une date illisible,
+    // d'où le COALESCE qui retombe alors sur fetched_at. Les offres importées dans
+    // le Kanban (kanban_id non nul) sont conservées pour ne pas casser le suivi.
+    // Cf. `lib/watcher/cleanup.ts` qui implémente la même sémantique côté JS.
+    const result = profileId
+      ? await db.execute(
+          `DELETE FROM job_offers
+           WHERE profile_id = ?1
+             AND kanban_id IS NULL
+             AND (julianday('now') - COALESCE(julianday(published_at), julianday(fetched_at))) > ?2`,
+          [profileId, maxAgeDays],
+        )
+      : await db.execute(
+          `DELETE FROM job_offers
+           WHERE profile_id IS NULL
+             AND kanban_id IS NULL
+             AND (julianday('now') - COALESCE(julianday(published_at), julianday(fetched_at))) > ?1`,
+          [maxAgeDays],
+        );
     await get().fetchOffers();
     return result.rowsAffected;
   },

@@ -222,6 +222,8 @@ export async function getDb(): Promise<Database> {
       ['ft_access_token',       ''],
       ['ft_token_expires_at',   ''],
       ['min_save_score',        '20'],
+      ['auto_clean_expired_enabled', '1'],
+      ['expired_max_age_days',  '30'],
     ];
     for (const [key, value] of defaultSettings) {
       await db.execute(

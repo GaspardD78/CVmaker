@@ -860,6 +860,31 @@ export function JobWatchConfigView() {
           />
         </Field>
 
+        {/* Auto-clean expired offers */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">Nettoyage des offres périmées</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded accent-blue-600"
+                checked={settingsDraft.autoCleanExpiredEnabled}
+                onChange={e => updateSetting('autoCleanExpiredEnabled', e.target.checked)}
+              />
+              <span className="text-xs text-gray-600 dark:text-gray-300">Activé</span>
+            </label>
+          </div>
+          <Field
+            label={`Supprimer les offres de plus de ${settingsDraft.expiredMaxAgeDays} jours`}
+            help="Appliqué automatiquement à chaque collecte. Les offres importées dans le Kanban sont conservées."
+          >
+            <input type="range" min={7} max={90} step={1}
+              className={`w-full accent-blue-600 ${!settingsDraft.autoCleanExpiredEnabled ? 'opacity-40' : ''}`}
+              value={settingsDraft.expiredMaxAgeDays}
+              onChange={e => updateSetting('expiredMaxAgeDays', Number(e.target.value))}
+              disabled={!settingsDraft.autoCleanExpiredEnabled}
+            />
+          </Field>
+        </div>
+
         {/* Fetch interval */}
         <Field label={`Fréquence de collecte : toutes les ${settingsDraft.fetchIntervalHours}h`}>
           <input type="range" min={1} max={24} step={1} className="w-full accent-blue-600"
