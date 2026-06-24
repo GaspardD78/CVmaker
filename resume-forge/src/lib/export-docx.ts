@@ -655,7 +655,12 @@ export async function generateDocxBlob(
         const entryData = { ...entry, ...(block.overrideData || {}) };
         const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
         const fmtDate = yearOnly ? formatDateYear : formatDate;
-        const dateText = entryData.startDate
+        // Verbatim dates override takes precedence over computed start/end formatting.
+        const rawDatesOverride = (block.overrideData as Record<string, unknown> | undefined)?.datesOverride;
+        const datesOverride = typeof rawDatesOverride === 'string' ? rawDatesOverride.trim() : '';
+        const dateText = datesOverride
+          ? datesOverride
+          : entryData.startDate
           ? `${fmtDate(entryData.startDate as string)} - ${entryData.isCurrent ? 'Présent' : fmtDate(entryData.endDate as string)}`
           : (entryData.endDate ? fmtDate(entryData.endDate as string) : '');
 

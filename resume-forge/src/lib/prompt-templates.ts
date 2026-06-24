@@ -277,8 +277,10 @@ export function generateFullCVMatchPrompt(
   _profile: Profile,
   entries: MasterEntry[],
   jobOfferText: string,
-  targetCompany?: string
+  targetCompany?: string,
+  extraContext?: string
 ): string {
+  const trimmedContext = extraContext?.trim();
   const experiences = entries
     .filter(e => e.entryType === 'experience')
     .map(e => {
@@ -316,14 +318,19 @@ ${skills || '(aucune)'}
 ### Formations
 ${education || '(aucune)'}
 
+## Contexte additionnel (source UNIQUE des entrées suggérées)
+${trimmedContext || '(aucun — donc "suggestedEntries" DOIT être un tableau vide)'}
+
 ${SYSTEM_RULES}
 - **SÉLECTION** : Ne garder que ce qui est utile pour l'annonce (\`visible: true\`). Masquer le reste (\`visible: false\`).
 - **ADAPTATION** : Réécrire les descriptions d'expériences en puces (•) percutantes.
 - **RÉALISME** : Ne jamais inventer de chiffres ou de responsabilités.
 - **VOLUME** : Le résultat final doit tenir sur une page (prioriser les 3-5 dernières années).
+- **SURCHARGES D'AFFICHAGE (optionnelles, non destructives)** : sur une entrée, tu peux ajouter \`titleOverride\`, \`companyOverride\` et/ou \`datesOverride\` UNIQUEMENT si l'annonce justifie d'afficher un libellé différent de la donnée source (ex : afficher un intitulé de poste équivalent mieux aligné sur l'annonce). Ces champs ne modifient jamais la donnée maître. Si aucun changement n'est utile, ne les mets pas.
+- **ENTRÉES SUGGÉRÉES — RÈGLE ABSOLUE ANTI-INVENTION** : \`suggestedEntries\` ne peut contenir QUE des éléments réellement pertinents pour l'annonce ET absents du profil maître. Chaque entrée suggérée doit être DIRECTEMENT et EXPLICITEMENT étayée par le « Contexte additionnel » ci-dessus — jamais déduite de l'annonce, jamais extrapolée. INTERDICTION FORMELLE d'inventer une expérience, compétence, formation, employeur, date ou chiffre. Si le contexte additionnel est vide ou ne contient rien de pertinent et d'absent, renvoie \`"suggestedEntries": []\`. Ne jamais y dupliquer une entrée déjà présente dans le profil maître.
 
 ## Format de sortie OBLIGATOIRE
-Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown).
+Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown). Les champs \`titleOverride\`, \`companyOverride\`, \`datesOverride\` et le tableau \`suggestedEntries\` sont optionnels : omets-les s'ils ne servent pas.
 
 {
   "title": "Titre du poste (reprendre celui de l'annonce)",
@@ -332,7 +339,22 @@ Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown).
     {
       "id": "[ID EXACT DE L'ENTRÉE]",
       "visible": true,
-      "description": "• action 1 avec **mot-clé**\\n• action 2"
+      "description": "• action 1 avec **mot-clé**\\n• action 2",
+      "titleOverride": "(optionnel) intitulé de poste à afficher à la place de la source",
+      "companyOverride": "(optionnel) intitulé d'entreprise à afficher à la place de la source",
+      "datesOverride": "(optionnel) période à afficher telle quelle, ex: 2021 - 2023"
+    }
+  ],
+  "suggestedEntries": [
+    {
+      "entryType": "experience|education|skill|certification|language|project|interest|volunteer",
+      "title": "Intitulé (issu du contexte additionnel)",
+      "subtitle": "(optionnel) entreprise / école",
+      "startDate": "YYYY-MM (optionnel)",
+      "endDate": "YYYY-MM (optionnel)",
+      "isCurrent": false,
+      "description": "• point clé issu du contexte",
+      "reason": "(optionnel) pourquoi c'est pertinent pour l'annonce"
     }
   ]
 }`;
