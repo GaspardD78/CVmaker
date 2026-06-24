@@ -28,6 +28,11 @@ export function CVEntryBlock({ block, entry, template }: CVEntryBlockProps) {
   const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
   const fmtDate = yearOnly ? formatDateYear : formatDate;
 
+  // Non-destructive verbatim dates override (from the targeted-CV generator).
+  // When present it takes precedence over the computed start/end formatting.
+  const rawDatesOverride = (block.overrideData as Record<string, unknown> | undefined)?.datesOverride;
+  const datesOverride = typeof rawDatesOverride === 'string' ? rawDatesOverride.trim() : '';
+
   return (
     <div className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
       <div className="cv-title-row flex justify-between items-baseline mb-1">
@@ -41,11 +46,15 @@ export function CVEntryBlock({ block, entry, template }: CVEntryBlockProps) {
             </span>
           )}
         </div>
-        {!!(entryData.startDate || entryData.endDate || entryData.isCurrent) && (
+        {(datesOverride || entryData.startDate || entryData.endDate || entryData.isCurrent) && (
           <span className={`cv-date ${template.preview.dateClass}`}>
-            {entryData.startDate ? fmtDate(entryData.startDate) : ''}
-            {entryData.startDate && (entryData.endDate || entryData.isCurrent) ? ' - ' : ''}
-            {entryData.isCurrent ? 'Présent' : (entryData.endDate ? fmtDate(entryData.endDate) : '')}
+            {datesOverride ? datesOverride : (
+              <>
+                {entryData.startDate ? fmtDate(entryData.startDate) : ''}
+                {entryData.startDate && (entryData.endDate || entryData.isCurrent) ? ' - ' : ''}
+                {entryData.isCurrent ? 'Présent' : (entryData.endDate ? fmtDate(entryData.endDate) : '')}
+              </>
+            )}
           </span>
         )}
       </div>

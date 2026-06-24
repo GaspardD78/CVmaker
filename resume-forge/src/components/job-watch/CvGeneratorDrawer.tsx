@@ -5,8 +5,8 @@ import { toast } from 'sonner';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { generateFullCVMatchPrompt, generateCoverLetterPrompt } from '@/lib/prompt-templates';
+import { parseAiCvResponse, aiEntryToOverrideData, type AiCvSuggestedEntry } from '@/lib/ai-cv-response';
 import type { JobOffer } from '@/types/job-watch';
-import type { CVBlock } from '@/types/cv';
 
 // ---------------------------------------------------------------------------
 
@@ -17,6 +17,17 @@ interface CvGeneratorDrawerProps {
 
 type Tab = 'master' | 'existing' | 'cover';
 
+const ENTRY_TYPE_LABELS: Record<string, string> = {
+  experience: 'Expérience',
+  education: 'Formation',
+  skill: 'Compétence',
+  certification: 'Certification',
+  language: 'Langue',
+  interest: 'Intérêt',
+  project: 'Projet',
+  volunteer: 'Bénévolat',
+};
+
 // ---------------------------------------------------------------------------
 
 export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
@@ -26,6 +37,9 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const [activeTab, setActiveTab] = useState<Tab>('master');
   const [selectedCvId, setSelectedCvId] = useState<string>('');
   const [jsonInput, setJsonInput] = useState('');
+  const [extraContext, setExtraContext] = useState('');
+  const [suggestions, setSuggestions] = useState<AiCvSuggestedEntry[]>([]);
+  const [acceptedSug, setAcceptedSug] = useState<Set<number>>(new Set());
   const [mdInput, setMdInput] = useState('');
   const [coverContactName, setCoverContactName] = useState('');
   const [coverStyle, setCoverStyle] = useState<'formal' | 'direct'>('direct');
@@ -43,11 +57,31 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       // Reset state on each new offer
       setActiveTab('master');
       setJsonInput('');
+      setExtraContext('');
+      setSuggestions([]);
+      setAcceptedSug(new Set());
       setMdInput('');
       setPromptCopied(false);
       setCvPromptCopied(false);
     }
   }, [open, offer?.id, fetchCvs]);
+
+  // Silently parse the pasted JSON to surface off-profile suggestions for review.
+  // Errors are ignored here — full validation happens on apply.
+  useEffect(() => {
+    if (!jsonInput.trim()) {
+      setSuggestions([]);
+      setAcceptedSug(new Set());
+      return;
+    }
+    try {
+      setSuggestions(parseAiCvResponse(jsonInput).suggestedEntries);
+    } catch {
+      setSuggestions([]);
+    }
+    // Reset selection whenever the input changes.
+    setAcceptedSug(new Set());
+  }, [jsonInput]);
 
   // Escape key
   useEffect(() => {
@@ -79,12 +113,96 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined);
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext);
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined);
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext);
+  };
+
+  // ── Suggested-entry helpers (off-profile, opt-in) ─────────────────────────
+
+  const toggleSuggestion = (idx: number) => {
+    setAcceptedSug(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const getAcceptedSuggestions = (): AiCvSuggestedEntry[] =>
+    suggestions.filter((_, i) => acceptedSug.has(i));
+
+  /**
+   * Writes validated off-profile suggestions to the master profile (explicit opt-in
+   * only — nothing is written for unchecked items). Returns the IDs of the newly
+   * created master entries, discovered by diffing the store before/after.
+   */
+  const promoteSuggestions = async (accepted: AiCvSuggestedEntry[]): Promise<string[]> => {
+    if (accepted.length === 0 || !profile) return [];
+    const addEntry = useProfileStore.getState().addEntry;
+    const beforeIds = new Set(useProfileStore.getState().entries.map(e => e.id));
+    for (const s of accepted) {
+      await addEntry({
+        profileId: profile.id,
+        entryType: s.entryType,
+        title: s.title,
+        subtitle: s.subtitle ?? null,
+        location: null,
+        startDate: s.startDate ?? null,
+        endDate: s.endDate ?? null,
+        isCurrent: s.isCurrent ?? false,
+        description: s.description ?? null,
+        metadata: {},
+        sortOrder: 0,
+        tags: [],
+      });
+    }
+    return useProfileStore.getState().entries.filter(e => !beforeIds.has(e.id)).map(e => e.id);
+  };
+
+  const renderSuggestions = () => {
+    if (suggestions.length === 0) return null;
+    return (
+      <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3 space-y-2">
+        <div className="flex items-start gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-purple-800 dark:text-purple-200 leading-relaxed">
+            <strong>Entrées suggérées hors profil maître.</strong> Coche celles à ajouter : elles seront enregistrées dans ton profil <em>et</em> incluses dans ce CV. Non cochées : ignorées (rien n'est écrit).
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          {suggestions.map((s, i) => (
+            <label
+              key={i}
+              className={`flex items-start gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
+                acceptedSug.has(i)
+                  ? 'border-purple-400 dark:border-purple-500 bg-white dark:bg-gray-800'
+                  : 'border-transparent bg-white/60 dark:bg-gray-800/40 hover:bg-white dark:hover:bg-gray-800'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={acceptedSug.has(i)}
+                onChange={() => toggleSuggestion(i)}
+                className="mt-0.5 accent-purple-500 flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-100">{s.title}</span>
+                  {s.subtitle && <span className="text-[11px] text-gray-500 dark:text-gray-400">· {s.subtitle}</span>}
+                  <span className="text-[9px] uppercase tracking-wide bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
+                    {ENTRY_TYPE_LABELS[s.entryType] ?? s.entryType}
+                  </span>
+                </div>
+                {s.reason && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{s.reason}</p>}
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const getCoverPrompt = () =>
@@ -110,14 +228,22 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   const handleApplyMasterJson = async () => {
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
+
+    let data;
+    try {
+      data = parseAiCvResponse(jsonInput);
+    } catch {
+      toast.error('JSON invalide. Vérifiez le format.');
+      return;
+    }
+
     setIsApplying(true);
     try {
-      const clean = jsonInput.replace(/```json/g, '').replace(/```/g, '').trim();
-      const data = JSON.parse(clean) as {
-        title?: string;
-        summary?: string;
-        entries?: { id: string; visible: boolean; description?: string }[];
-      };
+      const accepted = getAcceptedSuggestions();
+
+      // 0. Promote validated off-profile suggestions to the master profile FIRST,
+      //    so createCv auto-imports them into the correct sections of the new CV.
+      await promoteSuggestions(accepted);
 
       // 1. Create a brand-new CV from the master profile
       const cvName = data.title || `${offer.title} (IA)`;
@@ -137,28 +263,28 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
       // 2. Get the newly created CV (first in list after refresh)
       await useCvStore.getState().fetchCvs();
-      const refreshedCvs = useCvStore.getState().cvs;
-      const newCv = refreshedCvs[0]; // createCv orders by updated_at DESC
+      const newCv = useCvStore.getState().cvs[0]; // createCv orders by updated_at DESC
       if (!newCv) throw new Error('CV non créé');
 
-      // 3. Apply AI entry overrides on the new CV's blocks
-      if (data.entries && Array.isArray(data.entries)) {
-        await useCvStore.getState().fetchCvBlocks(newCv.id);
-        const blocks = useCvStore.getState().currentCvBlocks;
-        for (const aiEntry of data.entries) {
-          const block = blocks.find(b => b.entryId === aiEntry.id);
-          if (!block) continue;
-          if (aiEntry.visible === false) {
-            await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
-          } else {
-            await useCvStore.getState().updateCvBlock(block.id, { isVisible: true, overrideData: aiEntry.description !== undefined ? { ...block.overrideData, description: aiEntry.description } : block.overrideData } as Partial<CVBlock>);
-          }
+      // 3. Apply AI entry overrides on the new CV's blocks (existing master entries)
+      await useCvStore.getState().fetchCvBlocks(newCv.id);
+      const blocks = useCvStore.getState().currentCvBlocks;
+      for (const aiEntry of data.entries) {
+        const block = blocks.find(b => b.entryId === aiEntry.id);
+        if (!block) continue;
+        if (!aiEntry.visible) {
+          await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
+        } else {
+          await useCvStore.getState().updateCvBlock(block.id, {
+            isVisible: true,
+            overrideData: aiEntryToOverrideData(aiEntry, block.overrideData),
+          });
         }
       }
 
       toast.success(
         <span>
-          CV <strong>{cvName}</strong> créé avec succès !{' '}
+          CV <strong>{cvName}</strong> créé{accepted.length > 0 ? ` (+${accepted.length} entrée${accepted.length > 1 ? 's' : ''} ajoutée${accepted.length > 1 ? 's' : ''})` : ''} avec succès !{' '}
           <a href={`/cv/${newCv.id}`} className="underline font-semibold">Ouvrir →</a>
         </span>,
         { duration: 8000 }
@@ -166,11 +292,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setJsonInput('');
       onClose();
     } catch (err) {
-      if (err instanceof SyntaxError) {
-        toast.error('JSON invalide. Vérifiez le format.');
-      } else {
-        toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
-      }
+      toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
     } finally {
       setIsApplying(false);
     }
@@ -179,20 +301,23 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const handleApplyExistingJson = async () => {
     if (!selectedCvId) { toast.error('Sélectionnez un CV à dupliquer'); return; }
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
+
+    let data;
+    try {
+      data = parseAiCvResponse(jsonInput);
+    } catch {
+      toast.error('JSON invalide. Vérifiez le format.');
+      return;
+    }
+
     setIsApplying(true);
     try {
-      const clean = jsonInput.replace(/```json/g, '').replace(/```/g, '').trim();
-      const data = JSON.parse(clean) as {
-        title?: string;
-        summary?: string;
-        entries?: { id: string; visible: boolean; description?: string }[];
-      };
+      const accepted = getAcceptedSuggestions();
 
       // 1. Duplicate the selected CV
       await duplicateCv(selectedCvId);
       await useCvStore.getState().fetchCvs();
-      const refreshedCvs = useCvStore.getState().cvs;
-      const newCv = refreshedCvs[0];
+      const newCv = useCvStore.getState().cvs[0];
       if (!newCv) throw new Error('CV non créé');
 
       // 2. Rename + apply summary
@@ -203,24 +328,47 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
         customSummary: data.summary ?? null,
       });
 
-      // 3. Apply entry overrides
-      if (data.entries && Array.isArray(data.entries)) {
+      // 3. Apply entry overrides (existing master entries)
+      await useCvStore.getState().fetchCvBlocks(newCv.id);
+      const blocks = useCvStore.getState().currentCvBlocks;
+      for (const aiEntry of data.entries) {
+        const block = blocks.find(b => b.entryId === aiEntry.id);
+        if (!block) continue;
+        if (!aiEntry.visible) {
+          await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
+        } else {
+          await useCvStore.getState().updateCvBlock(block.id, {
+            isVisible: true,
+            overrideData: aiEntryToOverrideData(aiEntry, block.overrideData),
+          });
+        }
+      }
+
+      // 4. Promote validated off-profile suggestions to master, then append a visible
+      //    entry_ref block per new entry (the duplicated CV doesn't auto-import them).
+      const newEntryIds = await promoteSuggestions(accepted);
+      if (newEntryIds.length > 0) {
         await useCvStore.getState().fetchCvBlocks(newCv.id);
-        const blocks = useCvStore.getState().currentCvBlocks;
-        for (const aiEntry of data.entries) {
-          const block = blocks.find(b => b.entryId === aiEntry.id);
-          if (!block) continue;
-          if (aiEntry.visible === false) {
-            await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
-          } else {
-            await useCvStore.getState().updateCvBlock(block.id, { isVisible: true, overrideData: aiEntry.description !== undefined ? { ...block.overrideData, description: aiEntry.description } : block.overrideData } as Partial<CVBlock>);
-          }
+        const cvBlocks = useCvStore.getState().currentCvBlocks;
+        let maxSort = cvBlocks.reduce((m, b) => Math.max(m, b.sortOrder), 0);
+        for (const entryId of newEntryIds) {
+          maxSort += 1;
+          await useCvStore.getState().createCvBlock({
+            cvId: newCv.id,
+            entryId,
+            blockType: 'entry_ref',
+            sectionName: null,
+            customContent: null,
+            sortOrder: maxSort,
+            isVisible: true,
+            overrideData: {},
+          });
         }
       }
 
       toast.success(
         <span>
-          CV <strong>{cvName}</strong> créé !{' '}
+          CV <strong>{cvName}</strong> créé{accepted.length > 0 ? ` (+${accepted.length} entrée${accepted.length > 1 ? 's' : ''})` : ''} !{' '}
           <a href={`/cv/${newCv.id}`} className="underline font-semibold">Ouvrir →</a>
         </span>,
         { duration: 8000 }
@@ -228,11 +376,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setJsonInput('');
       onClose();
     } catch (err) {
-      if (err instanceof SyntaxError) {
-        toast.error('JSON invalide. Vérifiez le format.');
-      } else {
-        toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
-      }
+      toast.error(`Erreur : ${err instanceof Error ? err.message : 'inconnue'}`);
     } finally {
       setIsApplying(false);
     }
@@ -362,6 +506,21 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                 L'IA va sélectionner et adapter les meilleures entrées de <strong>toutes vos expériences</strong> pour créer un CV sur-mesure pour cette offre.
               </div>
 
+              {/* Optional free context — the ONLY source for off-profile suggestions */}
+              <div>
+                <span className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                  Contexte additionnel <span className="font-normal text-gray-400">(optionnel)</span>
+                </span>
+                <textarea
+                  value={extraContext}
+                  onChange={e => setExtraContext(e.target.value)}
+                  placeholder="Expériences, compétences ou projets hors profil que l'IA pourra proposer…"
+                  rows={3}
+                  className="w-full p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">Seule source autorisée pour les entrées suggérées hors profil — l'IA n'invente rien.</p>
+              </div>
+
               {/* Step 1 */}
               <div>
                 <StepLabel n={1} label="Copier le prompt d'analyse" />
@@ -383,6 +542,9 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                   className="w-full p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500"
                 />
               </div>
+
+              {/* Off-profile suggestions review (opt-in) */}
+              {renderSuggestions()}
 
               {/* Step 3 */}
               <div>
@@ -446,6 +608,21 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                 )}
               </div>
 
+              {/* Optional free context — the ONLY source for off-profile suggestions */}
+              <div>
+                <span className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                  Contexte additionnel <span className="font-normal text-gray-400">(optionnel)</span>
+                </span>
+                <textarea
+                  value={extraContext}
+                  onChange={e => setExtraContext(e.target.value)}
+                  placeholder="Expériences, compétences ou projets hors profil que l'IA pourra proposer…"
+                  rows={3}
+                  className="w-full p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">Seule source autorisée pour les entrées suggérées hors profil — l'IA n'invente rien.</p>
+              </div>
+
               {/* Step 2 */}
               <div>
                 <StepLabel n={2} label="Copier le prompt d'analyse" />
@@ -467,6 +644,9 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                   className="w-full p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
               </div>
+
+              {/* Off-profile suggestions review (opt-in) */}
+              {renderSuggestions()}
 
               {/* Step 4 */}
               <div>

@@ -4,7 +4,8 @@ import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { PROMPT_TEMPLATES, generateFullCVMatchPrompt } from '@/lib/prompt-templates';
-import { CVBlock } from '@/types/cv';
+import { parseAiCvResponse, aiEntryToOverrideData } from '@/lib/ai-cv-response';
+import { CVBlock, CVDocument } from '@/types/cv';
 import { toast } from 'sonner';
 
 interface AIPromptPanelProps {
@@ -112,36 +113,40 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
       toast.error("Veuillez coller le JSON généré");
       return;
     }
+    if (!currentCv) return;
+
+    let data;
+    try {
+      data = parseAiCvResponse(jsonInput);
+    } catch {
+      toast.error("Erreur de parsing JSON. Vérifiez le format.");
+      return;
+    }
 
     try {
-      // Clean up markdown code fences if present
-      const cleanJson = jsonInput.replace(/```json/g, '').replace(/```/g, '').trim();
-      const data = JSON.parse(cleanJson);
-
-      if (!currentCv) return;
-
-      // Update CV metadata
-      await useCvStore.getState().updateCv(currentCv.id, {
-        targetJob: data.title,
-        customSummary: data.summary,
-      });
+      // Update CV metadata (only the fields the AI actually returned)
+      const cvUpdates: Partial<CVDocument> = {};
+      if (data.title !== undefined) cvUpdates.targetJob = data.title;
+      if (data.summary !== undefined) cvUpdates.customSummary = data.summary;
+      if (Object.keys(cvUpdates).length > 0) {
+        await useCvStore.getState().updateCv(currentCv.id, cvUpdates);
+      }
 
       // Apply entry-level changes on existing entry_ref blocks via overrideData / isVisible.
       // This preserves the master profile structure and only patches what the AI decided.
-      if (data.entries && Array.isArray(data.entries)) {
-        for (const aiEntry of data.entries as { id: string; visible: boolean; description?: string }[]) {
-          const block = currentCvBlocks.find(b => b.entryId === aiEntry.id);
-          if (!block) continue;
+      // Note: suggestedEntries are intentionally ignored here — that review flow lives in
+      // the job-watch CV generator drawer for now.
+      for (const aiEntry of data.entries) {
+        const block = currentCvBlocks.find(b => b.entryId === aiEntry.id);
+        if (!block) continue;
 
-          if (aiEntry.visible === false) {
-            await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
-          } else {
-            const updates: Partial<CVBlock> = { isVisible: true };
-            if (aiEntry.description !== undefined) {
-              updates.overrideData = { ...block.overrideData, description: aiEntry.description };
-            }
-            await useCvStore.getState().updateCvBlock(block.id, updates);
-          }
+        if (!aiEntry.visible) {
+          await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
+        } else {
+          await useCvStore.getState().updateCvBlock(block.id, {
+            isVisible: true,
+            overrideData: aiEntryToOverrideData(aiEntry, block.overrideData),
+          });
         }
       }
 
@@ -149,7 +154,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
       setJsonInput('');
       onClose();
     } catch {
-      toast.error("Erreur de parsing JSON. Vérifiez le format.");
+      toast.error("Erreur lors de l'application du CV.");
     }
   };
 
