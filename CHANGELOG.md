@@ -5,6 +5,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [Non publié] - 2026-06-27
+
+### Synchronisation Google Drive
+
+- **Corrigé** : la connexion Google Drive échouait avec « Synchronisation Google Drive indisponible : définissez `VITE_GDRIVE_CLIENT_SECRET` au build » dans tout binaire compilé sans ce `.env`. Le secret du client OAuth « Application de bureau » (non confidentiel en flux PKCE) est de nouveau embarqué comme valeur par défaut, surchargeable au build via `VITE_GDRIVE_CLIENT_SECRET`. La connexion fonctionne désormais sans configuration.
+
 ## [Non publié] - 2026-06-10
 
 ### Veille emploi — nettoyage des offres périmées

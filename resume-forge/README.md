@@ -108,12 +108,14 @@ La synchronisation est optionnelle et utilise votre propre projet Google Cloud. 
 4. Ajouter les **URI de redirection autorisées** :
    - `http://127.0.0.1` *(PC — Google accepte tous les ports loopback)*
    - `com.jules.resume-forge:/oauth/callback` *(Android)*
-5. Copier le **Client ID** dans l'application : **Paramètres → Synchronisation Google Drive**
-6. Fournir le **Client Secret** au moment du build via un fichier `.env` (ignoré par git) à la racine de `resume-forge/` :
-   ```bash
-   VITE_GDRIVE_CLIENT_SECRET=GOCSPX-xxxxxxxx
-   ```
-   Sans cette variable, l'application fonctionne normalement mais la connexion Drive affiche une erreur explicite. *(Le secret n'est plus embarqué dans le code source ; pour une app de bureau en flux PKCE, Google le considère comme non confidentiel, mais il n'a pas sa place dans un dépôt.)*
+5. Le **Client ID** et le **Client Secret** du client officiel ResumeForge sont embarqués dans l'application : aucune configuration n'est nécessaire pour utiliser la sync Drive.
+
+> Pour utiliser **votre propre** projet Google Cloud, surchargez les identifiants au moment du build via un fichier `.env` à la racine de `resume-forge/` :
+> ```bash
+> VITE_GDRIVE_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
+> VITE_GDRIVE_CLIENT_SECRET=GOCSPX-xxxxxxxx
+> ```
+> Pour un client de type « Application de bureau » en flux PKCE, Google considère le secret comme non confidentiel ; il est donc embarqué dans le binaire.
 
 ### Utilisation
 
