@@ -128,7 +128,7 @@ export const FONT_NAMES = {
 // CATÉGORIES
 // ───────────────────────────────────────────────────────────────────────────
 
-export type TemplateCategory = 'ats' | 'executive' | 'tech' | 'creative' | 'academic';
+export type TemplateCategory = 'ats' | 'executive' | 'tech' | 'creative' | 'academic' | 'graphic';
 
 export const CATEGORY_LABELS: Record<TemplateCategory, string> = {
   ats:       'ATS',
@@ -136,6 +136,15 @@ export const CATEGORY_LABELS: Record<TemplateCategory, string> = {
   tech:      'Tech',
   creative:  'Créatif',
   academic:  'Académique',
+  graphic:   'Graphique',
+};
+
+/**
+ * Description courte par catégorie — affichée dans le sélecteur pour aider
+ * l'utilisateur à choisir entre un CV ATS et un CV graphique.
+ */
+export const CATEGORY_HINTS: Partial<Record<TemplateCategory, string>> = {
+  graphic: 'Mise en page deux colonnes pour un recruteur humain — non garanti ATS',
 };
 
 // ───────────────────────────────────────────────────────────────────────────

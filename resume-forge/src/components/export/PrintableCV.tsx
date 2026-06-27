@@ -7,7 +7,25 @@ import { CVSectionHeader } from './CVSectionHeader';
 import { CVEntryBlock } from './CVEntryBlock';
 import { CVBadgeGroup } from './CVBadgeGroup';
 import { CVCustomText } from './CVCustomText';
+import { CVSidebar, type SidebarSection } from './CVSidebar';
 import { safeCssValue, type CssValueKind } from '../../lib/css-sanitize';
+
+/** Relative luminance of a #rgb / #rrggbb color (0 = black, 1 = white). */
+function hexLuminance(hex: string): number {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 0; // assume dark when unknown
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Narrow-column display formats degrade to a simple list in the sidebar. */
+function sidebarFormat(format: DisplayFormat): DisplayFormat {
+  return format === 'columns2' || format === 'columns3' || format === 'table' ? 'list' : format;
+}
 
 const FONT_STACKS: Record<string, string> = {
   'Calibri': "'Calibri', 'Arial', sans-serif",
@@ -92,6 +110,23 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     const contactFontSize   = s('contactFontSize', 'length');
     const isBanner = ['accent-banner', 'dark-banner', 'gradient-banner'].includes(headerStyle);
 
+    // ── Layout deux colonnes (templates graphiques) ──────────────────────────
+    const isSidebar = template.layout === 'sidebar-left' || template.layout === 'sidebar-right';
+    const sidebarOnRight = template.layout === 'sidebar-right';
+    const accentColor = primaryColor || template.palettes?.[0]?.accent || '#1f2937';
+    const sidebarBg = template.sidebar?.bg || accentColor;
+    const sidebarIsDark = hexLuminance(sidebarBg) < 0.5;
+    const sidebarText = template.sidebar?.text || (sidebarIsDark ? '#ffffff' : '#1f2937');
+    const sidebarHeading = template.sidebar?.heading || sidebarText;
+    const sidebarWidth = template.sidebar?.width || '34%';
+    // Padding de la colonne principale = marge de page (densité) ou défaut.
+    const mainPad = pageMargin || '40px 44px';
+    // Couleurs adaptées au contraste de la bande (clair vs sombre).
+    const sbBadgeBg     = sidebarIsDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.05)';
+    const sbBadgeBorder = sidebarIsDark ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.12)';
+    const sbRule        = sidebarIsDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.12)';
+    const sbRing        = sidebarIsDark ? 'rgba(255,255,255,0.5)'  : 'rgba(0,0,0,0.18)';
+
     // Compute effective container padding for full-width banner bleed (negative margin trick)
     const getBannerPad = () => {
       if (pageMargin) {
@@ -164,8 +199,8 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       summaryFontWeight  ? `#printable-cv .cv-summary { font-weight: ${summaryFontWeight} !important; }` : '',
       summaryTextAlign   ? `#printable-cv .cv-summary { text-align: ${summaryTextAlign} !important; }` : '',
       summaryLineHeight  ? `#printable-cv .cv-summary { line-height: ${summaryLineHeight} !important; }` : '',
-      pageMargin         ? `#printable-cv { padding: ${pageMargin} !important; }` : '',
-      (() => {
+      (!isSidebar && pageMargin) ? `#printable-cv { padding: ${pageMargin} !important; }` : '',
+      isSidebar ? '' : (() => {
         let pv: string, ph: string;
         if (pageMargin) {
           const parts = pageMargin.trim().split(/\s+/);
@@ -197,6 +232,19 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       primaryColor       ? `#printable-cv h3::before { color: ${primaryColor} !important; }` : '',
       isBanner ? `#printable-cv .cv-header-block, #printable-cv .cv-header-block * { color: white !important; }` : '',
       isBanner ? `#printable-cv .cv-header-block .cv-badge { background-color: rgba(255,255,255,0.15) !important; border-color: rgba(255,255,255,0.4) !important; color: white !important; }` : '',
+      // ── Bande latérale (templates graphiques) ──────────────────────────────
+      isSidebar ? `#printable-cv { display: flex; align-items: stretch; padding: 0 !important; min-height: 297mm; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar { flex: 0 0 ${sidebarWidth}; width: ${sidebarWidth}; background: ${sidebarBg}; color: ${sidebarText}; padding: 30px 24px; box-sizing: border-box; ${sidebarOnRight ? 'order: 2;' : ''} }` : '',
+      isSidebar ? `#printable-cv .cv-main-col { flex: 1 1 auto; min-width: 0; padding: ${mainPad}; box-sizing: border-box; ${sidebarOnRight ? 'order: 1;' : ''} }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar a { color: inherit; text-decoration: none; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar, #printable-cv .cv-sidebar p, #printable-cv .cv-sidebar li, #printable-cv .cv-sidebar span, #printable-cv .cv-sidebar .cv-badge-item { color: ${sidebarText} !important; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar { font-size: 11.5px; line-height: 1.5; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: ${sidebarHeading}; border-bottom: 1px solid ${sbRule}; padding-bottom: 5px; margin-bottom: 10px; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar-icon svg { opacity: 0.85; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar-photo-ring { border: 3px solid ${sbRing}; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar .cv-badge { background-color: ${sbBadgeBg} !important; border-color: ${sbBadgeBorder} !important; color: ${sidebarText} !important; }` : '',
+      // La colonne principale conserve les couleurs d'accent du template.
+      isSidebar && primaryColor ? `#printable-cv .cv-main-col h3 { color: ${primaryColor}; border-color: ${primaryColor}; }` : '',
     ].filter(Boolean).join('\n');
 
     const hasPhoto = Boolean(profile.photoPath);
@@ -243,6 +291,118 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       i++;
     }
 
+    // For sidebar layouts, split sections: badge-only sections (skills, langues,
+    // intérêts, certifications) go to the sidebar; everything else stays in the
+    // main column. Sections are delimited by section_header blocks.
+    const sidebarSections: SidebarSection[] = [];
+    const mainItems: RenderItem[] = isSidebar ? [] : renderItems;
+    if (isSidebar) {
+      type Group = { header: CVBlock | null; items: RenderItem[] };
+      const groups: Group[] = [];
+      let current: Group | null = null;
+      for (const item of renderItems) {
+        if (item.type === 'block' && item.block.blockType === 'section_header') {
+          current = { header: item.block, items: [] };
+          groups.push(current);
+        } else {
+          if (!current) { current = { header: null, items: [] }; groups.push(current); }
+          current.items.push(item);
+        }
+      }
+      for (const g of groups) {
+        const badgeOnly = g.items.length > 0 && g.items.every(it => it.type === 'badge-group');
+        if (badgeOnly && g.header) {
+          const blocks = g.items.flatMap(it => (it.type === 'badge-group' ? it.blocks : []));
+          const first = g.items.find(it => it.type === 'badge-group') as Extract<RenderItem, { type: 'badge-group' }>;
+          sidebarSections.push({
+            id: g.header.id,
+            sectionName: g.header.sectionName,
+            blocks,
+            format: sidebarFormat(first.format),
+          });
+        } else {
+          if (g.header) mainItems.push({ type: 'block', block: g.header });
+          mainItems.push(...g.items);
+        }
+      }
+    }
+
+    const renderItem = (item: RenderItem, idx: number) => {
+      if (item.type === 'badge-group') {
+        return (
+          <div key={`badge-${idx}`} className="cv-entry mb-3 print:break-inside-avoid">
+            <CVBadgeGroup blocks={item.blocks} entries={entries} template={template} format={item.format} />
+          </div>
+        );
+      }
+
+      const block = item.block;
+
+      if (block.blockType === 'section_header') {
+        return <CVSectionHeader key={block.id} sectionName={block.sectionName} template={template} />;
+      }
+
+      if (block.blockType === 'custom_text') {
+        return <CVCustomText key={block.id} content={block.customContent || ''} template={template} />;
+      }
+
+      if (block.blockType === 'entry_ref' && block.entryId) {
+        const entry = entries.find((e) => e.id === block.entryId);
+        if (!entry) return null;
+        return <CVEntryBlock key={block.id} block={block} entry={entry} template={template} />;
+      }
+
+      return null;
+    };
+
+    // ── Layout deux colonnes (templates graphiques) ──────────────────────────
+    if (isSidebar) {
+      return (
+        <div
+          id="printable-cv"
+          ref={ref}
+          style={{ fontFamily }}
+          className={`${template.preview.containerClass} bg-white text-black dark:bg-white dark:text-black print:shadow-none print:m-0 print:w-full print:max-w-none`}
+        >
+          {cssOverrides && <style dangerouslySetInnerHTML={{ __html: cssOverrides }} />}
+
+          <CVSidebar
+            profile={profile}
+            entries={entries}
+            template={template}
+            sections={sidebarSections}
+            hasPhoto={hasPhoto}
+            photoShape={photoShape}
+            photoSize={photoSize}
+            photoBorder={photoBorder}
+          />
+
+          <div className="cv-main-col">
+            <div className="cv-header-block mb-4">
+              <h1 className={`cv-name ${template.preview.nameClass || 'text-3xl font-bold mb-1'}`}>
+                {nameLineBreak === 'split'
+                  ? <>{profile.firstName}<br />{profile.lastName}</>
+                  : `${profile.firstName} ${profile.lastName}`}
+              </h1>
+              {title && (
+                <h2 className={`cv-job-title ${template.preview.headerTitleClass || 'text-xl font-semibold text-gray-700'}`}>
+                  {title}
+                </h2>
+              )}
+            </div>
+
+            {summary && (
+              <div className="mb-5">
+                <p className={`cv-summary ${template.preview.summaryClass || template.preview.descriptionClass}`}>{summary}</p>
+              </div>
+            )}
+
+            {mainItems.map((item, idx) => renderItem(item, idx))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         id="printable-cv"
@@ -282,33 +442,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         )}
 
         {/* Dynamic Blocks */}
-        {renderItems.map((item, idx) => {
-          if (item.type === 'badge-group') {
-            return (
-              <div key={`badge-${idx}`} className="cv-entry mb-3 print:break-inside-avoid">
-                <CVBadgeGroup blocks={item.blocks} entries={entries} template={template} format={item.format} />
-              </div>
-            );
-          }
-
-          const block = item.block;
-
-          if (block.blockType === 'section_header') {
-            return <CVSectionHeader key={block.id} sectionName={block.sectionName} template={template} />;
-          }
-
-          if (block.blockType === 'custom_text') {
-            return <CVCustomText key={block.id} content={block.customContent || ''} template={template} />;
-          }
-
-          if (block.blockType === 'entry_ref' && block.entryId) {
-            const entry = entries.find((e) => e.id === block.entryId);
-            if (!entry) return null;
-            return <CVEntryBlock key={block.id} block={block} entry={entry} template={template} />;
-          }
-
-          return null;
-        })}
+        {mainItems.map((item, idx) => renderItem(item, idx))}
       </div>
     );
   }

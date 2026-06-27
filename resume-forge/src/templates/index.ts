@@ -6,6 +6,9 @@ import { tech } from './tech';
 import { executive } from './executive';
 import { creative } from './creative';
 import { academic } from './academic';
+import { sidebarModern } from './sidebar-modern';
+import { sidebarElegant } from './sidebar-elegant';
+import { sidebarTech } from './sidebar-tech';
 import { CVTemplate } from '../types/template';
 import type { TemplateCategory } from '../theme/tokens';
 
@@ -18,6 +21,9 @@ export const templates: Record<string, CVTemplate> = {
   'executive': executive,
   'creative': creative,
   'academic': academic,
+  'sidebar-modern': sidebarModern,
+  'sidebar-elegant': sidebarElegant,
+  'sidebar-tech': sidebarTech,
 };
 
 /** Ordre d'affichage dans le sélecteur — groupé par catégorie. */
@@ -30,6 +36,9 @@ export const TEMPLATE_ORDER: string[] = [
   'tech',
   'creative',
   'academic',
+  'sidebar-modern',
+  'sidebar-tech',
+  'sidebar-elegant',
 ];
 
 export function getTemplate(id: string): CVTemplate {
