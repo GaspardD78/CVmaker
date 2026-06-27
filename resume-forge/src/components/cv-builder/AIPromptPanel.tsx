@@ -32,6 +32,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
   const [activeTab, setActiveTab] = useState<'standard' | 'full'>('standard');
   const [jsonInput, setJsonInput] = useState('');
   const [fullPromptCopied, setFullPromptCopied] = useState(false);
+  const [clarify, setClarify] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) loadDifferentiator();
@@ -98,7 +99,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     if (!profile) return;
 
     try {
-      const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer);
+      const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer, undefined, undefined, clarify);
       await navigator.clipboard.writeText(prompt);
       setFullPromptCopied(true);
       toast.success("Prompt copié dans le presse-papier");
@@ -327,6 +328,18 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
                 {error}
               </p>
             )}
+
+            <label className="flex items-start gap-2 p-2.5 rounded-md border border-gray-200 bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={clarify}
+                onChange={e => setClarify(e.target.checked)}
+                className="mt-0.5 accent-amber-500 flex-shrink-0"
+              />
+              <span className="text-xs text-gray-600 leading-relaxed">
+                <span className="font-semibold text-gray-700">Affiner par questions</span> — l'IA pose 1 à 3 questions ciblées avant de générer (si besoin). Réponds-lui, puis colle le JSON final.
+              </span>
+            </label>
 
             <button
               onClick={handleCopyFullPrompt}

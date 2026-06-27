@@ -39,6 +39,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const [selectedCvId, setSelectedCvId] = useState<string>('');
   const [jsonInput, setJsonInput] = useState('');
   const [extraContext, setExtraContext] = useState('');
+  const [clarify, setClarify] = useState(false);
   const [suggestions, setSuggestions] = useState<AiCvSuggestedEntry[]>([]);
   const [acceptedSug, setAcceptedSug] = useState<Set<number>>(new Set());
   const [restructure, setRestructure] = useState<{ reordered: number; sections: number; groups: number }>({ reordered: 0, sections: 0, groups: 0 });
@@ -60,6 +61,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setActiveTab('master');
       setJsonInput('');
       setExtraContext('');
+      setClarify(false);
       setSuggestions([]);
       setAcceptedSug(new Set());
       setRestructure({ reordered: 0, sections: 0, groups: 0 });
@@ -124,12 +126,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext);
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify);
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext);
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify);
   };
 
   // ── Suggested-entry helpers (off-profile, opt-in) ─────────────────────────
@@ -172,6 +174,20 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     }
     return useProfileStore.getState().entries.filter(e => !beforeIds.has(e.id)).map(e => e.id);
   };
+
+  const renderClarifyToggle = () => (
+    <label className="flex items-start gap-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={clarify}
+        onChange={e => setClarify(e.target.checked)}
+        className="mt-0.5 accent-indigo-500 flex-shrink-0"
+      />
+      <span className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+        <span className="font-semibold text-gray-700 dark:text-gray-200">Affiner par questions</span> — l'IA pose 1 à 3 questions ciblées avant de générer (si besoin). Réponds-lui, puis colle le JSON final.
+      </span>
+    </label>
+  );
 
   const renderRestructure = () => {
     const parts: string[] = [];
@@ -526,8 +542,9 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               </div>
 
               {/* Step 1 */}
-              <div>
+              <div className="space-y-2">
                 <StepLabel n={1} label="Copier le prompt d'analyse" />
+                {renderClarifyToggle()}
                 <CopyBtn
                   copied={promptCopied}
                   onCopy={() => copyPrompt(getMasterPrompt, setPromptCopied)}
@@ -629,8 +646,9 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               </div>
 
               {/* Step 2 */}
-              <div>
+              <div className="space-y-2">
                 <StepLabel n={2} label="Copier le prompt d'analyse" />
+                {renderClarifyToggle()}
                 <CopyBtn
                   copied={cvPromptCopied}
                   onCopy={() => copyPrompt(getExistingCvPrompt, setCvPromptCopied)}

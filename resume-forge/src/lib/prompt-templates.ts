@@ -273,12 +273,25 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
 
 import { Profile, MasterEntry } from '@/types/profile';
 
+/**
+ * Light, opt-in clarification protocol. When enabled, the LLM may ask up to a
+ * few high-impact questions BEFORE producing the JSON — but only when a real
+ * ambiguity blocks good targeting. Kept deliberately short so it never turns the
+ * one-shot flow into a heavy interview.
+ */
+const CLARIFY_PROTOCOL = `## Avant de générer — affinage par questions (léger)
+Si, ET SEULEMENT SI, une information à fort impact manque pour bien cibler le CV, pose d'abord des questions courtes puis ARRÊTE-TOI et attends mes réponses. Sinon, produis directement le JSON sans rien demander.
+- Maximum **3 questions**, une ligne chacune, numérotées, avec une **réponse par défaut entre crochets** que je peux valider d'un mot.
+- Zéro question triviale ou cosmétique. Priorise : poste réellement visé, arbitrage entre expériences concurrentes, éléments à mettre en avant ou masquer, séniorité/ton attendus.
+- Si je réponds, ou si j'écris « génère » / « ok », produis IMMÉDIATEMENT le JSON final (et UNIQUEMENT le JSON).`;
+
 export function generateFullCVMatchPrompt(
   _profile: Profile,
   entries: MasterEntry[],
   jobOfferText: string,
   targetCompany?: string,
-  extraContext?: string
+  extraContext?: string,
+  clarify = false,
 ): string {
   const trimmedContext = extraContext?.trim();
   const experiences = entries
@@ -371,7 +384,7 @@ ${SYSTEM_RULES}
 - **REGROUPEMENT DES COMPÉTENCES (optionnel)** : \`skillGroups\` regroupe les compétences existantes en catégories thématiques (ex : "Langages", "Outils & Frameworks", "Méthodes"). C'est une RÉORGANISATION, pas une création : chaque \`entryIds\` ne référence QUE des IDs de compétences déjà présentes dans le profil. N'invente aucune compétence. Omets \`skillGroups\` si un regroupement n'apporte rien.
 - **ENTRÉES SUGGÉRÉES — RÈGLE ABSOLUE ANTI-INVENTION** : \`suggestedEntries\` ne peut contenir QUE des éléments réellement pertinents pour l'annonce ET absents du profil maître. Chaque entrée suggérée doit être DIRECTEMENT et EXPLICITEMENT étayée par le « Contexte additionnel » ci-dessus — jamais déduite de l'annonce, jamais extrapolée. INTERDICTION FORMELLE d'inventer une expérience, compétence, formation, employeur, date ou chiffre. Si le contexte additionnel est vide ou ne contient rien de pertinent et d'absent, renvoie \`"suggestedEntries": []\`. Ne jamais y dupliquer une entrée déjà présente dans le profil maître.
 
-## Format de sortie OBLIGATOIRE
+${clarify ? `${CLARIFY_PROTOCOL}\n\n` : ''}## Format de sortie OBLIGATOIRE
 Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown). Les champs \`titleOverride\`, \`subtitleOverride\`, \`companyOverride\`, \`datesOverride\` et les tableaux \`suggestedEntries\`, \`entryOrder\`, \`sectionOrder\`, \`skillGroups\` sont optionnels : omets-les s'ils ne servent pas.
 
 {
