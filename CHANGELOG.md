@@ -12,6 +12,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Corrigé** : la connexion Google Drive échouait avec « Synchronisation Google Drive indisponible : définissez `VITE_GDRIVE_CLIENT_SECRET` au build » dans tout binaire compilé sans ce `.env`. Le secret du client OAuth « Application de bureau » (non confidentiel en flux PKCE) est de nouveau embarqué comme valeur par défaut, surchargeable au build via `VITE_GDRIVE_CLIENT_SECRET`. La connexion fonctionne désormais sans configuration.
 
 ## [Non publié] - 2026-06-10
+### Templates graphiques deux colonnes (recruteur humain)
+
+- **Ajout** : trois templates graphiques « non-ATS » conçus pour un envoi direct à un recruteur humain — `sidebar-modern` (Sidebar Moderne, bande sombre à gauche), `sidebar-tech` (Sidebar Tech, bande colorée à gauche) et `sidebar-elegant` (Sidebar Élégant, bande claire à droite, titres serif). Nouvelle catégorie « Graphique » dans le sélecteur.
+- **Ajout** : layout deux colonnes dans `PrintableCV` — la photo, les coordonnées et les sections « badges » (compétences, langues, centres d'intérêt, certifications) sont routées dans une bande latérale colorée ; l'expérience et la formation occupent la colonne principale. Le rendu reste unifié (aperçu live + export PDF via impression).
+- **Ajout** : champs `layout`, `sidebar` et `atsOptimized` sur `CVTemplate` ; composant `CVSidebar` ; helper `buildContactItems` partagé. Le contraste de la bande (clair/sombre) est calculé automatiquement par luminance.
+- **Ajout** : badge « Non-ATS » et avertissement dans le sélecteur de templates pour signaler que ces modèles ne sont pas optimisés pour les filtres ATS.
 
 ### Veille emploi — nettoyage des offres périmées
 

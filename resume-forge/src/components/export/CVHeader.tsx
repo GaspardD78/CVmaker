@@ -68,6 +68,24 @@ function ensureHref(url: string): string {
   return `https://${url}`;
 }
 
+export interface ContactItem {
+  icon: React.ReactNode;
+  text: string;
+  href?: string;
+}
+
+/** Build the ordered list of contact items (icon + text + optional href). */
+export function buildContactItems(profile: Profile): ContactItem[] {
+  const items: ContactItem[] = [];
+  if (profile.email) items.push({ icon: <MailIcon />, text: profile.email, href: `mailto:${profile.email}` });
+  if (profile.phone) items.push({ icon: <PhoneIcon />, text: profile.phone, href: `tel:${profile.phone.replace(/\s/g, '')}` });
+  if (profile.city) items.push({ icon: <LocationIcon />, text: profile.city });
+  if (profile.linkedinUrl) items.push({ icon: <LinkedInIcon />, text: shortenUrl(profile.linkedinUrl), href: ensureHref(profile.linkedinUrl) });
+  if (profile.githubUrl) items.push({ icon: <GitHubIcon />, text: shortenUrl(profile.githubUrl), href: ensureHref(profile.githubUrl) });
+  if (profile.portfolioUrl) items.push({ icon: <GlobeIcon />, text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });
+  return items;
+}
+
 interface CVHeaderProps {
   profile: Profile;
   title: string | null;
@@ -89,13 +107,7 @@ export function CVHeader({
   isBanner, headerStyle, headerBlockStyle, nameLineBreak,
 }: CVHeaderProps) {
   // Build contact items with icons
-  const contactItems: { icon: React.ReactNode; text: string; href?: string }[] = [];
-  if (profile.email) contactItems.push({ icon: <MailIcon />, text: profile.email, href: `mailto:${profile.email}` });
-  if (profile.phone) contactItems.push({ icon: <PhoneIcon />, text: profile.phone, href: `tel:${profile.phone.replace(/\s/g, '')}` });
-  if (profile.city) contactItems.push({ icon: <LocationIcon />, text: profile.city });
-  if (profile.linkedinUrl) contactItems.push({ icon: <LinkedInIcon />, text: shortenUrl(profile.linkedinUrl), href: ensureHref(profile.linkedinUrl) });
-  if (profile.githubUrl) contactItems.push({ icon: <GitHubIcon />, text: shortenUrl(profile.githubUrl), href: ensureHref(profile.githubUrl) });
-  if (profile.portfolioUrl) contactItems.push({ icon: <GlobeIcon />, text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });
+  const contactItems = buildContactItems(profile);
 
   return (
     <div

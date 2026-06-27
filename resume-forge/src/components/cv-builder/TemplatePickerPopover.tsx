@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getAllTemplates, getTemplate } from '../../templates';
-import { CATEGORY_LABELS, type TemplateCategory } from '../../theme/tokens';
+import { CATEGORY_LABELS, CATEGORY_HINTS, type TemplateCategory } from '../../theme/tokens';
 
 interface TemplatePickerPopoverProps {
   currentTemplateId: string;
@@ -187,20 +187,79 @@ function PreviewAcademic({ accent, ink = '#111827' }: PreviewProps) {
   );
 }
 
+/** Two-column sidebar preview (graphic templates). */
+function PreviewSidebar({
+  accent, ink = '#111827', side = 'left', band,
+}: PreviewProps & { side?: 'left' | 'right'; band?: string }) {
+  const bandW = 28;
+  const bandX = side === 'left' ? 0 : 80 - bandW;
+  const mainX = side === 'left' ? bandW + 5 : 5;
+  const cx = bandX + bandW / 2;
+  const bandColor = band || ink;
+  return (
+    <svg viewBox="0 0 80 110" className="w-full h-full">
+      <rect width="80" height="110" fill="white" />
+      {/* Sidebar band */}
+      <rect x={bandX} y="0" width={bandW} height="110" fill={bandColor} />
+      {/* Photo */}
+      <circle cx={cx} cy="16" r="9" fill="white" opacity="0.9" />
+      {/* Contact lines */}
+      {[30, 33, 36].map((y) => (
+        <rect key={y} x={bandX + 5} y={y} width="18" height="1.2" rx="0.4" fill="white" opacity="0.55" />
+      ))}
+      {/* Sidebar section heading + pills */}
+      <rect x={bandX + 5} y="44" width="14" height="1.6" rx="0.4" fill="white" opacity="0.85" />
+      {[[5, 49, 9], [16, 49, 7], [5, 53, 7], [14, 53, 9]].map(([x, y, w], i) => (
+        <rect key={i} x={bandX + x} y={y} width={w} height="3" rx="1.5" fill="white" opacity="0.28" />
+      ))}
+      <rect x={bandX + 5} y="62" width="14" height="1.6" rx="0.4" fill="white" opacity="0.85" />
+      {[67, 70, 73].map((y) => (
+        <rect key={y} x={bandX + 5} y={y} width="17" height="1.2" rx="0.4" fill="white" opacity="0.5" />
+      ))}
+      {/* Main column: name + title */}
+      <rect x={mainX} y="10" width="34" height="4" rx="0.5" fill={ink} />
+      <rect x={mainX} y="16" width="22" height="2" rx="0.4" fill={accent} />
+      {/* Main sections */}
+      {[26, 50, 76, 96].map((y, i) => (
+        <g key={i}>
+          <rect x={mainX} y={y} width="24" height="2" rx="0.3" fill={accent} />
+          <rect x={mainX} y={y + 3.5} width="42" height="0.6" fill={accent} opacity="0.4" />
+          <rect x={mainX} y={y + 6} width="42" height="1.2" fill="#e5e7eb" />
+          <rect x={mainX} y={y + 9} width="38" height="1.2" fill="#e5e7eb" />
+          {y !== 96 && <rect x={mainX} y={y + 12} width="40" height="1.2" fill="#e5e7eb" />}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function PreviewSidebarModern(p: PreviewProps) {
+  return <PreviewSidebar {...p} side="left" band="#1e293b" />;
+}
+function PreviewSidebarTech(p: PreviewProps) {
+  return <PreviewSidebar {...p} side="left" band="#064e3b" />;
+}
+function PreviewSidebarElegant(p: PreviewProps) {
+  return <PreviewSidebar {...p} side="right" band="#cbd5e1" ink={p.ink} />;
+}
+
 const TEMPLATE_PREVIEWS: Record<string, React.ComponentType<PreviewProps>> = {
-  'ats-classic': PreviewClassic,
-  'ats-modern':  PreviewModern,
-  'elegant':     PreviewElegant,
-  'minimalist':  PreviewMinimalist,
-  'tech':        PreviewTech,
-  'executive':   PreviewExecutive,
-  'creative':    PreviewCreative,
-  'academic':    PreviewAcademic,
+  'ats-classic':     PreviewClassic,
+  'ats-modern':      PreviewModern,
+  'elegant':         PreviewElegant,
+  'minimalist':      PreviewMinimalist,
+  'tech':            PreviewTech,
+  'executive':       PreviewExecutive,
+  'creative':        PreviewCreative,
+  'academic':        PreviewAcademic,
+  'sidebar-modern':  PreviewSidebarModern,
+  'sidebar-tech':    PreviewSidebarTech,
+  'sidebar-elegant': PreviewSidebarElegant,
 };
 
 // ── Composant principal ────────────────────────────────────────────────────
 
-const CATEGORY_ORDER: TemplateCategory[] = ['ats', 'executive', 'tech', 'creative', 'academic'];
+const CATEGORY_ORDER: TemplateCategory[] = ['ats', 'executive', 'tech', 'creative', 'academic', 'graphic'];
 
 export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplatePickerPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -296,12 +355,17 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
                 if (items.length === 0) return null;
                 return (
                   <div key={cat} className="mb-4 last:mb-0">
-                    <div className="flex items-center gap-2 mb-2 px-1">
+                    <div className="flex items-center gap-2 mb-1 px-1">
                       <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
                         {CATEGORY_LABELS[cat]}
                       </span>
                       <span className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
                     </div>
+                    {CATEGORY_HINTS[cat] && (
+                      <p className="text-[10.5px] text-amber-700 dark:text-amber-400 px-1 mb-2 leading-snug">
+                        {CATEGORY_HINTS[cat]}
+                      </p>
+                    )}
                     <div className={`grid gap-2.5 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}>
                       {items.map(template => {
                         const Preview = TEMPLATE_PREVIEWS[template.id];
@@ -318,7 +382,7 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
                             className="flex flex-col items-center gap-1.5 group rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                           >
                             <div
-                              className={`w-full aspect-[80/110] rounded-md border-2 overflow-hidden transition-colors ${
+                              className={`relative w-full aspect-[80/110] rounded-md border-2 overflow-hidden transition-colors ${
                                 isActive
                                   ? 'border-blue-500 ring-2 ring-blue-200'
                                   : 'border-gray-200 dark:border-gray-700 group-hover:border-blue-300 bg-white'
@@ -326,6 +390,14 @@ export function TemplatePickerPopover({ currentTemplateId, onSelect }: TemplateP
                               style={isActive ? {} : { background: 'white' }}
                             >
                               {Preview && <Preview accent={accent} ink={ink} />}
+                              {template.atsOptimized === false && (
+                                <span
+                                  className="absolute top-1 right-1 px-1 py-px text-[8px] font-bold uppercase tracking-wide rounded bg-amber-500 text-white shadow-sm"
+                                  title="CV graphique — destiné à un recruteur humain, non optimisé pour les filtres ATS"
+                                >
+                                  Non-ATS
+                                </span>
+                              )}
                             </div>
                             <span className={`text-[11px] font-medium text-center leading-tight ${
                               isActive
