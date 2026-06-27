@@ -22,19 +22,10 @@ import { getSetting, setSetting } from '@/lib/db';
 
 // Official ResumeForge Google Client ID for the Approved App (OAuth2 PKCE)
 const CLIENT_ID = import.meta.env.VITE_GDRIVE_CLIENT_ID || '318662236943-ta2c54f7mordbupr7n9dkccnficq0b55.apps.googleusercontent.com';
-// Jamais commité — fourni au build via VITE_GDRIVE_CLIENT_SECRET (fichier .env
-// local, ignoré par git). Sans lui, la sync Drive est désactivée avec un
-// message explicite au moment de la connexion.
-const CLIENT_SECRET = import.meta.env.VITE_GDRIVE_CLIENT_SECRET || '';
-
-function requireClientSecret(): string {
-  if (!CLIENT_SECRET) {
-    throw new Error(
-      'Synchronisation Google Drive indisponible : définissez VITE_GDRIVE_CLIENT_SECRET au build (voir README).',
-    );
-  }
-  return CLIENT_SECRET;
-}
+// Client secret du client OAuth "Application de bureau". Pour ce type de client,
+// Google considère le secret comme non confidentiel (flux PKCE), il peut donc
+// être embarqué. Surchargeable au build via VITE_GDRIVE_CLIENT_SECRET.
+const CLIENT_SECRET = import.meta.env.VITE_GDRIVE_CLIENT_SECRET || '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';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const MOBILE_REDIRECT = 'com.jules.resume-forge:/oauth/callback';
 const FOLDER_NAME = 'ResumeForge Backups';
@@ -190,7 +181,7 @@ export async function exchangeCode(code: string, profileId?: string | null): Pro
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
-      client_secret: requireClientSecret(),
+      client_secret: CLIENT_SECRET,
       code,
       code_verifier: verifier,
       grant_type: 'authorization_code',
@@ -218,7 +209,7 @@ async function refreshAccessToken(tokens: GDriveTokens, profileId?: string | nul
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
-      client_secret: requireClientSecret(),
+      client_secret: CLIENT_SECRET,
       refresh_token: tokens.refreshToken,
       grant_type: 'refresh_token',
     }),
