@@ -299,6 +299,31 @@ export function generateFullCVMatchPrompt(
     .map(e => `- ID: "${e.id}" | Diplôme: "${e.title}" | École: "${e.subtitle ?? ''}"`)
     .join('\n');
 
+  const certifications = entries
+    .filter(e => e.entryType === 'certification')
+    .map(e => `- ID: "${e.id}" | Titre: "${e.title}" | Émetteur: "${e.subtitle ?? ''}"`)
+    .join('\n');
+
+  const languages = entries
+    .filter(e => e.entryType === 'language')
+    .map(e => `- ID: "${e.id}" | Langue: "${e.title}" | Niveau: "${e.subtitle ?? ''}"`)
+    .join('\n');
+
+  const projects = entries
+    .filter(e => e.entryType === 'project')
+    .map(e => `- ID: "${e.id}" | Titre: "${e.title}" | Détail: "${(e.description ?? '').replace(/\n/g, ' ')}"`)
+    .join('\n');
+
+  const interests = entries
+    .filter(e => e.entryType === 'interest')
+    .map(e => `- ID: "${e.id}" | Titre: "${e.title}"`)
+    .join('\n');
+
+  const volunteer = entries
+    .filter(e => e.entryType === 'volunteer')
+    .map(e => `- ID: "${e.id}" | Titre: "${e.title}" | Organisation: "${e.subtitle ?? ''}"`)
+    .join('\n');
+
   return `# Rôle
 Expert en rédaction de CV ATS et recruteur senior.
 
@@ -318,19 +343,36 @@ ${skills || '(aucune)'}
 ### Formations
 ${education || '(aucune)'}
 
+### Certifications
+${certifications || '(aucune)'}
+
+### Langues
+${languages || '(aucune)'}
+
+### Projets
+${projects || '(aucun)'}
+
+### Centres d'intérêt
+${interests || '(aucun)'}
+
+### Bénévolat
+${volunteer || '(aucun)'}
+
 ## Contexte additionnel (source UNIQUE des entrées suggérées)
 ${trimmedContext || '(aucun — donc "suggestedEntries" DOIT être un tableau vide)'}
 
 ${SYSTEM_RULES}
-- **SÉLECTION** : Ne garder que ce qui est utile pour l'annonce (\`visible: true\`). Masquer le reste (\`visible: false\`).
-- **ADAPTATION** : Réécrire les descriptions d'expériences en puces (•) percutantes.
-- **RÉALISME** : Ne jamais inventer de chiffres ou de responsabilités.
+- **SÉLECTION (tous types)** : Pour CHAQUE entrée du profil (expériences, formations, compétences, certifications, langues, projets, centres d'intérêt, bénévolat), décide \`visible: true\` si utile pour l'annonce, \`visible: false\` sinon. Une entrée absente de \`entries\` reste affichée telle quelle.
+- **ADAPTATION** : Réécrire les descriptions d'expériences et de projets en puces (•) percutantes.
+- **RÉALISME** : Ne jamais inventer de chiffres, responsabilités, niveaux de langue ou compétences.
 - **VOLUME** : Le résultat final doit tenir sur une page (prioriser les 3-5 dernières années).
-- **SURCHARGES D'AFFICHAGE (optionnelles, non destructives)** : sur une entrée, tu peux ajouter \`titleOverride\`, \`companyOverride\` et/ou \`datesOverride\` UNIQUEMENT si l'annonce justifie d'afficher un libellé différent de la donnée source (ex : afficher un intitulé de poste équivalent mieux aligné sur l'annonce). Ces champs ne modifient jamais la donnée maître. Si aucun changement n'est utile, ne les mets pas.
+- **SURCHARGES D'AFFICHAGE (optionnelles, non destructives)** : sur une entrée de N'IMPORTE QUEL type, tu peux ajouter \`titleOverride\` (libellé principal : intitulé de poste, libellé de compétence reformulé, nom de certification…), \`subtitleOverride\` (libellé secondaire : entreprise, école, **niveau de langue normalisé** ex « Courant - C1 », émetteur de certification…) et/ou \`datesOverride\`. UNIQUEMENT si l'annonce justifie un affichage différent de la source. Ces champs ne modifient jamais la donnée maître. Si rien n'est utile, ne les mets pas.
+- **RÉORDONNANCEMENT (optionnel)** : \`entryOrder\` = liste d'IDs d'entrées dans l'ordre d'affichage souhaité (les plus pertinentes pour l'annonce d'abord, à l'intérieur de leur section). \`sectionOrder\` = liste de libellés de sections dans l'ordre souhaité. Libellés EXACTS autorisés : "Expériences Professionnelles", "Formations", "Compétences", "Certifications", "Langues", "Projets", "Centres d'intérêt", "Bénévolat". Omets ces champs si l'ordre actuel convient.
+- **REGROUPEMENT DES COMPÉTENCES (optionnel)** : \`skillGroups\` regroupe les compétences existantes en catégories thématiques (ex : "Langages", "Outils & Frameworks", "Méthodes"). C'est une RÉORGANISATION, pas une création : chaque \`entryIds\` ne référence QUE des IDs de compétences déjà présentes dans le profil. N'invente aucune compétence. Omets \`skillGroups\` si un regroupement n'apporte rien.
 - **ENTRÉES SUGGÉRÉES — RÈGLE ABSOLUE ANTI-INVENTION** : \`suggestedEntries\` ne peut contenir QUE des éléments réellement pertinents pour l'annonce ET absents du profil maître. Chaque entrée suggérée doit être DIRECTEMENT et EXPLICITEMENT étayée par le « Contexte additionnel » ci-dessus — jamais déduite de l'annonce, jamais extrapolée. INTERDICTION FORMELLE d'inventer une expérience, compétence, formation, employeur, date ou chiffre. Si le contexte additionnel est vide ou ne contient rien de pertinent et d'absent, renvoie \`"suggestedEntries": []\`. Ne jamais y dupliquer une entrée déjà présente dans le profil maître.
 
 ## Format de sortie OBLIGATOIRE
-Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown). Les champs \`titleOverride\`, \`companyOverride\`, \`datesOverride\` et le tableau \`suggestedEntries\` sont optionnels : omets-les s'ils ne servent pas.
+Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown). Les champs \`titleOverride\`, \`subtitleOverride\`, \`companyOverride\`, \`datesOverride\` et les tableaux \`suggestedEntries\`, \`entryOrder\`, \`sectionOrder\`, \`skillGroups\` sont optionnels : omets-les s'ils ne servent pas.
 
 {
   "title": "Titre du poste (reprendre celui de l'annonce)",
@@ -340,10 +382,15 @@ Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown). Les champs
       "id": "[ID EXACT DE L'ENTRÉE]",
       "visible": true,
       "description": "• action 1 avec **mot-clé**\\n• action 2",
-      "titleOverride": "(optionnel) intitulé de poste à afficher à la place de la source",
-      "companyOverride": "(optionnel) intitulé d'entreprise à afficher à la place de la source",
+      "titleOverride": "(optionnel) libellé principal à afficher à la place de la source",
+      "subtitleOverride": "(optionnel) libellé secondaire : entreprise, école, niveau de langue, émetteur…",
       "datesOverride": "(optionnel) période à afficher telle quelle, ex: 2021 - 2023"
     }
+  ],
+  "entryOrder": ["(optionnel) id_entrée_la_plus_pertinente", "id_suivante"],
+  "sectionOrder": ["(optionnel) Compétences", "Expériences Professionnelles"],
+  "skillGroups": [
+    { "category": "(optionnel) Langages", "entryIds": ["id_skill_1", "id_skill_2"] }
   ],
   "suggestedEntries": [
     {

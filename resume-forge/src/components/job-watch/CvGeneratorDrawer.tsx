@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { generateFullCVMatchPrompt, generateCoverLetterPrompt } from '@/lib/prompt-templates';
-import { parseAiCvResponse, aiEntryToOverrideData, type AiCvSuggestedEntry } from '@/lib/ai-cv-response';
+import { parseAiCvResponse, type AiCvSuggestedEntry } from '@/lib/ai-cv-response';
+import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import type { JobOffer } from '@/types/job-watch';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +41,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const [extraContext, setExtraContext] = useState('');
   const [suggestions, setSuggestions] = useState<AiCvSuggestedEntry[]>([]);
   const [acceptedSug, setAcceptedSug] = useState<Set<number>>(new Set());
+  const [restructure, setRestructure] = useState<{ reordered: number; sections: number; groups: number }>({ reordered: 0, sections: 0, groups: 0 });
   const [mdInput, setMdInput] = useState('');
   const [coverContactName, setCoverContactName] = useState('');
   const [coverStyle, setCoverStyle] = useState<'formal' | 'direct'>('direct');
@@ -60,6 +62,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setExtraContext('');
       setSuggestions([]);
       setAcceptedSug(new Set());
+      setRestructure({ reordered: 0, sections: 0, groups: 0 });
       setMdInput('');
       setPromptCopied(false);
       setCvPromptCopied(false);
@@ -72,12 +75,20 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!jsonInput.trim()) {
       setSuggestions([]);
       setAcceptedSug(new Set());
+      setRestructure({ reordered: 0, sections: 0, groups: 0 });
       return;
     }
     try {
-      setSuggestions(parseAiCvResponse(jsonInput).suggestedEntries);
+      const parsed = parseAiCvResponse(jsonInput);
+      setSuggestions(parsed.suggestedEntries);
+      setRestructure({
+        reordered: parsed.entryOrder?.length ?? 0,
+        sections: parsed.sectionOrder?.length ?? 0,
+        groups: parsed.skillGroups?.length ?? 0,
+      });
     } catch {
       setSuggestions([]);
+      setRestructure({ reordered: 0, sections: 0, groups: 0 });
     }
     // Reset selection whenever the input changes.
     setAcceptedSug(new Set());
@@ -160,6 +171,24 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       });
     }
     return useProfileStore.getState().entries.filter(e => !beforeIds.has(e.id)).map(e => e.id);
+  };
+
+  const renderRestructure = () => {
+    const parts: string[] = [];
+    if (restructure.reordered > 0) parts.push(`réordonner ${restructure.reordered} entrée${restructure.reordered > 1 ? 's' : ''}`);
+    if (restructure.sections > 0) parts.push('réorganiser les sections');
+    if (restructure.groups > 0) parts.push(`regrouper les compétences en ${restructure.groups} catégorie${restructure.groups > 1 ? 's' : ''}`);
+    if (parts.length === 0) return null;
+    return (
+      <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
+        <div className="flex items-start gap-2">
+          <Wand2 className="w-3.5 h-3.5 text-sky-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-sky-800 dark:text-sky-200 leading-relaxed">
+            <strong>Restructuration prévue.</strong> L'IA va {parts.join(', ')}. Aucune donnée du profil maître n'est modifiée.
+          </p>
+        </div>
+      </div>
+    );
   };
 
   const renderSuggestions = () => {
@@ -266,21 +295,9 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       const newCv = useCvStore.getState().cvs[0]; // createCv orders by updated_at DESC
       if (!newCv) throw new Error('CV non créé');
 
-      // 3. Apply AI entry overrides on the new CV's blocks (existing master entries)
-      await useCvStore.getState().fetchCvBlocks(newCv.id);
-      const blocks = useCvStore.getState().currentCvBlocks;
-      for (const aiEntry of data.entries) {
-        const block = blocks.find(b => b.entryId === aiEntry.id);
-        if (!block) continue;
-        if (!aiEntry.visible) {
-          await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
-        } else {
-          await useCvStore.getState().updateCvBlock(block.id, {
-            isVisible: true,
-            overrideData: aiEntryToOverrideData(aiEntry, block.overrideData),
-          });
-        }
-      }
+      // 3. Apply AI entry overrides, skill grouping and re-ordering on the new CV's
+      //    blocks (non destructive — master profile untouched).
+      await applyAiCvToBlocks(newCv.id, data);
 
       toast.success(
         <span>
@@ -328,21 +345,8 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
         customSummary: data.summary ?? null,
       });
 
-      // 3. Apply entry overrides (existing master entries)
-      await useCvStore.getState().fetchCvBlocks(newCv.id);
-      const blocks = useCvStore.getState().currentCvBlocks;
-      for (const aiEntry of data.entries) {
-        const block = blocks.find(b => b.entryId === aiEntry.id);
-        if (!block) continue;
-        if (!aiEntry.visible) {
-          await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
-        } else {
-          await useCvStore.getState().updateCvBlock(block.id, {
-            isVisible: true,
-            overrideData: aiEntryToOverrideData(aiEntry, block.overrideData),
-          });
-        }
-      }
+      // 3. Apply entry overrides, skill grouping and re-ordering (non destructive)
+      await applyAiCvToBlocks(newCv.id, data);
 
       // 4. Promote validated off-profile suggestions to master, then append a visible
       //    entry_ref block per new entry (the duplicated CV doesn't auto-import them).
@@ -543,7 +547,8 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                 />
               </div>
 
-              {/* Off-profile suggestions review (opt-in) */}
+              {/* Restructuration recap + off-profile suggestions review (opt-in) */}
+              {renderRestructure()}
               {renderSuggestions()}
 
               {/* Step 3 */}
@@ -645,7 +650,8 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                 />
               </div>
 
-              {/* Off-profile suggestions review (opt-in) */}
+              {/* Restructuration recap + off-profile suggestions review (opt-in) */}
+              {renderRestructure()}
               {renderSuggestions()}
 
               {/* Step 4 */}

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'bun:test';
-import { parseAiCvResponse, aiEntryToOverrideData } from './ai-cv-response';
+import {
+  parseAiCvResponse,
+  aiEntryToOverrideData,
+  planCvBlockOrder,
+  type OrderableBlock,
+} from './ai-cv-response';
 
 describe('parseAiCvResponse', () => {
   it('parses the legacy schema (no overrides, no suggestions) unchanged', () => {
@@ -151,5 +156,128 @@ describe('aiEntryToOverrideData', () => {
   it('applies only the description when it is the only field (legacy behaviour)', () => {
     const patch = aiEntryToOverrideData({ id: 'a', visible: true, description: '• d' }, { title: 'old' });
     expect(patch).toEqual({ title: 'old', description: '• d' });
+  });
+
+  it('maps subtitleOverride onto subtitle and wins over companyOverride', () => {
+    const patch = aiEntryToOverrideData(
+      { id: 'a', visible: true, companyOverride: 'Co', subtitleOverride: 'Courant - C1' },
+      {},
+    );
+    expect(patch.subtitle).toBe('Courant - C1');
+  });
+});
+
+describe('parseAiCvResponse — restructuration fields', () => {
+  it('parses entryOrder, sectionOrder and skillGroups', () => {
+    const raw = JSON.stringify({
+      entries: [{ id: 'a', visible: true }],
+      entryOrder: ['b', 'a', '  ', 'b'],
+      sectionOrder: ['Compétences', 'Formations'],
+      skillGroups: [
+        { category: 'Langages', entryIds: ['s1', 's2'] },
+        { category: 'Outils', entryIds: ['s3'] },
+      ],
+    });
+    const result = parseAiCvResponse(raw);
+    expect(result.entryOrder).toEqual(['b', 'a']); // trimmed empty + dedup dropped
+    expect(result.sectionOrder).toEqual(['Compétences', 'Formations']);
+    expect(result.skillGroups).toEqual([
+      { category: 'Langages', entryIds: ['s1', 's2'] },
+      { category: 'Outils', entryIds: ['s3'] },
+    ]);
+  });
+
+  it('drops skill groups without a category or without entry IDs', () => {
+    const raw = JSON.stringify({
+      entries: [],
+      skillGroups: [
+        { category: 'Valide', entryIds: ['s1'] },
+        { category: '  ', entryIds: ['s2'] }, // empty category → dropped
+        { category: 'Vide', entryIds: [] }, // no IDs → dropped
+        { entryIds: ['s3'] }, // no category → dropped
+      ],
+    });
+    expect(parseAiCvResponse(raw).skillGroups).toEqual([{ category: 'Valide', entryIds: ['s1'] }]);
+  });
+
+  it('leaves restructuration fields undefined when absent or empty', () => {
+    const result = parseAiCvResponse('{"entries":[]}');
+    expect(result.entryOrder).toBeUndefined();
+    expect(result.sectionOrder).toBeUndefined();
+    expect(result.skillGroups).toBeUndefined();
+    expect(parseAiCvResponse('{"entries":[],"entryOrder":[]}').entryOrder).toBeUndefined();
+  });
+});
+
+describe('planCvBlockOrder', () => {
+  // Helper to build a simple CV layout: two sections each with entries.
+  const block = (
+    id: string,
+    blockType: OrderableBlock['blockType'],
+    extra: Partial<OrderableBlock> = {},
+  ): OrderableBlock => ({ id, blockType, sectionName: null, entryId: null, ...extra });
+
+  it('returns the same flat order when no directives are given', () => {
+    const blocks: OrderableBlock[] = [
+      block('h1', 'section_header', { sectionName: 'Expériences Professionnelles' }),
+      block('e1', 'entry_ref', { entryId: 'exp1' }),
+      block('e2', 'entry_ref', { entryId: 'exp2' }),
+    ];
+    expect(planCvBlockOrder(blocks, {})).toEqual(['h1', 'e1', 'e2']);
+  });
+
+  it('reorders entries within their section, ranked first then originals', () => {
+    const blocks: OrderableBlock[] = [
+      block('h1', 'section_header', { sectionName: 'Compétences' }),
+      block('a', 'entry_ref', { entryId: 's1' }),
+      block('b', 'entry_ref', { entryId: 's2' }),
+      block('c', 'entry_ref', { entryId: 's3' }),
+    ];
+    expect(planCvBlockOrder(blocks, { entryOrder: ['s3', 's1'] })).toEqual(['h1', 'c', 'a', 'b']);
+  });
+
+  it('reorders sections by label (case/space-insensitive), unranked last', () => {
+    const blocks: OrderableBlock[] = [
+      block('h1', 'section_header', { sectionName: 'Expériences Professionnelles' }),
+      block('e1', 'entry_ref', { entryId: 'exp1' }),
+      block('h2', 'section_header', { sectionName: 'Compétences' }),
+      block('s1', 'entry_ref', { entryId: 'sk1' }),
+      block('h3', 'section_header', { sectionName: 'Langues' }),
+      block('l1', 'entry_ref', { entryId: 'la1' }),
+    ];
+    const order = planCvBlockOrder(blocks, { sectionOrder: ['compétences', 'EXPÉRIENCES PROFESSIONNELLES'] });
+    expect(order).toEqual(['h2', 's1', 'h1', 'e1', 'h3', 'l1']);
+  });
+
+  it('regroups skills under category sub-headers (group 0 = existing header)', () => {
+    const blocks: OrderableBlock[] = [
+      block('skH', 'section_header', { sectionName: 'Compétences' }),
+      block('a', 'entry_ref', { entryId: 's1' }),
+      block('b', 'entry_ref', { entryId: 's2' }),
+      block('c', 'entry_ref', { entryId: 's3' }),
+      // Newly created sub-header, appended at the tail before reordering:
+      block('grpH', 'section_header', { sectionName: 'Outils' }),
+    ];
+    const order = planCvBlockOrder(blocks, {
+      skillGroups: [
+        { headerBlockId: 'skH', entryIds: ['s2'] },
+        { headerBlockId: 'grpH', entryIds: ['s3'] },
+      ],
+    });
+    // skH (=Langages/group0) → s2, then grpH (=Outils) → s3, leftover s1 at the end.
+    expect(order).toEqual(['skH', 'b', 'grpH', 'c', 'a']);
+  });
+
+  it('never drops a block, even an orphan sub-header', () => {
+    const blocks: OrderableBlock[] = [
+      block('skH', 'section_header', { sectionName: 'Compétences' }),
+      block('a', 'entry_ref', { entryId: 's1' }),
+      block('orphan', 'section_header', { sectionName: 'Inutilisé' }),
+    ];
+    const order = planCvBlockOrder(blocks, {
+      skillGroups: [{ headerBlockId: 'skH', entryIds: ['s1'] }],
+    });
+    expect(order.sort()).toEqual(['a', 'orphan', 'skH']);
+    expect(new Set(order).size).toBe(3);
   });
 });

@@ -4,7 +4,8 @@ import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { PROMPT_TEMPLATES, generateFullCVMatchPrompt } from '@/lib/prompt-templates';
-import { parseAiCvResponse, aiEntryToOverrideData } from '@/lib/ai-cv-response';
+import { parseAiCvResponse } from '@/lib/ai-cv-response';
+import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import { CVBlock, CVDocument } from '@/types/cv';
 import { toast } from 'sonner';
 
@@ -132,23 +133,11 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
         await useCvStore.getState().updateCv(currentCv.id, cvUpdates);
       }
 
-      // Apply entry-level changes on existing entry_ref blocks via overrideData / isVisible.
-      // This preserves the master profile structure and only patches what the AI decided.
+      // Apply entry-level changes (all types), skill grouping and re-ordering on
+      // the CV's blocks — non destructively. The master profile is untouched.
       // Note: suggestedEntries are intentionally ignored here — that review flow lives in
       // the job-watch CV generator drawer for now.
-      for (const aiEntry of data.entries) {
-        const block = currentCvBlocks.find(b => b.entryId === aiEntry.id);
-        if (!block) continue;
-
-        if (!aiEntry.visible) {
-          await useCvStore.getState().updateCvBlock(block.id, { isVisible: false });
-        } else {
-          await useCvStore.getState().updateCvBlock(block.id, {
-            isVisible: true,
-            overrideData: aiEntryToOverrideData(aiEntry, block.overrideData),
-          });
-        }
-      }
+      await applyAiCvToBlocks(currentCv.id, data);
 
       toast.success("CV sur-mesure appliqué avec succès !");
       setJsonInput('');
