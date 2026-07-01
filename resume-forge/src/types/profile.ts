@@ -45,3 +45,22 @@ export interface MasterEntry {
   createdAt: string;
   updatedAt: string;
 }
+
+/** Append-only audit trail row: one raw CV variant that contributed to a master entry. */
+export interface EntryVariantHistory {
+  id: string;
+  masterEntryId: string;
+  sourceCvId: string | null;
+  sourceCvName: string | null;
+  rawTitle: string | null;
+  rawSubtitle: string | null;
+  rawLocation: string | null;
+  rawStartDate: string | null;
+  rawEndDate: string | null;
+  rawIsCurrent: boolean;
+  rawDescription: string | null;
+  matchScore: number | null;
+  matchCriteria: Record<string, unknown>;
+  resolution: 'merged' | 'new_entry';
+  syncedAt: string;
+}
