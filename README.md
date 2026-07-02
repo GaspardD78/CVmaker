@@ -1,4 +1,4 @@
-# CVmaker — ResumeForge
+# ResumeForge
 
 Application de gestion de CV et de suivi de candidatures, disponible sur **Windows / macOS / Linux** et **Android**.
 

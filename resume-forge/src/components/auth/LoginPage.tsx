@@ -6,6 +6,7 @@ import { keysToCamelCase } from '@/lib/mapping';
 import { User, Plus, Trash2 } from 'lucide-react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { useProfileStore } from '@/stores/profileStore';
+import logo from '@/assets/branding/logo.png';
 
 export function LoginPage() {
   const { login, hasExplicitlyLoggedOut } = useAuthStore();
@@ -112,6 +113,7 @@ export function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <img src={logo} alt="ResumeForge" width={80} height={80} className="mx-auto mb-4 rounded-2xl" />
           <h1 className="text-3xl font-bold text-gray-900">ResumeForge</h1>
           <p className="text-gray-500 mt-2">Sélectionnez votre profil ou créez-en un nouveau</p>
         </div>
