@@ -1,4 +1,4 @@
-# First2Apply → CVmaker — Suivi d'intégration
+# First2Apply → ResumeForge — Suivi d'intégration
 
 **Branche :** `claude/integrate-first2apply-c0YIy`  
 **Dernière mise à jour :** 2026-04-23

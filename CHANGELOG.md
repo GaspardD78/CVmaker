@@ -5,6 +5,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [1.3.0] - 2026-07-02
+
+### Rebranding ResumeForge
+
+- **Changé** : le produit est officiellement renommé **ResumeForge** (anciennement CVmaker). Le nom est harmonisé dans les métadonnées du projet (`package.json`, `tauri.conf.json`, `Cargo.toml`), la documentation et l'interface. Le format de sauvegarde `.cvmaker` et la clé interne `__cvmaker_backup` sont conservés pour rester compatibles avec les sauvegardes existantes.
+- **Ajout** : nouveau logo ResumeForge intégré dans la sidebar, le header mobile et l'écran de sélection de profil (`src/assets/branding/logo.png`), en remplacement du placeholder « RF ».
+- **Ajout** : set d'icônes d'application complet régénéré à partir du nouveau logo (Windows `.ico`, macOS `.icns`, PNG 32→512, icônes Android et iOS).
+- **Ajout** : pack favicon complet dans `public/` (`favicon.svg`, `favicon.ico`, `favicon-96x96.png`, `apple-touch-icon.png`, icônes PWA 192/512) référencé dans `index.html`, avec `site.webmanifest` au nom ResumeForge et à la couleur d'accent `#6366f1`. Les anciens `vite.svg` et `tauri.svg` sont supprimés.
+- **Changé** : version 1.3.0 (`package.json`, `Cargo.toml`, `tauri.conf.json`).
+
 ## [Non publié] - 2026-06-27
 
 ### Synchronisation Google Drive
