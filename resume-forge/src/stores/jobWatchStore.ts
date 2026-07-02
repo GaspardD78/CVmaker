@@ -182,6 +182,12 @@ interface JobWatchState {
   filters: JobWatchFilters;
   fetchLogs: FetchLog[];
   isLoading: boolean;
+  /**
+   * Passe à true une fois les settings réellement chargés depuis la base.
+   * Tant que c'est false, `settings` contient DEFAULT_JOB_WATCH_SETTINGS
+   * (searchProfile vide) et ne doit PAS servir à lancer une collecte.
+   */
+  settingsLoaded: boolean;
   isFetching: boolean;
   fetchProgress: FetchProgress | null;
   error: string | null;
@@ -253,6 +259,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   filters: DEFAULT_FILTERS,
   fetchLogs: [],
   isLoading: false,
+  settingsLoaded: false,
   isFetching: false,
   fetchProgress: null,
   error: null,
@@ -540,7 +547,15 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
           `SELECT id, source, rss_url, enabled, last_fetched_at, created_at
            FROM job_watch_config WHERE profile_id IS NULL ORDER BY source`,
         );
-    set({ configs: raw.map(r => keysToCamelCase<JobWatchConfig>(r)) });
+    const configs = raw.map(r => keysToCamelCase<JobWatchConfig>(r));
+    // Hydrate lastFetchedAt depuis la base (max des last_fetched_at). Sans
+    // cela, chaque démarrage était vu comme « jamais collecté » et
+    // l'auto-fetch partait systématiquement, quel que soit l'intervalle.
+    const lastDbFetch = configs.reduce<string | null>(
+      (acc, c) => (c.lastFetchedAt && (!acc || c.lastFetchedAt > acc)) ? c.lastFetchedAt : acc,
+      null,
+    );
+    set(state => ({ configs, lastFetchedAt: state.lastFetchedAt ?? lastDbFetch }));
   },
 
   upsertConfig: async (config) => {
@@ -591,7 +606,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     try {
       const { useAuthStore } = await import('@/stores/authStore');
       const profileId = useAuthStore.getState().currentUserId;
-      set({ settings: await loadSettingsFromDb(profileId) });
+      set({ settings: await loadSettingsFromDb(profileId), settingsLoaded: true });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Erreur chargement paramètres' });
     }
