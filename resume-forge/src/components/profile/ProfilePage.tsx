@@ -7,6 +7,7 @@ import { confirm } from '@tauri-apps/plugin-dialog';
 import { PhotoCropModal } from './PhotoCropModal';
 import { AiEnrichModal } from './AiEnrichModal';
 import { VariantHistoryPanel } from './VariantHistoryPanel';
+import { DuplicateScanModal } from './DuplicateScanModal';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', borderRadius: 8,
@@ -210,6 +211,7 @@ export function ProfilePage() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<EntryType | 'all'>('all');
   const [historyEntryId, setHistoryEntryId] = useState<string | null>(null);
+  const [isDuplicateScanOpen, setIsDuplicateScanOpen] = useState(false);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -471,10 +473,17 @@ export function ProfilePage() {
               Expériences, Formations & Compétences
             </h3>
             {!isAddingEntry && !editingEntryId && (
-              <button className="rf-btn-primary" onClick={() => setIsAddingEntry(true)} style={{ padding: '5px 12px', fontSize: 12 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Ajouter
-              </button>
+              <>
+                {entries.filter(e => e.entryType === 'experience').length >= 2 && (
+                  <button className="rf-btn-secondary" onClick={() => setIsDuplicateScanOpen(true)} title="Détecter les expériences en doublon dans le profil maître" style={{ padding: '5px 12px', fontSize: 12 }}>
+                    Scanner les doublons
+                  </button>
+                )}
+                <button className="rf-btn-primary" onClick={() => setIsAddingEntry(true)} style={{ padding: '5px 12px', fontSize: 12 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Ajouter
+                </button>
+              </>
             )}
           </div>
 
@@ -574,6 +583,10 @@ export function ProfilePage() {
 
       {isEnrichModalOpen && (
         <AiEnrichModal onClose={() => setIsEnrichModalOpen(false)} />
+      )}
+
+      {isDuplicateScanOpen && (
+        <DuplicateScanModal onClose={() => setIsDuplicateScanOpen(false)} />
       )}
     </div>
   );
