@@ -5,13 +5,18 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
-## [Non publié] - 2026-06-27
+## [1.3.0] - 2026-07-02
+
+### Profil maître — réconciliation et doublons
+
+- **Ajout** : synchronisation manuelle des expériences CV → profil maître (bouton « Synchroniser vers le profil maître » dans le CV builder, mode constructeur visuel) — détection des expériences d'un CV adapté ayant divergé de leur entrée du profil maître, proposition de fusion consolidée éditable, rien n'est écrit sans validation explicite. Scoring déterministe et explicable (`src/lib/experience-matching.ts` + tests), classification confiant/ambigu, jamais de fusion automatique.
+- **Ajout** : action « Scanner les doublons » sur la page profil — comparaison pair-à-pair de toutes les expériences du profil maître (même scoring que la réconciliation), regroupement des correspondances et fusion consolidée éditable ; les paires écartées (`duplicate_dismissals`, migration 018) ne sont jamais re-proposées.
+- **Ajout** : historique des variantes par expérience (`entry_variant_history`, migration 017) — panneau « Historique des variantes » sur la page profil ; les doublons absorbés y restent visibles (origine `duplicate_scan`).
 
 ### Synchronisation Google Drive
 
 - **Corrigé** : la connexion Google Drive échouait avec « Synchronisation Google Drive indisponible : définissez `VITE_GDRIVE_CLIENT_SECRET` au build » dans tout binaire compilé sans ce `.env`. Le secret du client OAuth « Application de bureau » (non confidentiel en flux PKCE) est de nouveau embarqué comme valeur par défaut, surchargeable au build via `VITE_GDRIVE_CLIENT_SECRET`. La connexion fonctionne désormais sans configuration.
 
-## [Non publié] - 2026-06-10
 ### Templates graphiques deux colonnes (recruteur humain)
 
 - **Ajout** : trois templates graphiques « non-ATS » conçus pour un envoi direct à un recruteur humain — `sidebar-modern` (Sidebar Moderne, bande sombre à gauche), `sidebar-tech` (Sidebar Tech, bande colorée à gauche) et `sidebar-elegant` (Sidebar Élégant, bande claire à droite, titres serif). Nouvelle catégorie « Graphique » dans le sélecteur.
