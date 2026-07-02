@@ -202,6 +202,30 @@ export async function getDb(): Promise<Database> {
       `UPDATE job_watch_config SET source = 'linkedin' WHERE source = 'linkedin_rss'`
     ).catch(() => {/* table absente ou rien à migrer */});
 
+    // Fallback: ensure migration 017 table exists (experience reconciliation history)
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS entry_variant_history (
+        id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        master_entry_id   TEXT NOT NULL REFERENCES master_entries(id) ON DELETE CASCADE,
+        source_cv_id      TEXT REFERENCES cv_documents(id) ON DELETE SET NULL,
+        source_cv_name    TEXT,
+        raw_title         TEXT,
+        raw_subtitle      TEXT,
+        raw_location      TEXT,
+        raw_start_date    TEXT,
+        raw_end_date      TEXT,
+        raw_is_current    INTEGER DEFAULT 0,
+        raw_description   TEXT,
+        match_score       REAL,
+        match_criteria    TEXT DEFAULT '{}',
+        resolution        TEXT NOT NULL CHECK (resolution IN ('merged', 'new_entry')),
+        synced_at         TEXT DEFAULT (datetime('now'))
+      )
+    `).catch(() => {/* already exists */});
+    await db.execute(
+      `CREATE INDEX IF NOT EXISTS idx_variant_history_entry ON entry_variant_history(master_entry_id, synced_at DESC)`
+    ).catch(() => {/* already exists */});
+
     const defaultSettings: Array<[string, string]> = [
       ['fetch_interval_hours',  '4'],
       ['email_digest_enabled',  '1'],

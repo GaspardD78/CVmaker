@@ -7,13 +7,14 @@ import { RightPanel } from './RightPanel';
 import { SidebarNav } from './SidebarNav';
 import type { SidebarTab } from './SidebarNav';
 import { MarkdownEditorPage } from '@/components/markdown-editor/MarkdownEditorPage';
-import { ArrowLeft, Code2, Download, FileText, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, Code2, Download, FileText, Loader2, Check, RefreshCw } from 'lucide-react';
 import { exportToDocx } from '@/lib/export-docx';
 import { exportNativePdf } from '@/lib/export-pdf';
 import { getTemplate } from '@/templates';
 import { toast } from 'sonner';
 import { useSaveIndicator } from '@/hooks/useSaveIndicator';
 import { TemplatePickerPopover } from './TemplatePickerPopover';
+import { ReconciliationReviewModal } from './ReconciliationReviewModal';
 
 const PANEL_WIDTH_KEY = 'resumeforge_panel_width';
 const MIN_PANEL = 280;
@@ -28,6 +29,7 @@ export function CVBuilderPage() {
   const [isExporting, setIsExporting] = useState(false);
   const { status: saveStatus, notifySave } = useSaveIndicator();
   const [mobileExportOpen, setMobileExportOpen] = useState(false);
+  const [isReconciliationOpen, setIsReconciliationOpen] = useState(false);
 
   // Onglet actif sur mobile : 'edit' | 'preview'
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -217,6 +219,17 @@ export function CVBuilderPage() {
             onSelect={handleTemplateChange}
           />
 
+          {currentCv.markdownMode === 0 && (
+            <button
+              onClick={() => setIsReconciliationOpen(true)}
+              title="Synchroniser les expériences adaptées vers le profil maître"
+              className="hidden sm:flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-md text-sm font-medium transition min-h-[44px] border bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+            >
+              <RefreshCw className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Synchroniser vers le profil</span>
+            </button>
+          )}
+
           {/* Boutons export — desktop : visibles individuellement | mobile : regroupés sous "..." */}
           <div className="hidden sm:flex items-center gap-1.5 sm:gap-3">
             <button
@@ -371,6 +384,14 @@ export function CVBuilderPage() {
             )}
           </div>
         </>
+      )}
+
+      {isReconciliationOpen && (
+        <ReconciliationReviewModal
+          cvId={currentCv.id}
+          cvName={currentCv.name}
+          onClose={() => setIsReconciliationOpen(false)}
+        />
       )}
     </div>
   );

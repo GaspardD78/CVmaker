@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { PhotoCropModal } from './PhotoCropModal';
 import { AiEnrichModal } from './AiEnrichModal';
+import { VariantHistoryPanel } from './VariantHistoryPanel';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', borderRadius: 8,
@@ -208,6 +209,7 @@ export function ProfilePage() {
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<EntryType | 'all'>('all');
+  const [historyEntryId, setHistoryEntryId] = useState<string | null>(null);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -530,6 +532,11 @@ export function ProfilePage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      {entry.entryType === 'experience' && (
+                        <button onClick={() => setHistoryEntryId(historyEntryId === entry.id ? null : entry.id)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--rf-border)', background: 'transparent', color: 'var(--rf-muted)', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 0.12s' }}>
+                          {historyEntryId === entry.id ? 'Masquer historique' : 'Voir l\'historique des variantes'}
+                        </button>
+                      )}
                       <button onClick={() => setEditingEntryId(editingEntryId === entry.id ? null : entry.id)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--rf-border)', background: 'transparent', color: 'var(--rf-accent)', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 0.12s' }}>
                         {editingEntryId === entry.id ? 'Annuler' : 'Modifier'}
                       </button>
@@ -540,6 +547,11 @@ export function ProfilePage() {
                       </button>
                     </div>
                   </div>
+                  {historyEntryId === entry.id && (
+                    <div style={{ background: 'var(--rf-card)', border: '1px solid var(--rf-border)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 14 }}>
+                      <VariantHistoryPanel masterEntryId={entry.id} />
+                    </div>
+                  )}
                   {editingEntryId === entry.id && (
                     <form onSubmit={handleAddEntry} style={{ background: 'var(--rf-surface)', border: '1px solid var(--rf-accent)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                       <EntryFormFields key={entry.id} entryToEdit={entry} defaultTab={activeTab} availableTypes={availableTypes} />

@@ -740,6 +740,12 @@ pub fn run() {
             sql: include_str!("../migrations/016_linkedin_rss_to_linkedin.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 17,
+            description: "experience_reconciliation",
+            sql: include_str!("../migrations/017_experience_reconciliation.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]
