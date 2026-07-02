@@ -746,6 +746,12 @@ pub fn run() {
             sql: include_str!("../migrations/017_experience_reconciliation.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 18,
+            description: "duplicate_dismissals",
+            sql: include_str!("../migrations/018_duplicate_dismissals.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]

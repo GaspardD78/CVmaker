@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, CheckCircle2, HelpCircle, ShieldQuestion } from 'lucide-react';
+import { X, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useReconciliationStore } from '@/stores/reconciliationStore';
@@ -8,10 +8,10 @@ import {
   buildNewEntryProposal,
   masterEntryToSnapshot,
   type ConsolidatedProposal,
-  type ExperienceSnapshot,
   type SyncCandidate,
   type MatchClassification,
 } from '@/lib/experience-matching';
+import { CLASSIFICATION_BADGE, CriterionTag, ExperiencePreview, ProposalForm } from '@/components/shared/experience-review';
 import type { MasterEntry } from '@/types/profile';
 
 interface ReconciliationReviewModalProps {
@@ -19,12 +19,6 @@ interface ReconciliationReviewModalProps {
   cvName: string;
   onClose: () => void;
 }
-
-const CLASSIFICATION_BADGE: Record<MatchClassification, { label: string; className: string; Icon: typeof CheckCircle2 }> = {
-  confident: { label: 'Correspondance probable', className: 'bg-green-50 text-green-700 border-green-200', Icon: CheckCircle2 },
-  ambiguous: { label: 'À confirmer', className: 'bg-amber-50 text-amber-700 border-amber-200', Icon: ShieldQuestion },
-  none: { label: 'Aucune correspondance nette', className: 'bg-gray-100 text-gray-600 border-gray-200', Icon: HelpCircle },
-};
 
 export function ReconciliationReviewModal({ cvId, cvName, onClose }: ReconciliationReviewModalProps) {
   const { candidates, isLoading, loadCandidates, mergeCandidate, createAsNewEntry, ignoreCandidate } = useReconciliationStore();
@@ -80,33 +74,6 @@ export function ReconciliationReviewModal({ cvId, cvName, onClose }: Reconciliat
   );
 }
 
-function ExperiencePreview({ snapshot }: { snapshot: ExperienceSnapshot }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm h-full">
-      <p className="font-semibold text-gray-900">{snapshot.title}</p>
-      <p className="text-xs text-gray-500 mt-0.5">
-        {snapshot.subtitle}
-        {snapshot.datesOverrideText
-          ? ` · ${snapshot.datesOverrideText}`
-          : ` · ${snapshot.startDate ?? '?'} — ${snapshot.isCurrent ? "aujourd'hui" : (snapshot.endDate ?? '?')}`}
-      </p>
-      {snapshot.description && (
-        <p className="text-xs text-gray-600 mt-2 whitespace-pre-line line-clamp-6">{snapshot.description}</p>
-      )}
-    </div>
-  );
-}
-
-function CriterionTag({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] ${
-      ok ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-400'
-    }`}>
-      {label}
-    </span>
-  );
-}
-
 interface CandidateCardProps {
   candidate: SyncCandidate;
   cvId: string;
@@ -124,9 +91,6 @@ function CandidateCard({ candidate, cvId, cvName, onMerge, onCreateNew, onIgnore
   const classification: MatchClassification = candidate.bestMatch?.score.classification ?? 'none';
   const badge = CLASSIFICATION_BADGE[classification];
   const criteria = candidate.bestMatch?.score.matchedCriteria;
-
-  const setField = <K extends keyof ConsolidatedProposal>(key: K, value: ConsolidatedProposal[K]) =>
-    setProposal(p => ({ ...p, [key]: value }));
 
   const handleMerge = async () => {
     setBusy('merge');
@@ -208,44 +172,7 @@ function CandidateCard({ candidate, cvId, cvName, onMerge, onCreateNew, onIgnore
             Repartir de la version du CV
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input
-            value={proposal.title}
-            onChange={e => setField('title', e.target.value)}
-            placeholder="Poste"
-            className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <input
-            value={proposal.subtitle ?? ''}
-            onChange={e => setField('subtitle', e.target.value)}
-            placeholder="Entreprise"
-            className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <input
-            value={proposal.startDate ?? ''}
-            onChange={e => setField('startDate', e.target.value)}
-            placeholder="Début (YYYY-MM)"
-            className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <input
-            value={proposal.endDate ?? ''}
-            onChange={e => setField('endDate', e.target.value)}
-            placeholder="Fin (YYYY-MM)"
-            disabled={proposal.isCurrent}
-            className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
-          />
-        </div>
-        <label className="flex items-center gap-2 text-xs text-gray-600">
-          <input type="checkbox" checked={proposal.isCurrent} onChange={e => setField('isCurrent', e.target.checked)} />
-          En cours
-        </label>
-        <textarea
-          value={proposal.description ?? ''}
-          onChange={e => setField('description', e.target.value)}
-          rows={5}
-          placeholder="Description consolidée"
-          className="w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
-        />
+        <ProposalForm proposal={proposal} onChange={setProposal} />
       </div>
 
       <div className="p-4 border-t border-gray-100 flex flex-wrap gap-2 justify-end">

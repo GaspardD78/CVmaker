@@ -226,6 +226,18 @@ export async function getDb(): Promise<Database> {
       `CREATE INDEX IF NOT EXISTS idx_variant_history_entry ON entry_variant_history(master_entry_id, synced_at DESC)`
     ).catch(() => {/* already exists */});
 
+    // Fallback: ensure migration 018 table exists (confirmed non-duplicate pairs from the profile duplicate scan)
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS duplicate_dismissals (
+        id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        entry_id_a    TEXT NOT NULL REFERENCES master_entries(id) ON DELETE CASCADE,
+        entry_id_b    TEXT NOT NULL REFERENCES master_entries(id) ON DELETE CASCADE,
+        dismissed_at  TEXT DEFAULT (datetime('now')),
+        UNIQUE (entry_id_a, entry_id_b),
+        CHECK (entry_id_a < entry_id_b)
+      )
+    `).catch(() => {/* already exists */});
+
     const defaultSettings: Array<[string, string]> = [
       ['fetch_interval_hours',  '4'],
       ['email_digest_enabled',  '1'],

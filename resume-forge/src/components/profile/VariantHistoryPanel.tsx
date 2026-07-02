@@ -11,6 +11,14 @@ const RESOLUTION_LABELS: Record<string, string> = {
   new_entry: 'À l\'origine de cette expérience',
 };
 
+/** Rows written by the master-profile duplicate scan carry origin='duplicate_scan' in match_criteria. */
+function resolutionLabel(entry: { resolution: string; matchCriteria: Record<string, unknown> }): string {
+  if (entry.resolution === 'merged' && entry.matchCriteria?.origin === 'duplicate_scan') {
+    return 'Doublon du profil fusionné dans cette expérience';
+  }
+  return RESOLUTION_LABELS[entry.resolution] ?? entry.resolution;
+}
+
 /** Read-only append-only audit trail of CV variants that contributed to a master entry (see entry_variant_history). */
 export function VariantHistoryPanel({ masterEntryId }: VariantHistoryPanelProps) {
   const { variantHistory, fetchVariantHistory } = useReconciliationStore();
@@ -39,7 +47,7 @@ export function VariantHistoryPanel({ masterEntryId }: VariantHistoryPanelProps)
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--rf-accent)', fontFamily: 'var(--font-body)' }}>
               <History size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />
-              {RESOLUTION_LABELS[entry.resolution] ?? entry.resolution}
+              {resolutionLabel(entry)}
             </span>
             <span style={{ fontSize: 11, color: 'var(--rf-muted)', fontFamily: 'var(--font-body)' }}>
               {new Date(entry.syncedAt).toLocaleDateString('fr-FR')}
