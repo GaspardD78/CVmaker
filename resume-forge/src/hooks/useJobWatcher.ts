@@ -43,6 +43,7 @@ export function useJobWatcher() {
   const {
     configs,
     settings,
+    settingsLoaded,
     isFetching,
     setFetching,
     setFetchProgress,
@@ -53,8 +54,6 @@ export function useJobWatcher() {
     setSelectorDebugInfo,
     purgeExpiredOffers,
   } = useJobWatchStore();
-
-  const profileId = useAuthStore(s => s.currentUserId);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // True only for the instance that claimed the scheduler slot
@@ -75,9 +74,15 @@ export function useJobWatcher() {
   }, []);
 
   const triggerFetch = useCallback(async (silent = false) => {
-    // Read isFetching from the store live to avoid stale-closure race when
-    // the hook is mounted in multiple components simultaneously.
-    if (useJobWatchStore.getState().isFetching) return;
+    // Read ALL state live from the stores, never from the render closure.
+    // Le timer d'auto-déclenchement (effet ci-dessous) peut se déclencher avec
+    // une version de ce callback créée quand les configs étaient chargées mais
+    // pas encore les settings : la closure portait DEFAULT_JOB_WATCH_SETTINGS
+    // (searchProfile vide) et la collecte partait sans mots-clés ni lieux —
+    // l'APEC renvoyait alors les dernières offres génériques de toute la France.
+    const { isFetching, configs, settings } = useJobWatchStore.getState();
+    const profileId = useAuthStore.getState().currentUserId;
+    if (isFetching) return;
     if (!configs.some(c => c.enabled === 1)) {
       if (!silent) toast.info('Aucune source active — configurez la Veille');
       return;
@@ -213,11 +218,14 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [configs, settings, setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, setSelectorDebugInfo, purgeExpiredOffers, profileId]);
+  }, [setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, setSelectorDebugInfo, purgeExpiredOffers]);
 
   // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {
     if (!isScheduler.current) return;
+    // Ne rien programmer tant que les settings ne sont pas chargés : sinon la
+    // collecte partirait avec le profil de recherche par défaut (vide).
+    if (!settingsLoaded) return;
     if (configs.length === 0) return;
 
     const intervalMs = settings.fetchIntervalHours * 60 * 60 * 1000;
@@ -234,7 +242,7 @@ export function useJobWatcher() {
       return () => clearTimeout(timeout);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configs.length, settings.fetchIntervalHours]);
+  }, [configs.length, settings.fetchIntervalHours, settingsLoaded]);
 
   // Periodic scheduler — only the scheduler instance runs this.
   useEffect(() => {
