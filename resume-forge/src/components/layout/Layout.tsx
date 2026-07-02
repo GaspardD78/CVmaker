@@ -183,16 +183,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           borderBottom: '1px solid var(--rf-border)',
           justifyContent: collapsed ? 'center' : 'flex-start',
         }}>
-          <div style={{
-            width: 32, height: 32,
-            background: 'var(--rf-accent)',
-            borderRadius: 8,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            fontSize: 13, fontWeight: 700, color: '#fff',
-            fontFamily: 'var(--font-display)',
-            letterSpacing: '-0.5px',
-          }}>RF</div>
+          <img src="/logo.svg" alt="ResumeForge" style={{ width: 34, height: 34, flexShrink: 0 }} />
           {!collapsed && (
             <span style={{
               fontSize: 15, fontWeight: 700, color: 'var(--rf-text)',
@@ -310,12 +301,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         paddingTop: 'env(safe-area-inset-top, 0px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px', height: 48 }}>
-          <div style={{
-            width: 28, height: 28, background: 'var(--rf-accent)', borderRadius: 7,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: 'var(--font-display)',
-            marginRight: 10,
-          }}>RF</div>
+          <img src="/logo.svg" alt="ResumeForge" style={{ width: 30, height: 30, marginRight: 10 }} />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--rf-text)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>ResumeForge</span>
             <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--rf-accent)', fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.02em', marginTop: 2 }}>

@@ -7,6 +7,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [1.3.0] - 2026-07-02
 
+### Identité visuelle
+
+- **Ajout** : nouveau logo ResumeForge — un phénix stylisé (traits turquoise, plumes flamme dorées, corps en forme de document) décliné en vectoriel (`public/logo.svg`)
+- **Modifié** : toutes les icônes d'application régénérées à partir du nouveau logo (`bunx tauri icon`) — Windows (`.ico`), macOS (`.icns`), Linux, Android (mipmaps + icône adaptative) et iOS
+- **Modifié** : le logo remplace le carré « RF » dans la barre latérale et l'en-tête mobile, apparaît sur la page de connexion, et sert de favicon
+
 ### Profil maître — réconciliation et doublons
 
 - **Ajout** : synchronisation manuelle des expériences CV → profil maître (bouton « Synchroniser vers le profil maître » dans le CV builder, mode constructeur visuel) — détection des expériences d'un CV adapté ayant divergé de leur entrée du profil maître, proposition de fusion consolidée éditable, rien n'est écrit sans validation explicite. Scoring déterministe et explicable (`src/lib/experience-matching.ts` + tests), classification confiant/ambigu, jamais de fusion automatique.

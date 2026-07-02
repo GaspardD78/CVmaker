@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7B215"/>
+      <stop offset="1" stop-color="#E68A0D"/>
+    </linearGradient>
+    <!-- flame feather pointing right from origin, ~210 long -->
+    <path id="leaf" d="M0 0 C55 -44 150 -48 210 -10 C186 0 192 8 168 13 C115 26 55 19 0 0 Z"/>
+    <path id="leafS" d="M0 0 C45 -34 115 -37 160 -8 C120 12 45 15 0 0 Z"/>
+  </defs>
+
+  <!-- ══ LEFT WING ══ -->
+  <g transform="translate(444,404)">
+    <g>
+      <use href="#leaf" transform="rotate(-183) scale(1.1)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-189) scale(1.03)" fill="url(#gold)"/>
+    </g>
+    <g>
+      <use href="#leaf" transform="rotate(-158) scale(1.28)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-164) scale(1.2)" fill="url(#gold)"/>
+    </g>
+    <g>
+      <use href="#leaf" transform="rotate(-132) scale(1.34)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-138) scale(1.26)" fill="url(#gold)"/>
+    </g>
+    <g>
+      <use href="#leaf" transform="rotate(-106) scale(1.24)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-112) scale(1.16)" fill="url(#gold)"/>
+    </g>
+    <use href="#leafS" transform="rotate(-172) scale(0.72)" fill="#149DA6"/>
+    <use href="#leafS" transform="rotate(-147) scale(0.8)" fill="#149DA6"/>
+    <use href="#leafS" transform="rotate(-121) scale(0.76)" fill="#149DA6"/>
+  </g>
+
+  <!-- ══ RIGHT WING ══ -->
+  <g transform="translate(668,362)">
+    <g>
+      <use href="#leaf" transform="rotate(-16) scale(1.1,-1.1)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-10) scale(1.03,-1.03)" fill="url(#gold)"/>
+    </g>
+    <g>
+      <use href="#leaf" transform="rotate(-36) scale(1.28,-1.28)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-30) scale(1.2,-1.2)" fill="url(#gold)"/>
+    </g>
+    <g>
+      <use href="#leaf" transform="rotate(-62) scale(1.34,-1.34)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-56) scale(1.26,-1.26)" fill="url(#gold)"/>
+    </g>
+    <g>
+      <use href="#leaf" transform="rotate(-88) scale(1.24,-1.24)" fill="#149DA6"/>
+      <use href="#leaf" transform="rotate(-82) scale(1.16,-1.16)" fill="url(#gold)"/>
+    </g>
+    <use href="#leafS" transform="rotate(-22) scale(0.72,-0.72)" fill="#149DA6"/>
+    <use href="#leafS" transform="rotate(-47) scale(0.8,-0.8)" fill="#149DA6"/>
+    <use href="#leafS" transform="rotate(-73) scale(0.76,-0.76)" fill="#149DA6"/>
+  </g>
+
+  <!-- ══ TAIL ══ -->
+  <g>
+    <path d="M488 646 C438 706 378 786 336 896 C374 858 438 798 486 732 C504 706 510 674 488 646 Z" fill="#149DA6"/>
+    <path d="M500 666 C458 722 403 798 366 894 C402 856 458 800 500 742 C516 718 518 692 500 666 Z" fill="url(#gold)"/>
+    <path d="M530 670 C498 732 454 812 428 906 C462 866 510 806 538 750 C550 724 548 696 530 670 Z" fill="#149DA6"/>
+    <path d="M542 688 C516 742 482 812 464 892 C494 856 530 806 552 758 C562 734 558 710 542 688 Z" fill="url(#gold)"/>
+  </g>
+
+  <!-- ══ NECK + HEAD ══ (drawn before body so the seam is hidden) -->
+  <path d="M560 430 C556 356 566 298 604 268 C634 246 668 242 692 254 L742 278 C722 286 708 288 692 292 C690 322 672 346 640 354 C608 362 580 400 560 430 Z"
+        fill="#FFFFFF" stroke="#149DA6" stroke-width="16" stroke-linejoin="round"/>
+  <circle cx="674" cy="278" r="9" fill="#149DA6"/>
+  <g transform="translate(622,248)">
+    <use href="#leafS" transform="rotate(-146) scale(0.6)" fill="url(#gold)"/>
+    <use href="#leafS" transform="rotate(-170) scale(0.52)" fill="url(#gold)"/>
+    <use href="#leafS" transform="rotate(-122) scale(0.48)" fill="url(#gold)"/>
+  </g>
+
+  <!-- ══ BODY (document) ══ -->
+  <path d="M452 400 C432 478 430 566 470 652 C512 686 560 668 590 624 C618 560 624 464 600 388 C548 350 494 358 452 400 Z"
+        fill="#FFFFFF" stroke="#149DA6" stroke-width="16" stroke-linejoin="round"/>
+  <!-- text lines -->
+  <g fill="#149DA6">
+    <rect x="474" y="436" width="80" height="13" rx="3"/>
+    <rect x="474" y="464" width="102" height="13" rx="3"/>
+    <rect x="474" y="492" width="90" height="13" rx="3"/>
+    <rect x="496" y="534" width="84" height="13" rx="3"/>
+    <rect x="496" y="562" width="66" height="13" rx="3"/>
+    <rect x="496" y="590" width="76" height="13" rx="3"/>
+  </g>
+
+</svg>
