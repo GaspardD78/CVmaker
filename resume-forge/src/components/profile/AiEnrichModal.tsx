@@ -127,7 +127,7 @@ function Step1Context({ onNext }: { onNext: (jobPosting: string) => void }) {
     <div>
       <h2 className="text-lg font-semibold text-gray-800 mb-1">Contexte (optionnel)</h2>
       <p className="text-sm text-gray-500 mb-5">
-        Si vous avez une offre d'emploi en tête, collez-la ici. Le prompt généré orientera les questions du coach vers ce poste. Laissez vide pour un enrichissement générique du profil.
+        Si vous avez une offre d'emploi en tête, collez-la ici. Le prompt généré orientera les questions du coach vers ce poste. Laissez vide pour un audit complet du profil (nettoyage, cohérence, consolidation et enrichissement de toutes les sections).
       </p>
 
       <div>
