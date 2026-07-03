@@ -474,8 +474,8 @@ export function ProfilePage() {
             </h3>
             {!isAddingEntry && !editingEntryId && (
               <>
-                {entries.filter(e => e.entryType === 'experience').length >= 2 && (
-                  <button className="rf-btn-secondary" onClick={() => setIsDuplicateScanOpen(true)} title="Détecter les expériences en doublon dans le profil maître" style={{ padding: '5px 12px', fontSize: 12 }}>
+                {new Set(entries.map(e => e.entryType)).size < entries.length && (
+                  <button className="rf-btn-secondary" onClick={() => setIsDuplicateScanOpen(true)} title="Détecter les doublons dans toutes les sections du profil maître (expériences, formations, compétences…)" style={{ padding: '5px 12px', fontSize: 12 }}>
                     Scanner les doublons
                   </button>
                 )}

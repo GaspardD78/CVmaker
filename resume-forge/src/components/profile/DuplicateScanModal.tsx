@@ -3,19 +3,43 @@ import { X, CheckCircle2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useDuplicateScanStore } from '@/stores/duplicateScanStore';
-import { buildGroupProposal, type DuplicateGroup } from '@/lib/duplicate-scan';
+import { buildGroupProposal, TITLE_DRIVEN_TYPES, type DuplicateGroup } from '@/lib/duplicate-scan';
 import { masterEntryToSnapshot, type ConsolidatedProposal } from '@/lib/experience-matching';
 import { CLASSIFICATION_BADGE, CriterionTag, ExperiencePreview, ProposalForm } from '@/components/shared/experience-review';
+import type { EntryType } from '@/types/profile';
 
 interface DuplicateScanModalProps {
   onClose: () => void;
 }
 
+/** Per-section wording: section badge, item noun, and how each criterion tag is labelled. */
+const TYPE_CONFIG: Record<EntryType, {
+  sectionLabel: string;
+  /** Plural noun for counts ("3 compétences similaires", "Fusionner ces 2 formations"). */
+  noun: string;
+  /** Label of the subtitle-based criterion tag, or null when the type has no meaningful subtitle. */
+  subtitleCriterion: string | null;
+  /** Whether the dates criterion is a real signal for this type. */
+  showDates: boolean;
+  titlePlaceholder: string;
+  subtitlePlaceholder: string;
+}> = {
+  experience: { sectionLabel: 'Expériences', noun: 'expériences', subtitleCriterion: 'Entreprise', showDates: true, titlePlaceholder: 'Poste', subtitlePlaceholder: 'Entreprise' },
+  education: { sectionLabel: 'Formations', noun: 'formations', subtitleCriterion: 'École', showDates: true, titlePlaceholder: 'Diplôme', subtitlePlaceholder: 'École' },
+  skill: { sectionLabel: 'Compétences', noun: 'compétences', subtitleCriterion: null, showDates: false, titlePlaceholder: 'Compétence', subtitlePlaceholder: 'Précision (optionnel)' },
+  certification: { sectionLabel: 'Certifications', noun: 'certifications', subtitleCriterion: 'Émetteur', showDates: false, titlePlaceholder: 'Certification', subtitlePlaceholder: 'Émetteur' },
+  language: { sectionLabel: 'Langues', noun: 'langues', subtitleCriterion: null, showDates: false, titlePlaceholder: 'Langue', subtitlePlaceholder: 'Niveau' },
+  interest: { sectionLabel: "Centres d'intérêt", noun: "centres d'intérêt", subtitleCriterion: null, showDates: false, titlePlaceholder: 'Centre d\'intérêt', subtitlePlaceholder: 'Précision (optionnel)' },
+  project: { sectionLabel: 'Projets', noun: 'projets', subtitleCriterion: 'Organisation', showDates: true, titlePlaceholder: 'Projet', subtitlePlaceholder: 'Organisation' },
+  volunteer: { sectionLabel: 'Bénévolat', noun: 'missions de bénévolat', subtitleCriterion: 'Organisation', showDates: true, titlePlaceholder: 'Mission', subtitlePlaceholder: 'Organisation' },
+};
+
 /**
  * One-off cleanup of legacy duplicates inside the master profile itself
  * (master vs master — the CV → master counterpart is ReconciliationReviewModal).
- * The scan is read-only; every merge goes through the same explicit,
- * editable-proposal validation as the reconciliation flow.
+ * Covers every section of the profile; entries are only compared within their
+ * own section. The scan is read-only; every merge goes through the same
+ * explicit, editable-proposal validation as the reconciliation flow.
  */
 export function DuplicateScanModal({ onClose }: DuplicateScanModalProps) {
   const { groups, isScanning, scan, mergeGroup, dismissGroup, removeEntryFromGroup } = useDuplicateScanStore();
@@ -31,7 +55,7 @@ export function DuplicateScanModal({ onClose }: DuplicateScanModalProps) {
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Doublons du profil maître</h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              Expériences du profil qui semblent décrire le même poste (entreprise et période proches). Aucune fusion sans votre validation.
+              Entrées du profil qui semblent décrire la même chose, section par section (expériences, formations, compétences…). Aucune fusion sans votre validation.
             </p>
           </div>
           <button
@@ -44,7 +68,7 @@ export function DuplicateScanModal({ onClose }: DuplicateScanModalProps) {
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
           {isScanning ? (
-            <p className="text-sm text-gray-500 text-center py-10">Analyse des expériences du profil…</p>
+            <p className="text-sm text-gray-500 text-center py-10">Analyse de toutes les sections du profil…</p>
           ) : groups.length === 0 ? (
             <div className="text-center py-10">
               <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
@@ -80,6 +104,8 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
   const [proposal, setProposal] = useState<ConsolidatedProposal>(() => buildGroupProposal(group.entries));
   const [busy, setBusy] = useState<'merge' | 'dismiss' | 'remove' | null>(null);
 
+  const config = TYPE_CONFIG[group.entryType];
+  const titleDriven = TITLE_DRIVEN_TYPES.has(group.entryType);
   const badge = CLASSIFICATION_BADGE[group.classification];
   // Union of the criteria that matched across the group's pairs, same tags as the reconciliation review.
   const criteria = {
@@ -92,7 +118,7 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
     setBusy('merge');
     try {
       await onMerge(group, proposal);
-      toast.success(`${group.entries.length} expériences fusionnées en une seule`);
+      toast.success(`${group.entries.length} ${config.noun} fusionnées en une seule entrée`);
     } catch {
       toast.error('Échec de la fusion du groupe');
     } finally {
@@ -116,7 +142,7 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
     setBusy('remove');
     try {
       await onRemoveEntry(group, entryId);
-      toast.success('Expérience retirée du groupe — ce rapprochement ne sera plus proposé');
+      toast.success('Entrée retirée du groupe — ce rapprochement ne sera plus proposé');
     } catch {
       toast.error('Échec du retrait');
     } finally {
@@ -132,7 +158,8 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
           <div>
             <p className="text-sm font-semibold text-gray-900">{group.entries[0].title}</p>
             <p className="text-xs text-gray-500">
-              {group.entries[0].subtitle} · {group.entries.length} expériences similaires
+              <span className="inline-block px-1.5 py-0.5 mr-1.5 rounded bg-gray-200/70 text-gray-600 font-medium">{config.sectionLabel}</span>
+              {group.entries[0].subtitle ? `${group.entries[0].subtitle} · ` : ''}{group.entries.length} {config.noun} similaires
             </p>
           </div>
         </div>
@@ -148,7 +175,7 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
           <div key={entry.id}>
             <div className="flex items-center justify-between mb-1.5">
               <h4 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                {index === 0 ? 'Expérience conservée (référence)' : `Doublon ${index}`}
+                {index === 0 ? 'Entrée conservée (référence)' : `Doublon ${index}`}
               </h4>
               <button
                 type="button"
@@ -166,9 +193,18 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
 
       <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5">
         <span className="text-[11px] text-gray-400 mr-1">Critères correspondants :</span>
-        <CriterionTag label="Entreprise" ok={criteria.company} />
-        <CriterionTag label="Dates" ok={criteria.dates} />
-        <CriterionTag label="Poste (indicatif)" ok={criteria.title} />
+        {titleDriven ? (
+          <>
+            <CriterionTag label="Intitulé" ok={criteria.title} />
+            {config.subtitleCriterion && <CriterionTag label={`${config.subtitleCriterion} (indicatif)`} ok={criteria.company} />}
+          </>
+        ) : (
+          <>
+            {config.subtitleCriterion && <CriterionTag label={config.subtitleCriterion} ok={criteria.company} />}
+            {config.showDates && <CriterionTag label="Dates" ok={criteria.dates} />}
+            <CriterionTag label="Intitulé (indicatif)" ok={criteria.title} />
+          </>
+        )}
       </div>
 
       <div className="p-4 border-t border-gray-100 bg-gray-50/60 space-y-3">
@@ -182,7 +218,13 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
             Réinitialiser la proposition
           </button>
         </div>
-        <ProposalForm proposal={proposal} onChange={setProposal} />
+        <ProposalForm
+          proposal={proposal}
+          onChange={setProposal}
+          titlePlaceholder={config.titlePlaceholder}
+          subtitlePlaceholder={config.subtitlePlaceholder}
+          showDates={config.showDates}
+        />
       </div>
 
       <div className="p-4 border-t border-gray-100 flex flex-wrap gap-2 justify-end">
@@ -190,7 +232,7 @@ function DuplicateGroupCard({ group, onMerge, onDismiss, onRemoveEntry }: Duplic
           Ignorer ce groupe (non-doublon)
         </Button>
         <Button variant="default" size="sm" onClick={handleMerge} disabled={!!busy}>
-          Fusionner ces {group.entries.length} expériences
+          Fusionner ces {group.entries.length} {config.noun}
         </Button>
       </div>
     </div>

@@ -421,27 +421,33 @@ Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown). Les champs
 }
 
 export function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], jobPosting?: string): string {
-  const experiences = entries.filter(e => e.entryType === 'experience');
-  const skills = entries.filter(e => e.entryType === 'skill');
-  const education = entries.filter(e => e.entryType === 'education');
+  const byType = (type: MasterEntry['entryType']) => entries.filter(e => e.entryType === type);
 
-  const expList = experiences.map(e => {
-    const dates = `${e.startDate || '?'} - ${e.isCurrent ? 'Présent' : (e.endDate || '?')}`;
-    return `- ${e.title}${e.subtitle ? ` chez ${e.subtitle}` : ''} [${dates}] : ${e.description || '(pas de description)'}`;
-  }).join('\n');
+  const fmtDates = (e: MasterEntry) =>
+    (e.startDate || e.endDate || e.isCurrent)
+      ? ` [${e.startDate || '?'} - ${e.isCurrent ? 'Présent' : (e.endDate || '?')}]`
+      : '';
+  const fmtDated = (e: MasterEntry, subtitlePrefix = 'chez') => {
+    const desc = e.description ? ` : ${e.description}` : ' : (pas de description)';
+    return `- ${e.title}${e.subtitle ? ` ${subtitlePrefix} ${e.subtitle}` : ''}${fmtDates(e)}${desc}`;
+  };
+  const fmtShort = (e: MasterEntry) =>
+    `- ${e.title}${e.subtitle ? ` (${e.subtitle})` : ''}${fmtDates(e)}${e.description ? ` : ${e.description.replace(/\n/g, ' ')}` : ''}`;
 
-  const eduList = education.map(e => {
-    const dates = `${e.startDate || '?'} - ${e.isCurrent ? 'Présent' : (e.endDate || '?')}`;
-    return `- ${e.title}${e.subtitle ? ` (${e.subtitle})` : ''} [${dates}]`;
-  }).join('\n');
-
-  const skillList = skills.map(e => e.title).join(', ');
+  const expList = byType('experience').map(e => fmtDated(e)).join('\n');
+  const eduList = byType('education').map(e => fmtShort(e)).join('\n');
+  const skillList = byType('skill').map(e => e.title).join(', ');
+  const certList = byType('certification').map(e => fmtShort(e)).join('\n');
+  const langList = byType('language').map(e => `- ${e.title}${e.subtitle ? ` : ${e.subtitle}` : ' : (niveau non renseigné)'}`).join('\n');
+  const projList = byType('project').map(e => fmtShort(e)).join('\n');
+  const interestList = byType('interest').map(e => e.title).join(', ');
+  const volunteerList = byType('volunteer').map(e => fmtDated(e, 'pour')).join('\n');
 
   return `# Rôle
 Coach CV expert et mentor de carrière.
 
 ## Objectif
-Engager un dialogue constructif pour enrichir le profil professionnel de l'utilisateur.
+Auditer, nettoyer et enrichir l'INTÉGRALITÉ du profil professionnel de l'utilisateur (toutes les sections, pas seulement les expériences) à travers un dialogue constructif : cohérence d'ensemble, consolidation des redondances, puis enrichissement.
 
 ## Profil Maître (Données actuelles)
 Nom : ${profile.firstName} ${profile.lastName}
@@ -451,11 +457,26 @@ Résumé : ${profile.summary || '(non renseigné)'}
 ### Expériences
 ${expList || '(aucune)'}
 
+### Formations
+${eduList || '(aucune)'}
+
 ### Compétences
 ${skillList || '(aucune)'}
 
-### Formations
-${eduList || '(aucune)'}
+### Certifications
+${certList || '(aucune)'}
+
+### Langues
+${langList || '(aucune)'}
+
+### Projets
+${projList || '(aucun)'}
+
+### Centres d'intérêt
+${interestList || '(aucun)'}
+
+### Bénévolat
+${volunteerList || '(aucun)'}
 
 ${jobPosting ? `## Offre visée (Cible)\n${jobPosting.trim()}\n` : ''}
 
@@ -464,27 +485,34 @@ ${SYSTEM_RULES}
 - **DISCUSSION** : Discute des choix de mots-clés, propose des reformulations percutantes sans les imposer. Laisse l'utilisateur valider.
 - **INTERACTION** : Pose une seule question à la fois pour garder le dialogue fluide.
 - **PRÉCISION** : Cherche toujours le "Combien ?" (chiffres), le "Comment ?" (méthodes) et le "Avec quoi ?" (outils).
+- **CLÉ DE RAPPROCHEMENT (CRITIQUE)** : Dans le JSON final, pour MODIFIER une entrée existante, recopie EXACTEMENT son \`title\` et son \`entryType\` tels qu'ils apparaissent ci-dessus — c'est la clé qui permet à l'application de mettre à jour l'entrée au lieu d'en créer une nouvelle. Un titre différent créera une NOUVELLE entrée. Si un intitulé mérite d'être corrigé (faute, casse…), signale-le dans la discussion pour que l'utilisateur le corrige à la main, et garde le titre d'origine dans le JSON.
+- **JAMAIS DE SUPPRESSION** : Tu ne peux pas supprimer ni fusionner des entrées. Si tu repères des doublons ou des entrées à retirer, signale-les explicitement dans la discussion (l'application dispose d'un outil dédié "Scanner les doublons").
 
 ## Mission
-1. Analyse le profil par rapport aux standards du marché (et à l'offre si fournie).
-2. Identifie les expériences qui manquent de "preuves" (résultats concrets).
-3. Entame la discussion en saluant l'utilisateur et en proposant une première piste d'enrichissement sur l'expérience la plus stratégique.
-4. **IMPORTANT : CLÔTURE** : Une fois la discussion terminée, génère la synthèse JSON.
+1. **AUDIT GLOBAL** : Passe en revue TOUTES les sections (expériences, formations, compétences, certifications, langues, projets, centres d'intérêt, bénévolat) par rapport aux standards du marché (et à l'offre si fournie). Résume tes constats en quelques points classés par impact.
+2. **NETTOYAGE** : Repère fautes d'orthographe, incohérences de casse, formats de dates hétérogènes, puces mal formatées, jargon creux et formulations faibles. Propose les corrections.
+3. **COHÉRENCE** : Vérifie la chronologie (trous ou chevauchements inexpliqués → pose la question), l'alignement entre le titre, le résumé et les expériences, la normalisation des niveaux de langue (CECRL : A1-C2), et que les compétences listées sont étayées par les expériences, projets ou certifications.
+4. **CONSOLIDATION** : Repère les redondances intra et inter-sections (compétence en double, projet déjà décrit dans une expérience, certification listée aussi en formation…). Propose une version consolidée ou signale le doublon selon la règle ci-dessus.
+5. **ENRICHISSEMENT** : Identifie les entrées qui manquent de "preuves" (résultats concrets, chiffres, outils) et enrichis-les via le dialogue, en commençant par l'expérience la plus stratégique.
+6. **IMPORTANT : CLÔTURE** : Une fois la discussion terminée, génère la synthèse JSON.
+
+Entame la discussion en saluant l'utilisateur, en présentant ton audit global (points 1 à 4 de manière synthétique), puis en proposant une première piste d'action.
 
 ## Format de sortie final
-Dès que la conversation touche à sa fin, tu DOIS générer un bloc de code JSON contenant l'intégralité du profil enrichi (champs personnels + toutes les entrées modifiées ou nouvelles) au format suivant :
+Dès que la conversation touche à sa fin, tu DOIS générer un bloc de code JSON contenant les champs personnels modifiés et TOUTES les entrées modifiées (nettoyées, mises en cohérence ou enrichies) ou nouvelles, toutes sections confondues. N'inclus PAS les entrées restées inchangées.
 
 \`\`\`json
 {
   "profile": {
-    "title": "Titre enrichi",
-    "summary": "Résumé enrichi"
+    "title": "Titre professionnel (si modifié)",
+    "summary": "Résumé (si modifié)"
   },
   "entries": [
     {
-      "entryType": "experience",
-      "title": "Titre du poste",
-      "subtitle": "Entreprise",
+      "entryType": "experience|education|skill|certification|language|project|interest|volunteer",
+      "title": "TITRE EXACT de l'entrée existante (ou nouveau titre si nouvelle entrée)",
+      "subtitle": "Entreprise / École / Émetteur / Niveau de langue (selon le type)",
+      "location": "Ville (optionnel)",
       "description": "Description enrichie avec des puces",
       "startDate": "YYYY-MM",
       "endDate": "YYYY-MM",

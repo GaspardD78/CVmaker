@@ -15,15 +15,15 @@ export const CLASSIFICATION_BADGE: Record<MatchClassification, { label: string; 
 };
 
 export function ExperiencePreview({ snapshot }: { snapshot: ExperienceSnapshot }) {
+  const hasDates = !!(snapshot.datesOverrideText || snapshot.startDate || snapshot.endDate || snapshot.isCurrent);
+  const datesText = snapshot.datesOverrideText
+    ? snapshot.datesOverrideText
+    : `${snapshot.startDate ?? '?'} — ${snapshot.isCurrent ? "aujourd'hui" : (snapshot.endDate ?? '?')}`;
+  const subLine = [snapshot.subtitle, hasDates ? datesText : null].filter(Boolean).join(' · ');
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm h-full">
       <p className="font-semibold text-gray-900">{snapshot.title}</p>
-      <p className="text-xs text-gray-500 mt-0.5">
-        {snapshot.subtitle}
-        {snapshot.datesOverrideText
-          ? ` · ${snapshot.datesOverrideText}`
-          : ` · ${snapshot.startDate ?? '?'} — ${snapshot.isCurrent ? "aujourd'hui" : (snapshot.endDate ?? '?')}`}
-      </p>
+      {subLine && <p className="text-xs text-gray-500 mt-0.5">{subLine}</p>}
       {snapshot.description && (
         <p className="text-xs text-gray-600 mt-2 whitespace-pre-line line-clamp-6">{snapshot.description}</p>
       )}
@@ -44,10 +44,21 @@ export function CriterionTag({ label, ok }: { label: string; ok: boolean }) {
 interface ProposalFormProps {
   proposal: ConsolidatedProposal;
   onChange: (proposal: ConsolidatedProposal) => void;
+  /** Wording overrides for non-experience sections (duplicate scan); defaults keep the reconciliation flow untouched. */
+  titlePlaceholder?: string;
+  subtitlePlaceholder?: string;
+  /** Hide the date fields for sections where dates are meaningless (skills, languages…). */
+  showDates?: boolean;
 }
 
 /** Editable consolidated-version form — nothing is written until the user validates. */
-export function ProposalForm({ proposal, onChange }: ProposalFormProps) {
+export function ProposalForm({
+  proposal,
+  onChange,
+  titlePlaceholder = 'Poste',
+  subtitlePlaceholder = 'Entreprise',
+  showDates = true,
+}: ProposalFormProps) {
   const setField = <K extends keyof ConsolidatedProposal>(key: K, value: ConsolidatedProposal[K]) =>
     onChange({ ...proposal, [key]: value });
 
@@ -57,33 +68,39 @@ export function ProposalForm({ proposal, onChange }: ProposalFormProps) {
         <input
           value={proposal.title}
           onChange={e => setField('title', e.target.value)}
-          placeholder="Poste"
+          placeholder={titlePlaceholder}
           className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <input
           value={proposal.subtitle ?? ''}
           onChange={e => setField('subtitle', e.target.value)}
-          placeholder="Entreprise"
+          placeholder={subtitlePlaceholder}
           className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
-        <input
-          value={proposal.startDate ?? ''}
-          onChange={e => setField('startDate', e.target.value)}
-          placeholder="Début (YYYY-MM)"
-          className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
-        <input
-          value={proposal.endDate ?? ''}
-          onChange={e => setField('endDate', e.target.value)}
-          placeholder="Fin (YYYY-MM)"
-          disabled={proposal.isCurrent}
-          className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
-        />
+        {showDates && (
+          <>
+            <input
+              value={proposal.startDate ?? ''}
+              onChange={e => setField('startDate', e.target.value)}
+              placeholder="Début (YYYY-MM)"
+              className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <input
+              value={proposal.endDate ?? ''}
+              onChange={e => setField('endDate', e.target.value)}
+              placeholder="Fin (YYYY-MM)"
+              disabled={proposal.isCurrent}
+              className="w-full text-sm rounded-md border border-gray-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+            />
+          </>
+        )}
       </div>
-      <label className="flex items-center gap-2 text-xs text-gray-600">
-        <input type="checkbox" checked={proposal.isCurrent} onChange={e => setField('isCurrent', e.target.checked)} />
-        En cours
-      </label>
+      {showDates && (
+        <label className="flex items-center gap-2 text-xs text-gray-600">
+          <input type="checkbox" checked={proposal.isCurrent} onChange={e => setField('isCurrent', e.target.checked)} />
+          En cours
+        </label>
+      )}
       <textarea
         value={proposal.description ?? ''}
         onChange={e => setField('description', e.target.value)}

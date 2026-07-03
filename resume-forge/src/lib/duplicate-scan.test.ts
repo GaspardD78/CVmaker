@@ -82,11 +82,70 @@ describe('findDuplicateGroups', () => {
     expect(findDuplicateGroups([junior, lead])).toHaveLength(0);
   });
 
-  test('non-experience entries are never scanned', () => {
-    const a = makeEntry({ entryType: 'education', title: 'Master RH', subtitle: 'Université Paris 1' });
-    const b = makeEntry({ entryType: 'education', title: 'Master RH', subtitle: 'Université Paris 1' });
+  test('entries are never compared across sections, even with identical titles', () => {
+    const skill = makeEntry({ entryType: 'skill', title: 'Gestion de projet', subtitle: null, startDate: null, endDate: null });
+    const interest = makeEntry({ entryType: 'interest', title: 'Gestion de projet', subtitle: null, startDate: null, endDate: null });
 
-    expect(findDuplicateGroups([a, b])).toHaveLength(0);
+    expect(findDuplicateGroups([skill, interest])).toHaveLength(0);
+  });
+
+  test('education duplicates: same school and degree grouped even without dates', () => {
+    const a = makeEntry({ entryType: 'education', title: 'Master RH', subtitle: 'Université Paris 1', startDate: null, endDate: null });
+    const b = makeEntry({ entryType: 'education', title: 'Master RH', subtitle: 'Université Paris 1', startDate: null, endDate: null });
+
+    const groups = findDuplicateGroups([a, b]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].entryType).toBe('education');
+  });
+
+  test('education at the same school with different degrees and distinct periods is not a duplicate', () => {
+    const licence = makeEntry({ entryType: 'education', title: 'Licence Économie', subtitle: 'Université Paris 1', startDate: '2008-09', endDate: '2011-06' });
+    const master = makeEntry({ entryType: 'education', title: 'Master RH', subtitle: 'Université Paris 1', startDate: '2012-09', endDate: '2014-06' });
+
+    expect(findDuplicateGroups([licence, master])).toHaveLength(0);
+  });
+
+  test('skill duplicates: near-identical titles grouped, distinct skills untouched', () => {
+    const a = makeEntry({ entryType: 'skill', title: 'JavaScript', subtitle: null, startDate: null, endDate: null });
+    const b = makeEntry({ entryType: 'skill', title: 'Javascript', subtitle: null, startDate: null, endDate: null });
+    const c = makeEntry({ entryType: 'skill', title: 'Rust', subtitle: null, startDate: null, endDate: null });
+
+    const groups = findDuplicateGroups([a, b, c]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].entryType).toBe('skill');
+    expect(groups[0].entries.map(e => e.id).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  test('identical skill titles are a confident group; similar-but-different ones only ambiguous', () => {
+    const a = makeEntry({ entryType: 'skill', title: 'React', subtitle: null, startDate: null, endDate: null });
+    const b = makeEntry({ entryType: 'skill', title: 'React', subtitle: null, startDate: null, endDate: null });
+    const [confident] = findDuplicateGroups([a, b]);
+    expect(confident.classification).toBe('confident');
+
+    // 1 typo over 13 characters → similarity ≈ 0.92: admitted but flagged "à confirmer".
+    const c = makeEntry({ entryType: 'skill', title: 'Communication', subtitle: null, startDate: null, endDate: null });
+    const d = makeEntry({ entryType: 'skill', title: 'Comunication', subtitle: null, startDate: null, endDate: null });
+    const [ambiguous] = findDuplicateGroups([c, d]);
+    expect(ambiguous.classification).toBe('ambiguous');
+  });
+
+  test('certification duplicates: same title grouped even with differently spelled issuers', () => {
+    const a = makeEntry({ entryType: 'certification', title: 'AWS Solutions Architect Associate', subtitle: 'Amazon Web Services', startDate: null, endDate: null });
+    const b = makeEntry({ entryType: 'certification', title: 'AWS Solutions Architect Associate', subtitle: 'AWS', startDate: null, endDate: null });
+
+    expect(findDuplicateGroups([a, b])).toHaveLength(1);
+  });
+
+  test('a mixed profile yields one group per affected section', () => {
+    const exp1 = makeEntry();
+    const exp2 = makeEntry({ title: 'TA Manager' });
+    const skill1 = makeEntry({ entryType: 'skill', title: 'Sourcing', subtitle: null, startDate: null, endDate: null });
+    const skill2 = makeEntry({ entryType: 'skill', title: 'Sourcing', subtitle: null, startDate: null, endDate: null });
+    const lonelyEdu = makeEntry({ entryType: 'education', title: 'Master RH', subtitle: 'Université Paris 1' });
+
+    const groups = findDuplicateGroups([exp1, exp2, skill1, skill2, lonelyEdu]);
+    expect(groups).toHaveLength(2);
+    expect(groups.map(g => g.entryType).sort()).toEqual(['experience', 'skill']);
   });
 
   test('dismissed pair ("confirmed non-duplicate") never resurfaces on re-scan', () => {

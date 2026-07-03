@@ -1,4 +1,4 @@
-import type { MasterEntry } from '@/types/profile';
+import type { EntryType, MasterEntry } from '@/types/profile';
 import {
   masterEntryToSnapshot,
   scoreExperienceMatch,
@@ -10,11 +10,15 @@ import {
 /**
  * One-off duplicate scan of the master profile against itself: legacy
  * duplicates predate the CV → master reconciliation flow and never went
- * through it. Reuses `scoreExperienceMatch` verbatim (company + dates as
- * primary signals, title secondary) — only the pairing/grouping around it is
- * new. Nothing here writes anything: the store applies merges after explicit
- * user validation, and confirmed non-duplicates are persisted as pairs in
- * `duplicate_dismissals` so they never resurface.
+ * through it. Every section is scanned, but entries are only ever compared
+ * within their own `entryType`. The scoring reuses `scoreExperienceMatch`
+ * verbatim; what changes per type is the admission rule built on top of it:
+ * dated types (experience, education, volunteer, project) lean on
+ * company/organisation + date overlap, title-driven types (skill, language,
+ * interest, certification) lean on near-identical titles. Nothing here writes
+ * anything: the store applies merges after explicit user validation, and
+ * confirmed non-duplicates are persisted as pairs in `duplicate_dismissals`
+ * so they never resurface.
  */
 
 // ── Dismissed pairs ("confirmed non-duplicate") ───────────────────────────────
@@ -47,25 +51,78 @@ export function pairsForEntryRemoval(removedId: string, remainingIds: string[]):
 
 // ── Pair admission + grouping ─────────────────────────────────────────────────
 
+/** Types whose duplicates are detected mainly through a near-identical title. */
+export const TITLE_DRIVEN_TYPES: ReadonlySet<EntryType> = new Set<EntryType>([
+  'skill', 'language', 'interest', 'certification',
+]);
+
+/** Title similarity above which two entries of a title-driven type are duplicate candidates. */
+export const STRONG_TITLE_THRESHOLD = 0.9;
+/** Title similarity above which a title-driven pair is classified 'confident'. */
+export const CONFIDENT_TITLE_THRESHOLD = 0.95;
+
 /**
- * Two master entries are duplicate candidates when both primary signals pass
- * the same thresholds the reconciliation flow uses for its matched-criteria
- * tags: company AND dates. Title stays secondary/non-blocking, exactly like
- * the CV → master matching.
+ * Per-type admission rule. Experiences keep the historical rule (company AND
+ * dates over the reconciliation thresholds, title secondary/non-blocking).
+ * Other dated types accept a near-identical title as a substitute for dates,
+ * because their dates are often missing. Title-driven types only need a
+ * near-identical title.
  */
-export function isDuplicatePairScore(score: MatchScore): boolean {
-  return score.matchedCriteria.company && score.matchedCriteria.dates;
+export function isDuplicatePairScore(entryType: EntryType, score: MatchScore): boolean {
+  switch (entryType) {
+    case 'experience':
+      return score.matchedCriteria.company && score.matchedCriteria.dates;
+    case 'education':
+    case 'volunteer':
+      return score.matchedCriteria.company
+        && (score.matchedCriteria.dates || score.titleScore >= STRONG_TITLE_THRESHOLD);
+    case 'project':
+      return score.titleScore >= STRONG_TITLE_THRESHOLD
+        || (score.matchedCriteria.company && score.matchedCriteria.dates);
+    case 'certification':
+      return score.titleScore >= STRONG_TITLE_THRESHOLD
+        || (score.matchedCriteria.company && score.titleScore >= 0.8);
+    case 'skill':
+    case 'language':
+    case 'interest':
+      return score.titleScore >= STRONG_TITLE_THRESHOLD;
+  }
+}
+
+/**
+ * The effective classification of an admitted pair. Dated types reuse the
+ * score's own classification (company/date thresholds); title-driven types
+ * derive it from title similarity, since their company/date scores are mostly
+ * noise (no dates, often no subtitle).
+ */
+function pairClassification(entryType: EntryType, score: MatchScore): 'confident' | 'ambiguous' {
+  if (TITLE_DRIVEN_TYPES.has(entryType)) {
+    return score.titleScore >= CONFIDENT_TITLE_THRESHOLD ? 'confident' : 'ambiguous';
+  }
+  return score.classification === 'confident' ? 'confident' : 'ambiguous';
+}
+
+/** 0-100 display score of an admitted pair, weighted per type family. */
+function pairDisplayScore(entryType: EntryType, score: MatchScore): number {
+  if (TITLE_DRIVEN_TYPES.has(entryType)) return Math.round(score.titleScore * 100);
+  return score.overallScore;
 }
 
 export interface DuplicatePair {
   entryIdA: string;
   entryIdB: string;
   score: MatchScore;
+  /** Type-aware classification (see `pairClassification`). */
+  classification: 'confident' | 'ambiguous';
+  /** Type-aware 0-100 score, display only. */
+  displayScore: number;
 }
 
 export interface DuplicateGroup {
   /** Stable identity: sorted member ids — the same members always form the same group id. */
   id: string;
+  /** All members share this entry type — entries are never compared across sections. */
+  entryType: EntryType;
   /** Members, oldest first — the first entry is kept on merge, the others are absorbed into it. */
   entries: MasterEntry[];
   /** The pairwise matches that hold this group together. */
@@ -83,20 +140,40 @@ function sortGroupEntries(entries: MasterEntry[]): MasterEntry[] {
 }
 
 /**
- * Scores every experience of the master profile against every other one and
- * clusters matching pairs into connected components, so a triple (or more)
- * duplicated at different times lands in a single group even if one of its
- * pairs is weaker. Pure and idempotent: dismissed pairs are excluded up
- * front, and already-merged entries simply no longer exist.
+ * Scores every entry of the master profile against every other one of the
+ * same type and clusters matching pairs into connected components, so a
+ * triple (or more) duplicated at different times lands in a single group even
+ * if one of its pairs is weaker. Pure and idempotent: dismissed pairs are
+ * excluded up front, and already-merged entries simply no longer exist.
  */
 export function findDuplicateGroups(
   masterEntries: MasterEntry[],
   dismissedPairKeys: ReadonlySet<string> = new Set(),
 ): DuplicateGroup[] {
-  const experiences = masterEntries.filter(e => e.entryType === 'experience');
-  const snapshots = new Map(experiences.map(e => [e.id, masterEntryToSnapshot(e)]));
+  const byType = new Map<EntryType, MasterEntry[]>();
+  for (const entry of masterEntries) {
+    const list = byType.get(entry.entryType);
+    if (list) list.push(entry);
+    else byType.set(entry.entryType, [entry]);
+  }
 
-  const parent = new Map<string, string>(experiences.map(e => [e.id, e.id]));
+  const groups: DuplicateGroup[] = [];
+  for (const [entryType, entries] of byType) {
+    if (entries.length < 2) continue;
+    groups.push(...findGroupsWithinType(entryType, entries, dismissedPairKeys));
+  }
+
+  return groups.sort((a, b) => b.overallScore - a.overallScore);
+}
+
+function findGroupsWithinType(
+  entryType: EntryType,
+  typeEntries: MasterEntry[],
+  dismissedPairKeys: ReadonlySet<string>,
+): DuplicateGroup[] {
+  const snapshots = new Map(typeEntries.map(e => [e.id, masterEntryToSnapshot(e)]));
+
+  const parent = new Map<string, string>(typeEntries.map(e => [e.id, e.id]));
   const find = (id: string): string => {
     let root = id;
     while (parent.get(root) !== root) root = parent.get(root)!;
@@ -111,21 +188,27 @@ export function findDuplicateGroups(
   const union = (a: string, b: string) => parent.set(find(a), find(b));
 
   const edges: DuplicatePair[] = [];
-  for (let i = 0; i < experiences.length; i++) {
-    for (let j = i + 1; j < experiences.length; j++) {
-      const a = experiences[i];
-      const b = experiences[j];
+  for (let i = 0; i < typeEntries.length; i++) {
+    for (let j = i + 1; j < typeEntries.length; j++) {
+      const a = typeEntries[i];
+      const b = typeEntries[j];
       if (dismissedPairKeys.has(dismissalPairKey(a.id, b.id))) continue;
       const score = scoreExperienceMatch(snapshots.get(a.id)!, snapshots.get(b.id)!);
-      if (!isDuplicatePairScore(score)) continue;
+      if (!isDuplicatePairScore(entryType, score)) continue;
       const [idA, idB] = canonicalPair(a.id, b.id);
-      edges.push({ entryIdA: idA, entryIdB: idB, score });
+      edges.push({
+        entryIdA: idA,
+        entryIdB: idB,
+        score,
+        classification: pairClassification(entryType, score),
+        displayScore: pairDisplayScore(entryType, score),
+      });
       union(a.id, b.id);
     }
   }
 
   const membersByRoot = new Map<string, MasterEntry[]>();
-  for (const entry of experiences) {
+  for (const entry of typeEntries) {
     const root = find(entry.id);
     const members = membersByRoot.get(root);
     if (members) members.push(entry);
@@ -139,14 +222,15 @@ export function findDuplicateGroups(
     const pairs = edges.filter(e => memberIds.has(e.entryIdA) && memberIds.has(e.entryIdB));
     groups.push({
       id: [...memberIds].sort().join('+'),
+      entryType,
       entries: sortGroupEntries(members),
       pairs,
-      classification: pairs.every(p => p.score.classification === 'confident') ? 'confident' : 'ambiguous',
-      overallScore: Math.round(pairs.reduce((sum, p) => sum + p.score.overallScore, 0) / pairs.length),
+      classification: pairs.every(p => p.classification === 'confident') ? 'confident' : 'ambiguous',
+      overallScore: Math.round(pairs.reduce((sum, p) => sum + p.displayScore, 0) / pairs.length),
     });
   }
 
-  return groups.sort((a, b) => b.overallScore - a.overallScore);
+  return groups;
 }
 
 // ── Consolidation ─────────────────────────────────────────────────────────────
