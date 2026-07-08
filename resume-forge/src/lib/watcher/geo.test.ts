@@ -94,9 +94,19 @@ describe('classifyOfferZone — department fallback (no GPS)', () => {
     expect(classifyOfferZone(offer(null, null, 'Nanterre (92)'), CARRIERES, 30)).toBe('in');
   });
 
-  it('returns unknown when no GPS and no dept code (offer kept)', () => {
-    expect(classifyOfferZone(offer(null, null, 'Paris'), CARRIERES, 30)).toBe('unknown');
+  it('returns unknown when no GPS, no dept code and unknown city (offer kept)', () => {
+    expect(classifyOfferZone(offer(null, null, 'Trifouillis-les-Oies'), CARRIERES, 30)).toBe('unknown');
     expect(classifyOfferZone(offer(null, null, null), CARRIERES, 30)).toBe('unknown');
+  });
+});
+
+describe('classifyOfferZone — city-name fallback (WTTJ bare city labels)', () => {
+  it('classifies known big-city names via their department centroid', () => {
+    // Le bug WTTJ : lieu = ville nue, sans code département ni GPS.
+    expect(classifyOfferZone(offer(null, null, 'Montpellier'), CARRIERES, 30)).toBe('out');
+    expect(classifyOfferZone(offer(null, null, 'Lyon'), CARRIERES, 30)).toBe('out');
+    expect(classifyOfferZone(offer(null, null, 'Paris'), CARRIERES, 30)).toBe('in');
+    expect(classifyOfferZone(offer(null, null, 'Versailles'), CARRIERES, 30)).toBe('in');
   });
 });
 

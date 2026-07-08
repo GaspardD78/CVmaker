@@ -116,6 +116,43 @@ describe('hitToOffer', () => {
     expect(hitToOffer({ ...baseHit, contract_type: undefined })!.contractType).toBeNull();
   });
 
+  test('_geoloc (objet) utilisé quand offices[] n\'a pas de coordonnées', () => {
+    const offer = hitToOffer({
+      ...baseHit,
+      offices: [{ city: 'Montpellier', country_code: 'FR' }],
+      _geoloc: { lat: 43.61, lng: 3.88 },
+    });
+    expect(offer!.location).toBe('Montpellier');
+    expect(offer!.locationLat).toBeCloseTo(43.61);
+    expect(offer!.locationLon).toBeCloseTo(3.88);
+  });
+
+  test('_geoloc (tableau) aligné sur le bureau FR retenu', () => {
+    const offer = hitToOffer({
+      ...baseHit,
+      offices: [
+        { city: 'Berlin', country_code: 'DE' },
+        { city: 'Lyon', country_code: 'FR' },
+      ],
+      _geoloc: [
+        { lat: 52.52, lng: 13.40 },
+        { lat: 45.76, lng: 4.84 },
+      ],
+    });
+    expect(offer!.location).toBe('Lyon');
+    expect(offer!.locationLat).toBeCloseTo(45.76);
+    expect(offer!.locationLon).toBeCloseTo(4.84);
+  });
+
+  test('coordonnées du bureau prioritaires sur _geoloc', () => {
+    const offer = hitToOffer({
+      ...baseHit,
+      _geoloc: { lat: 0, lng: 0 },
+    });
+    expect(offer!.locationLat).toBeCloseTo(48.8566);
+    expect(offer!.locationLon).toBeCloseTo(2.3522);
+  });
+
   test('champs optionnels absents → offre valide avec métadonnées "none"', () => {
     const offer = hitToOffer({
       name: 'Recruteur',
