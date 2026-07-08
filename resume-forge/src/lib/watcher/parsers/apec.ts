@@ -37,6 +37,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
 import { buildApecQuery, isExcludedByProfile } from '../profile-to-query';
 import { APEC_TYPES_CONTRAT_LABEL } from './apec-ids';
+import { cityToDeptCode } from './common/city-departments';
 
 const APEC_OFFER_BASE = 'https://www.apec.fr/candidat/recherche-emploi.html/emploi/detail-offre';
 
@@ -44,23 +45,8 @@ const APEC_OFFER_BASE = 'https://www.apec.fr/candidat/recherche-emploi.html/empl
 const PAGE_SIZE = 50;
 const MAX_PAGES = 3;
 
-/**
- * Mapping minimal des grandes villes françaises vers leur code département.
- * Utilisé en repli quand `departmentCodes` est vide mais `city` est renseigné,
- * pour activer le filtre de localisation post-fetch sans dépendre de l'INSEE.
- */
-const CITY_TO_DEPT: Record<string, string> = {
-  paris: '75', lyon: '69', marseille: '13', toulouse: '31', nice: '06',
-  nantes: '44', strasbourg: '67', montpellier: '34', bordeaux: '33', lille: '59',
-  rennes: '35', reims: '51', 'le havre': '76', 'saint-étienne': '42',
-  toulon: '83', grenoble: '38', dijon: '21', angers: '49', nîmes: '30',
-  'saint-denis': '93', 'le mans': '72', aix: '13', brest: '29',
-  tours: '37', amiens: '80', limoges: '87', clermont: '63', besançon: '25',
-  metz: '57', orleans: '45', orléans: '45', mulhouse: '68', rouen: '76',
-  caen: '14', nancy: '54', avignon: '84', perpignan: '66',
-  versailles: '78', creteil: '94', créteil: '94', boulogne: '92',
-  nanterre: '92', argenteuil: '95', montreuil: '93',
-};
+// Le mapping ville → département vit dans `common/city-departments.ts`
+// (partagé avec la requête France Travail).
 
 // Le mapping ID → libellé canonique vit dans `apec-ids.ts` ; on importe
 // directement la version inversée pour ne pas dupliquer les codes ici.
@@ -101,11 +87,8 @@ function parseSalary(raw: string | undefined): { min: number | null; max: number
  */
 function expectedDepartments(profile: { location: { departmentCodes: string[]; city: string } }): Set<string> {
   const set = new Set(profile.location.departmentCodes.map(c => c.trim()).filter(Boolean));
-  const city = profile.location.city?.trim().toLowerCase();
-  if (city) {
-    const dept = CITY_TO_DEPT[city];
-    if (dept) set.add(dept);
-  }
+  const dept = cityToDeptCode(profile.location.city);
+  if (dept) set.add(dept);
   return set;
 }
 
@@ -137,25 +120,48 @@ function significantTokens(s: string): string[] {
 }
 
 /**
+ * Longueur minimale du radical commun pour considérer deux tokens comme la même
+ * famille lexicale. 6 lettres : « recrut » relie recruteur / recrutement /
+ * recruteuse, « manage » relie manager / management — tout en restant assez
+ * long pour ne pas relier « recrue » (radical commun 5) ou d'autres homographes
+ * courts.
+ */
+const TOKEN_STEM_MIN_PREFIX = 6;
+
+/**
+ * Deux tokens matchent s'ils sont égaux ou s'ils partagent un radical d'au
+ * moins `TOKEN_STEM_MIN_PREFIX` lettres. Rattrape les dérivations françaises
+ * courantes (recruteur ↔ recrutement) sans dépendre d'un stemmer complet.
+ */
+function tokensMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length < TOKEN_STEM_MIN_PREFIX || b.length < TOKEN_STEM_MIN_PREFIX) return false;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return long.startsWith(short.slice(0, Math.max(TOKEN_STEM_MIN_PREFIX, short.length - 3)));
+}
+
+/**
  * Vérifie qu'au moins un jobTitle « recouvre » le titre de l'offre. La comparaison
  * se fait par tokens (et non plus par sous-chaîne exacte) : un intitulé matche si
  * au moins `TITLE_TOKEN_MATCH_RATIO` de ses tokens significatifs sont présents
- * dans le titre, indépendamment de l'ordre et des accents. Cela rattrape les
- * variantes proches (« …Specialist » vs « …Manager ») que le filtre exact
- * précédent rejetait, tout en restant assez strict pour écarter le bruit
- * (« Chargé de clientèle » ne matche pas « Chargé de recrutement » : 1 token sur 2).
+ * dans le titre, indépendamment de l'ordre et des accents. Les tokens sont
+ * comparés par famille lexicale (cf. `tokensMatch`) : « Recruteur » retrouve
+ * « Chargé de recrutement » — l'égalité stricte rejetait 100 % des résultats
+ * APEC dès que l'offre déclinait le métier autrement. Le seuil de recouvrement
+ * écarte toujours le bruit (« Chargé de clientèle » ne matche pas « Chargé de
+ * recrutement » : 1 token sur 2).
  *
  * Si `jobTitles` est vide — ou ne contient aucun token exploitable — on accepte
  * tout : on ne peut pas filtrer sur ce que l'utilisateur n'a pas spécifié.
  */
 export function titleMatchesAnyJobTitle(title: string, jobTitles: string[]): boolean {
-  const offerTokens = new Set(significantTokens(title));
+  const offerTokens = significantTokens(title);
   let anyTargetHadTokens = false;
   for (const raw of jobTitles) {
     const wanted = significantTokens(raw);
     if (wanted.length === 0) continue;
     anyTargetHadTokens = true;
-    const present = wanted.filter(w => offerTokens.has(w)).length;
+    const present = wanted.filter(w => offerTokens.some(t => tokensMatch(w, t))).length;
     if (present / wanted.length >= TITLE_TOKEN_MATCH_RATIO) return true;
   }
   return !anyTargetHadTokens;
