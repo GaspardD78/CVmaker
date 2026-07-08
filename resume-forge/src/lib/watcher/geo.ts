@@ -121,6 +121,28 @@ const MIN_EFFECTIVE_RADIUS_KM = 5;
 export type ZoneVerdict = 'in' | 'out' | 'unknown';
 
 /**
+ * Pays / régions explicitement hors de France. Utilisé pour les offres sans
+ * GPS ni code département dont le libellé de lieu est une zone étrangère —
+ * typiquement les sources remote (Jobicy : jobGeo = « USA », « Canada »…).
+ * Les zones compatibles avec un profil basé en France (« Anywhere »,
+ * « Worldwide », « Europe », « EMEA », « France »…) ne figurent PAS ici et
+ * restent en `unknown` → conservées.
+ */
+const FOREIGN_LOCATION_RE = new RegExp(
+  '\\b(' +
+  [
+    'usa', 'u\\.s\\.a?\\.?', 'united states', 'états[- ]unis',
+    'canada', 'uk', 'united kingdom', 'royaume[- ]uni',
+    'latam', 'apac', 'australia', 'australie', 'new zealand',
+    'india', 'inde', 'singapore', 'singapour', 'japan', 'japon',
+    'china', 'chine', 'brazil', 'brésil', 'mexico', 'mexique',
+    'south africa', 'uae', 'dubai',
+  ].join('|') +
+  ')\\b',
+  'i',
+);
+
+/**
  * Classe une offre par rapport à la zone de recherche.
  *  - Coordonnées GPS présentes → haversine vs `radius + GPS_MARGIN_KM`.
  *  - Sinon, code département dans le libellé → distance au centroïde
@@ -144,6 +166,12 @@ export function classifyOfferZone(
     const [dLat, dLon] = DEPT_CENTROIDS[dept];
     const d = haversineKm(zone.lat, zone.lon, dLat, dLon);
     return d <= radius + DEPT_MARGIN_KM ? 'in' : 'out';
+  }
+
+  // Lieu textuel = pays/région étrangère explicite (offres remote Jobicy
+  // « USA », « Canada »…) : incompatible avec une zone de recherche française.
+  if (offer.location && FOREIGN_LOCATION_RE.test(offer.location)) {
+    return 'out';
   }
 
   return 'unknown';
