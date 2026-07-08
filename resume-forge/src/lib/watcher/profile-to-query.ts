@@ -199,7 +199,10 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
     }
   }
 
-  const distance = profile.location.radiusKm > 0 ? profile.location.radiusKm : undefined;
+  // `distance` n'a de sens qu'avec `commune`. radiusKm = 0 signifie « ville
+  // uniquement » et doit être transmis explicitement : sans le paramètre,
+  // l'API France Travail applique son défaut de 10 km.
+  const distance = profile.location.radiusKm >= 0 ? profile.location.radiusKm : undefined;
 
   // FT's `typeContrat` accepts a comma-separated list (CSV). On pousse tous
   // les types souhaités d'un coup au lieu de filtrer côté client — gain de

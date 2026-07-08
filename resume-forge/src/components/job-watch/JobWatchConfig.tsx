@@ -461,6 +461,15 @@ export function JobWatchConfigView() {
           </Field>
         </div>
 
+        {locationLabel.trim() !== '' && !inseeCode.trim() && (
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+            ⚠ Code INSEE non détecté pour cette zone. Re-sélectionnez votre ville dans la
+            liste de suggestions puis sauvegardez : sans lui, le filtrage géographique de
+            France Travail est résolu automatiquement au moment de la collecte (avec repli
+            sur un filtre local par distance).
+          </p>
+        )}
+
         {/* Champs techniques (cachés par défaut) */}
         <details className="mt-2 text-xs">
           <summary className="text-gray-400 hover:text-gray-600 cursor-pointer select-none">
