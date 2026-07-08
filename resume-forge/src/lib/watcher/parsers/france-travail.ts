@@ -26,7 +26,8 @@
  */
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
-import { buildFranceTravailQuery, isExcludedByProfile } from '../profile-to-query';
+import { buildFranceTravailQuery, isExcludedByProfile, isValidInseeCode } from '../profile-to-query';
+import { resolveProfileGeo } from '../geo';
 import { tauriFetch } from '../http';
 
 const FT_TOKEN_URL  = 'https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire';
@@ -231,6 +232,31 @@ export async function parseFranceTravail(
   // n'est défini, une requête sans `motsCles` ramène toutes les offres du
   // périmètre géographique (utile pour un tri par pertinence post-fetch).
   const query = buildFranceTravailQuery(profile);
+
+  // Filet de sécurité géographique : sans `commune` NI `departement`, la
+  // recherche couvre la France entière. Cas typique : profil ancien ou
+  // pré-rempli depuis le CV où `inseeCode`/`departmentCodes` n'ont jamais été
+  // renseignés alors qu'une ville l'est. On résout alors la commune au moment
+  // du fetch via geo.api.gouv.fr (résultat mis en cache pour la session).
+  if (!query.commune && !query.departement) {
+    const zone = await resolveProfileGeo(profile.location);
+    if (zone?.inseeCode && isValidInseeCode(zone.inseeCode)) {
+      query.commune = zone.inseeCode;
+      query.departement = zone.deptCode ?? undefined;
+      console.info(
+        `[france-travail] localisation résolue au fetch : commune=${zone.inseeCode}` +
+        ` (dept=${zone.deptCode ?? '?'}) pour "${profile.location.city || profile.location.label}".`,
+      );
+    } else if (zone?.deptCode) {
+      query.departement = zone.deptCode;
+    } else if (profile.location.city || profile.location.label) {
+      console.warn(
+        '[france-travail] aucune commune/département résoluble — la recherche partira sans filtre ' +
+        'géographique serveur (le post-filtre local écartera les offres hors zone).',
+      );
+    }
+  }
+
   const queries: (string | undefined)[] = query.titles.length > 0 ? query.titles : [undefined];
 
   // Sticky : si une commune INSEE est rejetée sur la première requête, on bascule
@@ -245,10 +271,13 @@ export async function parseFranceTravail(
     const p = new URLSearchParams();
     if (query.commune && !communeDisabled) {
       p.set('commune', query.commune);
+      // `distance` ne s'applique qu'à `commune`. 0 est une valeur légitime
+      // (« commune uniquement ») et doit être transmise explicitement, sinon
+      // l'API applique son défaut de 10 km.
+      if (query.distance != null) p.set('distance', String(query.distance));
     } else if (query.departement) {
       p.set('departement', query.departement);
     }
-    if (query.distance)      p.set('distance',      String(query.distance));
     if (query.typeContrat)   p.set('typeContrat',   query.typeContrat);
     if (query.publieeDepuis) p.set('publieeDepuis', String(query.publieeDepuis));
     // sort=1 = date publication décroissante. On veut les nouvelles offres

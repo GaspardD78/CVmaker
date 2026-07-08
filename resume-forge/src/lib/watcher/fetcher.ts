@@ -19,6 +19,7 @@ import { ANDROID_INCOMPATIBLE } from './sources';
 import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } from './deduplicator';
 import { isOperationalSourceError } from './source-error';
 import { computeScore, LearnedSignals } from './scorer';
+import { resolveProfileGeo, classifyOfferZone } from './geo';
 import { getCommuteMinutes, getCommuteMinutesByCoords } from './commute';
 import { parseApec } from './parsers/apec';
 import { parseWttj } from './parsers/wttj';
@@ -126,7 +127,7 @@ export interface FetchResult {
   totalFetched: number;
   /** Offres rejetées car déjà connues (hash) ou doublon cross-source */
   offersDuplicate: number;
-  /** Offres rejetées par le filtre minSaveScore */
+  /** Offres rejetées par le filtre minSaveScore ou le post-filtre géographique */
   offersFiltered: number;
   errors: string[];
   /** Durée de collecte (parsing uniquement) en ms */
@@ -178,6 +179,13 @@ export async function runFetch(
 
   const learned = await loadLearnedSignals(db, profileId ?? null);
 
+  // Zone de recherche résolue une fois par run (coordonnées + département).
+  // Sert de filet de sécurité géographique : les sources dont le filtre
+  // serveur a sauté (INSEE manquant, commune rejetée…) ramènent des offres de
+  // toute la France — on les écarte ici AVANT scoring et calcul de trajet.
+  // null = pas de localisation configurée ou API géo injoignable → fail-open.
+  const geoZone = await resolveProfileGeo(settings.searchProfile.location);
+  const radiusKm = settings.searchProfile.location.radiusKm;
 
   // Sur Android, on saute silencieusement les sources de scraping (LinkedIn,
   // Indeed, HelloWork) qui ne fonctionnent pas de façon fiable sur mobile
@@ -272,6 +280,14 @@ export async function runFetch(
         const hash = await computeOfferHash(raw.source, raw.url);
         if (existingHashes.has(hash)) {
           result.offersDuplicate += 1;
+          continue;
+        }
+
+        // Post-filtre géographique : offre manifestement hors zone (GPS ou
+        // code département du libellé) → écartée. `unknown` (pas de données
+        // fiables) conserve l'offre.
+        if (geoZone && classifyOfferZone(raw, geoZone, radiusKm) === 'out') {
+          result.offersFiltered += 1;
           continue;
         }
 
