@@ -1,18 +1,28 @@
 /**
- * Parser Welcome to the Jungle — HTTP scraping + JSON-LD / HTML parsing
+ * Parser Welcome to the Jungle — API Algolia publique + fallback HTML
  *
- * WTTJ n'a pas de flux RSS. On scrape la page de recherche.
- * Stratégie 1 : JSON-LD JobPosting (structured data, HIGH confidence)
- * Stratégie 2 : HTML fallback (MEDIUM confidence)
+ * La page de recherche WTTJ (welcometothejungle.com/fr/jobs) est une SPA :
+ * les résultats sont rendus côté client via Algolia InstantSearch. Le HTML
+ * initial ne contient NI JSON-LD JobPosting NI cartes d'offres — scraper la
+ * page renvoie donc toujours 0 offre (statut « Vide » dans le dashboard).
+ *
+ * Stratégie 1 : API Algolia publique de WTTJ (HIGH confidence).
+ *   Les identifiants (app ID + clé search-only) sont embarqués dans le
+ *   frontend de WTTJ et publics. La clé est restreinte au Referer
+ *   welcometothejungle.com — on passe par tauriFetch (Rust, CORS-free) qui
+ *   autorise l'en-tête Referer.
+ * Stratégie 2 : scraping HTML de la page de recherche (legacy) — utilisé si
+ *   l'appel Algolia échoue (rotation de clé, changement d'index…) ou si
+ *   l'utilisateur a configuré une URL custom (config.rssUrl).
  *
  * Qualité d'extraction :
- *   Titre   : HIGH si JSON-LD, MEDIUM si HTML
- *   Lieu    : MEDIUM si JSON-LD (addressLocality), LOW si HTML
- *   Contrat : MEDIUM si JSON-LD employmentType, LOW si regex
+ *   Titre   : HIGH via Algolia (champ structuré), MEDIUM si HTML
+ *   Lieu    : HIGH via Algolia (offices[].city), LOW si HTML
+ *   Contrat : HIGH via Algolia (contract_type), none si HTML
  */
 
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
-import { stripHtml } from './rss-utils';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata, SearchProfile } from '@/types/job-watch';
+import { stripHtml, parseDate } from './rss-utils';
 import { buildWttjQuery, isExcludedByProfile } from '../profile-to-query';
 import { BROWSER_USER_AGENT } from '../http';
 import { fetchResilient } from '../http-client';
@@ -21,6 +31,18 @@ import type { JsonLdJob } from '../json-ld-utils';
 
 const WTTJ_SEARCH_URL = 'https://www.welcometothejungle.com/fr/jobs';
 const TIMEOUT_MS = 10_000;
+
+// Identifiants Algolia publics de WTTJ (embarqués dans leur bundle JS —
+// vérifiés février 2026). La clé est search-only et restreinte au Referer
+// welcometothejungle.com. Si WTTJ les fait tourner, l'appel échoue et on
+// retombe sur le fallback HTML.
+const ALGOLIA_APP_ID  = 'CSEKHVMS53';
+const ALGOLIA_API_KEY = '4bd8f6215d0cc52b26430765769e65a0';
+const ALGOLIA_INDEX   = 'wttj_jobs_production_fr';
+const ALGOLIA_URL     = `https://${ALGOLIA_APP_ID.toLowerCase()}-dsn.algolia.net/1/indexes/${ALGOLIA_INDEX}/query`;
+const ALGOLIA_HITS_PER_PAGE = 50;
+/** Nombre max d'intitulés de poste interrogés (une requête Algolia chacun) */
+const MAX_QUERY_TITLES = 3;
 
 export function buildWttjUrl(_config: JobWatchConfig, settings: JobWatchSettings): string {
   const query  = buildWttjQuery(settings.searchProfile);
@@ -31,24 +53,165 @@ export function buildWttjUrl(_config: JobWatchConfig, settings: JobWatchSettings
   return `${WTTJ_SEARCH_URL}?${params.toString()}`;
 }
 
-/** Normalise WTTJ employmentType to a canonical French label */
-function normaliseEmploymentType(raw: string | undefined): string | null {
+/** Normalise WTTJ employmentType / contract_type to a canonical French label */
+function normaliseEmploymentType(raw: string | undefined | null): string | null {
   if (!raw) return null;
   const r = raw.toLowerCase();
   if (r.includes('full_time') || r.includes('full-time') || r.includes('cdi')) return 'CDI';
-  if (r.includes('part_time') || r.includes('part-time'))                       return 'CDD';
-  if (r.includes('contractor') || r.includes('freelance'))                      return 'Freelance';
-  if (r.includes('intern') || r.includes('stage'))                              return 'Stage';
-  if (r.includes('apprentice') || r.includes('alternance'))                     return 'Alternance';
+  if (r.includes('temporary'))                                                 return 'CDD';
+  if (r.includes('part_time') || r.includes('part-time'))                      return 'CDD';
+  if (r.includes('contractor') || r.includes('freelance'))                     return 'Freelance';
+  if (r.includes('intern') || r.includes('stage'))                             return 'Stage';
+  if (r.includes('apprentice') || r.includes('alternance') || r.includes('alternating')) return 'Alternance';
+  if (r.includes('vie'))                                                       return 'VIE';
   return raw;
 }
 
-export async function parseWttj(
+// ── Strategy 1: Algolia public search API ────────────────────────────────────
+
+/** Shape (partielle, défensive) d'un hit de l'index Algolia jobs de WTTJ */
+export interface WttjAlgoliaHit {
+  name?: string;
+  slug?: string;
+  reference?: string;
+  organization?: { name?: string; slug?: string };
+  offices?: Array<{ city?: string; country_code?: string; latitude?: number | string; longitude?: number | string }>;
+  contract_type?: string;
+  published_at?: string;
+  summary?: string;
+  profile?: string | string[];
+  salary_yearly_minimum?: number;
+  salary_minimum?: number;
+  salary_maximum?: number;
+  salary_currency?: string;
+  salary_period?: string;
+  _geoloc?: { lat?: number; lng?: number } | Array<{ lat?: number; lng?: number }>;
+}
+
+async function queryAlgolia(query: string, city: string | undefined): Promise<WttjAlgoliaHit[]> {
+  const facetFilters: string[][] = [['offices.country_code:FR']];
+  if (city) facetFilters.push([`offices.city:${city}`]);
+
+  const doQuery = async (filters: string[][]): Promise<WttjAlgoliaHit[]> => {
+    const res = await fetchResilient(ALGOLIA_URL, {
+      source: 'wttj',
+      method: 'POST',
+      timeoutMs: TIMEOUT_MS,
+      headers: {
+        'x-algolia-application-id': ALGOLIA_APP_ID,
+        'x-algolia-api-key':        ALGOLIA_API_KEY,
+        'Content-Type':             'application/json',
+        'Referer':                  'https://www.welcometothejungle.com/',
+        'Origin':                   'https://www.welcometothejungle.com',
+      },
+      body: JSON.stringify({
+        query,
+        hitsPerPage: ALGOLIA_HITS_PER_PAGE,
+        facetFilters: filters,
+      }),
+    });
+    if (!res.ok) throw new Error(`Algolia HTTP ${res.status}`);
+    const data = (await res.json()) as { hits?: WttjAlgoliaHit[] };
+    if (!Array.isArray(data.hits)) throw new Error('Algolia: réponse sans champ hits');
+    return data.hits;
+  };
+
+  const hits = await doQuery(facetFilters);
+  // Le facet ville est un match exact ("Boulogne-Billancourt" ≠ "Boulogne
+  // Billancourt"). Si le filtre ville ne ramène rien, on réessaie France
+  // entière — le post-filtre géographique du fetcher écartera le hors-zone.
+  if (hits.length === 0 && city) {
+    return doQuery([['offices.country_code:FR']]);
+  }
+  return hits;
+}
+
+/** Exporté pour les tests unitaires */
+export function hitToOffer(hit: WttjAlgoliaHit): RawJobOffer | null {
+  const title = hit.name?.trim();
+  if (!title) return null;
+
+  const orgSlug = hit.organization?.slug;
+  const jobSlug = hit.slug ?? hit.reference;
+  // Sans URL canonique on ne peut ni dédupliquer ni ouvrir l'offre — on écarte.
+  if (!orgSlug || !jobSlug) return null;
+  const url = `https://www.welcometothejungle.com/fr/companies/${orgSlug}/jobs/${jobSlug}`;
+
+  // Premier bureau français, sinon premier bureau tout court
+  const offices = Array.isArray(hit.offices) ? hit.offices : [];
+  const office  = offices.find(o => o?.country_code === 'FR') ?? offices[0];
+  const city    = office?.city?.trim() || null;
+  const lat     = office?.latitude  != null ? Number(office.latitude)  : NaN;
+  const lon     = office?.longitude != null ? Number(office.longitude) : NaN;
+
+  // Salaire — annualise les montants mensuels
+  let salaryMin = hit.salary_yearly_minimum ?? hit.salary_minimum ?? null;
+  let salaryMax = hit.salary_maximum ?? null;
+  let salaryRaw: string | null = null;
+  if (salaryMin !== null && hit.salary_yearly_minimum == null && /month/i.test(hit.salary_period ?? '')) {
+    salaryMin = Math.round(salaryMin * 12);
+    if (salaryMax !== null) salaryMax = Math.round(salaryMax * 12);
+  }
+  if (salaryMin !== null) {
+    const cur = hit.salary_currency ?? '€';
+    salaryRaw = `${salaryMin}${salaryMax !== null && salaryMax !== salaryMin ? '-' + salaryMax : ''} ${cur}`;
+  }
+
+  const profileText = Array.isArray(hit.profile) ? hit.profile.join('\n') : hit.profile;
+  const description = hit.summary || profileText || null;
+
+  const extraction: ExtractionMetadata = {
+    titleSource:        'api',
+    titleConfidence:    'high',
+    locationSource:     city ? 'api_text' : 'none',
+    locationConfidence: city ? 'high' : 'none',
+    contractSource:     hit.contract_type ? 'api' : 'none',
+    contractConfidence: hit.contract_type ? 'high' : 'none',
+  };
+
+  return {
+    source:             'wttj',
+    url,
+    title,
+    company:            hit.organization?.name ?? null,
+    location:           city,
+    locationLat:        Number.isFinite(lat) ? lat : null,
+    locationLon:        Number.isFinite(lon) ? lon : null,
+    contractType:       normaliseEmploymentType(hit.contract_type),
+    descriptionSnippet: description ? stripHtml(description, 500) : null,
+    publishedAt:        parseDate(hit.published_at ?? null),
+    salaryMin,
+    salaryMax,
+    salaryRaw,
+    extraction,
+  };
+}
+
+async function parseWttjAlgolia(profile: SearchProfile): Promise<RawJobOffer[]> {
+  // Une requête par intitulé de poste (les concaténer sur-contraint la
+  // recherche plein-texte — cf. buildWttjQuery). Dédup par URL canonique.
+  const titles = profile.jobTitles.map(t => t.trim()).filter(Boolean).slice(0, MAX_QUERY_TITLES);
+  const queries = titles.length > 0 ? titles : [''];
+  const city = profile.location.city || undefined;
+
+  const byUrl = new Map<string, RawJobOffer>();
+  for (const q of queries) {
+    const hits = await queryAlgolia(q, city);
+    for (const hit of hits) {
+      const offer = hitToOffer(hit);
+      if (offer && !byUrl.has(offer.url)) byUrl.set(offer.url, offer);
+    }
+  }
+  return Array.from(byUrl.values());
+}
+
+// ── Strategy 2: HTML scraping fallback (legacy) ──────────────────────────────
+
+async function parseWttjHtml(
   config: JobWatchConfig,
   settings: JobWatchSettings,
 ): Promise<RawJobOffer[]> {
   const pageUrl = config.rssUrl ?? buildWttjUrl(config, settings);
-  const profile = settings.searchProfile;
 
   const res = await fetchResilient(pageUrl, {
     source: 'wttj',
@@ -67,7 +230,7 @@ export async function parseWttj(
 
   const offers: RawJobOffer[] = [];
 
-  // ── Strategy 1: JSON-LD structured data (HIGH confidence) ─────────────────
+  // JSON-LD structured data (si présent — pages non-SPA / cache SSR)
   const jobs: JsonLdJob[] = extractJsonLdJobsFromDoc(doc);
 
   for (const job of jobs) {
@@ -75,7 +238,6 @@ export async function parseWttj(
     const contractRaw = normaliseEmploymentType(job.employmentType);
     const offerUrl    = job.url ?? pageUrl;
 
-    // Salary from JSON-LD baseSalary (annual amounts)
     let salaryMin: number | null = null;
     let salaryMax: number | null = null;
     let salaryRaw: string | null = null;
@@ -86,7 +248,6 @@ export async function parseWttj(
       if (salaryMin !== null) {
         const cur  = job.baseSalary.currency ?? '€';
         const unit = bv.unitText?.toLowerCase();
-        // Convert monthly salary to annual
         if (unit === 'month' || unit === 'monthly') {
           salaryMin = Math.round(salaryMin * 12);
           if (salaryMax) salaryMax = Math.round(salaryMax * 12);
@@ -120,7 +281,7 @@ export async function parseWttj(
     });
   }
 
-  // ── Strategy 2: HTML fallback (MEDIUM confidence) ─────────────────────────
+  // HTML fallback (MEDIUM confidence)
   if (offers.length === 0) {
     const cards = Array.from(
       doc.querySelectorAll('[data-testid="job-list-item"], article[class*="job"]')
@@ -160,7 +321,34 @@ export async function parseWttj(
     }
   }
 
-  // Local exclusion filter (WTTJ has no server-side exclusion support)
+  return offers;
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+export async function parseWttj(
+  config: JobWatchConfig,
+  settings: JobWatchSettings,
+): Promise<RawJobOffer[]> {
+  const profile = settings.searchProfile;
+
+  let offers: RawJobOffer[];
+
+  if (config.rssUrl) {
+    // URL custom configurée par l'utilisateur → scraping HTML de cette page
+    offers = await parseWttjHtml(config, settings);
+  } else {
+    try {
+      offers = await parseWttjAlgolia(profile);
+    } catch (err) {
+      // Clé/index Algolia obsolète, réseau… — on retente via la page HTML
+      // (probablement vide car SPA, mais c'est le seul recours restant).
+      console.warn('[wttj] API Algolia indisponible, fallback scraping HTML :', err);
+      offers = await parseWttjHtml(config, settings);
+    }
+  }
+
+  // Filtre d'exclusion local (WTTJ ne supporte pas l'exclusion côté serveur)
   return offers.filter(o => {
     const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`;
     return !isExcludedByProfile(text, profile);
