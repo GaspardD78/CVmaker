@@ -138,11 +138,25 @@ export function hitToOffer(hit: WttjAlgoliaHit): RawJobOffer | null {
   const url = `https://www.welcometothejungle.com/fr/companies/${orgSlug}/jobs/${jobSlug}`;
 
   // Premier bureau français, sinon premier bureau tout court
-  const offices = Array.isArray(hit.offices) ? hit.offices : [];
-  const office  = offices.find(o => o?.country_code === 'FR') ?? offices[0];
-  const city    = office?.city?.trim() || null;
-  const lat     = office?.latitude  != null ? Number(office.latitude)  : NaN;
-  const lon     = office?.longitude != null ? Number(office.longitude) : NaN;
+  const offices   = Array.isArray(hit.offices) ? hit.offices : [];
+  const officeIdx = offices.findIndex(o => o?.country_code === 'FR');
+  const office    = offices[officeIdx] ?? offices[0];
+  const city      = office?.city?.trim() || null;
+  let lat = office?.latitude  != null ? Number(office.latitude)  : NaN;
+  let lon = office?.longitude != null ? Number(office.longitude) : NaN;
+
+  // Repli `_geoloc` : selon les hits, les coordonnées ne sont pas dans
+  // `offices[]` mais dans `_geoloc` (objet, ou tableau aligné sur `offices`).
+  // Sans coordonnées, le post-filtre géographique du fetcher ne peut pas
+  // classer l'offre (« Montpellier » sans code département → `unknown`,
+  // conservée) et la veille se remplit d'offres hors zone.
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    const geo = Array.isArray(hit._geoloc)
+      ? hit._geoloc[officeIdx >= 0 ? officeIdx : 0]
+      : hit._geoloc;
+    lat = geo?.lat != null ? Number(geo.lat) : NaN;
+    lon = geo?.lng != null ? Number(geo.lng) : NaN;
+  }
 
   // Salaire — annualise les montants mensuels
   let salaryMin = hit.salary_yearly_minimum ?? hit.salary_minimum ?? null;

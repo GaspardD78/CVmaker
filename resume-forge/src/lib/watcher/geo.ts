@@ -24,6 +24,7 @@
 import { tauriFetch } from './http';
 import type { SearchProfile } from '@/types/job-watch';
 import { isValidInseeCode } from './profile-to-query';
+import { cityToDeptCode } from './parsers/common/city-departments';
 
 // ── Distance ─────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,9 @@ const FOREIGN_LOCATION_RE = new RegExp(
  *  - Coordonnées GPS présentes → haversine vs `radius + GPS_MARGIN_KM`.
  *  - Sinon, code département dans le libellé → distance au centroïde
  *    départemental vs `radius + DEPT_MARGIN_KM`.
+ *  - Sinon, libellé = nom d'une grande ville connue (« Montpellier »,
+ *    « Lyon »… — cas WTTJ dont le lieu est la ville nue) → département de la
+ *    ville, même comparaison par centroïde.
  *  - Sinon → `unknown` (l'offre est conservée : fail-open).
  */
 export function classifyOfferZone(
@@ -161,7 +165,7 @@ export function classifyOfferZone(
     return d <= radius + GPS_MARGIN_KM ? 'in' : 'out';
   }
 
-  const dept = extractDeptFromLocationText(offer.location);
+  const dept = extractDeptFromLocationText(offer.location) ?? cityToDeptCode(offer.location);
   if (dept) {
     const [dLat, dLon] = DEPT_CENTROIDS[dept];
     const d = haversineKm(zone.lat, zone.lon, dLat, dLon);
