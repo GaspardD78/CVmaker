@@ -163,7 +163,21 @@ export async function parseEmploiTerritorial(
   const rssUrl = buildRssUrl(config, settings);
   const profile = settings.searchProfile;
 
-  const items = await fetchRssFeed(rssUrl, 'emploi_territorial');
+  // Les paramètres `q`/`lieu` du flux ne sont pas documentés officiellement et
+  // le serveur les rejette parfois (HTTP 4xx/5xx selon l'expression). Comme le
+  // post-filter client assure de toute façon la précision, on retombe sur le
+  // flux global plutôt que de laisser la source en erreur pendant des jours.
+  let items;
+  try {
+    items = await fetchRssFeed(rssUrl, 'emploi_territorial');
+  } catch (err) {
+    if (rssUrl === ET_RSS_BASE) throw err;
+    console.warn(
+      `[emploi-territorial] flux filtré en échec (${err instanceof Error ? err.message : err}) — ` +
+      'repli sur le flux global, post-filtrage client conservé.',
+    );
+    items = await fetchRssFeed(ET_RSS_BASE, 'emploi_territorial');
+  }
 
   const offers: RawJobOffer[] = items.map(item => {
     const descText  = stripHtml(item.description, 800) ?? '';

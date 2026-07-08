@@ -19,7 +19,7 @@ import { ANDROID_INCOMPATIBLE } from './sources';
 import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } from './deduplicator';
 import { isOperationalSourceError } from './source-error';
 import { computeScore, LearnedSignals } from './scorer';
-import { getCommuteMinutes, getCommuteMinutesByCoords, delay } from './commute';
+import { getCommuteMinutes, getCommuteMinutesByCoords } from './commute';
 import { parseApec } from './parsers/apec';
 import { parseWttj } from './parsers/wttj';
 // LinkedIn passe désormais par l'API publique « jobs-guest » — cf. parsers/linkedin-xray.ts.
@@ -281,7 +281,11 @@ export async function runFetch(
         let commuteMinutes: number | null = null;
         let commuteStatus: 'pending' | 'ok' | 'error' | 'not_found' = 'pending';
 
-        if (settings.navitiaApiKey && settings.commuteOriginAddress) {
+        // On ne calcule le trajet que pour les offres qui seront réellement
+        // sauvegardées : celles sous `minSaveScore` sont écartées en phase 3,
+        // calculer leur trajet gaspillerait le quota Navitia/Nominatim et
+        // rallongeait la collecte de plusieurs minutes (ex. 603 offres FT).
+        if (settings.navitiaApiKey && settings.commuteOriginAddress && score >= settings.minSaveScore) {
           commuteIdx++;
           // Emit commute progress every 5 offers (Navitia calls are the bottleneck)
           if (commuteIdx === 1 || commuteIdx % 5 === 0) {
@@ -305,7 +309,6 @@ export async function runFetch(
           } else {
             commuteStatus = 'not_found';
           }
-          await delay(500);
         } else if (!raw.location && raw.locationLat == null) {
           commuteStatus = 'not_found';
         }

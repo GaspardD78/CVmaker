@@ -268,6 +268,35 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Fusionne l'offre enrichie (JSON-LD) avec l'offre de base (carte guest).
+ * Le JSON-LD LinkedIn omet régulièrement `jobLocation` / `hiringOrganization` /
+ * `datePosted` alors que la carte les fournit : remplacer purement l'offre de
+ * base faisait perdre le lieu (« Non précisé ») et donc le calcul de trajet.
+ * On garde les champs enrichis quand ils existent, la carte en repli.
+ */
+export function mergeEnrichedWithCard(enriched: RawJobOffer, card: RawJobOffer | null): RawJobOffer {
+  if (!card) return enriched;
+  const location = enriched.location ?? card.location;
+  return {
+    ...enriched,
+    company:      enriched.company      ?? card.company,
+    location,
+    contractType: enriched.contractType ?? card.contractType,
+    publishedAt:  enriched.publishedAt  ?? card.publishedAt,
+    extraction: {
+      ...enriched.extraction,
+      // Si le lieu vient de la carte HTML, refléter sa provenance/confiance.
+      ...(enriched.location
+        ? {}
+        : { locationSource: card.extraction.locationSource, locationConfidence: card.extraction.locationConfidence }),
+      ...(enriched.contractType
+        ? {}
+        : { contractSource: card.extraction.contractSource, contractConfidence: card.extraction.contractConfidence }),
+    },
+  };
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 export async function parseLinkedinXray(
@@ -304,7 +333,7 @@ export async function parseLinkedinXray(
         for (const j of extractJsonLdJobs(html)) {
           const enriched = jsonLdToRawOffer(j, card.url);
           if (enriched) {
-            offer = enriched;
+            offer = mergeEnrichedWithCard(enriched, offer);
             break;
           }
         }

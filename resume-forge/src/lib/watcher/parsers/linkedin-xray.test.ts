@@ -14,8 +14,9 @@ mock.module('@tauri-apps/plugin-http', () => ({
   fetch: async () => new Response('', { status: 200 }),
 }));
 
-import { extractJobId, buildKeywords } from './linkedin-xray';
-import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
+import { extractJobId, buildKeywords, mergeEnrichedWithCard } from './linkedin-xray';
+import { DEFAULT_SEARCH_PROFILE, DEFAULT_EXTRACTION } from '@/types/job-watch';
+import type { RawJobOffer } from '@/types/job-watch';
 
 describe('extractJobId', () => {
   test('bare numeric job-view URL', () => {
@@ -67,5 +68,58 @@ describe('buildKeywords', () => {
 
   test('blank entries are trimmed and dropped', () => {
     expect(buildKeywords(profile([' Dev ', '', 'Lead']))).toBe('"Dev" OR "Lead"');
+  });
+});
+
+describe('mergeEnrichedWithCard', () => {
+  const base = (over: Partial<RawJobOffer>): RawJobOffer => ({
+    source: 'linkedin',
+    url: 'https://www.linkedin.com/jobs/view/123',
+    title: 'Talent Acquisition Specialist',
+    company: null,
+    location: null,
+    contractType: null,
+    descriptionSnippet: null,
+    publishedAt: null,
+    salaryMin: null,
+    salaryMax: null,
+    salaryRaw: null,
+    extraction: { ...DEFAULT_EXTRACTION },
+    ...over,
+  });
+
+  test('keeps enriched fields when present', () => {
+    const enriched = base({
+      location: 'Paris, Île-de-France',
+      company: 'Acme',
+      extraction: { ...DEFAULT_EXTRACTION, locationSource: 'json_ld', locationConfidence: 'high' },
+    });
+    const card = base({ location: 'Boulogne-Billancourt', company: 'Other' });
+    const merged = mergeEnrichedWithCard(enriched, card);
+    expect(merged.location).toBe('Paris, Île-de-France');
+    expect(merged.company).toBe('Acme');
+    expect(merged.extraction.locationSource).toBe('json_ld');
+  });
+
+  test('falls back to card location/company when JSON-LD omits them', () => {
+    const enriched = base({ descriptionSnippet: 'Great job', publishedAt: null });
+    const card = base({
+      location: 'Boulogne-Billancourt',
+      company: 'ITS Services',
+      publishedAt: '2026-07-07T00:00:00.000Z',
+      extraction: { ...DEFAULT_EXTRACTION, locationSource: 'html', locationConfidence: 'medium' },
+    });
+    const merged = mergeEnrichedWithCard(enriched, card);
+    expect(merged.location).toBe('Boulogne-Billancourt');
+    expect(merged.company).toBe('ITS Services');
+    expect(merged.publishedAt).toBe('2026-07-07T00:00:00.000Z');
+    expect(merged.descriptionSnippet).toBe('Great job');
+    expect(merged.extraction.locationSource).toBe('html');
+    expect(merged.extraction.locationConfidence).toBe('medium');
+  });
+
+  test('null card returns enriched unchanged', () => {
+    const enriched = base({ location: 'Paris' });
+    expect(mergeEnrichedWithCard(enriched, null)).toEqual(enriched);
   });
 });
