@@ -99,3 +99,20 @@ describe('classifyOfferZone — department fallback (no GPS)', () => {
     expect(classifyOfferZone(offer(null, null, null), CARRIERES, 30)).toBe('unknown');
   });
 });
+
+describe('classifyOfferZone — foreign remote geos (Jobicy)', () => {
+  it('rejects explicit foreign countries/regions', () => {
+    expect(classifyOfferZone(offer(null, null, 'USA'), CARRIERES, 30)).toBe('out');
+    expect(classifyOfferZone(offer(null, null, 'Canada'), CARRIERES, 30)).toBe('out');
+    expect(classifyOfferZone(offer(null, null, 'United Kingdom'), CARRIERES, 30)).toBe('out');
+    expect(classifyOfferZone(offer(null, null, 'LATAM'), CARRIERES, 30)).toBe('out');
+  });
+
+  it('keeps France-compatible remote geos (unknown → conservée)', () => {
+    expect(classifyOfferZone(offer(null, null, 'Anywhere'), CARRIERES, 30)).toBe('unknown');
+    expect(classifyOfferZone(offer(null, null, 'Worldwide'), CARRIERES, 30)).toBe('unknown');
+    expect(classifyOfferZone(offer(null, null, 'Europe'), CARRIERES, 30)).toBe('unknown');
+    expect(classifyOfferZone(offer(null, null, 'EMEA'), CARRIERES, 30)).toBe('unknown');
+    expect(classifyOfferZone(offer(null, null, 'France'), CARRIERES, 30)).toBe('unknown');
+  });
+});

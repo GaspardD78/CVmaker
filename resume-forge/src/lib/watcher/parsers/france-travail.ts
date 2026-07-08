@@ -104,18 +104,25 @@ interface FtSalaire {
   commentaire?: string;
 }
 
-function parseSalary(salaire?: FtSalaire): { salaryMin: number | null; salaryMax: number | null; salaryRaw: string | null } {
+export function parseSalary(salaire?: FtSalaire): { salaryMin: number | null; salaryMax: number | null; salaryRaw: string | null } {
   if (!salaire) return { salaryMin: null, salaryMax: null, salaryRaw: null };
 
   const raw = [salaire.libelle, salaire.commentaire].filter(Boolean).join(' ');
   if (!raw) return { salaryMin: null, salaryMax: null, salaryRaw: null };
 
-  const nums = raw.replace(/\s/g, '').match(/\d[\d.,]*/g);
+  // Capture les nombres avec leur éventuel suffixe « k » (« 35k€ », « 30-35k »).
+  const nums = raw.replace(/\s/g, '').match(/\d[\d.,]*k?/gi);
   if (!nums) return { salaryMin: null, salaryMax: null, salaryRaw: raw };
 
+  // Un nombre n'est interprété « en milliers » QUE si un suffixe k apparaît
+  // dans le libellé (le k s'applique alors à toute la fourchette : « 35-40k€ »).
+  // L'ancienne heuristique « < 1000 → ×1000 » transformait n'importe quel
+  // montant annexe (« prime de 500 € ») en salaire fantaisiste de 500 k€.
+  const hasK = nums.some(n => /k$/i.test(n));
   const parsed = nums.map(n => {
-    const v = parseFloat(n.replace(',', '.'));
-    return v < 1000 ? v * 1000 : v;
+    const v = parseFloat(n.replace(/k$/i, '').replace(',', '.'));
+    if (/k$/i.test(n)) return v * 1000;
+    return v < 1000 && hasK ? v * 1000 : v;
   }).filter(v => v >= 10_000 && v <= 500_000);
 
   return {
