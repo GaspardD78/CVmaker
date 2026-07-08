@@ -14,6 +14,7 @@
 
 import type { SearchProfile, JobSource } from '@/types/job-watch';
 import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode, APEC_SECTEURS, APEC_TELETRAVAIL } from './parsers/apec-ids';
+import { cityToDeptCode } from './parsers/common/city-departments';
 
 // ── APEC ─────────────────────────────────────────────────────────────────────
 
@@ -57,13 +58,12 @@ export function buildApecQuery(profile: SearchProfile): ApecQueryParams {
     motsCles = `(${titles.join(' OU ')})`;
   }
 
-  // Append exclusion operators (APEC supports "ET NON (term1 OU term2)")
-  const excluded = [...profile.excludeTitles, ...profile.excludeDomains]
-    .map(quoteIfNeeded)
-    .filter(Boolean);
-  if (motsCles && excluded.length > 0) {
-    motsCles += ` ET NON (${excluded.join(' OU ')})`;
-  }
+  // Pas d'opérateur d'exclusion serveur : APEC documente `ET` / `OU` / `SAUF`
+  // mais PAS `NON`. L'expression `... ET NON (...)` envoyée précédemment était
+  // invalide et dégradait toute la recherche (motsCles ignoré → dernières
+  // offres génériques de toute la France, toutes rejetées ensuite par le
+  // post-filtre titre). Les exclusions restent appliquées côté client via
+  // `isExcludedByProfile` dans le parser — comme pour les autres sources.
 
   // Map contract types to APEC numeric codes
   const typesContrat = profile.contractTypes
@@ -183,9 +183,21 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
 
   // Always compute departement so the fallback works if commune is rejected (e.g. Paris 75056).
   // FT's `departement` param accepts a comma-separated list of 2-digit codes (e.g. "75,92,93,95").
-  const departement = profile.location.departmentCodes.length > 0
+  // Repli : sans departmentCodes ni INSEE valide mais avec une ville connue, on
+  // dérive le département de la ville — sinon la recherche FT part sans AUCUN
+  // filtre géographique et ramène des centaines d'offres de toute la France.
+  let departement = profile.location.departmentCodes.length > 0
     ? profile.location.departmentCodes.join(',')
     : undefined;
+  if (!departement && !commune) {
+    const cityDept = cityToDeptCode(profile.location.city);
+    if (cityDept) {
+      departement = cityDept;
+      console.info(
+        `[profile-to-query] FT: pas de departmentCodes/INSEE — département "${cityDept}" dérivé de la ville "${profile.location.city}".`,
+      );
+    }
+  }
 
   const distance = profile.location.radiusKm > 0 ? profile.location.radiusKm : undefined;
 
@@ -215,8 +227,12 @@ export interface WttjQueryParams {
 }
 
 export function buildWttjQuery(profile: SearchProfile): WttjQueryParams {
-  const allKeywords = [...profile.jobTitles, ...profile.skills].filter(Boolean);
-  const query = allKeywords.join(' ') || undefined;
+  // Uniquement le premier intitulé de poste. Concaténer tous les jobTitles ET
+  // les skills en une seule chaîne (« Talent Acquisition Talent Acquisition
+  // Manager Recruteur ATS … ») sur-contraint la recherche plein-texte WTTJ et
+  // renvoyait systématiquement 0 résultat. Les skills servent au scoring, pas
+  // à restreindre la recherche.
+  const query = profile.jobTitles.map(t => t.trim()).find(Boolean) || undefined;
   const city  = profile.location.city || undefined;
   return { query, city };
 }

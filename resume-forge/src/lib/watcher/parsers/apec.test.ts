@@ -18,9 +18,19 @@ describe('titleMatchesAnyJobTitle', () => {
     expect(titleMatchesAnyJobTitle('Comptable', ['de', 'les'])).toBe(true);
   });
 
-  test('token unique → match exact requis', () => {
+  test('token unique → match requis (exact ou même famille lexicale)', () => {
     expect(titleMatchesAnyJobTitle('Recruteur tech H/F', ['Recruteur'])).toBe(true);
     expect(titleMatchesAnyJobTitle('Comptable général', ['Recruteur'])).toBe(false);
+  });
+
+  test('dérivations françaises rattrapées par le radical commun', () => {
+    // « Recruteur » doit retrouver les offres déclinant le métier autrement —
+    // l'égalité stricte rejetait 100 % des résultats APEC (150/150 sur un run réel).
+    expect(titleMatchesAnyJobTitle('Chargé de recrutement H/F', ['Recruteur'])).toBe(true);
+    expect(titleMatchesAnyJobTitle('Consultant en recrutement', ['Recruteur'])).toBe(true);
+    expect(titleMatchesAnyJobTitle('Talent Acquisition Management', ['Talent Acquisition Manager'])).toBe(true);
+    // Radical trop court → pas de rapprochement abusif
+    expect(titleMatchesAnyJobTitle('Recrue commerciale', ['Recruteur'])).toBe(false);
   });
 
   test('variante proche tolérée (1 token manquant sur 3)', () => {
