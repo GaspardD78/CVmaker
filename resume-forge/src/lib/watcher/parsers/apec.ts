@@ -197,6 +197,7 @@ export async function parseApec(
   // laisse le post-filter client en filet de sécurité — voir plus bas.
   const collected = new Map<string, RawJobOffer>();
 
+  const runSearch = async (withOptionalFilters: boolean): Promise<void> => {
   for (let page = 0; page < MAX_PAGES; page++) {
     const body = {
       // Toujours envoyer une chaîne : `undefined` serait omis par
@@ -204,9 +205,13 @@ export async function parseApec(
       // `motsCles` absent. Le site officiel envoie `""` quand aucun mot-clé.
       motsCles:          query.motsCles ?? '',
       lieux:             query.lieux,
-      fonctions:         query.fonctions,
-      secteursActivite:  query.secteurs,
-      typesTeletravail:  query.teletravail,
+      // Filtres « optionnels » (fonctions/secteurs/télétravail) : filtres
+      // serveur exacts qui, combinés, peuvent intersecter à zéro alors que
+      // des offres pertinentes existent (tags absents côté APEC). Le repli
+      // sans ces filtres est déclenché plus bas quand la 1ʳᵉ passe rend 0.
+      fonctions:         withOptionalFilters ? query.fonctions   : [],
+      secteursActivite:  withOptionalFilters ? query.secteurs    : [],
+      typesTeletravail:  withOptionalFilters ? query.teletravail : [],
       // Pas de champ `salaires` : le DTO APEC (RechercheOffreCriteriaDto) ne
       // l'expose pas (il connaît seulement `salaireMinimum`/`salaireMaximum`).
       // L'envoyer — même vide — déclenchait un 500 « Unrecognized field
@@ -274,6 +279,23 @@ export async function parseApec(
     if (resultats.length < PAGE_SIZE) break;
     // Stop if we've reached `totalCount`.
     if (data.totalCount && (page + 1) * PAGE_SIZE >= data.totalCount) break;
+  }
+  };
+
+  const hasOptionalFilters =
+    query.fonctions.length > 0 || query.secteurs.length > 0 || query.teletravail.length > 0;
+
+  await runSearch(true);
+  if (collected.size === 0 && hasOptionalFilters) {
+    // 0 résultat avec les filtres serveur exacts : beaucoup d'offres APEC ne
+    // portent pas les tags secteur/télétravail et sont exclues à tort. On
+    // relance sans ces filtres — les post-filtres client (titre, lieu,
+    // exclusions) et le scorer maintiennent la précision.
+    console.warn(
+      '[apec] 0 résultat avec les filtres fonctions/secteurs/télétravail — ' +
+      'nouvelle tentative sans ces filtres (post-filtrage client conservé).',
+    );
+    await runSearch(false);
   }
 
   // Post-filter en deux temps : précision titre + précision géo + exclusions.
