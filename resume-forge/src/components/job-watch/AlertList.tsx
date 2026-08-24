@@ -41,6 +41,11 @@ export function AlertList() {
   } = useJobWatchStore();
 
   const [busy, setBusy] = useState(false);
+  /**
+   * Brouillon du nom en cours d'édition. Sans lui, chaque frappe déclencherait
+   * une écriture en base et un rechargement complet du portefeuille.
+   */
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
   const selectedId = activeAlertId ?? alerts[0]?.id ?? null;
   const atCapacity = alerts.length >= MAX_ALERTS;
   const load = estimateFetchLoad(alerts, configs);
@@ -125,7 +130,7 @@ export function AlertList() {
               <div className="flex items-start gap-3">
                 <button
                   type="button"
-                  onClick={() => setActiveAlert(alert.id)}
+                  onClick={() => { setNameDraft(null); setActiveAlert(alert.id); }}
                   className="flex-1 text-left min-w-0"
                 >
                   <div className="flex items-center gap-2">
@@ -192,8 +197,14 @@ export function AlertList() {
                   <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                     Nom
                     <input
-                      value={alert.name}
-                      onChange={e => updateAlert(alert.id, { name: e.target.value })}
+                      value={nameDraft ?? alert.name}
+                      onChange={e => setNameDraft(e.target.value)}
+                      onBlur={() => {
+                        const next = (nameDraft ?? '').trim();
+                        setNameDraft(null);
+                        if (next && next !== alert.name) run(() => updateAlert(alert.id, { name: next }));
+                      }}
+                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                       className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 text-xs w-44"
                     />
                   </label>

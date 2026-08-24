@@ -19,6 +19,7 @@ import {
 import { processFeedback, processCompanyReputation } from '@/lib/watcher/learning-engine';
 import {
   resolveFeedbackAlert,
+  replaceAlertSources,
   createAlert as createAlertRow,
   deleteAlert as deleteAlertRow,
   duplicateAlert as duplicateAlertRow,
@@ -29,6 +30,11 @@ import {
   type AlertPatch,
   type CreateAlertInput,
 } from '@/lib/watcher/alerts';
+import {
+  colorForKind,
+  toSearchProfile,
+  type PortfolioImportPreview,
+} from '@/lib/watcher/ai-portfolio';
 import type { AIFilterRule } from '@/lib/watcher/ai-filter';
 import type { SelectorOverride, DebugCapture } from '@/lib/watcher/selector-debug';
 
@@ -251,6 +257,11 @@ interface JobWatchState {
    * Rattrape les bases n'ayant pas rejoué la migration 019 et les formats v1/v2.
    */
   ensureAlerts: () => Promise<void>;
+  /**
+   * Applique un portefeuille généré par l'IA. Les pistes de même nom sont
+   * remplacées, les autres créées. Aucune offre n'est supprimée.
+   */
+  applyPortfolioImport: (preview: PortfolioImportPreview) => Promise<void>;
 
   // Offers
   fetchOffers: () => Promise<void>;
@@ -406,6 +417,38 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const profileId = useAuthStore.getState().currentUserId;
     await reorderAlertRows(profileId, orderedIds);
     await get().fetchAlerts();
+  },
+
+  applyPortfolioImport: async (preview) => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+
+    // Remplacements d'abord : ils libèrent des noms et n'augmentent pas le
+    // nombre de pistes, ce qui évite de buter sur la limite en cours de route.
+    for (const { existingAlertId, incoming } of preview.replacements) {
+      await updateAlertRow(existingAlertId, {
+        name:          incoming.name,
+        kind:          incoming.kind,
+        color:         colorForKind(incoming.kind),
+        searchProfile: toSearchProfile(incoming),
+        aiFilterRule:  incoming.aiFilter ?? null,
+      });
+      await replaceAlertSources(profileId, existingAlertId, incoming.sources);
+    }
+
+    for (const incoming of preview.creations) {
+      await createAlertRow(profileId, {
+        name:          incoming.name,
+        kind:          incoming.kind,
+        color:         colorForKind(incoming.kind),
+        searchProfile: toSearchProfile(incoming),
+        sources:       incoming.sources,
+        aiFilterRule:  incoming.aiFilter ?? null,
+      });
+    }
+
+    await get().fetchAlerts();
+    await get().fetchConfigs();
   },
 
   ensureAlerts: async () => {

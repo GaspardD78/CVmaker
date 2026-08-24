@@ -565,11 +565,41 @@ interface PerformanceMetrics {
 /**
  * Context-aware optimization prompt that includes search performance data.
  */
+/**
+ * Contexte de portefeuille inséré dans les prompts d'analyse d'une piste.
+ *
+ * Sans cette précaution, chaque diagnostic pousse mécaniquement sa piste vers
+ * le centre : au bout de trois optimisations, les quatre pistes convergent
+ * vers la même recherche et le portefeuille perd sa raison d'être.
+ */
+export interface AlertPromptContext {
+  alertName: string;
+  /** Autres pistes : nom et intitulés visés. */
+  otherAlerts: Array<{ name: string; jobTitles: string[] }>;
+}
+
+function portfolioPreamble(context?: AlertPromptContext): string {
+  if (!context || context.otherAlerts.length === 0) return '';
+  const others = context.otherAlerts
+    .map(a => `- ${a.name} : ${a.jobTitles.join(', ') || 'aucun intitulé'}`)
+    .join('\n');
+  return `
+## Contexte : une piste parmi ${context.otherAlerts.length + 1}
+Cette analyse porte sur la piste « ${context.alertName} » d'un portefeuille de recherche.
+Les autres pistes couvrent :
+${others}
+
+N'élargis pas cette piste vers un domaine déjà couvert par une autre : le portefeuille
+explore délibérément plusieurs directions, et les faire converger le viderait de son sens.
+`;
+}
+
 export function generatePerformanceOptimizationPrompt(
   profile: { title: string | null } | null,
   entries: { entryType: string; title: string }[],
   searchProfile: SearchProfile,
   metrics: PerformanceMetrics,
+  context?: AlertPromptContext,
 ): string {
   const titleStr = profile?.title ?? 'Non renseigné';
   const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title).join(', ') || 'Aucune';
@@ -587,7 +617,7 @@ export function generatePerformanceOptimizationPrompt(
   ].join('\n');
 
   return `Agis comme un expert en sourcing et optimisation de veille emploi.
-
+${portfolioPreamble(context)}
 ## Mon profil
 - Titre : ${titleStr}
 - Compétences : ${skills}
@@ -621,13 +651,14 @@ Sois concis et actionnable. Formate les listes en CSV pour un copier-coller faci
 export function generateDiagnosticPrompt(
   searchProfile: SearchProfile,
   recentOffers: Array<{ title: string; score: number; action: string | null }>,
+  context?: AlertPromptContext,
 ): string {
   const offersStr = recentOffers
     .map((o, i) => `${i + 1}. [Score: ${o.score}] ${o.title} → ${o.action ?? 'aucune action'}`)
     .join('\n');
 
   return `Agis comme un expert en optimisation de recherche d'emploi.
-
+${portfolioPreamble(context)}
 ## Ma configuration
 - Titres visés : ${searchProfile.jobTitles.join(', ') || 'Non défini'}
 - Exclure : ${searchProfile.excludeTitles.join(', ') || 'Aucun'}

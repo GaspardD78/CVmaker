@@ -9,6 +9,7 @@ import { useProfileStore } from '@/stores/profileStore';
 import { analyzeFeedback, getBlacklistSuggestions, getKeywordSuggestions, LearningResult } from '@/lib/watcher/learning-engine';
 import { generatePerformanceOptimizationPrompt, generateDiagnosticPrompt } from '@/lib/prompt-templates';
 import { getDb } from '@/lib/db';
+import { PortfolioReviewPanel } from './PortfolioReviewPanel';
 import type { JobSource, FetchLog } from '@/types/job-watch';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ function formatRelativeTime(isoDate: string): string {
 
 export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: boolean }) {
   const { offers, configs, fetchLogs, loadFetchLogs, selectorDebugInfo, selectorOverrides,
-          alerts, activeAlert, activeSearchProfile, updateSearchProfile, updateAlert } = useJobWatchStore();
+          alerts, activeAlert, setActiveAlert, activeSearchProfile, updateSearchProfile, updateAlert } = useJobWatchStore();
 
   // Piste analysée : celle sélectionnée, à défaut la première du portefeuille.
   const currentAlert = activeAlert() ?? alerts[0] ?? null;
@@ -196,6 +197,8 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   const [scoringInfoDismissed, setScoringInfoDismissed] = useState(
     () => localStorage.getItem('scoring_info_dismissed') === '1'
   );
+  /** Vue portefeuille : compare les pistes entre elles au lieu d'en analyser une. */
+  const [portfolioMode, setPortfolioMode] = useState(false);
 
   useEffect(() => {
     // Suggestions et réputation entreprise sont propres à la piste : celles
@@ -322,6 +325,18 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     if (hasAlerts) setExpanded(true);
   }, [hasAlerts]);
 
+  // Contexte du portefeuille : empêche chaque diagnostic de pousser sa piste
+  // vers le centre, ce qui ferait converger toutes les pistes à la longue.
+  const portfolioContext = currentAlert
+    ? {
+        alertName: currentAlert.name,
+        otherAlerts: alerts
+          .filter(a => a.id !== currentAlert.id)
+          .sort((a, b) => a.position - b.position)
+          .map(a => ({ name: a.name, jobTitles: a.searchProfile.jobTitles })),
+      }
+    : undefined;
+
   // ── Action handlers ────────────────────────────────────────────────────────────
 
   const dismiss = (key: string) =>
@@ -385,6 +400,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
         learnedPositive: suggestions.positive.slice(0, 5),
         learnedNegative: suggestions.negative.slice(0, 5),
       },
+      portfolioContext,
     );
     await navigator.clipboard.writeText(prompt);
     toast.success("Prompt d'optimisation copié ! Collez-le dans votre IA.");
@@ -392,14 +408,26 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
 
   const handleDiagnosticPrompt = async () => {
     const db = await getDb();
-    const rows = await db.select<{ title: string; score: number; action: string | null }[]>(`
-      SELECT o.title, o.score, f.action
-      FROM job_offers o
-      LEFT JOIN job_offer_feedback f ON f.offer_id = o.id
-      ORDER BY o.fetched_at DESC
-      LIMIT 20
-    `);
-    const prompt = generateDiagnosticPrompt(searchProfile, rows);
+    // Offres de la piste analysée : diagnostiquer une piste sur les offres
+    // d'une autre produirait des recommandations à contresens.
+    const rows = currentAlert
+      ? await db.select<{ title: string; score: number; action: string | null }[]>(`
+          SELECT o.title, l.score, f.action
+          FROM job_offer_alerts l
+          JOIN job_offers o ON o.id = l.offer_id
+          LEFT JOIN job_offer_feedback f ON f.offer_id = o.id
+          WHERE l.alert_id = ?1
+          ORDER BY o.fetched_at DESC
+          LIMIT 20
+        `, [currentAlert.id])
+      : await db.select<{ title: string; score: number; action: string | null }[]>(`
+          SELECT o.title, o.score, f.action
+          FROM job_offers o
+          LEFT JOIN job_offer_feedback f ON f.offer_id = o.id
+          ORDER BY o.fetched_at DESC
+          LIMIT 20
+        `);
+    const prompt = generateDiagnosticPrompt(searchProfile, rows, portfolioContext);
     await navigator.clipboard.writeText(prompt);
     toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
   };
@@ -439,8 +467,38 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       {(expanded || alwaysExpanded) && (
         <div className={alwaysExpanded ? 'space-y-3' : 'border-t border-gray-100 dark:border-gray-700 px-4 py-3 space-y-3'}>
 
+          {/* Portée de l'analyse : une piste, ou le portefeuille dans son ensemble.
+              Sans ce choix, les indicateurs mélangeraient des explorations qui
+              n'ont ni le même but ni les mêmes attentes de conversion. */}
+          {alerts.length > 1 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                Analyser
+                <select
+                  value={portfolioMode ? '__portfolio__' : (currentAlert?.id ?? '')}
+                  onChange={e => {
+                    if (e.target.value === '__portfolio__') {
+                      setPortfolioMode(true);
+                    } else {
+                      setPortfolioMode(false);
+                      setActiveAlert(e.target.value);
+                    }
+                  }}
+                  className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 text-xs"
+                >
+                  {[...alerts].sort((a, b) => a.position - b.position).map(a => (
+                    <option key={a.id} value={a.id}>la piste « {a.name} »</option>
+                  ))}
+                  <option value="__portfolio__">tout le portefeuille</option>
+                </select>
+              </label>
+            </div>
+          )}
+
+          {portfolioMode && <PortfolioReviewPanel />}
+
           {/* Warning: no jobTitles configured */}
-          {noJobTitles && (
+          {!portfolioMode && noJobTitles && (
             <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-xs text-amber-700 dark:text-amber-300">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>
@@ -451,7 +509,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
           )}
 
           {/* Scoring update info banner */}
-          {!scoringInfoDismissed && (
+          {!portfolioMode && !scoringInfoDismissed && (
             <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300">
               <div className="flex items-center gap-1.5">
                 <Info className="w-3.5 h-3.5 flex-shrink-0" />
@@ -468,6 +526,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
           )}
 
           {/* 3 metric tiles */}
+          {!portfolioMode && (
           <div className="grid grid-cols-3 gap-3">
             <MetricTile
               icon={<TrendingUp className="w-3.5 h-3.5" />}
@@ -492,6 +551,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
               alert={conversionAlertMessage}
             />
           </div>
+          )}
 
           {/* Dernières collectes table */}
           <div className="pt-1 border-t border-gray-100 dark:border-gray-700">
@@ -641,6 +701,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
           </div>
 
           {/* Prompt generation buttons */}
+          {!portfolioMode && (
           <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
             <button
               onClick={handlePerformancePrompt}
@@ -659,9 +720,10 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
               </button>
             )}
           </div>
+          )}
 
           {/* Actionable learning suggestions */}
-          {(suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0) && (
+          {!portfolioMode && (suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0) && (
             <div className="space-y-1.5 pt-1 border-t border-gray-100 dark:border-gray-700">
               {suggestExclude.map(term => (
                 <SuggestionAlert

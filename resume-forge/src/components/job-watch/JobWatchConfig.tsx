@@ -31,6 +31,7 @@ import { SOURCE_LABELS, ANDROID_INCOMPATIBLE } from '@/lib/watcher/sources';
 import { isAndroid } from '@/lib/platform';
 import { SessionManagerPanel } from './SessionManagerPanel';
 import { AlertList } from './AlertList';
+import { PortfolioStrategyPanel } from './PortfolioStrategyPanel';
 import { AIFilterGenerator } from './AIFilterGenerator';
 import { APEC_FONCTIONS_HIERARCHY, APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
@@ -364,6 +365,10 @@ export function JobWatchConfigView() {
 
       {/* ── 0. Portefeuille de pistes ── */}
       <AlertList />
+
+      <Section title="Concevoir mon portefeuille avec l'IA" defaultOpen={false}>
+        <PortfolioStrategyPanel />
+      </Section>
 
       {/* ── Éditeur de la piste sélectionnée ──
           Tout ce qui suit jusqu'aux « Réglages généraux » décrit une intention

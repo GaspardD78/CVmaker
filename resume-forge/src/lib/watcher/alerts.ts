@@ -422,6 +422,44 @@ export async function reorderAlerts(profileId: string | null, orderedIds: string
   }
 }
 
+/**
+ * Remplace la sélection de sources d'une piste.
+ *
+ * Les sources retirées sont supprimées, les nouvelles créées, celles déjà
+ * présentes conservées avec leur URL RSS et leur historique de collecte : un
+ * import de portefeuille ne doit pas faire perdre un réglage manuel.
+ */
+export async function replaceAlertSources(
+  profileId: string | null,
+  alertId: string,
+  sources: JobSource[],
+): Promise<void> {
+  const db = await getDb();
+  const current = await db.select<Array<{ id: string; source: JobSource }>>(
+    `SELECT id, source FROM job_watch_config WHERE alert_id = ?1`,
+    [alertId],
+  );
+  const wanted = new Set(sources);
+
+  for (const row of current) {
+    if (!wanted.has(row.source)) {
+      await db.execute(`DELETE FROM job_watch_config WHERE id = ?1`, [row.id]);
+    }
+  }
+  const existing = new Set(current.map(r => r.source));
+  for (const source of wanted) {
+    if (existing.has(source)) {
+      await db.execute(`UPDATE job_watch_config SET enabled = 1 WHERE alert_id = ?1 AND source = ?2`, [alertId, source]);
+    } else {
+      await db.execute(
+        `INSERT INTO job_watch_config (source, rss_url, enabled, profile_id, alert_id)
+         VALUES (?1, NULL, 1, ?2, ?3)`,
+        [source, profileId, alertId],
+      );
+    }
+  }
+}
+
 // ── Liaisons offre ↔ piste ───────────────────────────────────────────────────
 
 export async function loadOfferAlertLinks(offerIds: string[]): Promise<Map<string, OfferAlertLink[]>> {
