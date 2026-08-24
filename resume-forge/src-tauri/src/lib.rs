@@ -752,6 +752,12 @@ pub fn run() {
             sql: include_str!("../migrations/018_duplicate_dismissals.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 19,
+            description: "job_watch_alerts",
+            sql: include_str!("../migrations/019_job_watch_alerts.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]

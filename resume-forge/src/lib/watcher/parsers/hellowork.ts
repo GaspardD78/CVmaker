@@ -13,15 +13,14 @@
  *   Salaire  : MEDIUM quand affiché
  */
 
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile } from '@/types/job-watch';
 import { scrapeWithSession } from '../session-manager';
 import { isExcludedByProfile } from '../profile-to-query';
 import { normalizeLocation } from './common/location';
 import { normalizeContractType, extractContractFromText } from './common/contract-type';
 import { extractSalaryFromText } from './common/salary';
 
-function buildHelloworkUrl(settings: JobWatchSettings): string {
-  const profile = settings.searchProfile;
+function buildHelloworkUrl(profile: SearchProfile): string {
   const k = profile.jobTitles.slice(0, 2).map(t => `"${t.trim()}"`).join(' ') || '';
   const l = profile.location.city || 'France';
   const params = new URLSearchParams({ k, l, d: 'r86400', st: 'date' });
@@ -30,10 +29,11 @@ function buildHelloworkUrl(settings: JobWatchSettings): string {
 
 export async function parseHellowork(
   _config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
   profileId?: string | null,
 ): Promise<RawJobOffer[]> {
-  const url = buildHelloworkUrl(settings);
+  const url = buildHelloworkUrl(profile);
   const html = await scrapeWithSession('hellowork', url, {
     waitSelector: '[data-cy="serpCard"], ul[data-cy="serpList"] li, .tw-relative article',
     timeoutSecs:  25,
@@ -44,7 +44,6 @@ export async function parseHellowork(
     doc.querySelectorAll('[data-cy="serpCard"], ul[data-cy="serpList"] > li')
   );
 
-  const profile = settings.searchProfile;
   const offers: RawJobOffer[] = [];
 
   for (const card of cards) {

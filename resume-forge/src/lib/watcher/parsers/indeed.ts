@@ -15,15 +15,14 @@
  *   Salaire  : MEDIUM quand affiché (souvent absent)
  */
 
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile } from '@/types/job-watch';
 import { scrapeWithSession } from '../session-manager';
 import { isExcludedByProfile } from '../profile-to-query';
 import { normalizeLocation } from './common/location';
 import { extractContractFromText, normalizeContractType } from './common/contract-type';
 import { extractSalaryFromText } from './common/salary';
 
-function buildIndeedUrl(settings: JobWatchSettings): string {
-  const profile = settings.searchProfile;
+function buildIndeedUrl(profile: SearchProfile): string {
   const titles = profile.jobTitles.map(t => `"${t.trim()}"`).join(' OR ');
   const q = titles || profile.skills[0] || '';
   const l = profile.location.city || 'France';
@@ -33,10 +32,11 @@ function buildIndeedUrl(settings: JobWatchSettings): string {
 
 export async function parseIndeed(
   _config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
   profileId?: string | null,
 ): Promise<RawJobOffer[]> {
-  const url = buildIndeedUrl(settings);
+  const url = buildIndeedUrl(profile);
   const html = await scrapeWithSession('indeed', url, {
     waitSelector: '#mosaic-provider-jobcards, .jobsearch-ResultsList, [data-testid="jobListing"]',
     timeoutSecs:  25,
@@ -47,7 +47,6 @@ export async function parseIndeed(
     doc.querySelectorAll('[data-testid="jobListing"], div.job_seen_beacon, .resultWithShelf')
   );
 
-  const profile = settings.searchProfile;
   const offers: RawJobOffer[] = [];
 
   for (const card of cards) {

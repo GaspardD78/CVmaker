@@ -44,8 +44,8 @@ const ALGOLIA_HITS_PER_PAGE = 50;
 /** Nombre max d'intitulés de poste interrogés (une requête Algolia chacun) */
 const MAX_QUERY_TITLES = 3;
 
-export function buildWttjUrl(_config: JobWatchConfig, settings: JobWatchSettings): string {
-  const query  = buildWttjQuery(settings.searchProfile);
+export function buildWttjUrl(_config: JobWatchConfig, profile: SearchProfile): string {
+  const query  = buildWttjQuery(profile);
   const params = new URLSearchParams();
   if (query.query) params.set('query', query.query);
   params.set('refinementList[offices.country_code][]', 'FR');
@@ -223,9 +223,9 @@ async function parseWttjAlgolia(profile: SearchProfile): Promise<RawJobOffer[]> 
 
 async function parseWttjHtml(
   config: JobWatchConfig,
-  settings: JobWatchSettings,
+  profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
-  const pageUrl = config.rssUrl ?? buildWttjUrl(config, settings);
+  const pageUrl = config.rssUrl ?? buildWttjUrl(config, profile);
 
   const res = await fetchResilient(pageUrl, {
     source: 'wttj',
@@ -342,15 +342,15 @@ async function parseWttjHtml(
 
 export async function parseWttj(
   config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
-  const profile = settings.searchProfile;
 
   let offers: RawJobOffer[];
 
   if (config.rssUrl) {
     // URL custom configurée par l'utilisateur → scraping HTML de cette page
-    offers = await parseWttjHtml(config, settings);
+    offers = await parseWttjHtml(config, profile);
   } else {
     try {
       offers = await parseWttjAlgolia(profile);
@@ -358,7 +358,7 @@ export async function parseWttj(
       // Clé/index Algolia obsolète, réseau… — on retente via la page HTML
       // (probablement vide car SPA, mais c'est le seul recours restant).
       console.warn('[wttj] API Algolia indisponible, fallback scraping HTML :', err);
-      offers = await parseWttjHtml(config, settings);
+      offers = await parseWttjHtml(config, profile);
     }
   }
 

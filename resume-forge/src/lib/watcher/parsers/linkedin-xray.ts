@@ -301,9 +301,9 @@ export function mergeEnrichedWithCard(enriched: RawJobOffer, card: RawJobOffer |
 
 export async function parseLinkedinXray(
   _config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
-  const profile = settings.searchProfile;
   if (!profile.jobTitles.some(t => t.trim())) {
     // Sans mots-clés, la recherche remonterait n'importe quoi → on s'abstient.
     return [];

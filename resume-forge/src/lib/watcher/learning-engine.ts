@@ -216,22 +216,30 @@ export interface LearningResult {
  * This function is intentionally async and should be called off the critical
  * rendering path (e.g. inside a useEffect, never during render).
  */
-export async function analyzeFeedback(): Promise<LearningResult> {
+export async function analyzeFeedback(alertId?: string | null): Promise<LearningResult> {
   // Dynamic import avoids pulling the Tauri SQL plugin into unit-test bundles
   // while still sharing this file between app and tests.
   const { getDb } = await import('@/lib/db');
   const db = await getDb();
 
-  const rows = await db.select<{
-    action: string;
-    title: string;
-    description_snippet: string | null;
-  }[]>(`
-    SELECT f.action, o.title, o.description_snippet
-    FROM job_offer_feedback f
-    JOIN job_offers o ON o.id = f.offer_id
-    WHERE f.action IN ('thumbs_down', 'quick_archive', 'kanban_import')
-  `);
+  // Restreint à une piste quand elle est fournie : les suggestions d'une
+  // exploration ne doivent pas être dictées par les rejets d'une autre.
+  // Les feedbacks antérieurs au portefeuille (alert_id NULL) ne sont attribués
+  // à aucune piste, donc jamais réutilisés rétroactivement.
+  const rows = alertId
+    ? await db.select<{ action: string; title: string; description_snippet: string | null }[]>(`
+        SELECT f.action, o.title, o.description_snippet
+        FROM job_offer_feedback f
+        JOIN job_offers o ON o.id = f.offer_id
+        WHERE f.action IN ('thumbs_down', 'quick_archive', 'kanban_import')
+          AND f.alert_id = ?1
+      `, [alertId])
+    : await db.select<{ action: string; title: string; description_snippet: string | null }[]>(`
+        SELECT f.action, o.title, o.description_snippet
+        FROM job_offer_feedback f
+        JOIN job_offers o ON o.id = f.offer_id
+        WHERE f.action IN ('thumbs_down', 'quick_archive', 'kanban_import')
+      `);
 
   const negativeTexts: string[] = [];
   const positiveTexts: string[] = [];

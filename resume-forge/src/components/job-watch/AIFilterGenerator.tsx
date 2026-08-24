@@ -24,6 +24,7 @@ import {
   validateAIFilterRule,
   type AIFilterRule,
 } from '@/lib/watcher/ai-filter';
+import { ALERT_KIND_LABELS } from '@/types/job-watch';
 
 function countClauses(rule: AIFilterRule): {
   exclusions: number;
@@ -46,15 +47,51 @@ function countClauses(rule: AIFilterRule): {
 }
 
 export function AIFilterGenerator() {
-  const aiFilterRule = useJobWatchStore(s => s.aiFilterRule);
-  const saveAIFilterRule = useJobWatchStore(s => s.saveAIFilterRule);
+  // La règle appartient à la piste sélectionnée : une règle globale forcerait
+  // au plus petit dénominateur commun entre des explorations différentes.
+  const alerts = useJobWatchStore(s => s.alerts);
+  const activeAlert = useJobWatchStore(s => s.activeAlert);
+  const updateAlert = useJobWatchStore(s => s.updateAlert);
+
+  const currentAlert = activeAlert() ?? alerts[0] ?? null;
+  const aiFilterRule = currentAlert?.aiFilterRule ?? null;
+
+  const saveAIFilterRule = async (rule: AIFilterRule | null) => {
+    if (!currentAlert) throw new Error('Aucune piste sélectionnée.');
+    await updateAlert(currentAlert.id, { aiFilterRule: rule });
+  };
 
   const [intent, setIntent] = useState('');
   const [jsonInput, setJsonInput] = useState('');
   const [promptVisible, setPromptVisible] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
-  const generatedPrompt = useMemo(() => buildAIFilterPrompt(intent), [intent]);
+  const generatedPrompt = useMemo(
+    () => buildAIFilterPrompt(
+      intent,
+      currentAlert
+        ? {
+            alert: {
+              name:          currentAlert.name,
+              kindLabel:     ALERT_KIND_LABELS[currentAlert.kind],
+              jobTitles:     currentAlert.searchProfile.jobTitles,
+              excludeTitles: currentAlert.searchProfile.excludeTitles,
+              skills:        currentAlert.searchProfile.skills,
+              domains:       currentAlert.searchProfile.domains,
+            },
+            otherAlerts: alerts
+              .filter(a => a.id !== currentAlert.id)
+              .sort((a, b) => a.position - b.position)
+              .map(a => ({
+                name:      a.name,
+                kindLabel: ALERT_KIND_LABELS[a.kind],
+                jobTitles: a.searchProfile.jobTitles,
+              })),
+          }
+        : undefined,
+    ),
+    [intent, currentAlert, alerts],
+  );
   const counts = aiFilterRule ? countClauses(aiFilterRule) : null;
 
   const handleGeneratePrompt = async () => {
@@ -110,7 +147,7 @@ export function AIFilterGenerator() {
 
     try {
       await saveAIFilterRule(rule);
-      toast.success(`Règle "${rule.name}" activée`);
+      toast.success(`Règle "${rule.name}" activée sur la piste « ${currentAlert?.name ?? ''} »`);
       setJsonInput('');
       setIntent('');
       setPromptVisible(false);
@@ -120,7 +157,7 @@ export function AIFilterGenerator() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Supprimer la règle IA active ?')) return;
+    if (!window.confirm(`Supprimer la règle IA de la piste « ${currentAlert?.name ?? ''} » ?`)) return;
     await saveAIFilterRule(null);
     toast.success('Règle IA désactivée');
   };
@@ -135,6 +172,12 @@ export function AIFilterGenerator() {
             Décris ton intention, copie le prompt généré dans ChatGPT/Claude/Gemini, puis colle
             la réponse ici. La règle est appliquée localement — aucune clé API, aucun envoi réseau.
           </p>
+          {currentAlert && (
+            <p className="mt-1 font-medium">
+              Cette règle ne s'appliquera qu'à la piste « {currentAlert.name} ».
+              {alerts.length > 1 && ' Le prompt inclut les autres pistes pour éviter qu\'elle ne les recoupe.'}
+            </p>
+          )}
         </div>
       </div>
 

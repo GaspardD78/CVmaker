@@ -27,6 +27,7 @@ import type { JobWatchConfig } from '@/types/job-watch';
 
 const config: JobWatchConfig = {
   id: 'c1',
+  alertId: null,
   source: 'jobicy',
   rssUrl: null,
   enabled: 1,
@@ -34,10 +35,8 @@ const config: JobWatchConfig = {
   createdAt: new Date().toISOString(),
 };
 
-const settings = {
-  ...DEFAULT_JOB_WATCH_SETTINGS,
-  searchProfile: { ...DEFAULT_SEARCH_PROFILE, jobTitles: ['Developer'] },
-};
+const settings = { ...DEFAULT_JOB_WATCH_SETTINGS };
+const profile = { ...DEFAULT_SEARCH_PROFILE, jobTitles: ['Developer'] };
 
 beforeEach(() => {
   cannedResponse = new Response('{}', { status: 200 });
@@ -46,7 +45,7 @@ beforeEach(() => {
 describe('parseJobicy', () => {
   test('empty jobs list returns []', async () => {
     cannedResponse = new Response(JSON.stringify({ jobCount: 0, jobs: [] }), { status: 200 });
-    const offers = await parseJobicy(config, settings);
+    const offers = await parseJobicy(config, settings, profile);
     expect(offers).toEqual([]);
   });
 
@@ -75,7 +74,7 @@ describe('parseJobicy', () => {
       { status: 200 },
     );
 
-    const offers = await parseJobicy(config, settings);
+    const offers = await parseJobicy(config, settings, profile);
     expect(offers).toHaveLength(1);
     const o = offers[0];
 
@@ -98,7 +97,7 @@ describe('parseJobicy', () => {
     cannedResponse = new Response('Server Error', { status: 500 });
     let thrown: unknown = null;
     try {
-      await parseJobicy(config, settings);
+      await parseJobicy(config, settings, profile);
     } catch (e) {
       thrown = e;
     }
@@ -131,7 +130,7 @@ describe('parseJobicy', () => {
       { status: 200 },
     );
 
-    const [o] = await parseJobicy(config, settings);
+    const [o] = await parseJobicy(config, settings, profile);
     expect(o.salaryMin).toBe(75_000);
     expect(o.salaryMax).toBe(90_000);
     expect(o.contractType).toBe('Freelance');

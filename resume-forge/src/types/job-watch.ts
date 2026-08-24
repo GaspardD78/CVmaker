@@ -1,3 +1,6 @@
+import type { AIFilterRule } from '@/lib/watcher/ai-filter';
+import type { LearnedDictionary } from '@/lib/watcher/learning-engine';
+
 export type JobSource =
   | 'apec'
   | 'wttj'
@@ -231,6 +234,8 @@ export interface JobOfferFeedback {
  */
 export interface JobWatchConfig {
   id: string;
+  /** Piste à laquelle cette source est rattachée. */
+  alertId: string | null;
   source: JobSource;
   /** URL RSS for linkedin_rss (required) and optional override for apec/wttj */
   rssUrl: string | null;
@@ -242,6 +247,87 @@ export interface JobWatchConfig {
 /** Ancienneté par défaut (en jours) au-delà de laquelle une offre est considérée périmée. */
 export const DEFAULT_EXPIRED_MAX_AGE_DAYS = 30;
 
+// ── Alertes (pistes de veille) ───────────────────────────────────────────────
+
+/**
+ * Nombre maximum de pistes simultanées par utilisateur.
+ *
+ * Au-delà, la charge de collecte devient déraisonnable (chaque piste multiplie
+ * les requêtes vers les sources scrapées) et le recouvrement entre pistes
+ * dégrade le signal plus qu'il n'élargit la recherche.
+ */
+export const MAX_ALERTS = 4;
+
+/**
+ * Rôle d'une piste dans le portefeuille. Purement descriptif : n'influence pas
+ * le scoring. Sert à la lecture du portefeuille et guide le prompt stratège.
+ */
+export type AlertKind = 'core' | 'adjacent' | 'exploratory' | 'opportunistic';
+
+export const ALERT_KINDS: AlertKind[] = ['core', 'adjacent', 'exploratory', 'opportunistic'];
+
+/** Libellés affichés pour chaque type de piste. */
+export const ALERT_KIND_LABELS: Record<AlertKind, string> = {
+  core:          'Cœur de cible',
+  adjacent:      'Métier voisin',
+  exploratory:   'Ouverture',
+  opportunistic: 'Angle étroit',
+};
+
+/** Couleur par défaut associée à chaque type de piste. */
+export const ALERT_KIND_COLORS: Record<AlertKind, string> = {
+  core:          '#6366f1', // indigo
+  adjacent:      '#0ea5e9', // ciel
+  exploratory:   '#10b981', // émeraude
+  opportunistic: '#f59e0b', // ambre
+};
+
+/**
+ * Une alerte — ou « piste » — est un profil de recherche complet et autonome.
+ *
+ * Elle porte tout ce qui définit une exploration : ce qu'on cherche
+ * (`searchProfile`), comment on l'affine (`aiFilterRule`) et ce qu'elle a
+ * appris des actions de l'utilisateur (`learnedDict`, `companyReputation`).
+ * Ces données vivaient auparavant sous forme de clés globales dans
+ * `job_watch_settings` ; les isoler par piste est ce qui permet à une
+ * exploration de ne pas être écrasée par la piste dominante.
+ */
+export interface JobWatchAlert {
+  id: string;
+  name: string;
+  /** Couleur du badge, au format hexadécimal. */
+  color: string;
+  kind: AlertKind;
+  /** Ordre d'affichage et ordre des sections du digest. Contigu de 0 à n-1. */
+  position: number;
+  enabled: number;              // 0 | 1
+  searchProfile: SearchProfile;
+  aiFilterRule: AIFilterRule | null;
+  learnedDict: LearnedDictionary;
+  companyReputation: Record<string, number>;
+  learnedDecayedAt: string | null;
+  lastFetchedAt: string | null;
+  createdAt: string;
+  /** Sources actives de la piste, dérivées des `JobWatchConfig` rattachées. */
+  sources: JobSource[];
+}
+
+export const EMPTY_LEARNED_DICT: LearnedDictionary = { positive: {}, negative: {} };
+
+/** Rattachement d'une offre à une piste, portant le score propre à cette piste. */
+export interface OfferAlertLink {
+  alertId: string;
+  /** Score calculé pour cette piste — celui qu'affiche la vue filtrée. */
+  score: number;
+  /** Première fois que cette piste a capté cette offre. */
+  matchedAt: string;
+}
+
+/** Offre enrichie des pistes qui l'ont captée — ce que consomme l'UI. */
+export interface JobOfferWithAlerts extends JobOffer {
+  alerts: OfferAlertLink[];
+}
+
 export interface JobWatchSettings {
   fetchIntervalHours: number;
   emailDigestEnabled: boolean;
@@ -251,8 +337,6 @@ export interface JobWatchSettings {
   emailSmtpUser: string;
   emailSmtpPassword: string;
   emailTo: string;
-  /** Unified search profile — single source of truth for query params AND scoring */
-  searchProfile: SearchProfile;
   navitiaApiKey: string;
   commuteOriginAddress: string;
   commuteDepartureTime: string;
@@ -285,7 +369,6 @@ export const DEFAULT_JOB_WATCH_SETTINGS: JobWatchSettings = {
   emailSmtpUser: '',
   emailSmtpPassword: '',
   emailTo: '',
-  searchProfile: DEFAULT_SEARCH_PROFILE,
   navitiaApiKey: '',
   commuteOriginAddress: '',
   commuteDepartureTime: '09:00',
@@ -323,6 +406,11 @@ export interface FetchLog {
 export type SortOption = 'score_desc' | 'date_newest' | 'date_oldest' | 'commute_asc' | 'salary_desc';
 
 export interface JobWatchFilters {
+  /**
+   * Piste sélectionnée : `null` = toutes les pistes,
+   * `'unlinked'` = offres qui ne sont plus rattachées à aucune piste.
+   */
+  alertId: string | null | 'unlinked';
   sources: JobSource[];
   minScore: number;
   maxCommuteMinutes: number | null;
@@ -335,6 +423,7 @@ export interface JobWatchFilters {
 }
 
 export const DEFAULT_FILTERS: JobWatchFilters = {
+  alertId: null,
   sources: ['apec', 'wttj', 'linkedin', 'linkedin_rss', 'indeed', 'hellowork', 'france_travail', 'emploi_territorial'],
   minScore: 0,
   maxCommuteMinutes: null,

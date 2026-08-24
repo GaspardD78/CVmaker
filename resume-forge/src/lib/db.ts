@@ -238,6 +238,64 @@ export async function getDb(): Promise<Database> {
       )
     `).catch(() => {/* already exists */});
 
+    // Fallback: ensure migration 019 schema exists (portefeuille multi-alertes).
+    // Une alerte porte un profil de recherche complet et autonome ; la table de
+    // liaison porte la multiplicité et le score par piste.
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_watch_alerts (
+        id                 TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        profile_id         TEXT NOT NULL DEFAULT '',
+        name               TEXT NOT NULL,
+        color              TEXT NOT NULL DEFAULT '#6366f1',
+        kind               TEXT NOT NULL DEFAULT 'core',
+        position           INTEGER NOT NULL DEFAULT 0,
+        enabled            INTEGER NOT NULL DEFAULT 1,
+        search_profile     TEXT NOT NULL,
+        ai_filter_rule     TEXT,
+        learned_dict       TEXT NOT NULL DEFAULT '{"positive":{},"negative":{}}',
+        company_reputation TEXT NOT NULL DEFAULT '{}',
+        learned_decayed_at TEXT,
+        last_fetched_at    TEXT,
+        created_at         TEXT DEFAULT (datetime('now'))
+      )
+    `).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_watch_alerts_profile ON job_watch_alerts(profile_id, position)`);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_offer_alerts (
+        offer_id   TEXT NOT NULL REFERENCES job_offers(id)       ON DELETE CASCADE,
+        alert_id   TEXT NOT NULL REFERENCES job_watch_alerts(id) ON DELETE CASCADE,
+        score      INTEGER NOT NULL DEFAULT 0,
+        matched_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (offer_id, alert_id)
+      )
+    `).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offer_alerts_alert ON job_offer_alerts(alert_id, score DESC)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offer_alerts_offer ON job_offer_alerts(offer_id)`);
+    await db.execute(`ALTER TABLE job_watch_config ADD COLUMN alert_id TEXT REFERENCES job_watch_alerts(id) ON DELETE CASCADE`).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_watch_config_alert ON job_watch_config(alert_id)`);
+    await db.execute(`ALTER TABLE job_offer_feedback ADD COLUMN alert_id TEXT`).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_feedback_alert ON job_offer_feedback(alert_id)`);
+    await db.execute(`ALTER TABLE job_watch_fetch_log ADD COLUMN alert_id TEXT`).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_fetch_log_alert ON job_watch_fetch_log(alert_id, fetched_at DESC)`);
+
+    // Une source ne peut être configurée qu'une fois par piste. L'index unique
+    // n'est PAS créé par la migration 019 : d'anciennes bases contiennent des
+    // doublons de sources qui feraient échouer la migration entière. On les
+    // déduplique ici (en gardant la ligne la plus récemment collectée) avant de
+    // poser la contrainte.
+    await db.execute(`
+      DELETE FROM job_watch_config
+      WHERE alert_id IS NOT NULL AND id NOT IN (
+        SELECT id FROM (
+          SELECT id, MAX(COALESCE(last_fetched_at, created_at, ''))
+          FROM job_watch_config
+          WHERE alert_id IS NOT NULL
+          GROUP BY alert_id, source
+        )
+      )
+    `).catch(() => {/* rien à dédupliquer */});
+    await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_job_watch_config_alert_source ON job_watch_config(alert_id, source)`).catch(() => {/* doublons résiduels — contrainte posée au prochain démarrage */});
+
     const defaultSettings: Array<[string, string]> = [
       ['fetch_interval_hours',  '4'],
       ['email_digest_enabled',  '1'],

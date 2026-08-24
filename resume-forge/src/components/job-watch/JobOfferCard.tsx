@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
-import type { JobOffer, JobSource } from '@/types/job-watch';
+import type { JobOffer, JobOfferWithAlerts, JobSource } from '@/types/job-watch';
 import { computeLightProfileMatch } from '@/lib/watcher/scorer';
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
 
@@ -115,7 +115,7 @@ function SkillMatchBadge({ match }: { match: number }) {
 }
 
 interface JobOfferCardProps {
-  offer: JobOffer;
+  offer: JobOfferWithAlerts;
   commuteMaxMinutes: number | null;
   onImportKanban: (offer: JobOffer) => void;
   onGenerateCv: (offer: JobOffer) => void;
@@ -125,7 +125,22 @@ interface JobOfferCardProps {
 
 export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, onGenerateCv, profileSkills = [] }: JobOfferCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { markRead, markArchived, submitFeedback } = useJobWatchStore();
+  const { markRead, markArchived, submitFeedback, alerts, filters } = useJobWatchStore();
+
+  // Pistes ayant capté cette offre, dans l'ordre du portefeuille.
+  const offerAlerts = alerts
+    .filter(a => offer.alerts.some(l => l.alertId === a.id))
+    .sort((a, b) => a.position - b.position);
+
+  // Le score affiché est celui de la piste consultée ; en vue « toutes les
+  // pistes », c'est le meilleur score. Afficher le meilleur score dans une
+  // piste secondaire donnerait une idée fausse de sa pertinence pour elle.
+  const selectedAlertId = typeof filters.alertId === 'string' && filters.alertId !== 'unlinked'
+    ? filters.alertId
+    : null;
+  const displayedScore = selectedAlertId
+    ? (offer.alerts.find(l => l.alertId === selectedAlertId)?.score ?? offer.score)
+    : offer.score;
   const { profile } = useProfileStore();
   const displayedAt = useRef<number>(Date.now());
   const getTimeToAction = () => Math.floor((Date.now() - displayedAt.current) / 1000);
@@ -267,7 +282,21 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, onGener
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${SOURCE_COLORS[offer.source as JobSource]}`}>
             {SOURCE_LABELS[offer.source as JobSource] ?? offer.source}
           </span>
-          <ScoreBadge score={offer.score} />
+          <ScoreBadge score={displayedScore} />
+          {/* Pistes du portefeuille ayant capté cette offre. En vue filtrée on
+              n'affiche que les autres : la piste consultée va de soi. */}
+          {offerAlerts
+            .filter(a => a.id !== selectedAlertId)
+            .map(a => (
+              <span
+                key={a.id}
+                title={`Piste : ${a.name}`}
+                className="px-2 py-0.5 rounded text-xs font-medium"
+                style={{ background: `${a.color}1f`, color: a.color }}
+              >
+                {a.name}
+              </span>
+            ))}
           <CommuteBadge
             minutes={offer.commuteMinutes}
             status={offer.commuteStatus}

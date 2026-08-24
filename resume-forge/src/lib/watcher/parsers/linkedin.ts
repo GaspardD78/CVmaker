@@ -20,7 +20,7 @@
  *   4. Détection explicite de la page de login/challenge
  */
 
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile } from '@/types/job-watch';
 import { scrapeWithSession, sessionExists } from '../session-manager';
 import { isExcludedByProfile } from '../profile-to-query';
 import { normalizeLocation } from './common/location';
@@ -32,8 +32,7 @@ import { setCapturedDebugHtml, type SelectorOverride } from '../selector-debug';
  * f_TPR=r86400 = "last 24 hours", keeps results fresh.
  * geoId=105015875 = France (fallback si la ville n'est pas reconnue par LinkedIn).
  */
-function buildLinkedinUrl(settings: JobWatchSettings): string {
-  const profile = settings.searchProfile;
+function buildLinkedinUrl(profile: SearchProfile): string {
   const keywords = [...profile.jobTitles].filter(Boolean).join(' OR ');
   const location = profile.location.city || 'France';
   const params = new URLSearchParams();
@@ -136,7 +135,8 @@ function parseCard(
 
 export async function parseLinkedin(
   _config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
   override?: SelectorOverride,
   profileId?: string | null,
 ): Promise<RawJobOffer[]> {
@@ -144,7 +144,7 @@ export async function parseLinkedin(
     throw new Error('Session LinkedIn absente — connecte-toi depuis Paramètres › Veille › Sessions');
   }
 
-  const url = buildLinkedinUrl(settings);
+  const url = buildLinkedinUrl(profile);
 
   // Use override wait selector if available
   const waitSel = override?.waitSelector ?? WAIT_SELECTOR;
@@ -190,7 +190,6 @@ export async function parseLinkedin(
     linkSelector:     override?.linkSelector     ?? DEFAULT_CARD_SELECTORS.linkSelector,
   };
 
-  const profile = settings.searchProfile;
   const offers: RawJobOffer[] = [];
 
   for (const card of cards) {

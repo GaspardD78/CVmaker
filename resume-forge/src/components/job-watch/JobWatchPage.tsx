@@ -5,18 +5,19 @@ import { JobOffersView } from './JobOffersView';
 import { JobWatchConfigView } from './JobWatchConfig';
 import { HealthDrawer } from './HealthDrawer';
 import { SetupWizard } from './SetupWizard';
+import { AlertBar } from './AlertBar';
 
 type Tab = 'offers' | 'config';
 
 export function JobWatchPage() {
   const [activeTab, setActiveTab] = useState<Tab>('offers');
-  const { initialize, unreadCount, configs } = useJobWatchStore();
+  const { initialize, unreadCount, configs, alerts } = useJobWatchStore();
   const { profile } = useProfileStore();
   const [wizardDismissed, setWizardDismissed] = useState(false);
 
   useEffect(() => { initialize(); }, [initialize]);
 
-  const showWizard = !wizardDismissed && configs.length === 0 && profile?.title;
+  const showWizard = !wizardDismissed && alerts.length === 0 && configs.length === 0 && profile?.title;
   const unread = unreadCount();
 
   const tabs: Array<{ id: Tab; label: string; badge?: number }> = [
@@ -100,6 +101,7 @@ export function JobWatchPage() {
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {activeTab === 'offers' && (
               <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <AlertBar />
                 <JobOffersView />
               </div>
             )}

@@ -266,12 +266,66 @@ export function applyAIFilter(
  * The prompt spells out the exact JSON schema and asks the model to
  * return only JSON — any prose is rejected by `validateAIFilterRule`.
  */
-export function buildAIFilterPrompt(userIntent: string): string {
+/** Contexte de la piste pour laquelle la règle est générée. */
+export interface AIFilterPromptContext {
+  /** Piste concernée. */
+  alert: {
+    name: string;
+    kindLabel: string;
+    jobTitles: string[];
+    excludeTitles: string[];
+    skills: string[];
+    domains: string[];
+  };
+  /** Autres pistes du portefeuille — la règle ne doit pas les recouvrir. */
+  otherAlerts: Array<{ name: string; kindLabel: string; jobTitles: string[] }>;
+}
+
+function formatList(values: string[]): string {
+  const cleaned = values.map(v => v.trim()).filter(Boolean);
+  return cleaned.length > 0 ? cleaned.join(', ') : 'aucun';
+}
+
+/**
+ * Bloc de contexte inséré quand la règle est générée pour une piste d'un
+ * portefeuille.
+ *
+ * La dernière règle est le vrai apport du contexte : sans elle, une règle
+ * générée pour la piste cœur de cible exclut spontanément le vocabulaire de la
+ * piste exploratoire — et l'IA détruit silencieusement la stratégie
+ * d'ouverture qu'elle vient d'aider à construire.
+ */
+function buildContextBlock(context: AIFilterPromptContext): string {
+  const others = context.otherAlerts.length > 0
+    ? context.otherAlerts
+        .map(a => `- ${a.name} (${a.kindLabel}) : ${formatList(a.jobTitles)}`)
+        .join('\n')
+    : '- aucune autre piste';
+
+  return `
+# PISTE CONCERNÉE
+Nom : ${context.alert.name} (${context.alert.kindLabel})
+Titres visés : ${formatList(context.alert.jobTitles)}
+Exclusions déjà en place : ${formatList(context.alert.excludeTitles)}
+Compétences : ${formatList(context.alert.skills)}
+Secteurs : ${formatList(context.alert.domains)}
+
+# AUTRES PISTES DU PORTEFEUILLE
+${others}
+
+# RÈGLES SUPPLÉMENTAIRES
+- Ne réexclus PAS un terme déjà présent dans les exclusions ci-dessus : ce serait redondant et illisible.
+- Cette règle ne s'applique QU'À cette piste. Ne cherche pas à couvrir les autres.
+- N'exclus jamais un terme qui est un titre visé d'une autre piste : tu couperais une exploration volontaire du portefeuille.
+`;
+}
+
+export function buildAIFilterPrompt(userIntent: string, context?: AIFilterPromptContext): string {
   return `Tu es un assistant qui traduit une intention de recherche d'emploi en une règle de filtrage JSON déterministe.
 
 # INTENTION DE L'UTILISATEUR
 ${userIntent.trim()}
-
+${context ? buildContextBlock(context) : ''}
 # TÂCHE
 Génère un objet JSON strictement conforme au schéma ci-dessous. Renvoie UNIQUEMENT le JSON, sans texte avant ni après, sans commentaires Markdown.
 

@@ -14,7 +14,7 @@
  *   Salaire  : HIGH si présent (salaryMin/Max/Currency/Period)
  */
 
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile, ExtractionMetadata } from '@/types/job-watch';
 import { fetchResilient } from '../http-client';
 import { stripHtml } from './rss-utils';
 
@@ -84,9 +84,9 @@ function normaliseSalary(
 
 export async function parseJobicy(
   config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
-  const profile = settings.searchProfile;
 
   let fetchUrl: string;
 

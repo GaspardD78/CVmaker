@@ -25,7 +25,7 @@
  * Qualité d'extraction : HIGH — données structurées + coordonnées GPS natives.
  */
 
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile, ExtractionMetadata } from '@/types/job-watch';
 import { buildFranceTravailQuery, isExcludedByProfile, isValidInseeCode } from '../profile-to-query';
 import { resolveProfileGeo } from '../geo';
 import { tauriFetch } from '../http';
@@ -214,6 +214,7 @@ function parseContentRangeTotal(header: string | null): number | null {
 export async function parseFranceTravail(
   _config: JobWatchConfig,
   settings: JobWatchSettings,
+  profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
   const { ftClientId, ftClientSecret } = settings;
 
@@ -231,7 +232,6 @@ export async function parseFranceTravail(
   }
 
   const token   = await getFranceTravailToken(ftClientId, ftClientSecret);
-  const profile = settings.searchProfile;
 
   // FT's `motsCles` only supports implicit AND (no OR). Joining multiple titles
   // avec des espaces requiert que TOUS les mots soient présents — donc on émet
