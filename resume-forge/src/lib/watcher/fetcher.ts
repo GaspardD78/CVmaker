@@ -1,22 +1,36 @@
 /**
- * Orchestrateur de collecte des offres d'emploi.
+ * Orchestrateur de collecte des offres d'emploi — portefeuille multi-pistes.
  *
- * Pour chaque source activée :
- *  1. Appelle le parser correspondant (avec le profil de la piste comme source de vérité)
- *  2. Calcule le hash de déduplication
- *  3. Filtre les doublons déjà en base
- *  4. Calcule le score de pertinence (scorer field-aware v2)
- *  5. Calcule le temps de trajet (si Navitia configuré)
- *  6. Sauvegarde les nouvelles offres en base
+ * Une collecte sert jusqu'à quatre pistes de recherche à la fois. Le plan de
+ * collecte regroupe les tâches par empreinte de requête, de sorte que deux
+ * pistes interrogeant la même chose ne déclenchent qu'un seul appel réseau.
  *
- * Les erreurs par source sont loguées mais ne stoppent pas les autres sources.
+ *  1. Construit le plan de collecte (tâches → groupes de requête)
+ *  2. Exécute chaque groupe une fois, en espaçant les requêtes d'une même source
+ *  3. Score chaque offre indépendamment pour chaque piste du groupe
+ *  4. Agrège par hash : meilleur score, et rattachement piste par piste
+ *  5. Calcule le temps de trajet des seules offres qui seront sauvegardées
+ *  6. Insère les nouvelles offres et crée les liaisons offre↔piste manquantes
+ *
+ * Les erreurs par source sont loguées mais ne stoppent pas les autres tâches.
  */
 
 import { getDb } from '@/lib/db';
 import { isAndroid } from '@/lib/platform';
-import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource, FetchLog, SearchProfile } from '@/types/job-watch';
+import type {
+  CommuteStatus,
+  FetchLog,
+  JobSource,
+  JobWatchAlert,
+  JobWatchConfig,
+  JobWatchSettings,
+  RawJobOffer,
+  SearchProfile,
+} from '@/types/job-watch';
+import { computeQueryKey } from './query-key';
+import { linkOfferToAlerts } from './alerts';
 import { ANDROID_INCOMPATIBLE } from './sources';
-import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } from './deduplicator';
+import { computeOfferHash, loadExistingOfferIndex, detectCrossSourceDuplicates } from './deduplicator';
 import { isOperationalSourceError } from './source-error';
 import { computeScore, LearnedSignals } from './scorer';
 import { resolveProfileGeo, classifyOfferZone } from './geo';
@@ -39,60 +53,166 @@ import {
   sendNotification 
 } from '@tauri-apps/plugin-notification';
 
-/** Load learned dictionary, company reputation and AI filter rule for scoring, scoped to the profile. */
-async function loadLearnedSignals(
-  db: Awaited<ReturnType<typeof getDb>>,
-  profileId: string | null,
-): Promise<LearnedSignals> {
-  try {
-    const pid = profileId ?? '';
-    const rows = await db.select<{ key: string; profile_id: string; value: string }[]>(
-      `SELECT key, profile_id, value FROM job_watch_settings
-       WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation', 'ai_filter_rule')
-       AND (profile_id = '' OR profile_id = ?1)`,
-      [pid],
-    );
-    const map: Record<string, string> = {};
-    for (const r of rows.filter(x => x.profile_id === '')) map[r.key] = r.value;
-    for (const r of rows.filter(x => x.profile_id !== '')) map[r.key] = r.value;
+// ── Signaux appris ───────────────────────────────────────────────────────────
 
-    let aiFilterRule: LearnedSignals['aiFilterRule'] = null;
-    if (map['ai_filter_rule']) {
-      try { aiFilterRule = JSON.parse(map['ai_filter_rule']); } catch (e) {
-        console.warn('[watcher] ai_filter_rule corrompu — ignoré', e);
-      }
-    }
+/**
+ * Signaux de scoring d'une piste : dictionnaire appris, réputation entreprise
+ * et règle de filtre IA.
+ *
+ * Ils sont portés par la piste et non plus par les réglages globaux : rejeter
+ * des offres « commercial » sur la piste RH ne doit pas pénaliser la piste
+ * exploratoire où ce terme est légitime.
+ */
+export function signalsOf(alert: JobWatchAlert): LearnedSignals {
+  return {
+    learnedDict:       alert.learnedDict,
+    companyReputation: alert.companyReputation,
+    aiFilterRule:      alert.aiFilterRule,
+  };
+}
 
-    return {
-      learnedDict: {
-        positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
-        negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
-      },
-      companyReputation: map['company_reputation'] ? JSON.parse(map['company_reputation']) : {},
-      aiFilterRule,
-    };
-  } catch (e) {
-    console.warn('[watcher] échec du chargement des signaux appris — scoring sans eux', e);
-    return {};
-  }
+// ── Plan de collecte ─────────────────────────────────────────────────────────
+
+/**
+ * Délai minimal entre deux requêtes visant une même source.
+ *
+ * Les sources scrapées sont les plus exposées : quatre pistes qui les
+ * interrogent coup sur coup déclenchent leurs protections anti-bot. Les APIs
+ * officielles tolèrent une cadence bien supérieure.
+ */
+export const SOURCE_THROTTLE_MS: Record<JobSource, number> = {
+  linkedin:           4000,
+  indeed:             4000,
+  hellowork:          4000,
+  wttj:               2000,
+  apec:               1000,
+  emploi_territorial: 1000,
+  france_travail:      500,
+  jobicy:              500,
+  linkedin_rss:        500,
+  mantiks:             500,
+};
+
+/**
+ * Un groupe de requête : une seule requête réseau, dont le résultat est évalué
+ * par chacune des pistes qui l'ont demandée.
+ */
+export interface FetchGroup {
+  source: JobSource;
+  queryKey: string;
+  /** Config représentative — l'URL RSS fait partie de l'empreinte, donc identique. */
+  config: JobWatchConfig;
+  /** Profil représentatif — les paramètres de requête sont identiques par construction. */
+  profile: SearchProfile;
+  /** Pistes servies par ce groupe, dans l'ordre du portefeuille. */
+  alerts: JobWatchAlert[];
 }
 
 /**
- * Persists a FetchLog entry and purges old entries keeping only the 50 most
- * recent per source. Gracefully swallows errors — logging must never crash
- * the fetch pipeline.
+ * Construit le plan de collecte : une tâche par (piste active, source active),
+ * regroupée par empreinte de requête.
+ *
+ * Fonction pure — c'est elle qui décide de la charge réseau du cycle.
+ */
+export function buildFetchPlan(
+  alerts: JobWatchAlert[],
+  configs: JobWatchConfig[],
+  skipSources: Set<JobSource> = new Set(),
+): FetchGroup[] {
+  const byAlert = new Map(alerts.filter(a => a.enabled === 1).map(a => [a.id, a]));
+  const groups = new Map<string, FetchGroup>();
+
+  for (const config of configs) {
+    if (config.enabled !== 1) continue;
+    if (skipSources.has(config.source)) continue;
+    const alert = config.alertId ? byAlert.get(config.alertId) : undefined;
+    if (!alert) continue;
+
+    const queryKey = computeQueryKey(config.source, alert.searchProfile, config.rssUrl);
+    const existing = groups.get(queryKey);
+    if (existing) {
+      if (!existing.alerts.some(a => a.id === alert.id)) existing.alerts.push(alert);
+    } else {
+      groups.set(queryKey, {
+        source:  config.source,
+        queryKey,
+        config,
+        profile: alert.searchProfile,
+        alerts:  [alert],
+      });
+    }
+  }
+
+  // Ordre stable : par piste principale puis par source, pour que la
+  // progression affichée suive l'ordre du portefeuille.
+  const positionOf = new Map(alerts.map(a => [a.id, a.position]));
+  return [...groups.values()].sort((a, b) => {
+    const pa = positionOf.get(a.alerts[0].id) ?? 0;
+    const pb = positionOf.get(b.alerts[0].id) ?? 0;
+    return pa !== pb ? pa - pb : a.source.localeCompare(b.source);
+  });
+}
+
+export interface FetchLoadEstimate {
+  /** Tâches demandées : pistes actives × sources actives. */
+  tasks: number;
+  /** Requêtes réseau réellement émises. */
+  requests: number;
+  /** Tâches économisées par la mutualisation. */
+  mutualised: number;
+  /** Temps d'attente cumulé imposé par le throttle, en millisecondes. */
+  throttleMs: number;
+}
+
+/** Estimation de charge affichée dans la configuration. */
+export function estimateFetchLoad(
+  alerts: JobWatchAlert[],
+  configs: JobWatchConfig[],
+): FetchLoadEstimate {
+  const enabledAlertIds = new Set(alerts.filter(a => a.enabled === 1).map(a => a.id));
+  const tasks = configs.filter(
+    c => c.enabled === 1 && c.alertId !== null && enabledAlertIds.has(c.alertId),
+  ).length;
+
+  const plan = buildFetchPlan(alerts, configs);
+  const seen = new Set<JobSource>();
+  let throttleMs = 0;
+  for (const group of plan) {
+    if (seen.has(group.source)) throttleMs += SOURCE_THROTTLE_MS[group.source] ?? 500;
+    seen.add(group.source);
+  }
+  return { tasks, requests: plan.length, mutualised: tasks - plan.length, throttleMs };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ── Journalisation ───────────────────────────────────────────────────────────
+
+/**
+ * Persiste une ligne de log et purge au-delà des 50 dernières collectes du
+ * couple (piste, source).
+ *
+ * La purge est bornée par couple et non par source : sinon quatre pistes se
+ * disputeraient le même quota et l'historique d'une piste peu bavarde
+ * disparaîtrait au premier cycle d'une piste volumineuse.
+ *
+ * Avale ses erreurs — journaliser ne doit jamais interrompre une collecte.
  */
 async function writeFetchLog(
   db: Awaited<ReturnType<typeof getDb>>,
+  alertId: string,
   entry: Omit<FetchLog, 'id' | 'fetchedAt'>,
 ): Promise<void> {
   try {
     await db.execute(
       `INSERT INTO job_watch_fetch_log
-         (source, offers_fetched, offers_new, offers_duplicate, offers_filtered, status, error_message, duration_ms)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+         (source, alert_id, offers_fetched, offers_new, offers_duplicate, offers_filtered, status, error_message, duration_ms)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
       [
         entry.source,
+        alertId,
         entry.offersFetched,
         entry.offersNew,
         entry.offersDuplicate,
@@ -102,38 +222,72 @@ async function writeFetchLog(
         entry.durationMs,
       ]
     );
-    // Purge: keep only the 50 most recent logs per source
     await db.execute(
       `DELETE FROM job_watch_fetch_log
-       WHERE source = ?1
+       WHERE source = ?1 AND alert_id IS ?2
          AND id NOT IN (
            SELECT id FROM job_watch_fetch_log
-           WHERE source = ?1
+           WHERE source = ?1 AND alert_id IS ?2
            ORDER BY fetched_at DESC
            LIMIT 50
          )`,
-      [entry.source]
+      [entry.source, alertId]
     );
   } catch (err) {
     console.warn('[fetcher] writeFetchLog error (non-fatal):', err);
   }
 }
 
+// ── Résultats ────────────────────────────────────────────────────────────────
+
 export interface FetchResult {
+  /** Piste concernée — une même source produit un résultat par piste servie. */
+  alertId: string;
+  alertName: string;
   source: JobSource;
-  /** Offres effectivement insérées en base (nouvelles et au-dessus de minSaveScore) */
+  /** Offres réellement insérées en base pour cette piste */
   newOffers: number;
+  /**
+   * Offres déjà présentes en base, nouvellement rattachées à cette piste.
+   * Distinct de `newOffers` : rien n'a été inséré, mais la piste les voit
+   * apparaître dans sa liste.
+   */
+  offersLinked: number;
   /** Nombre total d'offres renvoyées par la source (avant tout filtrage) */
   totalFetched: number;
-  /** Offres rejetées car déjà connues (hash) ou doublon cross-source */
+  /** Offres rejetées car déjà connues de cette piste ou doublon cross-source */
   offersDuplicate: number;
-  /** Offres rejetées par le filtre minSaveScore ou le post-filtre géographique */
+  /** Offres rejetées par le seuil de score ou le post-filtre géographique */
   offersFiltered: number;
   errors: string[];
   /** Durée de collecte (parsing uniquement) en ms */
   durationMs: number;
-  /** Statut calculé : success si pas d'erreur et offers > 0, empty si 0 offres, error si erreur */
+  /** Statut calculé : success si pas d'erreur et offres > 0, empty si 0 offre, error si erreur */
   status: 'success' | 'error' | 'empty';
+}
+
+/**
+ * Bilan d'un cycle de collecte.
+ *
+ * `results` est détaillé par couple (piste, source) ; les compteurs de tête
+ * sont dédoublonnés entre pistes — une offre captée par trois pistes reste une
+ * seule offre nouvelle, et l'annoncer trois fois serait mensonger.
+ */
+export interface FetchOutcome {
+  results: FetchResult[];
+  /** Offres réellement insérées en base, quel que soit le nombre de pistes. */
+  newOffers: number;
+  /** Offres déjà en base nouvellement rattachées à au moins une piste. */
+  linkedOffers: number;
+}
+
+export interface FetchProgressEvent {
+  source: JobSource;
+  status: string;
+  current?: number;
+  total?: number;
+  /** Piste(s) concernée(s) par l'étape en cours. */
+  alertName?: string;
 }
 
 /** Run a single parser — le profil de recherche pilote tous les paramètres de requête */
@@ -164,264 +318,390 @@ async function runParser(
 }
 
 /**
- * Main fetch pipeline — runs all enabled sources.
+ * Dépendances externes du pipeline, injectables.
  *
- * Le profil de recherche est passé explicitement : il appartient désormais à
- * une piste du portefeuille, et non plus aux réglages globaux.
+ * La production utilise `DEFAULT_FETCH_DEPS`. Les tests fournissent leurs
+ * propres implémentations plutôt que de remplacer les modules globalement :
+ * un mock de module fuirait vers les autres fichiers de test du même
+ * processus et casserait, entre autres, les tests des parsers et du scorer.
+ */
+export interface FetchDependencies {
+  runParser: typeof runParser;
+  computeScore: typeof computeScore;
+  resolveProfileGeo: typeof resolveProfileGeo;
+  classifyOfferZone: typeof classifyOfferZone;
+  getCommuteMinutes: typeof getCommuteMinutes;
+  getCommuteMinutesByCoords: typeof getCommuteMinutesByCoords;
+}
+
+export const DEFAULT_FETCH_DEPS: FetchDependencies = {
+  runParser,
+  computeScore,
+  resolveProfileGeo,
+  classifyOfferZone,
+  getCommuteMinutes,
+  getCommuteMinutesByCoords,
+};
+
+/** Offre agrégée sur l'ensemble du cycle : un hash, N pistes, un score par piste. */
+interface ProcessedOffer {
+  raw: RawJobOffer;
+  hash: string;
+  /** Pistes retenues → score de la piste. */
+  scores: Map<string, number>;
+  /** Offre déjà en base : on rattachera au lieu d'insérer. */
+  existingId: string | null;
+  /** Meilleur score déjà enregistré en base pour cette offre. */
+  existingScore: number;
+  commuteMinutes: number | null;
+  commuteStatus: CommuteStatus;
+}
+
+/**
+ * Pipeline principal — collecte pour toutes les pistes actives du portefeuille.
  */
 export async function runFetch(
+  alerts:      JobWatchAlert[],
   configs:     JobWatchConfig[],
   settings:    JobWatchSettings,
-  profile:     SearchProfile,
-  onProgress?: (source: JobSource, status: string, current?: number, total?: number) => void,
+  onProgress?: (event: FetchProgressEvent) => void,
   profileId?:  string | null,
-): Promise<FetchResult[]> {
+  deps:        FetchDependencies = DEFAULT_FETCH_DEPS,
+): Promise<FetchOutcome> {
   const db = await getDb();
-  const existingHashes = await loadExistingHashes(db, profileId ?? null);
-  const results: FetchResult[] = [];
-
-  const learned = await loadLearnedSignals(db, profileId ?? null);
-
-  // Zone de recherche résolue une fois par run (coordonnées + département).
-  // Sert de filet de sécurité géographique : les sources dont le filtre
-  // serveur a sauté (INSEE manquant, commune rejetée…) ramènent des offres de
-  // toute la France — on les écarte ici AVANT scoring et calcul de trajet.
-  // null = pas de localisation configurée ou API géo injoignable → fail-open.
-  const geoZone = await resolveProfileGeo(profile.location);
-  const radiusKm = profile.location.radiusKm;
+  const existingOffers = await loadExistingOfferIndex(db, profileId ?? null);
 
   // Sur Android, on saute silencieusement les sources de scraping (LinkedIn,
   // Indeed, HelloWork) qui ne fonctionnent pas de façon fiable sur mobile
   // (cf. ANDROID_INCOMPATIBLE). Mieux vaut les ignorer que de polluer l'UI
   // d'erreurs récurrentes.
-  const onAndroid = isAndroid();
-  const enabledConfigs = configs.filter(c => {
-    if (c.enabled !== 1) return false;
-    if (onAndroid && ANDROID_INCOMPATIBLE.has(c.source)) {
-      console.info(`[fetcher] ${c.source} ignoré sur Android (non supporté).`);
-      return false;
+  const skipSources = isAndroid() ? ANDROID_INCOMPATIBLE : new Set<JobSource>();
+  const plan = buildFetchPlan(alerts, configs, skipSources);
+
+  // Un résultat par couple (piste, source) — une même requête mutualisée
+  // alimente plusieurs résultats.
+  const results = new Map<string, FetchResult>();
+  const resultKey = (alertId: string, source: JobSource) => `${alertId}::${source}`;
+  const resultFor = (alert: JobWatchAlert, source: JobSource): FetchResult => {
+    const key = resultKey(alert.id, source);
+    let result = results.get(key);
+    if (!result) {
+      result = {
+        alertId: alert.id, alertName: alert.name, source,
+        newOffers: 0, offersLinked: 0, totalFetched: 0,
+        offersDuplicate: 0, offersFiltered: 0,
+        errors: [], durationMs: 0, status: 'empty',
+      };
+      results.set(key, result);
     }
-    return true;
-  });
+    return result;
+  };
 
-  interface ProcessedOffer {
-    raw: RawJobOffer;
-    hash: string;
-    score: number;
-    commuteMinutes: number | null;
-    commuteStatus: 'pending' | 'ok' | 'error' | 'not_found';
-  }
-  const allProcessed: ProcessedOffer[] = [];
-  const sourceResultMap = new Map<JobSource, FetchResult>();
+  // Zones de recherche résolues une fois par localisation, pas par piste :
+  // plusieurs pistes partagent souvent la même ville. Sert de filet de
+  // sécurité géographique — les sources dont le filtre serveur a sauté (INSEE
+  // manquant, commune rejetée…) ramènent des offres de toute la France.
+  // null = pas de localisation configurée ou API géo injoignable → fail-open.
+  const geoCache = new Map<string, Awaited<ReturnType<typeof deps.resolveProfileGeo>>>();
+  const geoZoneOf = async (profile: SearchProfile) => {
+    const key = JSON.stringify(profile.location);
+    if (!geoCache.has(key)) geoCache.set(key, await deps.resolveProfileGeo(profile.location));
+    return geoCache.get(key) ?? null;
+  };
 
-  for (const config of enabledConfigs) {
-    const result: FetchResult = {
-      source: config.source,
-      newOffers: 0,
-      totalFetched: 0,
-      offersDuplicate: 0,
-      offersFiltered: 0,
-      errors: [],
-      durationMs: 0,
-      status: 'empty',
-    };
-    sourceResultMap.set(config.source, result);
-    onProgress?.(config.source, 'fetching');
+  const processed = new Map<string, ProcessedOffer>();
+  const lastRequestAt = new Map<JobSource, number>();
 
-    const sourceStartTime = Date.now();
+  // ── Phase 1 : une requête par groupe, scoring par piste ───────────────────
+  for (const group of plan) {
+    const alertNames = group.alerts.map(a => a.name).join(', ');
+
+    // Throttle : deux requêtes distinctes vers une même source sont espacées.
+    const previous = lastRequestAt.get(group.source);
+    if (previous !== undefined) {
+      const wait = (SOURCE_THROTTLE_MS[group.source] ?? 500) - (Date.now() - previous);
+      if (wait > 0) {
+        onProgress?.({ source: group.source, status: 'attente (anti-blocage)…', alertName: alertNames });
+        await sleep(wait);
+      }
+    }
+    lastRequestAt.set(group.source, Date.now());
+
+    onProgress?.({ source: group.source, status: 'fetching', alertName: alertNames });
+    const startTime = Date.now();
+
     let rawOffers: RawJobOffer[];
     try {
-      rawOffers = await runParser(config, settings, profile, profileId);
+      rawOffers = await deps.runParser(group.config, settings, group.profile, profileId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      result.errors.push(`Parser error: ${msg}`);
-      result.durationMs = Date.now() - sourceStartTime;
-      result.status = 'error';
+      const durationMs = Date.now() - startTime;
       // Une panne de source tierce (HTTP 4xx/5xx renvoyé par le service, réseau,
       // anti-bot, rate-limit) n'est pas un bug applicatif : la source est déjà
-      // retryée côté parser, son échec est tracé ci-dessous dans le
-      // HealthDashboard (writeFetchLog) et les autres sources continuent. On la
-      // logue donc en `console.warn` (opérationnel) pour ne pas la faire remonter
-      // comme un bug dans le suivi d'erreurs, qui n'enveloppe que `console.error`.
-      // Les vraies erreurs (bug de parsing, invariant cassé) restent en
-      // `console.error` → visibles comme de vrais bugs.
+      // retryée côté parser, son échec est tracé dans le HealthDashboard et les
+      // autres tâches continuent. On la logue donc en `console.warn`
+      // (opérationnel) pour ne pas la faire remonter comme un bug dans le suivi
+      // d'erreurs, qui n'enveloppe que `console.error`.
       if (isOperationalSourceError(msg)) {
-        console.warn(`[fetcher] Source ${config.source} indisponible (opérationnel) : ${msg}`);
+        console.warn(`[fetcher] Source ${group.source} indisponible (opérationnel) : ${msg}`);
       } else {
-        console.error(`[fetcher] Erreur source ${config.source}:`, err);
+        console.error(`[fetcher] Erreur source ${group.source}:`, err);
       }
-      results.push(result);
-      await writeFetchLog(db, {
-        source:          result.source,
-        offersFetched:   0,
-        offersNew:       0,
-        offersDuplicate: 0,
-        offersFiltered:  0,
-        status:          'error',
-        errorMessage:    msg,
-        durationMs:      result.durationMs,
-      });
+      for (const alert of group.alerts) {
+        const result = resultFor(alert, group.source);
+        result.errors.push(`Parser error: ${msg}`);
+        result.durationMs = durationMs;
+        result.status = 'error';
+      }
       continue;
     }
-    result.totalFetched = rawOffers.length;
-    result.durationMs = Date.now() - sourceStartTime;
 
-    const needsCommute = Boolean(settings.navitiaApiKey && settings.commuteOriginAddress);
+    const durationMs = Date.now() - startTime;
+    for (const alert of group.alerts) {
+      const result = resultFor(alert, group.source);
+      result.totalFetched += rawOffers.length;
+      result.durationMs += durationMs;
+    }
 
-    onProgress?.(
-      config.source,
-      needsCommute
-        ? `${rawOffers.length} offres récupérées, calcul des trajets…`
-        : `${rawOffers.length} offres récupérées, déduplication…`,
-      0,
-      rawOffers.length,
-    );
+    onProgress?.({
+      source: group.source,
+      status: `${rawOffers.length} offres récupérées, analyse…`,
+      current: 0,
+      total: rawOffers.length,
+      alertName: alertNames,
+    });
 
-    let commuteIdx = 0;
     for (const raw of rawOffers) {
       try {
         const hash = await computeOfferHash(raw.source, raw.url);
-        if (existingHashes.has(hash)) {
-          result.offersDuplicate += 1;
-          continue;
-        }
+        const existing = existingOffers.get(hash) ?? null;
 
-        // Post-filtre géographique : offre manifestement hors zone (GPS ou
-        // code département du libellé) → écartée. `unknown` (pas de données
-        // fiables) conserve l'offre.
-        if (geoZone && classifyOfferZone(raw, geoZone, radiusKm) === 'out') {
-          result.offersFiltered += 1;
-          continue;
-        }
+        for (const alert of group.alerts) {
+          const result = resultFor(alert, group.source);
 
-        // Score using the unified SearchProfile (field-aware v2)
-        const score = computeScore(raw, profile, learned);
-
-        let commuteMinutes: number | null = null;
-        let commuteStatus: 'pending' | 'ok' | 'error' | 'not_found' = 'pending';
-
-        // On ne calcule le trajet que pour les offres qui seront réellement
-        // sauvegardées : celles sous `minSaveScore` sont écartées en phase 3,
-        // calculer leur trajet gaspillerait le quota Navitia/Nominatim et
-        // rallongeait la collecte de plusieurs minutes (ex. 603 offres FT).
-        if (settings.navitiaApiKey && settings.commuteOriginAddress && score >= settings.minSaveScore) {
-          commuteIdx++;
-          // Emit commute progress every 5 offers (Navitia calls are the bottleneck)
-          if (commuteIdx === 1 || commuteIdx % 5 === 0) {
-            onProgress?.(config.source, `Calcul trajet…`, commuteIdx, rawOffers.length);
+          // Offre déjà connue de cette piste : rien à faire.
+          if (existing?.alertIds.has(alert.id)) {
+            result.offersDuplicate += 1;
+            continue;
           }
 
-          if (raw.locationLat != null && raw.locationLon != null) {
-            const res = await getCommuteMinutesByCoords(
-              settings.commuteOriginAddress, raw.locationLat, raw.locationLon,
-              settings.commuteDepartureTime, settings.navitiaApiKey
-            );
-            commuteStatus  = res.status;
-            commuteMinutes = res.minutes;
-          } else if (raw.location) {
-            const res = await getCommuteMinutes(
-              settings.commuteOriginAddress, raw.location,
-              settings.commuteDepartureTime, settings.navitiaApiKey
-            );
-            commuteStatus  = res.status;
-            commuteMinutes = res.minutes;
-          } else {
-            commuteStatus = 'not_found';
+          // Post-filtre géographique : offre manifestement hors zone (GPS ou
+          // code département du libellé) → écartée. `unknown` (pas de données
+          // fiables) conserve l'offre.
+          const geoZone = await geoZoneOf(alert.searchProfile);
+          if (geoZone && deps.classifyOfferZone(raw, geoZone, alert.searchProfile.location.radiusKm) === 'out') {
+            result.offersFiltered += 1;
+            continue;
           }
-        } else if (!raw.location && raw.locationLat == null) {
-          commuteStatus = 'not_found';
-        }
 
-        allProcessed.push({ raw, hash, score, commuteMinutes, commuteStatus });
+          const score = deps.computeScore(raw, alert.searchProfile, signalsOf(alert));
+
+          // Le seuil décide du rattachement piste par piste. Une piste qui a
+          // disqualifié l'offre (score 0) n'est jamais rattachée.
+          if (score < settings.minSaveScore) {
+            result.offersFiltered += 1;
+            continue;
+          }
+
+          let entry = processed.get(hash);
+          if (!entry) {
+            entry = {
+              raw, hash,
+              scores: new Map(),
+              existingId: existing?.id ?? null,
+              existingScore: existing?.score ?? 0,
+              commuteMinutes: null,
+              commuteStatus: 'pending',
+            };
+            processed.set(hash, entry);
+          }
+          const previousScore = entry.scores.get(alert.id);
+          if (previousScore === undefined || score > previousScore) {
+            entry.scores.set(alert.id, score);
+          }
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        result.errors.push(`Offre ${raw.url}: ${msg}`);
+        for (const alert of group.alerts) {
+          resultFor(alert, group.source).errors.push(`Offre ${raw.url}: ${msg}`);
+        }
         console.error('[fetcher] Erreur traitement offre:', err);
       }
     }
 
-    onProgress?.(config.source, 'traitement terminé');
+    onProgress?.({ source: group.source, status: 'traitement terminé', alertName: alertNames });
   }
 
-  // Phase 2: Cross-source deduplication
+  const retained = [...processed.values()].filter(p => p.scores.size > 0);
+  const bestScoreOfEntry = (p: ProcessedOffer) => Math.max(0, ...p.scores.values());
+
+  // ── Phase 2 : déduplication cross-source ─────────────────────────────────
+  // Seules les offres à insérer sont concernées : une offre déjà en base a
+  // déjà passé cette étape, la re-dédupliquer priverait une nouvelle piste
+  // d'un rattachement légitime.
+  const toInsert = retained.filter(p => p.existingId === null);
   const skipIndices = detectCrossSourceDuplicates(
-    allProcessed.map(p => ({ title: p.raw.title, company: p.raw.company, source: p.raw.source, score: p.score }))
+    toInsert.map(p => ({
+      title: p.raw.title, company: p.raw.company, source: p.raw.source, score: bestScoreOfEntry(p),
+    })),
   );
-
-  // Phase 3: Insert non-duplicate offers into DB
-  for (let i = 0; i < allProcessed.length; i++) {
-    const { raw, hash, score, commuteMinutes, commuteStatus } = allProcessed[i];
-
-    if (skipIndices.has(i)) {
-      const sr = sourceResultMap.get(raw.source as JobSource);
-      if (sr) sr.offersDuplicate += 1;
-      continue;
+  const skipped = new Set<string>();
+  for (const index of skipIndices) {
+    const entry = toInsert[index];
+    skipped.add(entry.hash);
+    for (const alertId of entry.scores.keys()) {
+      const alert = alerts.find(a => a.id === alertId);
+      if (alert) resultFor(alert, entry.raw.source as JobSource).offersDuplicate += 1;
     }
+  }
 
-    // Filter by minimum save score. Track explicitly so the HealthDashboard can
-    // explain the gap between `totalFetched` and `newOffers` to the user.
-    if (score < settings.minSaveScore) {
-      const sr = sourceResultMap.get(raw.source as JobSource);
-      if (sr) sr.offersFiltered += 1;
-      continue;
+  const toSave = retained.filter(p => !skipped.has(p.hash));
+
+  // ── Phase 2.5 : temps de trajet des seules offres qui seront sauvegardées ─
+  // Calculer le trajet avant la déduplication et le seuil gaspillait le quota
+  // Navitia/Nominatim et rallongeait la collecte de plusieurs minutes.
+  const needsCommute = Boolean(settings.navitiaApiKey && settings.commuteOriginAddress);
+  if (needsCommute) {
+    const pending = toSave.filter(p => p.existingId === null);
+    let index = 0;
+    for (const entry of pending) {
+      index += 1;
+      if (index === 1 || index % 5 === 0) {
+        onProgress?.({
+          source: entry.raw.source as JobSource,
+          status: 'Calcul trajet…',
+          current: index,
+          total: pending.length,
+        });
+      }
+      try {
+        if (entry.raw.locationLat != null && entry.raw.locationLon != null) {
+          const res = await deps.getCommuteMinutesByCoords(
+            settings.commuteOriginAddress, entry.raw.locationLat, entry.raw.locationLon,
+            settings.commuteDepartureTime, settings.navitiaApiKey,
+          );
+          entry.commuteStatus  = res.status;
+          entry.commuteMinutes = res.minutes;
+        } else if (entry.raw.location) {
+          const res = await deps.getCommuteMinutes(
+            settings.commuteOriginAddress, entry.raw.location,
+            settings.commuteDepartureTime, settings.navitiaApiKey,
+          );
+          entry.commuteStatus  = res.status;
+          entry.commuteMinutes = res.minutes;
+        } else {
+          entry.commuteStatus = 'not_found';
+        }
+      } catch (err) {
+        console.warn('[fetcher] calcul de trajet ignoré (non bloquant):', err);
+        entry.commuteStatus = 'error';
+      }
     }
+  } else {
+    for (const entry of toSave) {
+      if (!entry.raw.location && entry.raw.locationLat == null) entry.commuteStatus = 'not_found';
+    }
+  }
+
+  // ── Phase 3 : insertion et rattachement ──────────────────────────────────
+  // Compteurs dédoublonnés entre pistes, pour l'annonce faite à l'utilisateur.
+  let insertedOffers = 0;
+  let linkedOffers = 0;
+
+  for (const entry of toSave) {
+    const bestScore = bestScoreOfEntry(entry);
+    const links = [...entry.scores.entries()].map(([alertId, score]) => ({ alertId, score }));
 
     try {
-      await db.execute(
-        `INSERT OR IGNORE INTO job_offers
-          (source, url, hash, title, company, location, location_lat, location_lon,
-           contract_type, description_snippet, published_at, score,
-           commute_minutes, commute_status,
-           salary_min, salary_max, salary_raw,
-           is_read, is_archived, kanban_id, profile_id)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18)`,
-        [
-          raw.source, raw.url, hash, raw.title,
-          raw.company ?? null, raw.location ?? null,
-          raw.locationLat ?? null, raw.locationLon ?? null,
-          raw.contractType ?? null, raw.descriptionSnippet ?? null,
-          raw.publishedAt ?? null, score, commuteMinutes, commuteStatus,
-          raw.salaryMin ?? null, raw.salaryMax ?? null, raw.salaryRaw ?? null,
-          profileId ?? null,
-        ]
-      );
-      existingHashes.add(hash);
+      let offerId = entry.existingId;
+      const isNewOffer = offerId === null;
 
-      const sourceResult = sourceResultMap.get(raw.source as JobSource);
-      if (sourceResult) sourceResult.newOffers++;
+      if (!offerId) {
+        await db.execute(
+          `INSERT OR IGNORE INTO job_offers
+            (source, url, hash, title, company, location, location_lat, location_lon,
+             contract_type, description_snippet, published_at, score,
+             commute_minutes, commute_status,
+             salary_min, salary_max, salary_raw,
+             is_read, is_archived, kanban_id, profile_id)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18)`,
+          [
+            entry.raw.source, entry.raw.url, entry.hash, entry.raw.title,
+            entry.raw.company ?? null, entry.raw.location ?? null,
+            entry.raw.locationLat ?? null, entry.raw.locationLon ?? null,
+            entry.raw.contractType ?? null, entry.raw.descriptionSnippet ?? null,
+            entry.raw.publishedAt ?? null, bestScore,
+            entry.commuteMinutes, entry.commuteStatus,
+            entry.raw.salaryMin ?? null, entry.raw.salaryMax ?? null, entry.raw.salaryRaw ?? null,
+            profileId ?? null,
+          ]
+        );
+        const rows = await db.select<{ id: string }[]>(
+          `SELECT id FROM job_offers WHERE hash = ?1`, [entry.hash],
+        );
+        offerId = rows[0]?.id ?? null;
+      }
+
+      if (!offerId) {
+        console.warn('[fetcher] offre insérée introuvable par son hash — rattachement ignoré');
+        continue;
+      }
+
+      // Idempotent : relève un score existant, n'écrase jamais `matched_at`,
+      // et ne touche pas au statut lu/archivé porté par l'offre.
+      await linkOfferToAlerts(offerId, links);
+
+      if (isNewOffer) insertedOffers += 1;
+      else linkedOffers += 1;
+
+      for (const { alertId } of links) {
+        const alert = alerts.find(a => a.id === alertId);
+        if (!alert) continue;
+        const result = resultFor(alert, entry.raw.source as JobSource);
+        if (isNewOffer) result.newOffers += 1;
+        else result.offersLinked += 1;
+      }
+
+      // L'index en mémoire suit les insertions : une offre vue deux fois dans
+      // le même cycle ne doit pas être réinsérée.
+      existingOffers.set(entry.hash, {
+        id: offerId,
+        score: Math.max(bestScore, entry.existingScore),
+        alertIds: new Set([...(existingOffers.get(entry.hash)?.alertIds ?? []), ...entry.scores.keys()]),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      sourceResultMap.get(raw.source as JobSource)?.errors.push(`Offre ${raw.url}: ${msg}`);
+      for (const alertId of entry.scores.keys()) {
+        const alert = alerts.find(a => a.id === alertId);
+        if (alert) resultFor(alert, entry.raw.source as JobSource).errors.push(`Offre ${entry.raw.url}: ${msg}`);
+      }
       console.error('[fetcher] Erreur insertion offre:', err);
     }
   }
 
-  for (const config of enabledConfigs) {
-    const result = sourceResultMap.get(config.source);
-    if (result && !results.includes(result)) {
-      // Compute final status
-      if (result.errors.length > 0) {
-        result.status = 'error';
-      } else if (result.totalFetched === 0) {
-        result.status = 'empty';
-      } else {
-        result.status = 'success';
-      }
-      onProgress?.(config.source, `done (${result.newOffers} nouvelles)`);
-      results.push(result);
+  // ── Statuts finaux et journalisation ─────────────────────────────────────
+  const finalResults = [...results.values()];
+  for (const result of finalResults) {
+    if (result.errors.length > 0)        result.status = 'error';
+    else if (result.totalFetched === 0)  result.status = 'empty';
+    else                                 result.status = 'success';
 
-      // Persist fetch log (non-blocking — errors are swallowed in writeFetchLog)
-      await writeFetchLog(db, {
-        source:          result.source,
-        offersFetched:   result.totalFetched,
-        offersNew:       result.newOffers,
-        offersDuplicate: result.offersDuplicate,
-        offersFiltered:  result.offersFiltered,
-        status:          result.status,
-        errorMessage:    result.errors.length > 0 ? result.errors[0] : null,
-        durationMs:      result.durationMs,
-      });
-    }
+    onProgress?.({
+      source: result.source,
+      status: `done (${result.newOffers} nouvelles)`,
+      alertName: result.alertName,
+    });
+
+    await writeFetchLog(db, result.alertId, {
+      source:          result.source,
+      offersFetched:   result.totalFetched,
+      offersNew:       result.newOffers,
+      offersDuplicate: result.offersDuplicate,
+      offersFiltered:  result.offersFiltered,
+      status:          result.status,
+      errorMessage:    result.errors.length > 0 ? result.errors[0] : null,
+      durationMs:      result.durationMs,
+    });
   }
 
   // Persist France Travail token if refreshed
@@ -435,8 +715,7 @@ export async function runFetch(
     });
   }
 
-  const totalNew = results.reduce((acc, r) => acc + r.newOffers, 0);
-  if (totalNew > 0) {
+  if (insertedOffers > 0) {
     try {
       let permission = await isPermissionGranted();
       if (!permission) {
@@ -445,7 +724,7 @@ export async function runFetch(
       if (permission) {
         sendNotification({
           title: 'Nouvelles offres trouvées !',
-          body: `${totalNew} nouvelles offres correspondent à vos critères.`,
+          body: `${insertedOffers} nouvelles offres correspondent à vos critères.`,
           icon: 'ic_launcher', // Icône Android par défaut
         });
       }
@@ -454,5 +733,5 @@ export async function runFetch(
     }
   }
 
-  return results;
+  return { results: finalResults, newOffers: insertedOffers, linkedOffers };
 }

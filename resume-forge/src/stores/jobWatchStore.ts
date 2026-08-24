@@ -204,6 +204,8 @@ export interface FetchProgress {
   status: string;
   current?: number;
   total?: number;
+  /** Piste(s) concernée(s) par l'étape en cours — une requête peut en servir plusieurs. */
+  alertName?: string;
 }
 
 interface JobWatchState {

@@ -37,6 +37,53 @@ export async function loadExistingHashes(
   return new Set(rows.map(r => r.hash));
 }
 
+/** Offre déjà en base, avec les pistes auxquelles elle est rattachée. */
+export interface ExistingOffer {
+  id: string;
+  score: number;
+  /** Pistes déjà rattachées — sert à distinguer un doublon d'un nouveau rattachement. */
+  alertIds: Set<string>;
+}
+
+/**
+ * Index des offres déjà collectées, par hash.
+ *
+ * Le simple ensemble de hashes ne suffit plus : une offre déjà en base peut
+ * être captée par une piste nouvellement créée. Sans savoir à quelles pistes
+ * elle est déjà rattachée, cette piste resterait vide alors que des offres
+ * correspondantes dorment en base.
+ */
+export async function loadExistingOfferIndex(
+  db: { select: <T>(sql: string, params?: unknown[]) => Promise<T> },
+  profileId: string | null,
+): Promise<Map<string, ExistingOffer>> {
+  const rows = profileId
+    ? await db.select<{ id: string; hash: string; score: number }[]>(
+        'SELECT id, hash, score FROM job_offers WHERE profile_id = ?1',
+        [profileId],
+      )
+    : await db.select<{ id: string; hash: string; score: number }[]>(
+        'SELECT id, hash, score FROM job_offers WHERE profile_id IS NULL',
+      );
+
+  const byHash = new Map<string, ExistingOffer>();
+  const byId = new Map<string, ExistingOffer>();
+  for (const row of rows) {
+    const entry: ExistingOffer = { id: row.id, score: row.score ?? 0, alertIds: new Set() };
+    byHash.set(row.hash, entry);
+    byId.set(row.id, entry);
+  }
+  if (byId.size === 0) return byHash;
+
+  const links = await db.select<{ offer_id: string; alert_id: string }[]>(
+    'SELECT offer_id, alert_id FROM job_offer_alerts',
+  );
+  for (const link of links) {
+    byId.get(link.offer_id)?.alertIds.add(link.alert_id);
+  }
+  return byHash;
+}
+
 // ── Cross-source deduplication ──────────────────────────────────────────────
 
 /**

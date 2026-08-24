@@ -15,12 +15,11 @@ import { useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useAuthStore } from '@/stores/authStore';
-import { runFetch, FetchResult } from '@/lib/watcher/fetcher';
+import { runFetch, type FetchProgressEvent } from '@/lib/watcher/fetcher';
 import { sendDigestEmail } from '@/lib/watcher/email-digest';
-import { decayLearnedDict, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import { decayLearnedDict } from '@/lib/watcher/learning-engine';
 import { getCapturedDebugHtml, WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
-import { getDb } from '@/lib/db';
-import type { JobSource, JobOffer } from '@/types/job-watch';
+import type { JobOffer } from '@/types/job-watch';
 
 // Only one mounted instance owns the auto-trigger + periodic scheduler.
 let schedulerOwned = false;
@@ -51,6 +50,7 @@ export function useJobWatcher() {
     fetchOffers,
     loadFetchLogs,
     updateLastFetchedAt,
+    updateAlert,
     setSelectorDebugInfo,
     purgeExpiredOffers,
   } = useJobWatchStore();
@@ -96,54 +96,32 @@ export function useJobWatcher() {
     setFetching(true);
     setError(null);
 
-    // Apply time-decay to learned dictionary before scoring (scoped to profile)
+    // Décroissance temporelle du dictionnaire appris, piste par piste : chaque
+    // exploration oublie à son propre rythme, sans que le volume d'une piste
+    // dominante n'accélère l'oubli des autres.
     try {
-      const db = await getDb();
-      const pid = profileId ?? '';
-      const rows = await db.select<{ key: string; profile_id: string; value: string }[]>(
-        `SELECT key, profile_id, value FROM job_watch_settings
-         WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'learned_dict_decayed_at')
-         AND (profile_id = '' OR profile_id = ?1)`,
-        [pid],
-      );
-      const map: Record<string, string> = {};
-      for (const r of rows.filter(x => x.profile_id === '')) map[r.key] = r.value;
-      for (const r of rows.filter(x => x.profile_id !== '')) map[r.key] = r.value;
-
-      const dict: LearnedDictionary = {
-        positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
-        negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
-      };
-      const { dict: decayed, decayedAt } = decayLearnedDict(dict, map['learned_dict_decayed_at'] ?? null);
-      if (decayedAt !== map['learned_dict_decayed_at']) {
-        await db.execute(
-          `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_positive', ?1, ?2)
-           ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
-          [pid, JSON.stringify(decayed.positive)]
-        );
-        await db.execute(
-          `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_negative', ?1, ?2)
-           ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
-          [pid, JSON.stringify(decayed.negative)]
-        );
-        await db.execute(
-          `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_decayed_at', ?1, ?2)
-           ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
-          [pid, decayedAt]
-        );
+      for (const alert of activeAlerts) {
+        const { dict: decayed, decayedAt } = decayLearnedDict(alert.learnedDict, alert.learnedDecayedAt);
+        if (decayedAt !== alert.learnedDecayedAt) {
+          await updateAlert(alert.id, { learnedDict: decayed, learnedDecayedAt: decayedAt });
+        }
       }
     } catch { /* non-critical — decay can be skipped */ }
 
     try {
-      const onProgress = (source: JobSource, status: string, current?: number, total?: number) => {
-        console.debug(`[watcher] ${source}: ${status}`, current !== undefined ? `${current}/${total}` : '');
-        setFetchProgress({ source, status, current, total });
+      const onProgress = (event: FetchProgressEvent) => {
+        const scope = event.alertName ? ` [${event.alertName}]` : '';
+        console.debug(
+          `[watcher] ${event.source}${scope}: ${event.status}`,
+          event.current !== undefined ? `${event.current}/${event.total}` : '',
+        );
+        setFetchProgress(event);
       };
 
-      const results: FetchResult[] = await runFetch(
+      const { results, newOffers, linkedOffers } = await runFetch(
+        activeAlerts,
         configs,
         settings,
-        activeAlerts[0].searchProfile,
         onProgress,
         profileId,
       );
@@ -156,9 +134,13 @@ export function useJobWatcher() {
         }
       }
 
-      // Update last_fetched_at for each config
+      // Update last_fetched_at for each config, then for each alert
       for (const config of configs.filter(c => c.enabled === 1)) {
         await updateLastFetchedAt(config.id);
+      }
+      const collectedAt = new Date().toISOString();
+      for (const alert of activeAlerts) {
+        await updateAlert(alert.id, { lastFetchedAt: collectedAt });
       }
 
       // Nettoyage des offres périmées (plus anciennes que le seuil configuré) —
@@ -180,12 +162,17 @@ export function useJobWatcher() {
       // APEC périmée après une collecte réussie).
       await loadFetchLogs();
 
-      const totalNew  = results.reduce((acc, r) => acc + r.newOffers, 0);
       const hasErrors = results.some(r => r.errors.length > 0);
 
       if (!silent) {
-        if (totalNew > 0) {
-          toast.success(`${totalNew} nouvelle${totalNew > 1 ? 's' : ''} offre${totalNew > 1 ? 's' : ''} détectée${totalNew > 1 ? 's' : ''}`);
+        if (newOffers > 0) {
+          const plural = newOffers > 1 ? 's' : '';
+          // `linkedOffers` : offres déjà en base qu'une piste vient de capter —
+          // rien n'a été inséré, mais elles apparaissent dans sa liste.
+          const linked = linkedOffers > 0 ? ` (+ ${linkedOffers} rattachée${linkedOffers > 1 ? 's' : ''} à une piste)` : '';
+          toast.success(`${newOffers} nouvelle${plural} offre${plural} détectée${plural}${linked}`);
+        } else if (linkedOffers > 0) {
+          toast.success(`${linkedOffers} offre${linkedOffers > 1 ? 's' : ''} déjà en base rattachée${linkedOffers > 1 ? 's' : ''} à une piste`);
         } else {
           toast.info('Aucune nouvelle offre détectée');
         }
@@ -203,7 +190,7 @@ export function useJobWatcher() {
       // Dedup key lives in localStorage so multiple windows/tabs share it
       // and it survives restarts (sessionStorage reset across tabs caused
       // duplicate digests — see https://…integrate-first2apply C3).
-      if (totalNew > 0 && settings.emailDigestEnabled && settings.emailTo) {
+      if (newOffers > 0 && settings.emailDigestEnabled && settings.emailTo) {
         const todayKey = new Date().toISOString().slice(0, 10);
         const digestSentKey = `resumeforge_digest_sent_${todayKey}`;
         if (!localStorage.getItem(digestSentKey)) {
@@ -229,7 +216,7 @@ export function useJobWatcher() {
     } finally {
       setFetching(false);
     }
-  }, [setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, setSelectorDebugInfo, purgeExpiredOffers]);
+  }, [setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, updateAlert, setSelectorDebugInfo, purgeExpiredOffers]);
 
   // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {
