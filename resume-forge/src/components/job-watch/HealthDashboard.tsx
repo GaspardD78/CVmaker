@@ -74,10 +74,15 @@ interface SuggestionAlertProps {
   message: string;
   actionLabel: string;
   onAction: () => void;
+  /** Action alternative — sert à choisir la portée d'une blacklist. */
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
   onDismiss: () => void;
 }
 
-function SuggestionAlert({ type, message, actionLabel, onAction, onDismiss }: SuggestionAlertProps) {
+function SuggestionAlert({
+  type, message, actionLabel, onAction, secondaryActionLabel, onSecondaryAction, onDismiss,
+}: SuggestionAlertProps) {
   const bg =
     type === 'negative'
       ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40 text-red-800 dark:text-red-300'
@@ -94,6 +99,14 @@ function SuggestionAlert({ type, message, actionLabel, onAction, onDismiss }: Su
         <button onClick={onAction} className={`font-semibold underline underline-offset-2 ${actionCls}`}>
           {actionLabel}
         </button>
+        {secondaryActionLabel && onSecondaryAction && (
+          <button
+            onClick={onSecondaryAction}
+            className={`font-semibold underline underline-offset-2 ${actionCls}`}
+          >
+            {secondaryActionLabel}
+          </button>
+        )}
         <button
           onClick={onDismiss}
           aria-label="Ignorer"
@@ -165,7 +178,10 @@ function formatRelativeTime(isoDate: string): string {
 
 export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: boolean }) {
   const { offers, configs, fetchLogs, loadFetchLogs, selectorDebugInfo, selectorOverrides,
-          activeSearchProfile, updateSearchProfile } = useJobWatchStore();
+          alerts, activeAlert, activeSearchProfile, updateSearchProfile, updateAlert } = useJobWatchStore();
+
+  // Piste analysée : celle sélectionnée, à défaut la première du portefeuille.
+  const currentAlert = activeAlert() ?? alerts[0] ?? null;
   const { profile, entries } = useProfileStore();
 
   // Le profil de recherche appartient à la piste courante, plus aux réglages.
@@ -182,25 +198,18 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   );
 
   useEffect(() => {
-    analyzeFeedback()
+    // Suggestions et réputation entreprise sont propres à la piste : celles
+    // d'une exploration ne doivent pas être dictées par les rejets d'une autre.
+    analyzeFeedback(currentAlert?.id ?? null)
       .then(setAnalysis)
       .catch(() => setAnalysis(null));
 
     loadFetchLogs();
 
-    (async () => {
-      try {
-        const db = await getDb();
-        const rows = await db.select<{ value: string }[]>(
-          `SELECT value FROM job_watch_settings WHERE key = 'company_reputation'`
-        );
-        if (rows[0]) {
-          const rep = JSON.parse(rows[0].value);
-          setCompanySuggestions(getBlacklistSuggestions(rep));
-        }
-      } catch { /* non-critical */ }
-    })();
-  }, []);
+    setCompanySuggestions(
+      currentAlert ? getBlacklistSuggestions(currentAlert.companyReputation) : [],
+    );
+  }, [currentAlert, loadFetchLogs]);
 
   // ── Metrics ───────────────────────────────────────────────────────────────────
 
@@ -334,11 +343,25 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     dismiss(`bonus:${term}`);
   };
 
-  const handleBlacklistCompany = async (company: string) => {
-    await updateSearchProfile({
-      ...searchProfile,
-      blacklistedCompanies: [...searchProfile.blacklistedCompanies, company],
-    });
+  /**
+   * Ajoute une entreprise à la blacklist.
+   *
+   * La portée est explicite : écarter un employeur sur la piste cœur de cible
+   * ne veut pas dire l'écarter d'une exploration, et l'inverse est vrai aussi.
+   */
+  const handleBlacklistCompany = async (company: string, scope: 'alert' | 'all') => {
+    const targets = scope === 'all' ? alerts : (currentAlert ? [currentAlert] : []);
+    for (const target of targets) {
+      const already = target.searchProfile.blacklistedCompanies
+        .some(c => c.trim().toLowerCase() === company.trim().toLowerCase());
+      if (already) continue;
+      await updateAlert(target.id, {
+        searchProfile: {
+          ...target.searchProfile,
+          blacklistedCompanies: [...target.searchProfile.blacklistedCompanies, company],
+        },
+      });
+    }
     dismiss(`bl:${company}`);
   };
 
@@ -348,18 +371,11 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   };
 
   const handlePerformancePrompt = async () => {
-    const db = await getDb();
-    const posRaw = await db.select<{ value: string }[]>(
-      `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_positive'`
+    // Le dictionnaire appris appartient à la piste analysée.
+    const suggestions = getKeywordSuggestions(
+      currentAlert?.learnedDict ?? { positive: {}, negative: {} },
+      3,
     );
-    const negRaw = await db.select<{ value: string }[]>(
-      `SELECT value FROM job_watch_settings WHERE key = 'learned_dict_negative'`
-    );
-    const dict = {
-      positive: posRaw[0] ? JSON.parse(posRaw[0].value) : {},
-      negative: negRaw[0] ? JSON.parse(negRaw[0].value) : {},
-    };
-    const suggestions = getKeywordSuggestions(dict, 3);
     const prompt = generatePerformanceOptimizationPrompt(
       profile, entries, searchProfile,
       {
@@ -672,8 +688,10 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                   key={`bl:${company}`}
                   type="negative"
                   message={`Vous rejetez souvent les offres de "${company}".`}
-                  actionLabel="Blacklister"
-                  onAction={() => handleBlacklistCompany(company)}
+                  actionLabel={alerts.length > 1 ? 'Cette piste' : 'Blacklister'}
+                  onAction={() => handleBlacklistCompany(company, 'alert')}
+                  secondaryActionLabel={alerts.length > 1 ? 'Toutes les pistes' : undefined}
+                  onSecondaryAction={() => handleBlacklistCompany(company, 'all')}
                   onDismiss={() => dismiss(`bl:${company}`)}
                 />
               ))}

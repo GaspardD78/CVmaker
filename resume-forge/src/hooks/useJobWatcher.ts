@@ -16,10 +16,9 @@ import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { runFetch, type FetchProgressEvent } from '@/lib/watcher/fetcher';
-import { sendDigestEmail } from '@/lib/watcher/email-digest';
+import { buildDigestSections, sendDigestEmail } from '@/lib/watcher/email-digest';
 import { decayLearnedDict } from '@/lib/watcher/learning-engine';
 import { getCapturedDebugHtml, WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
-import type { JobOffer } from '@/types/job-watch';
 
 // Only one mounted instance owns the auto-trigger + periodic scheduler.
 let schedulerOwned = false;
@@ -196,10 +195,13 @@ export function useJobWatcher() {
         if (!localStorage.getItem(digestSentKey)) {
           try {
             const { useJobWatchStore: store } = await import('@/stores/jobWatchStore');
-            const newOffersList: JobOffer[] = store.getState().offers
+            const state = store.getState();
+            const unread = state.offers
               .filter(o => o.isRead === 0 && o.isArchived === 0)
               .slice(0, 50);
-            await sendDigestEmail(newOffersList, settings);
+            // Une section par piste : le digest se lit piste par piste, et une
+            // offre captée par plusieurs d'entre elles n'y figure qu'une fois.
+            await sendDigestEmail(buildDigestSections(unread, state.alerts), settings);
             localStorage.setItem(digestSentKey, '1');
             pruneOldDigestKeys(todayKey);
           } catch (err) {

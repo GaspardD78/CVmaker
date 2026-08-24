@@ -195,6 +195,25 @@ export function planLinkUpdates(
   return { inserts, scoreUpdates, bestScore: scores.length ? Math.max(...scores) : 0 };
 }
 
+/**
+ * Piste à laquelle attribuer une action de l'utilisateur.
+ *
+ * En vue filtrée, c'est la piste consultée : c'est dans son contexte que
+ * l'utilisateur a jugé l'offre. En vue « toutes les pistes », on retient celle
+ * qui note l'offre le plus haut — c'est elle qui l'a fait remonter, donc elle
+ * qui doit apprendre du verdict.
+ */
+export function resolveFeedbackAlert(
+  links: OfferAlertLink[],
+  selectedAlertId: string | null | 'unlinked',
+): string | null {
+  if (typeof selectedAlertId === 'string' && selectedAlertId !== 'unlinked') {
+    if (links.some(l => l.alertId === selectedAlertId)) return selectedAlertId;
+  }
+  if (links.length === 0) return null;
+  return links.reduce((best, l) => (l.score > best.score ? l : best)).alertId;
+}
+
 /** Meilleur score d'une offre toutes pistes confondues. */
 export function bestScoreOf(links: OfferAlertLink[]): number {
   return links.reduce((max, l) => Math.max(max, l.score), 0);

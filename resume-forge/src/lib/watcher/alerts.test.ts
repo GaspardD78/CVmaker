@@ -13,6 +13,7 @@ mock.module('@/lib/db', () => ({ getDb: async () => ({}) }));
 
 import {
   assertCanCreateAlert,
+  resolveFeedbackAlert,
   assertCanDeleteAlert,
   bestScoreOf,
   duplicateName,
@@ -129,6 +130,32 @@ describe('mapAlertRow', () => {
 
   test('génère un identifiant au format du schéma', () => {
     expect(newAlertId()).toMatch(/^[0-9a-f]{32}$/);
+  });
+});
+
+describe('resolveFeedbackAlert', () => {
+  const links = [
+    { alertId: 'a', score: 40, matchedAt: '' },
+    { alertId: 'b', score: 85, matchedAt: '' },
+  ];
+
+  test('en vue filtrée, le feedback revient à la piste consultée', () => {
+    // Même si elle note l'offre plus bas : c'est dans son contexte que
+    // l'utilisateur a jugé l'offre.
+    expect(resolveFeedbackAlert(links, 'a')).toBe('a');
+  });
+
+  test('en vue « toutes les pistes », il revient à la mieux-disante', () => {
+    expect(resolveFeedbackAlert(links, null)).toBe('b');
+  });
+
+  test('une piste sélectionnée non rattachée à l\'offre est ignorée', () => {
+    expect(resolveFeedbackAlert(links, 'autre')).toBe('b');
+  });
+
+  test('une offre orpheline n\'attribue le feedback à personne', () => {
+    expect(resolveFeedbackAlert([], null)).toBeNull();
+    expect(resolveFeedbackAlert([], 'unlinked')).toBeNull();
   });
 });
 

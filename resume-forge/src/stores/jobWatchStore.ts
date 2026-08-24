@@ -16,8 +16,9 @@ import {
   DEFAULT_EXPIRED_MAX_AGE_DAYS,
   JobSource,
 } from '@/types/job-watch';
-import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import { processFeedback, processCompanyReputation } from '@/lib/watcher/learning-engine';
 import {
+  resolveFeedbackAlert,
   createAlert as createAlertRow,
   deleteAlert as deleteAlertRow,
   duplicateAlert as duplicateAlertRow,
@@ -610,9 +611,15 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         ? Math.floor((Date.now() - new Date(offer.fetchedAt).getTime()) / 1000)
         : null;
 
+    // Le feedback est attribué à la piste dans le contexte de laquelle il a
+    // été émis : c'est elle, et elle seule, qui apprend de ce verdict.
+    const alertId = offer
+      ? resolveFeedbackAlert(offer.alerts, get().filters.alertId)
+      : null;
+
     await db.execute(
-      `INSERT INTO job_offer_feedback (offer_id, action, time_to_action) VALUES (?1, ?2, ?3)`,
-      [offerId, action, resolvedTimeToAction]
+      `INSERT INTO job_offer_feedback (offer_id, action, time_to_action, alert_id) VALUES (?1, ?2, ?3, ?4)`,
+      [offerId, action, resolvedTimeToAction, alertId]
     );
 
     if (action === 'thumbs_down' || action === 'quick_archive') {
@@ -621,47 +628,15 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       await get().markRead(offerId);
     }
 
-    // Update learned dictionary & company reputation (fire & forget, scoped to profile)
-    if (offer?.title) {
+    // Apprentissage de la piste concernée (fire & forget).
+    const target = alertId ? get().alerts.find(a => a.id === alertId) : null;
+    if (offer?.title && target) {
       (async () => {
         try {
-          const { useAuthStore } = await import('@/stores/authStore');
-          const pid = useAuthStore.getState().currentUserId ?? '';
-          const rows = await db.select<{ key: string; profile_id: string; value: string }[]>(
-            `SELECT key, profile_id, value FROM job_watch_settings
-             WHERE key IN ('learned_dict_positive', 'learned_dict_negative', 'company_reputation')
-             AND (profile_id = '' OR profile_id = ?1)`,
-            [pid],
-          );
-          const map: Record<string, string> = {};
-          for (const r of rows.filter(x => x.profile_id === '')) map[r.key] = r.value;
-          for (const r of rows.filter(x => x.profile_id !== '')) map[r.key] = r.value;
-
-          const currentDict: LearnedDictionary = {
-            positive: map['learned_dict_positive'] ? JSON.parse(map['learned_dict_positive']) : {},
-            negative: map['learned_dict_negative'] ? JSON.parse(map['learned_dict_negative']) : {},
-          };
-          const updated = processFeedback(offer.title, action, currentDict);
-          await db.execute(
-            `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_positive', ?1, ?2)
-             ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
-            [pid, JSON.stringify(updated.positive)]
-          );
-          await db.execute(
-            `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('learned_dict_negative', ?1, ?2)
-             ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
-            [pid, JSON.stringify(updated.negative)]
-          );
-
-          const currentRep: Record<string, number> = map['company_reputation']
-            ? JSON.parse(map['company_reputation'])
-            : {};
-          const updatedRep = processCompanyReputation(offer.company, action, currentRep);
-          await db.execute(
-            `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('company_reputation', ?1, ?2)
-             ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
-            [pid, JSON.stringify(updatedRep)]
-          );
+          await get().updateAlert(target.id, {
+            learnedDict:       processFeedback(offer.title, action, target.learnedDict),
+            companyReputation: processCompanyReputation(offer.company, action, target.companyReputation),
+          });
         } catch { /* silent */ }
       })();
     }
