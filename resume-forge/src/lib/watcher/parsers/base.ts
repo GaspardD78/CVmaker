@@ -5,7 +5,7 @@
  * it implicitly via the `runParser` dispatcher in fetcher.ts.
  */
 
-import type { RawJobOffer, JobSource, JobWatchConfig, JobWatchSettings } from '@/types/job-watch';
+import type { RawJobOffer, JobSource, JobWatchConfig, JobWatchSettings, SearchProfile } from '@/types/job-watch';
 
 export type HealthStatus = 'ok' | 'auth_required' | 'blocked' | 'error';
 
@@ -26,16 +26,21 @@ export interface JobSiteParser {
   readonly loginUrl?: string;
 
   /**
-   * Fetch raw offers for the given profile.
+   * Fetch raw offers for the given search profile.
+   *
+   * Le profil est passé explicitement — et non lu dans `settings` — parce
+   * qu'une même collecte sert plusieurs pistes du portefeuille : le réglage
+   * global ne peut plus désigner « le » profil de recherche.
+   *
    * Must not throw for transient errors — return [] and surface via healthCheck.
    */
-  fetch(config: JobWatchConfig, settings: JobWatchSettings): Promise<RawJobOffer[]>;
+  fetch(config: JobWatchConfig, settings: JobWatchSettings, profile: SearchProfile): Promise<RawJobOffer[]>;
 
   /**
-   * Validate that the query derived from `settings.searchProfile` is usable
-   * for this source (e.g. required fields present, no unsupported options).
+   * Validate that the query derived from the search profile is usable for this
+   * source (e.g. required fields present, no unsupported options).
    */
-  validateQuery(settings: JobWatchSettings): ValidationResult;
+  validateQuery(settings: JobWatchSettings, profile: SearchProfile): ValidationResult;
 
   /**
    * Quick sanity-check: can we reach the site / do we have a valid session?

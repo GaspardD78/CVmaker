@@ -2,7 +2,7 @@
  * Orchestrateur de collecte des offres d'emploi.
  *
  * Pour chaque source activée :
- *  1. Appelle le parser correspondant (avec settings.searchProfile comme source de vérité)
+ *  1. Appelle le parser correspondant (avec le profil de la piste comme source de vérité)
  *  2. Calcule le hash de déduplication
  *  3. Filtre les doublons déjà en base
  *  4. Calcule le score de pertinence (scorer field-aware v2)
@@ -14,7 +14,7 @@
 
 import { getDb } from '@/lib/db';
 import { isAndroid } from '@/lib/platform';
-import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource, FetchLog } from '@/types/job-watch';
+import type { JobWatchConfig, JobWatchSettings, RawJobOffer, JobSource, FetchLog, SearchProfile } from '@/types/job-watch';
 import { ANDROID_INCOMPATIBLE } from './sources';
 import { computeOfferHash, loadExistingHashes, detectCrossSourceDuplicates } from './deduplicator';
 import { isOperationalSourceError } from './source-error';
@@ -136,21 +136,22 @@ export interface FetchResult {
   status: 'success' | 'error' | 'empty';
 }
 
-/** Run a single parser — settings.searchProfile drives all query parameters */
+/** Run a single parser — le profil de recherche pilote tous les paramètres de requête */
 async function runParser(
   config: JobWatchConfig,
   settings: JobWatchSettings,
+  profile: SearchProfile,
   profileId?: string | null,
 ): Promise<RawJobOffer[]> {
   switch (config.source) {
-    case 'apec':               return parseApec(config, settings);
-    case 'wttj':               return parseWttj(config, settings);
-    case 'linkedin':           return parseLinkedinXray(config, settings);
-    case 'indeed':             return parseIndeed(config, settings, profileId);
-    case 'hellowork':          return parseHellowork(config, settings, profileId);
-    case 'jobicy':             return parseJobicy(config, settings);
-    case 'france_travail':     return parseFranceTravail(config, settings);
-    case 'emploi_territorial': return parseEmploiTerritorial(config, settings);
+    case 'apec':               return parseApec(config, settings, profile);
+    case 'wttj':               return parseWttj(config, settings, profile);
+    case 'linkedin':           return parseLinkedinXray(config, settings, profile);
+    case 'indeed':             return parseIndeed(config, settings, profile, profileId);
+    case 'hellowork':          return parseHellowork(config, settings, profile, profileId);
+    case 'jobicy':             return parseJobicy(config, settings, profile);
+    case 'france_travail':     return parseFranceTravail(config, settings, profile);
+    case 'emploi_territorial': return parseEmploiTerritorial(config, settings, profile);
     // Sources dépréciées — parsers supprimés. Les valeurs restent dans JobSource
     // pour l'affichage des offres historiques ; la migration 016 convertit les
     // configs linkedin_rss → linkedin.
@@ -164,12 +165,14 @@ async function runParser(
 
 /**
  * Main fetch pipeline — runs all enabled sources.
- * All search parameters (keywords, location, contract types) come from
- * settings.searchProfile — the single source of truth.
+ *
+ * Le profil de recherche est passé explicitement : il appartient désormais à
+ * une piste du portefeuille, et non plus aux réglages globaux.
  */
 export async function runFetch(
   configs:     JobWatchConfig[],
   settings:    JobWatchSettings,
+  profile:     SearchProfile,
   onProgress?: (source: JobSource, status: string, current?: number, total?: number) => void,
   profileId?:  string | null,
 ): Promise<FetchResult[]> {
@@ -184,8 +187,8 @@ export async function runFetch(
   // serveur a sauté (INSEE manquant, commune rejetée…) ramènent des offres de
   // toute la France — on les écarte ici AVANT scoring et calcul de trajet.
   // null = pas de localisation configurée ou API géo injoignable → fail-open.
-  const geoZone = await resolveProfileGeo(settings.searchProfile.location);
-  const radiusKm = settings.searchProfile.location.radiusKm;
+  const geoZone = await resolveProfileGeo(profile.location);
+  const radiusKm = profile.location.radiusKm;
 
   // Sur Android, on saute silencieusement les sources de scraping (LinkedIn,
   // Indeed, HelloWork) qui ne fonctionnent pas de façon fiable sur mobile
@@ -228,7 +231,7 @@ export async function runFetch(
     const sourceStartTime = Date.now();
     let rawOffers: RawJobOffer[];
     try {
-      rawOffers = await runParser(config, settings, profileId);
+      rawOffers = await runParser(config, settings, profile, profileId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`Parser error: ${msg}`);
@@ -292,7 +295,7 @@ export async function runFetch(
         }
 
         // Score using the unified SearchProfile (field-aware v2)
-        const score = computeScore(raw, settings.searchProfile, learned);
+        const score = computeScore(raw, profile, learned);
 
         let commuteMinutes: number | null = null;
         let commuteStatus: 'pending' | 'ok' | 'error' | 'not_found' = 'pending';

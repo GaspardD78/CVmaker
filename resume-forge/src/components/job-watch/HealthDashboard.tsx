@@ -164,8 +164,12 @@ function formatRelativeTime(isoDate: string): string {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: boolean }) {
-  const { offers, configs, settings, fetchLogs, loadFetchLogs, saveSettings, selectorDebugInfo, selectorOverrides } = useJobWatchStore();
+  const { offers, configs, fetchLogs, loadFetchLogs, selectorDebugInfo, selectorOverrides,
+          activeSearchProfile, updateSearchProfile } = useJobWatchStore();
   const { profile, entries } = useProfileStore();
+
+  // Le profil de recherche appartient à la piste courante, plus aux réglages.
+  const searchProfile = activeSearchProfile();
 
   const [analysis, setAnalysis]   = useState<LearningResult | null>(null);
   const [expanded, setExpanded]   = useState(alwaysExpanded);
@@ -276,34 +280,34 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   const suggestExclude = useMemo(() => {
     if (!analysis) return [];
     const already = new Set([
-      ...settings.searchProfile.excludeTitles.map(k => k.toLowerCase()),
-      ...settings.searchProfile.excludeDomains.map(k => k.toLowerCase()),
+      ...searchProfile.excludeTitles.map(k => k.toLowerCase()),
+      ...searchProfile.excludeDomains.map(k => k.toLowerCase()),
     ]);
     return analysis.suggestedExclusions
       .filter(t => !already.has(t) && !dismissed.has(`excl:${t}`))
       .slice(0, 5);
-  }, [analysis, settings, dismissed]);
+  }, [analysis, searchProfile, dismissed]);
 
   const suggestBonus = useMemo(() => {
     if (!analysis) return [];
     const already = new Set([
-      ...settings.searchProfile.jobTitles.map(k => k.toLowerCase()),
-      ...settings.searchProfile.domains.map(k => k.toLowerCase()),
+      ...searchProfile.jobTitles.map(k => k.toLowerCase()),
+      ...searchProfile.domains.map(k => k.toLowerCase()),
     ]);
     return analysis.suggestedBonusTerms
       .filter(t => !already.has(t) && !dismissed.has(`bonus:${t}`))
       .slice(0, 5);
-  }, [analysis, settings, dismissed]);
+  }, [analysis, searchProfile, dismissed]);
 
   const suggestBlacklist = useMemo(() => {
-    const already = new Set(settings.searchProfile.blacklistedCompanies.map(c => c.toLowerCase()));
+    const already = new Set(searchProfile.blacklistedCompanies.map(c => c.toLowerCase()));
     return companySuggestions.filter(c => !already.has(c) && !dismissed.has(`bl:${c}`));
-  }, [companySuggestions, settings.searchProfile.blacklistedCompanies, dismissed]);
+  }, [companySuggestions, searchProfile.blacklistedCompanies, dismissed]);
 
   const hasAlerts =
     volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0;
 
-  const noJobTitles = settings.searchProfile.jobTitles.length === 0;
+  const noJobTitles = searchProfile.jobTitles.length === 0;
 
   useEffect(() => {
     if (hasAlerts) setExpanded(true);
@@ -315,34 +319,25 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     setDismissed(prev => new Set([...prev, key]));
 
   const handleExcludeTerm = async (term: string) => {
-    await saveSettings({
-      ...settings,
-      searchProfile: {
-        ...settings.searchProfile,
-        excludeTitles: [...settings.searchProfile.excludeTitles, term],
-      },
+    await updateSearchProfile({
+      ...searchProfile,
+      excludeTitles: [...searchProfile.excludeTitles, term],
     });
     dismiss(`excl:${term}`);
   };
 
   const handleAddBonus = async (term: string) => {
-    await saveSettings({
-      ...settings,
-      searchProfile: {
-        ...settings.searchProfile,
-        domains: [...settings.searchProfile.domains, term],
-      },
+    await updateSearchProfile({
+      ...searchProfile,
+      domains: [...searchProfile.domains, term],
     });
     dismiss(`bonus:${term}`);
   };
 
   const handleBlacklistCompany = async (company: string) => {
-    await saveSettings({
-      ...settings,
-      searchProfile: {
-        ...settings.searchProfile,
-        blacklistedCompanies: [...settings.searchProfile.blacklistedCompanies, company],
-      },
+    await updateSearchProfile({
+      ...searchProfile,
+      blacklistedCompanies: [...searchProfile.blacklistedCompanies, company],
     });
     dismiss(`bl:${company}`);
   };
@@ -366,7 +361,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     };
     const suggestions = getKeywordSuggestions(dict, 3);
     const prompt = generatePerformanceOptimizationPrompt(
-      profile, entries, settings.searchProfile,
+      profile, entries, searchProfile,
       {
         volumePerWeek: volume,
         pertinencePercent: pertinence,
@@ -388,7 +383,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       ORDER BY o.fetched_at DESC
       LIMIT 20
     `);
-    const prompt = generateDiagnosticPrompt(settings.searchProfile, rows);
+    const prompt = generateDiagnosticPrompt(searchProfile, rows);
     await navigator.clipboard.writeText(prompt);
     toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
   };

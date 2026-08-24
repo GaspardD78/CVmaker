@@ -3,6 +3,8 @@ import { getDb } from '@/lib/db';
 import { keysToCamelCase } from '@/lib/mapping';
 import {
   JobOffer,
+  JobOfferWithAlerts,
+  JobWatchAlert,
   JobWatchConfig,
   JobWatchSettings,
   JobWatchFilters,
@@ -15,6 +17,17 @@ import {
   JobSource,
 } from '@/types/job-watch';
 import { processFeedback, processCompanyReputation, LearnedDictionary } from '@/lib/watcher/learning-engine';
+import {
+  createAlert as createAlertRow,
+  deleteAlert as deleteAlertRow,
+  duplicateAlert as duplicateAlertRow,
+  listAlerts,
+  loadOfferAlertLinks,
+  reorderAlerts as reorderAlertRows,
+  updateAlert as updateAlertRow,
+  type AlertPatch,
+  type CreateAlertInput,
+} from '@/lib/watcher/alerts';
 import type { AIFilterRule } from '@/lib/watcher/ai-filter';
 import type { SelectorOverride, DebugCapture } from '@/lib/watcher/selector-debug';
 
@@ -32,7 +45,11 @@ const PROFILE_SETTINGS_KEYS = new Set([
   'ai_filter_rule',
 ]);
 
-async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSettings> {
+/**
+ * Charge les réglages bruts (clé → valeur) en superposant les réglages du
+ * profil aux réglages globaux de l'appareil.
+ */
+async function loadSettingsMap(profileId: string | null): Promise<Record<string, string>> {
   const db = await getDb();
   // Load global settings as base, then overlay profile-specific settings
   const rows = profileId
@@ -49,13 +66,23 @@ async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSet
   for (const row of rows.filter(r => r.profile_id === '')) map[row.key] = row.value;
   // Profile-specific rows override globals
   for (const row of rows.filter(r => r.profile_id !== '')) map[row.key] = row.value;
+  return map;
+}
 
-  const parseJson = <T>(v: string | undefined, fallback: T): T => {
-    if (!v) return fallback;
-    try { return JSON.parse(v) as T; } catch { return fallback; }
-  };
+function parseJson<T>(v: string | undefined, fallback: T): T {
+  if (!v) return fallback;
+  try { return JSON.parse(v) as T; } catch { return fallback; }
+}
 
-  // ── Resolve SearchProfile ───────────────────────────────────────────────────
+/**
+ * Reconstruit un profil de recherche depuis les anciennes clés globales.
+ *
+ * Depuis la migration 019, le profil de recherche appartient à une alerte.
+ * Cette fonction ne sert donc plus qu'au rattrapage : une base qui n'a jamais
+ * rejoué la migration, ou qui en est restée aux formats v1/v2, doit pouvoir
+ * amorcer sa première piste sans perdre la configuration de son utilisateur.
+ */
+export function resolveLegacySearchProfile(map: Record<string, string>): SearchProfile {
   // Priority: search_profile key (v3) → migrate from search_intent (v2) → default
   let searchProfile: SearchProfile = parseJson<SearchProfile>(
     map['search_profile'],
@@ -96,6 +123,12 @@ async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSet
     }
   }
 
+  return searchProfile;
+}
+
+async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSettings> {
+  const map = await loadSettingsMap(profileId);
+
   return {
     fetchIntervalHours:   parseInt(map['fetch_interval_hours']  ?? '4', 10),
     emailDigestEnabled:   (map['email_digest_enabled']  ?? '0') === '1',
@@ -105,7 +138,6 @@ async function loadSettingsFromDb(profileId: string | null): Promise<JobWatchSet
     emailSmtpUser:         map['email_smtp_user']        ?? '',
     emailSmtpPassword:     map['email_smtp_password']    ?? '',
     emailTo:               map['email_to']               ?? '',
-    searchProfile,
     navitiaApiKey:         map['navitia_api_key']         ?? '',
     commuteOriginAddress:  map['commute_origin_address']  ?? '',
     commuteDepartureTime:  map['commute_departure_time']  ?? '09:00',
@@ -138,7 +170,6 @@ async function saveSettingsToDb(settings: JobWatchSettings, profileId: string | 
     ['email_smtp_user',        settings.emailSmtpUser],
     ['email_smtp_password',    settings.emailSmtpPassword],
     ['email_to',               settings.emailTo],
-    ['search_profile',         JSON.stringify(settings.searchProfile)],
     ['navitia_api_key',        settings.navitiaApiKey],
     ['commute_origin_address', settings.commuteOriginAddress],
     ['commute_departure_time', settings.commuteDepartureTime],
@@ -176,7 +207,11 @@ export interface FetchProgress {
 }
 
 interface JobWatchState {
-  offers: JobOffer[];
+  offers: JobOfferWithAlerts[];
+  /** Portefeuille de pistes de l'utilisateur, ordonné par position. */
+  alerts: JobWatchAlert[];
+  /** Piste sélectionnée dans l'UI. `null` = toutes les pistes. */
+  activeAlertId: string | null;
   configs: JobWatchConfig[];
   settings: JobWatchSettings;
   filters: JobWatchFilters;
@@ -202,6 +237,20 @@ interface JobWatchState {
   // Init
   initialize: () => Promise<void>;
 
+  // ── Alertes ────────────────────────────────────────────────────────────────
+  fetchAlerts: () => Promise<void>;
+  setActiveAlert: (id: string | null) => void;
+  createAlert: (input: CreateAlertInput) => Promise<JobWatchAlert>;
+  updateAlert: (id: string, patch: AlertPatch) => Promise<void>;
+  deleteAlert: (id: string) => Promise<void>;
+  duplicateAlert: (id: string) => Promise<JobWatchAlert>;
+  reorderAlerts: (orderedIds: string[]) => Promise<void>;
+  /**
+   * Garantit qu'au moins une piste existe si la veille a déjà été configurée.
+   * Rattrape les bases n'ayant pas rejoué la migration 019 et les formats v1/v2.
+   */
+  ensureAlerts: () => Promise<void>;
+
   // Offers
   fetchOffers: () => Promise<void>;
   insertOffer: (offer: Omit<JobOffer, 'id' | 'fetchedAt'>) => Promise<void>;
@@ -221,7 +270,10 @@ interface JobWatchState {
 
   // Configs
   fetchConfigs: () => Promise<void>;
-  upsertConfig: (config: Omit<JobWatchConfig, 'id' | 'createdAt' | 'lastFetchedAt'> & { id?: string }) => Promise<void>;
+  upsertConfig: (
+    config: Omit<JobWatchConfig, 'id' | 'createdAt' | 'lastFetchedAt' | 'alertId'>
+      & { id?: string; alertId?: string | null },
+  ) => Promise<void>;
   deleteConfig: (id: string) => Promise<void>;
   updateLastFetchedAt: (configId: string) => Promise<void>;
 
@@ -246,14 +298,25 @@ interface JobWatchState {
   setError: (msg: string | null) => void;
 
   // Computed
-  filteredOffers: () => JobOffer[];
+  filteredOffers: () => JobOfferWithAlerts[];
   unreadCount: () => number;
+  /** Piste sélectionnée, ou `null` en vue « toutes les pistes ». */
+  activeAlert: () => JobWatchAlert | null;
+  /**
+   * Profil de recherche courant : celui de la piste sélectionnée, à défaut
+   * celui de la première piste du portefeuille.
+   */
+  activeSearchProfile: () => SearchProfile;
+  /** Nombre d'offres non lues d'une piste donnée. */
+  unreadCountForAlert: (alertId: string) => number;
 }
 
 // ── Store implementation ────────────────────────────────────────────────────────
 
 export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   offers: [],
+  alerts: [],
+  activeAlertId: null,
   configs: [],
   settings: DEFAULT_JOB_WATCH_SETTINGS,
   filters: DEFAULT_FILTERS,
@@ -269,6 +332,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   selectorDebugInfo: {},
 
   initialize: async () => {
+    // Les alertes portent le profil de recherche : elles doivent exister avant
+    // que quoi que ce soit ne tente de le lire.
+    await get().ensureAlerts();
     await Promise.all([
       get().fetchOffers(),
       get().fetchConfigs(),
@@ -291,6 +357,130 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     }
   },
 
+  // ── Alertes ─────────────────────────────────────────────────────────────────
+
+  fetchAlerts: async () => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    const alerts = await listAlerts(profileId);
+    set(state => ({
+      alerts,
+      // Une piste supprimée ailleurs ne doit pas laisser la vue sur un filtre mort.
+      activeAlertId: alerts.some(a => a.id === state.activeAlertId) ? state.activeAlertId : null,
+    }));
+  },
+
+  setActiveAlert: (id) => set({ activeAlertId: id }),
+
+  createAlert: async (input) => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    const alert = await createAlertRow(profileId, input);
+    await get().fetchAlerts();
+    await get().fetchConfigs();
+    return alert;
+  },
+
+  updateAlert: async (id, patch) => {
+    await updateAlertRow(id, patch);
+    await get().fetchAlerts();
+  },
+
+  deleteAlert: async (id) => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    await deleteAlertRow(profileId, id);
+    await get().fetchAlerts();
+    await get().fetchConfigs();
+    // Les offres qui perdent leur dernier rattachement restent en base : on
+    // recharge pour que la vue reflète leur nouvel état (« non rattachées »).
+    await get().fetchOffers();
+  },
+
+  duplicateAlert: async (id) => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    const alert = await duplicateAlertRow(profileId, id);
+    await get().fetchAlerts();
+    await get().fetchConfigs();
+    return alert;
+  },
+
+  reorderAlerts: async (orderedIds) => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+    await reorderAlertRows(profileId, orderedIds);
+    await get().fetchAlerts();
+  },
+
+  ensureAlerts: async () => {
+    const { useAuthStore } = await import('@/stores/authStore');
+    const profileId = useAuthStore.getState().currentUserId;
+
+    const existing = await listAlerts(profileId);
+    if (existing.length > 0) {
+      set({ alerts: existing });
+      return;
+    }
+
+    // Aucune piste : soit l'utilisateur n'a jamais configuré la veille (rien à
+    // faire, l'assistant de configuration s'en chargera), soit la migration 019
+    // n'a pas été rejouée sur cette base et il faut amorcer la première piste
+    // depuis les anciennes clés globales.
+    const map = await loadSettingsMap(profileId);
+    const db = await getDb();
+    const orphanConfigs = profileId
+      ? await db.select<Array<{ id: string }>>(
+          `SELECT id FROM job_watch_config WHERE profile_id = ?1 AND alert_id IS NULL`,
+          [profileId],
+        )
+      : await db.select<Array<{ id: string }>>(
+          `SELECT id FROM job_watch_config WHERE profile_id IS NULL AND alert_id IS NULL`,
+        );
+
+    const hasLegacyConfig =
+      Boolean(map['search_profile'] || map['search_intent'] || map['positive_keywords']) ||
+      orphanConfigs.length > 0;
+    if (!hasLegacyConfig) {
+      set({ alerts: [] });
+      return;
+    }
+
+    const alert = await createAlertRow(profileId, {
+      name:          'Recherche principale',
+      kind:          'core',
+      searchProfile: resolveLegacySearchProfile(map),
+      aiFilterRule:  parseJson<AIFilterRule | null>(map['ai_filter_rule'], null),
+    });
+
+    // Reprise de l'apprentissage global accumulé avant l'isolation par piste.
+    await updateAlertRow(alert.id, {
+      learnedDict: {
+        positive: parseJson<Record<string, number>>(map['learned_dict_positive'], {}),
+        negative: parseJson<Record<string, number>>(map['learned_dict_negative'], {}),
+      },
+      companyReputation: parseJson<Record<string, number>>(map['company_reputation'], {}),
+      learnedDecayedAt:  map['learned_dict_decayed_at'] ?? null,
+    });
+
+    // Rattachement des sources orphelines puis des offres déjà collectées.
+    for (const config of orphanConfigs) {
+      await db.execute(`UPDATE job_watch_config SET alert_id = ?1 WHERE id = ?2`, [alert.id, config.id]);
+    }
+    await db.execute(
+      profileId
+        ? `INSERT OR IGNORE INTO job_offer_alerts (offer_id, alert_id, score, matched_at)
+           SELECT id, ?1, COALESCE(score, 0), COALESCE(fetched_at, datetime('now'))
+           FROM job_offers WHERE profile_id = ?2`
+        : `INSERT OR IGNORE INTO job_offer_alerts (offer_id, alert_id, score, matched_at)
+           SELECT id, ?1, COALESCE(score, 0), COALESCE(fetched_at, datetime('now'))
+           FROM job_offers WHERE profile_id IS NULL`,
+      profileId ? [alert.id, profileId] : [alert.id],
+    );
+
+    await get().fetchAlerts();
+  },
+
   // ── Offers ──────────────────────────────────────────────────────────────────
 
   fetchOffers: async () => {
@@ -307,7 +497,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         : await db.select<Record<string, unknown>[]>(
             `SELECT * FROM job_offers WHERE profile_id IS NULL ORDER BY fetched_at DESC LIMIT 500`,
           );
-      set({ offers: raw.map(r => keysToCamelCase<JobOffer>(r)) });
+      const offers = raw.map(r => keysToCamelCase<JobOffer>(r));
+      const links = await loadOfferAlertLinks(offers.map(o => o.id));
+      set({ offers: offers.map(o => ({ ...o, alerts: links.get(o.id) ?? [] })) });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Erreur chargement offres' });
     } finally {
@@ -539,12 +731,12 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const profileId = useAuthStore.getState().currentUserId;
     const raw = profileId
       ? await db.select<Record<string, unknown>[]>(
-          `SELECT id, source, rss_url, enabled, last_fetched_at, created_at
+          `SELECT id, source, rss_url, enabled, last_fetched_at, created_at, alert_id
            FROM job_watch_config WHERE profile_id = ?1 ORDER BY source`,
           [profileId],
         )
       : await db.select<Record<string, unknown>[]>(
-          `SELECT id, source, rss_url, enabled, last_fetched_at, created_at
+          `SELECT id, source, rss_url, enabled, last_fetched_at, created_at, alert_id
            FROM job_watch_config WHERE profile_id IS NULL ORDER BY source`,
         );
     const configs = raw.map(r => keysToCamelCase<JobWatchConfig>(r));
@@ -570,10 +762,13 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         [config.source, config.rssUrl ?? null, config.enabled, config.id, profileId]
       );
     } else {
+      // Une source appartient à une piste : sans rattachement, elle serait
+      // collectée sans profil de recherche et n'apparaîtrait dans aucune vue.
+      const alertId = config.alertId ?? get().activeAlert()?.id ?? get().alerts[0]?.id ?? null;
       await db.execute(
-        `INSERT INTO job_watch_config (source, rss_url, enabled, profile_id)
-         VALUES (?1, ?2, ?3, ?4)`,
-        [config.source, config.rssUrl ?? null, config.enabled, profileId]
+        `INSERT INTO job_watch_config (source, rss_url, enabled, profile_id, alert_id)
+         VALUES (?1, ?2, ?3, ?4, ?5)`,
+        [config.source, config.rssUrl ?? null, config.enabled, profileId, alertId]
       );
     }
     await get().fetchConfigs();
@@ -620,11 +815,19 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   },
 
   updateSearchProfile: async (profile: SearchProfile) => {
-    const { useAuthStore } = await import('@/stores/authStore');
-    const profileId = useAuthStore.getState().currentUserId;
-    const settings = { ...get().settings, searchProfile: profile };
-    await saveSettingsToDb(settings, profileId);
-    set({ settings });
+    // Le profil de recherche appartient désormais à une piste. Sans piste
+    // active — premier passage par l'assistant de configuration — on crée
+    // la piste principale du portefeuille.
+    const target = get().activeAlert() ?? get().alerts[0] ?? null;
+    if (!target) {
+      await get().createAlert({
+        name:          profile.name || 'Recherche principale',
+        kind:          'core',
+        searchProfile: profile,
+      });
+      return;
+    }
+    await get().updateAlert(target.id, { searchProfile: profile, name: target.name });
   },
 
   // ── AI filter rule ──────────────────────────────────────────────────────────
@@ -728,9 +931,23 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   // ── Computed ───────────────────────────────────────────────────────────────────
 
   filteredOffers: () => {
-    const { offers, filters, settings } = get();
+    const { offers, filters, alerts } = get();
+
+    // La blacklist entreprises est portée par les pistes : on applique celle de
+    // la piste sélectionnée, ou l'union du portefeuille en vue « toutes ».
+    const scopedAlerts = typeof filters.alertId === 'string' && filters.alertId !== 'unlinked'
+      ? alerts.filter(a => a.id === filters.alertId)
+      : alerts;
+    const blacklist = new Set(
+      scopedAlerts.flatMap(a => a.searchProfile.blacklistedCompanies.map(c => c.trim().toLowerCase())),
+    );
 
     const filtered = offers.filter(o => {
+      if (filters.alertId === 'unlinked') {
+        if (o.alerts.length > 0) return false;
+      } else if (filters.alertId !== null) {
+        if (!o.alerts.some(l => l.alertId === filters.alertId)) return false;
+      }
       if (!filters.sources.includes(o.source as JobSource)) return false;
       if (o.score < filters.minScore) return false;
       if (filters.status === 'unread'   && (o.isRead === 1 || o.isArchived === 1)) return false;
@@ -745,10 +962,8 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       if (filters.dateFrom && o.fetchedAt < filters.dateFrom) return false;
       if (filters.dateTo   && o.fetchedAt > filters.dateTo)   return false;
 
-      const profile = settings.searchProfile;
-      if (profile.blacklistedCompanies.length > 0 && o.company) {
-        const companyLower = o.company.toLowerCase();
-        if (profile.blacklistedCompanies.some(b => b.toLowerCase() === companyLower)) return false;
+      if (blacklist.size > 0 && o.company && blacklist.has(o.company.trim().toLowerCase())) {
+        return false;
       }
 
       if (filters.maxAgeDays !== null && o.publishedAt) {
@@ -774,9 +989,15 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     });
 
     const sortBy = filters.sortBy ?? 'score_desc';
+    // En vue filtrée, on trie sur le score de la piste, pas sur le meilleur
+    // score : sinon l'ordre d'une piste secondaire est dicté par une autre.
+    const scoreOf = (o: JobOfferWithAlerts): number =>
+      typeof filters.alertId === 'string' && filters.alertId !== 'unlinked'
+        ? (o.alerts.find(l => l.alertId === filters.alertId)?.score ?? o.score)
+        : o.score;
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'score_desc':  return b.score - a.score;
+        case 'score_desc':  return scoreOf(b) - scoreOf(a);
         case 'date_newest': return (b.fetchedAt ?? '').localeCompare(a.fetchedAt ?? '');
         case 'date_oldest': return (a.fetchedAt ?? '').localeCompare(b.fetchedAt ?? '');
         case 'commute_asc': return (a.commuteMinutes ?? 9999) - (b.commuteMinutes ?? 9999);
@@ -789,4 +1010,18 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   },
 
   unreadCount: () => get().offers.filter(o => o.isRead === 0 && o.isArchived === 0).length,
+
+  unreadCountForAlert: (alertId) =>
+    get().offers.filter(
+      o => o.isRead === 0 && o.isArchived === 0 && o.alerts.some(l => l.alertId === alertId),
+    ).length,
+
+  activeAlert: () => {
+    const { alerts, activeAlertId } = get();
+    if (!activeAlertId) return null;
+    return alerts.find(a => a.id === activeAlertId) ?? null;
+  },
+
+  activeSearchProfile: () =>
+    get().activeAlert()?.searchProfile ?? get().alerts[0]?.searchProfile ?? DEFAULT_SEARCH_PROFILE,
 }));

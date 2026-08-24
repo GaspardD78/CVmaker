@@ -34,7 +34,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile, ExtractionMetadata } from '@/types/job-watch';
 import { buildApecQuery, isExcludedByProfile } from '../profile-to-query';
 import { APEC_TYPES_CONTRAT_LABEL } from './apec-ids';
 import { cityToDeptCode } from './common/city-departments';
@@ -190,9 +190,9 @@ function lieuMatchesExpectedDepartment(lieuTexte: string | null, expected: Set<s
 
 export async function parseApec(
   _config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
-  const profile = settings.searchProfile;
   const query   = buildApecQuery(profile);
 
   // Pré-calcule l'ensemble des départements attendus, utilisé pour le post-filter.

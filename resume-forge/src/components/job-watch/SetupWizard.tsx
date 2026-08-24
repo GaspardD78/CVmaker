@@ -21,7 +21,7 @@ interface SetupWizardProps {
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
   const { profile, entries } = useProfileStore();
-  const { upsertConfig, saveSettings, settings } = useJobWatchStore();
+  const { upsertConfig, saveSettings, settings, updateSearchProfile } = useJobWatchStore();
 
   const [step, setStep] = useState<Step>('profile');
 
@@ -101,9 +101,12 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       apecSalaires,
     };
 
-    await saveSettings({ ...settings, searchProfile: newProfile });
+    await saveSettings(settings);
+    // Crée la première piste du portefeuille avec ce profil de recherche.
+    await updateSearchProfile(newProfile);
 
     // 2. Create source entries (simplified — no per-source keywords)
+    // Elles sont rattachées à la piste qui vient d'être créée.
     for (const source of selectedSources) {
       await upsertConfig({ source, rssUrl: null, enabled: 1 });
     }

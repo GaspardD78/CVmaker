@@ -13,7 +13,6 @@ import type {
   JobSource,
   SearchProfile,
 } from '@/types/job-watch';
-import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
 import { summarizeSourceQuery } from '@/lib/watcher/profile-to-query';
 import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
 import {
@@ -109,16 +108,16 @@ const textareaCls = inputCls + ' resize-none';
 
 export function JobWatchConfigView() {
   const {
-    configs, settings,
+    configs, settings, alerts, activeAlertId,
     upsertConfig, deleteConfig,
     saveSettings, updateSearchProfile,
-    fetchConfigs,
+    fetchConfigs, activeSearchProfile,
   } = useJobWatchStore();
   const { profile, entries } = useProfileStore();
 
   // ── SearchProfile draft ───────────────────────────────────────────────────
 
-  const sp = settings.searchProfile ?? DEFAULT_SEARCH_PROFILE;
+  const sp = activeSearchProfile();
 
   const [jobTitlesText,    setJobTitlesText]    = useState(joinList(sp.jobTitles));
   const [skillsText,       setSkillsText]       = useState(joinList(sp.skills));
@@ -147,7 +146,7 @@ export function JobWatchConfigView() {
   const [settingsDraft, setSettingsDraft] = useState<JobWatchSettings>(settings);
 
   useEffect(() => {
-    const sp2 = settings.searchProfile ?? DEFAULT_SEARCH_PROFILE;
+    const sp2 = activeSearchProfile();
     setJobTitlesText(joinList(sp2.jobTitles));
     setSkillsText(joinList(sp2.skills));
     setDomainsText(joinList(sp2.domains));
@@ -168,7 +167,9 @@ export function JobWatchConfigView() {
     setApecTeletravail(sp2.apecTeletravail ?? []);
     setApecSalaires(sp2.apecSalaires ?? []);
     setSettingsDraft(settings);
-  }, [settings]);
+    // `alerts` et `activeAlertId` sont dans les dépendances : changer de piste
+    // doit recharger le brouillon avec le profil de la piste sélectionnée.
+  }, [settings, alerts, activeAlertId, activeSearchProfile]);
 
   const [helpModal, setHelpModal] = useState<HelpModal>(null);
   const [saving, setSaving] = useState(false);
@@ -227,7 +228,10 @@ export function JobWatchConfigView() {
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      await saveSettings({ ...settingsDraft, searchProfile: buildProfile() });
+      // Deux écritures distinctes : les réglages sont globaux à l'appareil,
+      // le profil de recherche appartient à la piste courante.
+      await saveSettings(settingsDraft);
+      await updateSearchProfile(buildProfile());
       toast.success('Paramètres sauvegardés');
     } catch (err) {
       console.error('[JobWatchConfig] handleSaveSettings error:', err);
@@ -723,6 +727,7 @@ export function JobWatchConfigView() {
                 key={c.id}
                 config={c}
                 settings={settingsDraft}
+                profile={sp}
                 onToggle={handleToggle}
                 onDelete={handleDeleteConfig}
                 onSaveRssUrl={handleSaveRssUrl}
@@ -941,6 +946,7 @@ export function JobWatchConfigView() {
 interface SourceRowProps {
   config: ConfigType;
   settings: JobWatchSettings;
+  profile: SearchProfile;
   onToggle: (c: ConfigType) => void;
   onDelete: (id: string) => void;
   onSaveRssUrl: (c: ConfigType, url: string) => void;
@@ -949,12 +955,11 @@ interface SourceRowProps {
 }
 
 function SourceRow({
-  config, settings, onToggle, onDelete, onSaveRssUrl, onOpenHelp,
+  config, profile, onToggle, onDelete, onSaveRssUrl, onOpenHelp,
 }: SourceRowProps) {
   const [rssUrlDraft, setRssUrlDraft] = useState(config.rssUrl ?? '');
   const [rssEdited, setRssEdited]     = useState(false);
 
-  const profile = settings.searchProfile ?? DEFAULT_SEARCH_PROFILE;
   const queryPreview = summarizeSourceQuery(config.source, profile);
 
   const needsRss = RSS_REQUIRED_SOURCES.includes(config.source);

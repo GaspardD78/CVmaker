@@ -26,7 +26,7 @@
  * mais sa doc publique est inaccessible aux fetch automatisés. À suivre.
  */
 
-import type { RawJobOffer, JobWatchConfig, JobWatchSettings, ExtractionMetadata } from '@/types/job-watch';
+import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile, ExtractionMetadata } from '@/types/job-watch';
 import { fetchRssFeed, stripHtml, parseDate } from './rss-utils';
 import { isExcludedByProfile } from '../profile-to-query';
 
@@ -81,11 +81,10 @@ function extractLocationFromText(text: string): string | null {
 }
 
 /** Build the RSS URL with optional keyword/location params */
-function buildRssUrl(config: JobWatchConfig, settings: JobWatchSettings): string {
+function buildRssUrl(config: JobWatchConfig, profile: SearchProfile): string {
   // L'utilisateur a fourni une URL complète custom : on la respecte telle quelle.
   if (config.rssUrl) return config.rssUrl;
 
-  const profile = settings.searchProfile;
   const params  = new URLSearchParams();
 
   // Mots-clés : on n'envoie QUE les jobTitles, joints avec `or` (minuscule, le
@@ -158,10 +157,10 @@ function locationMatchesProfile(
 
 export async function parseEmploiTerritorial(
   config: JobWatchConfig,
-  settings: JobWatchSettings,
+  _settings: JobWatchSettings,
+  profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
-  const rssUrl = buildRssUrl(config, settings);
-  const profile = settings.searchProfile;
+  const rssUrl = buildRssUrl(config, profile);
 
   // Les paramètres `q`/`lieu` du flux ne sont pas documentés officiellement et
   // le serveur les rejette parfois (HTTP 4xx/5xx selon l'expression). Comme le

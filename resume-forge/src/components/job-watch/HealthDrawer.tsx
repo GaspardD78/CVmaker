@@ -14,7 +14,7 @@ import { useJobWatchStore } from '@/stores/jobWatchStore';
 export function HealthDrawer() {
   const [open, setOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const { offers, settings } = useJobWatchStore();
+  const { offers, activeSearchProfile } = useJobWatchStore();
 
   // ── Compute whether there are any active alerts (for the FAB badge) ──────────
   const hasAlerts = useMemo(() => {
@@ -23,9 +23,9 @@ export function HealthDrawer() {
     const active = offers.filter(o => o.isArchived === 0);
     const kanban = active.filter(o => o.kanbanId !== null).length;
     const conversionAlert = active.length > 0 && kanban / active.length < 0.05;
-    const noJobTitles = settings.searchProfile.jobTitles.length === 0;
+    const noJobTitles = activeSearchProfile().jobTitles.length === 0;
     return volume < 10 || conversionAlert || noJobTitles;
-  }, [offers, settings]);
+  }, [offers, activeSearchProfile]);
 
   // Close on Escape
   useEffect(() => {

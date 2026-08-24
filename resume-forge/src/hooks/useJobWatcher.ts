@@ -77,14 +77,19 @@ export function useJobWatcher() {
     // Read ALL state live from the stores, never from the render closure.
     // Le timer d'auto-déclenchement (effet ci-dessous) peut se déclencher avec
     // une version de ce callback créée quand les configs étaient chargées mais
-    // pas encore les settings : la closure portait DEFAULT_JOB_WATCH_SETTINGS
-    // (searchProfile vide) et la collecte partait sans mots-clés ni lieux —
-    // l'APEC renvoyait alors les dernières offres génériques de toute la France.
-    const { isFetching, configs, settings } = useJobWatchStore.getState();
+    // pas encore les alertes : la closure portait un profil de recherche vide
+    // et la collecte partait sans mots-clés ni lieux — l'APEC renvoyait alors
+    // les dernières offres génériques de toute la France.
+    const { isFetching, configs, settings, alerts } = useJobWatchStore.getState();
     const profileId = useAuthStore.getState().currentUserId;
     if (isFetching) return;
     if (!configs.some(c => c.enabled === 1)) {
       if (!silent) toast.info('Aucune source active — configurez la Veille');
+      return;
+    }
+    const activeAlerts = alerts.filter(a => a.enabled === 1);
+    if (activeAlerts.length === 0) {
+      if (!silent) toast.info('Aucune piste active — configurez la Veille');
       return;
     }
 
@@ -135,7 +140,13 @@ export function useJobWatcher() {
         setFetchProgress({ source, status, current, total });
       };
 
-      const results: FetchResult[] = await runFetch(configs, settings, onProgress, profileId);
+      const results: FetchResult[] = await runFetch(
+        configs,
+        settings,
+        activeAlerts[0].searchProfile,
+        onProgress,
+        profileId,
+      );
 
       // Push any captured debug HTML to the store so the UI can surface it
       for (const result of results) {
