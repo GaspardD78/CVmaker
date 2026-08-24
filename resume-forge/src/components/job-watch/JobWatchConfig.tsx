@@ -30,6 +30,7 @@ import { LocationAutocomplete } from './LocationAutocomplete';
 import { SOURCE_LABELS, ANDROID_INCOMPATIBLE } from '@/lib/watcher/sources';
 import { isAndroid } from '@/lib/platform';
 import { SessionManagerPanel } from './SessionManagerPanel';
+import { AlertList } from './AlertList';
 import { AIFilterGenerator } from './AIFilterGenerator';
 import { APEC_FONCTIONS_HIERARCHY, APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
@@ -108,7 +109,7 @@ const textareaCls = inputCls + ' resize-none';
 
 export function JobWatchConfigView() {
   const {
-    configs, settings, alerts, activeAlertId,
+    configs, settings, alerts, activeAlertId, activeAlert,
     upsertConfig, deleteConfig,
     saveSettings, updateSearchProfile,
     fetchConfigs, activeSearchProfile,
@@ -329,7 +330,11 @@ export function JobWatchConfigView() {
   const platformSources = isAndroid()
     ? ALL_SOURCES.filter(s => !ANDROID_INCOMPATIBLE.has(s))
     : ALL_SOURCES;
-  const unusedSources = platformSources.filter(s => !configs.some(c => c.source === s));
+  // Les sources appartiennent à la piste sélectionnée : chaque exploration
+  // choisit les sites qui lui sont réellement pertinents.
+  const currentAlert = activeAlert() ?? alerts[0] ?? null;
+  const alertConfigs = configs.filter(c => c.alertId === (currentAlert?.id ?? null));
+  const unusedSources = platformSources.filter(s => !alertConfigs.some(c => c.source === s));
 
   const handleAddSource = async (source: JobSource) => {
     await upsertConfig({ source, rssUrl: null, enabled: 1 });
@@ -356,6 +361,22 @@ export function JobWatchConfigView() {
 
   return (
     <div className="space-y-4 max-w-3xl">
+
+      {/* ── 0. Portefeuille de pistes ── */}
+      <AlertList />
+
+      {/* ── Éditeur de la piste sélectionnée ──
+          Tout ce qui suit jusqu'aux « Réglages généraux » décrit une intention
+          de recherche et appartient donc à la piste, pas à l'appareil. */}
+      <div className="flex items-center gap-2 pt-2">
+        <span
+          className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+          style={{ background: currentAlert?.color ?? '#6366f1' }}
+        />
+        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">
+          Piste « {currentAlert?.name ?? 'Recherche principale'} »
+        </h3>
+      </div>
 
       {/* ── 1. Search profile ── */}
       <Section title="Ce que je cherche">
@@ -720,7 +741,7 @@ export function JobWatchConfigView() {
         </p>
 
         <div className="space-y-2">
-          {configs
+          {alertConfigs
             .filter(c => !isAndroid() || !ANDROID_INCOMPATIBLE.has(c.source))
             .map(c => (
               <SourceRow
@@ -752,6 +773,17 @@ export function JobWatchConfigView() {
           </div>
         )}
       </Section>
+
+      {/* ── Réglages généraux ──
+          Ces réglages décrivent l'environnement technique de l'utilisateur —
+          comptes, clés d'API, hygiène des données. Les dupliquer par piste
+          n'aurait pas de sens et multiplierait les erreurs de configuration. */}
+      <div className="flex items-center gap-2 pt-4">
+        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">
+          Réglages généraux
+        </h3>
+        <span className="text-xs text-gray-400 dark:text-gray-500">communs à toutes les pistes</span>
+      </div>
 
       {/* ── 6. WebView sessions (LinkedIn, Indeed, HelloWork) ── */}
       <Section title="Connexions aux sites (LinkedIn, Indeed, HelloWork)" defaultOpen={false}>

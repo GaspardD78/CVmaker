@@ -230,8 +230,6 @@ interface JobWatchState {
   fetchProgress: FetchProgress | null;
   error: string | null;
   lastFetchedAt: string | null;
-  /** Optional AI filter rule applied by the scorer as Couche 0.5 (per-profile). */
-  aiFilterRule: AIFilterRule | null;
   /** Per-source selector overrides set by the AI CSS debugger (global, not per-profile). */
   selectorOverrides: Record<string, SelectorOverride>;
   /** Last captured debug HTML per WebView source (ephemeral — cleared on reload). */
@@ -285,10 +283,6 @@ interface JobWatchState {
   saveSettings: (settings: JobWatchSettings) => Promise<void>;
   updateSearchProfile: (profile: SearchProfile) => Promise<void>;
 
-  // AI filter rule
-  loadAIFilterRule: () => Promise<void>;
-  saveAIFilterRule: (rule: AIFilterRule | null) => Promise<void>;
-
   // CSS selector overrides (AI debugger)
   loadSelectorOverrides: () => Promise<void>;
   saveSelectorOverride: (source: string, override: SelectorOverride | null) => Promise<void>;
@@ -330,7 +324,6 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   fetchProgress: null,
   error: null,
   lastFetchedAt: null,
-  aiFilterRule: null,
   selectorOverrides: {},
   selectorDebugInfo: {},
 
@@ -342,7 +335,6 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       get().fetchOffers(),
       get().fetchConfigs(),
       get().fetchSettings(),
-      get().loadAIFilterRule(),
       get().loadSelectorOverrides(),
     ]);
 
@@ -805,47 +797,6 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       return;
     }
     await get().updateAlert(target.id, { searchProfile: profile, name: target.name });
-  },
-
-  // ── AI filter rule ──────────────────────────────────────────────────────────
-
-  loadAIFilterRule: async () => {
-    try {
-      const db = await getDb();
-      const { useAuthStore } = await import('@/stores/authStore');
-      const pid = useAuthStore.getState().currentUserId ?? '';
-      const rows = await db.select<{ profile_id: string; value: string }[]>(
-        `SELECT profile_id, value FROM job_watch_settings
-         WHERE key = 'ai_filter_rule' AND (profile_id = '' OR profile_id = ?1)`,
-        [pid],
-      );
-      // Profile row overrides global row
-      const row = rows.find(r => r.profile_id === pid) ?? rows.find(r => r.profile_id === '');
-      if (!row || !row.value) {
-        set({ aiFilterRule: null });
-        return;
-      }
-      try {
-        set({ aiFilterRule: JSON.parse(row.value) as AIFilterRule });
-      } catch {
-        set({ aiFilterRule: null });
-      }
-    } catch {
-      set({ aiFilterRule: null });
-    }
-  },
-
-  saveAIFilterRule: async (rule: AIFilterRule | null) => {
-    const db = await getDb();
-    const { useAuthStore } = await import('@/stores/authStore');
-    const pid = useAuthStore.getState().currentUserId ?? '';
-    const value = rule === null ? '' : JSON.stringify(rule);
-    await db.execute(
-      `INSERT INTO job_watch_settings (key, profile_id, value) VALUES ('ai_filter_rule', ?1, ?2)
-       ON CONFLICT(key, profile_id) DO UPDATE SET value = ?2`,
-      [pid, value],
-    );
-    set({ aiFilterRule: rule });
   },
 
   // ── CSS selector overrides ──────────────────────────────────────────────────

@@ -189,6 +189,48 @@ describe('applyAIFilter', () => {
   });
 });
 
+describe('buildAIFilterPrompt — contexte du portefeuille', () => {
+  const context = {
+    alert: {
+      name: 'Piste RH',
+      kindLabel: 'Cœur de cible',
+      jobTitles: ['Recruteur', 'Talent Acquisition'],
+      excludeTitles: ['stagiaire'],
+      skills: ['ATS'],
+      domains: ['SaaS'],
+    },
+    otherAlerts: [
+      { name: 'Piste exploratoire', kindLabel: 'Ouverture', jobTitles: ['Consultant RH'] },
+    ],
+  };
+
+  test('décrit la piste concernée et ses exclusions existantes', () => {
+    const prompt = buildAIFilterPrompt('senior uniquement', context);
+    expect(prompt).toContain('Piste RH');
+    expect(prompt).toContain('Cœur de cible');
+    expect(prompt).toContain('Recruteur, Talent Acquisition');
+    expect(prompt).toContain('Exclusions déjà en place : stagiaire');
+  });
+
+  test('liste les autres pistes et interdit de les recouper', () => {
+    const prompt = buildAIFilterPrompt('senior uniquement', context);
+    expect(prompt).toContain('Piste exploratoire');
+    expect(prompt).toContain('Consultant RH');
+    expect(prompt).toContain("N'exclus jamais un terme qui est un titre visé d'une autre piste");
+  });
+
+  test('sans contexte, le prompt reste celui d\'une règle isolée', () => {
+    const prompt = buildAIFilterPrompt('senior uniquement');
+    expect(prompt).not.toContain('# PISTE CONCERNÉE');
+    expect(prompt).not.toContain('# AUTRES PISTES');
+  });
+
+  test('un portefeuille réduit à une piste le dit explicitement', () => {
+    const prompt = buildAIFilterPrompt('senior', { ...context, otherAlerts: [] });
+    expect(prompt).toContain('aucune autre piste');
+  });
+});
+
 describe('buildAIFilterPrompt', () => {
   test('includes the user intent', () => {
     const prompt = buildAIFilterPrompt('Senior dev React remote');
