@@ -1,0 +1,83 @@
+{
+  "description": "Cas limites de longueur : nom, poste visé, contacts, intitulés, entreprises, lieux, sections, badges et mot insécable très longs.",
+  "profile": {
+    "firstName": "Marie-Alexandrine-Éléonore",
+    "lastName": "de La Rochefoucauld-Montmorency",
+    "email": "marie-alexandrine.de-la-rochefoucauld-montmorency@entreprise-exemple-tres-longue.example.com",
+    "phone": "+33 6 00 00 00 00",
+    "city": "Saint-Rémy-lès-Chevreuse",
+    "linkedinUrl": "https://www.linkedin.com/in/marie-alexandrine-eleonore-de-la-rochefoucauld-montmorency-exemple",
+    "githubUrl": "https://github.com/marie-alexandrine-de-la-rochefoucauld",
+    "portfolioUrl": "https://portfolio.marie-alexandrine-de-la-rochefoucauld.example.org/realisations/",
+    "title": "Directrice",
+    "summary": "Résumé volontairement long pour tester le retour à la ligne : directrice de programmes de transformation numérique, finance, supply chain et ressources humaines, avec une expérience internationale de plus de vingt ans dans des groupes cotés, des ETI familiales et des organisations publiques, sur des périmètres budgétaires de plusieurs dizaines de millions d'euros."
+  },
+  "cv": {
+    "name": "CV golden — intitulés longs",
+    "targetJob": "Directrice de programme de transformation numérique, data & intelligence artificielle — Europe, Moyen-Orient et Afrique",
+    "customSummary": null,
+    "settings": {}
+  },
+  "sections": [
+    {
+      "name": "Expériences professionnelles significatives et missions de conseil en transformation",
+      "items": [
+        {
+          "entryType": "experience",
+          "title": "Directrice de programme transformation numérique, data et intelligence artificielle générative",
+          "subtitle": "Compagnie Internationale de Services Financiers et d'Assurances Européennes",
+          "location": "La Défense (Hauts-de-Seine), France",
+          "startDate": "2021-11",
+          "isCurrent": true,
+          "description": "- Pilotage d'un portefeuille de 27 projets transverses représentant un budget annuel de 48 millions d'euros et plus de 350 collaborateurs internes et externes répartis sur 11 pays\n- Référence documentaire : https://intranet.exemple.com/programmes/transformation/2021/gouvernance-des-donnees/charte-v12-finale-validee.pdf"
+        },
+        {
+          "entryType": "experience",
+          "title": "Responsable des systèmes d'information finance, contrôle de gestion et consolidation",
+          "subtitle": "GITEC • MATELLI • MICROPOLE • ALTEN • SOPRA STERIA • CAPGEMINI INVENT",
+          "location": "Paris, Lyon, Bruxelles et Genève",
+          "startDate": "2015-09",
+          "endDate": "2021-10",
+          "description": "Anticonstitutionnellement-intergouvernementalisations-supercalifragilisticexpialidocious-sans-espace-pour-forcer-la-coupure-du-mot."
+        },
+        {
+          "entryType": "experience",
+          "title": "Cheffe de projet",
+          "subtitle": "Établissement Public Administratif de Gestion des Infrastructures Ferroviaires Régionales",
+          "location": "Clermont-Ferrand",
+          "startDate": "2010-01",
+          "endDate": "2015-08"
+        }
+      ]
+    },
+    {
+      "name": "Formation initiale et continue",
+      "items": [
+        {
+          "entryType": "education",
+          "title": "Executive Master en management stratégique des organisations et transformation digitale",
+          "subtitle": "École Supérieure des Sciences Économiques et Commerciales de Paris",
+          "location": "Cergy-Pontoise",
+          "startDate": "2018-09",
+          "endDate": "2019-06"
+        }
+      ]
+    },
+    {
+      "name": "Compétences techniques, fonctionnelles et managériales",
+      "items": [
+        { "entryType": "skill", "title": "Gouvernance des données et conformité réglementaire (RGPD, DORA, AI Act)" },
+        { "entryType": "skill", "title": "Conduite du changement à grande échelle" },
+        { "entryType": "skill", "title": "SAP S/4HANA Finance" },
+        { "entryType": "skill", "title": "Architecture d'entreprise TOGAF" }
+      ]
+    },
+    {
+      "name": "Langues",
+      "items": [
+        { "entryType": "language", "title": "Anglais", "subtitle": "Bilingue (C2) — dix ans d'expérience professionnelle à Londres" },
+        { "entryType": "language", "title": "Espagnol", "subtitle": "Courant (C1)" }
+      ]
+    }
+  ]
+}

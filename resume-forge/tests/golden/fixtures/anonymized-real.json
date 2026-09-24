@@ -1,0 +1,156 @@
+{
+  "description": "Clone anonymisé du CV réel : même structure (6 expériences + 1 alternance, 2 formations, 2 certifications, 1 projet, 9 compétences), longueurs d'intitulés équivalentes. Identité, contacts et photo fictifs. Couvre le cas de collision entreprise longue + dates sur la même ligne (entrée e3) et tous les chemins de dates (mois, année seule, « Présent », datesOverride verbatim).",
+  "profile": {
+    "firstName": "Camille",
+    "lastName": "Durand-Lefèvre",
+    "email": "camille.durand@example.com",
+    "phone": "06 00 00 00 00",
+    "city": "Lyon",
+    "linkedinUrl": "https://www.linkedin.com/in/camille-durand-exemple",
+    "githubUrl": "https://github.com/camille-exemple",
+    "title": "Consultante Data & BI",
+    "summary": "Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les métiers.",
+    "photo": "photo-placeholder.png"
+  },
+  "cv": {
+    "name": "CV golden — anonymisé",
+    "targetJob": "Lead Data Engineer / Architecte BI",
+    "customSummary": null,
+    "settings": {}
+  },
+  "sections": [
+    {
+      "name": "Expérience professionnelle",
+      "items": [
+        {
+          "entryType": "experience",
+          "title": "Lead Data Engineer",
+          "subtitle": "Nexora Solutions",
+          "location": "Lyon",
+          "startDate": "2022-09",
+          "isCurrent": true,
+          "description": "- Conception d'une plateforme de données **Azure Databricks** pour 40 utilisateurs métiers\n- Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles\n- Réduction de 35 % du temps de traitement des flux quotidiens"
+        },
+        {
+          "entryType": "experience",
+          "title": "Consultante Senior BI & Data",
+          "subtitle": "Altimeo Conseil",
+          "location": "Lyon",
+          "startDate": "2020-03",
+          "endDate": "2022-08",
+          "description": "- Migration d'un entrepôt Oracle vers Snowflake (1,2 To, 180 tables)\n- Mise en place de tableaux de bord Power BI pour la direction financière\n- Animation d'ateliers de recueil de besoins avec les équipes *contrôle de gestion*"
+        },
+        {
+          "entryType": "experience",
+          "title": "Consultant BI & Data Engineer (prestations multi-clients)",
+          "subtitle": "GITEC • MATELLI • MICROPOLE",
+          "location": "Paris",
+          "startDate": "2016-01",
+          "endDate": "2020-02",
+          "description": "- Missions successives dans la banque, l'assurance et l'industrie\n- Développement de flux ETL Talend et SSIS, modélisation en étoile\n- Rédaction des spécifications fonctionnelles et techniques"
+        },
+        {
+          "entryType": "experience",
+          "title": "Développeuse décisionnel",
+          "subtitle": "Banque Régionale du Centre",
+          "location": "Orléans",
+          "startDate": "2014-09",
+          "endDate": "2015-12",
+          "description": "- Maintenance évolutive des rapports Business Objects\n- Optimisation de requêtes SQL sur un entrepôt Teradata"
+        },
+        {
+          "entryType": "experience",
+          "title": "Analyste données",
+          "subtitle": "Institut Statistique Territorial",
+          "location": "Tours",
+          "startDate": "2013-10",
+          "endDate": "2014-08",
+          "description": "- Production d'indicateurs socio-économiques trimestriels\n- Automatisation de la collecte avec des scripts Python"
+        },
+        {
+          "entryType": "experience",
+          "title": "Chargée d'études junior",
+          "subtitle": "Cabinet Horizon Études",
+          "location": "Tours",
+          "startDate": "2012-11",
+          "endDate": "2013-09",
+          "description": "Traitement d'enquêtes de satisfaction et restitution des résultats aux clients."
+        },
+        {
+          "entryType": "experience",
+          "title": "Alternance — Assistante chef de projet décisionnel",
+          "subtitle": "Groupe Ventalis",
+          "location": "Blois",
+          "startDate": "2011-09",
+          "endDate": "2012-09",
+          "description": "- Recette des rapports et documentation utilisateur\n- Support de niveau 1 auprès des utilisateurs métiers",
+          "overrideData": { "datesOverride": "2011 – 2012 (alternance, 1 an)" }
+        }
+      ]
+    },
+    {
+      "name": "Formation",
+      "items": [
+        {
+          "entryType": "education",
+          "title": "Master Informatique décisionnelle",
+          "subtitle": "Université de Tours",
+          "location": "Tours",
+          "startDate": "2010-09",
+          "endDate": "2012-06"
+        },
+        {
+          "entryType": "education",
+          "title": "Licence Mathématiques appliquées et sciences sociales",
+          "subtitle": "Université d'Orléans",
+          "location": "Orléans",
+          "startDate": "2007-01",
+          "endDate": "2010-06"
+        }
+      ]
+    },
+    {
+      "name": "Certifications",
+      "items": [
+        {
+          "entryType": "certification",
+          "title": "Microsoft Certified: Azure Data Engineer Associate",
+          "startDate": "2023-01",
+          "endDate": "2025-01"
+        },
+        {
+          "entryType": "certification",
+          "title": "Databricks Certified Data Engineer Professional",
+          "startDate": "2024-06"
+        }
+      ]
+    },
+    {
+      "name": "Projets",
+      "items": [
+        {
+          "entryType": "project",
+          "title": "Outil open source de contrôle qualité des données",
+          "subtitle": "Projet personnel",
+          "startDate": "2021-05",
+          "endDate": "2022-01",
+          "description": "Bibliothèque Python de règles de validation déclaratives, 300 étoiles sur GitHub."
+        }
+      ]
+    },
+    {
+      "name": "Compétences",
+      "items": [
+        { "entryType": "skill", "title": "SQL" },
+        { "entryType": "skill", "title": "Python" },
+        { "entryType": "skill", "title": "Azure Databricks" },
+        { "entryType": "skill", "title": "Snowflake" },
+        { "entryType": "skill", "title": "Power BI" },
+        { "entryType": "skill", "title": "Talend" },
+        { "entryType": "skill", "title": "dbt" },
+        { "entryType": "skill", "title": "Modélisation dimensionnelle" },
+        { "entryType": "skill", "title": "Gestion de projet agile" }
+      ]
+    }
+  ]
+}

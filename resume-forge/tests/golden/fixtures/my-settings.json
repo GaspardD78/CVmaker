@@ -1,0 +1,15 @@
+{
+  "description": "PROVISOIRE — anonymized-real + réglages de design réels de l'utilisateur. Les valeurs ci-dessous sont des placeholders (palette « Bleu marine », densité « Normal », en-tête « Fond doux », police Calibri) en attendant l'export des vrais réglages : colonnes template_id et settings de la table cv_documents (voir README, section my-settings). Remplacer settings + templates puis relancer avec --update.",
+  "extends": "anonymized-real",
+  "templates": ["ats-classic", "sidebar-modern"],
+  "settings": {
+    "fontFamily": "Calibri",
+    "primaryColor": "#1e3a8a",
+    "headerStyle": "accent-light",
+    "entrySpacing": "14px",
+    "sectionHeaderGap": "10px",
+    "bodyLineHeight": "1.5",
+    "pageMargin": "40px 48px",
+    "bodyFontSize": "11px"
+  }
+}

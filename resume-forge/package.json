@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "bun test",
+    "test:golden": "bun tests/golden/run.ts",
+    "test:golden:compare": "bun tests/golden/compare-pdf.ts",
     "tauri": "tauri",
     "android:build:clean": "powershell -Command \"Stop-Process -Name java, cargo, rustc -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force src-tauri/gen/android/build, src-tauri/gen/android/app/build, src-tauri/target -ErrorAction SilentlyContinue; cd src-tauri/gen/android; ./gradlew clean; cd ../../..; bun run tauri android build --target aarch64 --apk\""
   },
@@ -61,6 +63,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "playwright-core": "1.56.1",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   }

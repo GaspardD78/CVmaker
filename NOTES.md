@@ -26,3 +26,16 @@ tests en place. Chemins relatifs à `resume-forge/`.
 
 5. **Documentation désynchronisée** — `CLAUDE.md` indique `react-markdown ^9.x`,
    `package.json` déclare `^10.1.0`.
+
+6. **Export PDF desktop limité à une page (contenu tronqué)** — mis en évidence
+   par les golden tests. `exportPdfDesktop` (`src/lib/export-pdf.ts`) intègre
+   **toutes** les feuilles de style de l'app dans le HTML envoyé à Chromium,
+   dont deux règles de `src/App.css` pensées pour l'interface :
+   `html, body, #root { height: 100%; overflow: hidden; }` et, en
+   `@media print`, `#printable-cv { position: fixed; top: 0; left: 0; … }`.
+   Combinées, elles limitent le document imprimé à la hauteur d'une page : tout
+   ce qui dépasse la page 1 disparaît du PDF, sans page 2. Vérifié sur une copie
+   du HTML exporté : il faut neutraliser les deux règles pour obtenir 2 pages ;
+   une seule ne suffit pas. Les références golden figent ce comportement actuel
+   (ex. `anonymized-real` : les sections Projets et Compétences sont absentes
+   du texte de référence).
