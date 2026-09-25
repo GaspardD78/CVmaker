@@ -47,6 +47,22 @@ tests en place. Chemins relatifs à `resume-forge/`.
    `exportNativePdf`, sans confirmation).
 
 
+7. **Le HTML d'export contient tout le CSS de l'interface** — `getInlinedStyles`
+   (`src/lib/export-pdf.ts`) intègre toutes les feuilles de style de l'app
+   (~120 Ko), pas seulement celles du CV. Toute nouvelle classe Tailwind
+   utilisée **n'importe où** dans l'interface modifie donc le HTML exporté, sans
+   changer le rendu du PDF. Au lot B2, le bandeau et le trait utilisent des
+   styles en ligne pour garder les 48 HTML d'export identiques octet pour octet.
+   Tailwind détecte aussi un mot comme `sticky` dans un simple texte source.
+   C'est la même cause que le point 6 (règles de l'interface qui fuient dans
+   l'export).
+
+8. **`PrintableCV` réécrit son `<style>` à chaque rendu** — le `<style>` injecté
+   via `dangerouslySetInnerHTML` voit son nœud texte remplacé à chaque rendu,
+   même à contenu identique. `usePrintOverflow` l'ignore en comparant le HTML de
+   `#printable-cv` (sinon, une nouvelle mesure serait relancée après chaque
+   résultat). Sans effet visible, non corrigé.
+
 ## Lots à prévoir
 
 - **Lot B : indicateur dans l'aperçu.** `usePrintOverflow`, bandeau dans
@@ -57,8 +73,11 @@ tests en place. Chemins relatifs à `resume-forge/`.
     (`resolveLineAnchor`), annulation (`AbortSignal`), mémorisation de la
     dernière mesure complète (polices chargées, images décodées), auto-tests
     dans le banc.
-  - B2 (à faire) : `usePrintOverflow`, `OverflowBanner`, `RightPanel`. Desktop
-    uniquement : sur Android, le repère « Limite Page 1 » est conservé.
+  - B2 (fait) : `usePrintOverflow` (mesure différée de 600 ms puis au prochain
+    moment d'inactivité, annulée si le CV change), `OverflowBanner` (bandeau et
+    trait de coupure), `RightPanel`. `exportPdfDesktop` utilise `overflowStatus`.
+    Desktop uniquement : sur Android et dans le navigateur, le repère
+    « Limite Page 1 » est conservé.
 - **Lot C : aligner « Ajuster à 1 page » sur `measurePrintOverflow`.**
   `handleFitToPage` (`LeftPanel.tsx`) compare le `scrollHeight` **à l'écran** à
   297 mm, alors que l'export imprime avec des marges de 8px 10px au lieu de
