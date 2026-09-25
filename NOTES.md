@@ -91,8 +91,10 @@ tests en place. Chemins relatifs à `resume-forge/`.
   avec le lot « CSS d'export isolé » ou séparément. Le contournement dans
   `usePrintOverflow` (comparaison du HTML de `#printable-cv`) pourra alors
   être retiré.
-- **Comparaison automatique des HTML d'export dans le banc** (informative, voir
-  `tests/golden/README.md`, section Critère de non-régression d'un lot).
+- **Comparaison automatique des HTML d'export dans le banc** (fait) : empreinte
+  du balisage de `#printable-cv` et des règles CSS applicables, bloquante ;
+  empreinte du HTML complet, informative (`tests/golden/README.md`, section
+  Empreinte du HTML d'export).
 - **Lot C : aligner « Ajuster à 1 page » sur `measurePrintOverflow`.**
   `handleFitToPage` (`LeftPanel.tsx`) compare le `scrollHeight` **à l'écran** à
   297 mm, alors que l'export imprime avec des marges de 8px 10px au lieu de

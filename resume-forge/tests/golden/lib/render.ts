@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CaseData } from './fixtures';
 import type { PrintOverflow } from '../../../src/lib/print-overflow';
+import { collectInPage, type RawFingerprint } from './html-fingerprint';
 
 const GOLDEN_DIR = resolve(import.meta.dir, '..');
 const PROJECT_DIR = resolve(GOLDEN_DIR, '../..');
@@ -38,6 +39,9 @@ const PDF_OPTIONS = {
   margin: { top: '0', bottom: '0', left: '0', right: '0' },
   preferCSSPageSize: true,
 } as const;
+
+/** Fenêtre de la page A4 imprimée (210 × 297 mm à 96 dpi), pour l'empreinte du HTML. */
+const PAGE_VIEWPORT = { width: 794, height: 1123 };
 
 /** Fenêtre par défaut de Chrome headless lancé par la crate headless_chrome. */
 const PRINT_VIEWPORT = { width: 800, height: 600 };
@@ -108,7 +112,9 @@ export class GoldenRenderer {
   }
 
   /** Rend un cas : HTML d'export capturé, mesure de dépassement de page et PDF imprimé. */
-  async renderPdf(data: CaseData, timezoneId: string, workDir: string): Promise<{ html: string; overflow: PrintOverflow; checks: string[]; pdf: Uint8Array }> {
+  async renderPdf(data: CaseData, timezoneId: string, workDir: string): Promise<{
+    html: string; overflow: PrintOverflow; checks: string[]; pdf: Uint8Array; fingerprint: RawFingerprint; fingerprintMs: number;
+  }> {
     const context = await this.browser.newContext({
       timezoneId,
       locale: 'fr-FR',
@@ -141,7 +147,19 @@ export class GoldenRenderer {
       await printPage.goto(pathToFileURL(htmlPath).href, { waitUntil: 'load' });
       const pdf = await printPage.pdf(PDF_OPTIONS);
       await printPage.close();
-      return { html, overflow, checks, pdf: new Uint8Array(pdf) };
+
+      // Empreinte du HTML d'export, règles d'impression actives (page séparée :
+      // la page d'impression ci-dessus reste celle de generate_pdf).
+      const t0 = performance.now();
+      const fpPage = await context.newPage();
+      await fpPage.setViewportSize(PAGE_VIEWPORT);
+      await fpPage.goto(pathToFileURL(htmlPath).href, { waitUntil: 'load' });
+      await fpPage.emulateMedia({ media: 'print' });
+      const fingerprint = await fpPage.evaluate(collectInPage);
+      await fpPage.close();
+      const fingerprintMs = performance.now() - t0;
+
+      return { html, overflow, checks, pdf: new Uint8Array(pdf), fingerprint, fingerprintMs };
     } finally {
       await context.close();
     }

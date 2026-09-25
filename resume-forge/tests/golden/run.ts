@@ -4,6 +4,7 @@
  *   bun run test:golden                 compare le rendu actuel aux références
  *   bun run test:golden -- --update     régénère les références
  *   bun run test:golden -- --update-overflow   régénère seulement les overflow.json
+ *   bun run test:golden -- --update-html       régénère seulement l'empreinte du HTML d'export
  *   bun run test:golden -- --only tech  ne traite que les cas dont l'id contient « tech »
  *
  * Voir tests/golden/README.md.
@@ -17,6 +18,7 @@ import { extractPdfText } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
 import { lineDiff } from './lib/diff';
 import { checkEnvironment } from './lib/env-check';
+import { buildFingerprint, compareFingerprint, RuleStore, toHtmlRef, type HtmlRef } from './lib/html-fingerprint';
 import { OVERFLOW_SAFETY_MARGIN_MM, PAGE_HEIGHT_MM, overflowStatus, type OverflowStatus, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
 
 const GOLDEN_DIR = import.meta.dir;
@@ -185,12 +187,17 @@ interface CaseResult {
   overflow: OverflowRef;
   /** Lignes visibles mesurées introuvables dans le PDF (information, non bloquant). */
   unmatchedLines?: string[];
+  /** Messages informatifs sur le HTML d'export (non bloquants). */
+  htmlInfo?: string[];
+  /** Temps de calcul de l'empreinte du HTML d'export (ms). */
+  fingerprintMs?: number;
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const update = args.includes('--update');
   const updateOverflow = update || args.includes('--update-overflow');
+  const updateHtml = update || args.includes('--update-html');
   const onlyIdx = args.indexOf('--only');
   const only = onlyIdx >= 0 ? args[onlyIdx + 1] : undefined;
 
@@ -207,10 +214,14 @@ async function main() {
   const cases = buildCases().filter((c) => !only || c.id.includes(only));
   const renderer = new GoldenRenderer();
   await renderer.start();
-  console.log(`Chromium ${renderer.chromiumVersion()} — ${cases.length} cas — mode ${update ? 'MISE À JOUR des références' : updateOverflow ? 'MISE À JOUR des overflow.json' : 'comparaison'}\n`);
+  console.log(`Chromium ${renderer.chromiumVersion()} — ${cases.length} cas — mode ${update ? 'MISE À JOUR des références' : [updateOverflow && 'MISE À JOUR des overflow.json', updateHtml && "MISE À JOUR de l'empreinte HTML"].filter(Boolean).join(' + ') || 'comparaison'}\n`);
 
   const results: CaseResult[] = [];
   const texts = new Map<string, string>();
+  // Règles CSS partagées par toutes les références d'empreinte HTML.
+  const ruleStore = new RuleStore(join(REF_DIR, '_css', 'rules.txt'));
+  const usedRules = new Set<string>();
+  const invalidSelectors = new Set<string>();
   try {
     for (const c of cases) {
       const outDir = join(OUT_DIR, 'cases', c.suite, c.template);
@@ -219,7 +230,12 @@ async function main() {
       const refDir = join(REF_DIR, c.suite, c.template);
 
       const { data } = loadFixture(c.fixture, c.template);
-      const { pdf, overflow, checks } = await renderer.renderPdf(data, c.timezoneId, outDir);
+      const { pdf, overflow, checks, html, fingerprint: rawFp, fingerprintMs } = await renderer.renderPdf(data, c.timezoneId, outDir);
+      const fp = buildFingerprint(rawFp, html);
+      fp.rules.forEach((id) => usedRules.add(id));
+      fp.invalidSelectors.forEach((sel) => invalidSelectors.add(sel));
+      writeFileSync(join(outDir, 'markup.txt'), fp.markup);
+      writeFileSync(join(outDir, 'rules.txt'), fp.rules.map((id) => `${id}\t${fp.ruleText.get(id)}`).join('\n') + '\n');
       writeFileSync(join(outDir, 'overflow.json'), JSON.stringify(overflow, null, 2));
       writeFileSync(join(outDir, 'actual.pdf'), pdf);
       const { pages, text } = await extractPdfText(pdf);
@@ -273,6 +289,24 @@ async function main() {
       if (checks.length) { result.ok = false; result.problems.push(...checks.map((m) => `auto-test : ${m}`)); }
       result.unmatchedLines = overflowCheck.unmatched;
 
+      // Empreinte du HTML d'export : balisage de #printable-cv et règles CSS applicables.
+      result.fingerprintMs = Math.round(fingerprintMs);
+      if (updateHtml) {
+        mkdirSync(refDir, { recursive: true });
+        writeFileSync(join(refDir, 'html.json'), JSON.stringify(toHtmlRef(fp), null, 2) + '\n');
+        writeFileSync(join(refDir, 'markup.txt'), fp.markup);
+        ruleStore.add(fp);
+      } else if (!existsSync(join(refDir, 'html.json'))) {
+        result.ok = false;
+        result.problems.push('référence html.json absente (lancer avec --update-html)');
+      } else {
+        const ref = JSON.parse(readFileSync(join(refDir, 'html.json'), 'utf8')) as HtmlRef;
+        const cmp = compareFingerprint(ref, readFileSync(join(refDir, 'markup.txt'), 'utf8'), fp, ruleStore);
+        if (cmp.details.length) writeFileSync(join(outDir, 'html.diff'), cmp.details.join('\n') + '\n');
+        if (cmp.failures.length) { result.ok = false; result.problems.push(...cmp.failures); }
+        result.htmlInfo = cmp.info;
+      }
+
       results.push(result);
       const ov = overflow.overflows
         ? `dépasse de ${overflow.overflowMm} mm, ${overflow.hiddenLines} ligne(s) coupée(s)`
@@ -280,7 +314,8 @@ async function main() {
           ? `DE JUSTESSE, marge ${overflow.remainingMm} mm`
           : `tient, marge ${overflow.remainingMm} mm`;
       const wrapInfo = result.unmatchedLines?.length ? ` [${result.unmatchedLines.length} ligne(s) coupée(s) autrement à l'impression]` : '';
-      console.log(`${result.ok ? 'OK  ' : 'FAIL'} ${c.id.padEnd(34)} ${pages} p. — ${ov}${wrapInfo}${result.problems.map((p) => `\n    - ${p}`).join('')}`);
+      const htmlInfo = result.htmlInfo?.length ? result.htmlInfo.map((m) => `\n    · ${m}`).join('') : '';
+      console.log(`${result.ok ? 'OK  ' : 'FAIL'} ${c.id.padEnd(34)} ${pages} p. — ${ov}${wrapInfo}${result.problems.map((p) => `\n    - ${p}`).join('')}${htmlInfo}`);
     }
   } finally {
     await renderer.stop();
@@ -304,7 +339,16 @@ async function main() {
     tzProblems.forEach((p) => console.log(`    - ${p}`));
   }
 
-  writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify({ update, pixelTolerance: PIXEL_TOLERANCE, maxDiffRatio: MAX_DIFF_RATIO, results, tzProblems }, null, 2));
+  // Fichier partagé des règles : nettoyé des règles inutilisées sur une passe complète.
+  if (updateHtml) ruleStore.save(only ? undefined : usedRules);
+
+  const fpTimes = results.map((r) => r.fingerprintMs ?? 0);
+  const htmlChangedOutsideCv = results.filter((r) => r.htmlInfo?.length).length;
+  console.log(`\nEmpreinte HTML : ${fpTimes.reduce((a, b) => a + b, 0)} ms au total (${Math.round(fpTimes.reduce((a, b) => a + b, 0) / Math.max(1, fpTimes.length))} ms/cas)` +
+    `${htmlChangedOutsideCv ? ` ; HTML d'export modifié hors CV dans ${htmlChangedOutsideCv} cas (informatif)` : ''}` +
+    `${invalidSelectors.size ? ` ; ${invalidSelectors.size} sélecteur(s) invalide(s) après nettoyage, comptés comme applicables (voir report.json)` : ''}`);
+
+  writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify({ update, pixelTolerance: PIXEL_TOLERANCE, maxDiffRatio: MAX_DIFF_RATIO, results, tzProblems, invalidSelectors: [...invalidSelectors].sort() }, null, 2));
 
   const failed = results.filter((r) => !r.ok);
   const ok = failed.length === 0 && tzProblems.length === 0;

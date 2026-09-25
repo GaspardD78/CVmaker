@@ -17,6 +17,7 @@ Depuis `resume-forge/` :
 bun run test:golden                     # compare aux références (code ≠ 0 si écart)
 bun run test:golden -- --update         # régénère toutes les références
 bun run test:golden -- --update-overflow   # régénère seulement les overflow.json
+bun run test:golden -- --update-html       # régénère seulement l'empreinte du HTML d'export
 bun run test:golden -- --only elegant   # ne traite que les cas dont l'id contient « elegant »
 bun run test:golden:compare <pdf> <fixture> <template>   # validation croisée (voir plus bas)
 bun tests/golden/make-backup.ts <fixture> <template> [sortie.json]
@@ -233,14 +234,102 @@ Pourquoi : l'export intègre tout le CSS de l'interface (NOTES.md §7). Une
 nouvelle classe Tailwind utilisée ailleurs dans l'app ajoute des règles au HTML
 exporté sans rien changer au CV : ce n'est pas une régression.
 
-Le banc ne compare pas encore les HTML automatiquement. Procédure actuelle :
-copier les `export.html` de `.out/cases/` avant le lot, relancer le banc après
-le lot, puis comparer : corps (`<body>…`) et règles CSS ajoutées ou retirées.
-C'est ce qui a été fait aux lots A, B1 et B2 (48/48 identiques octet pour
-octet). Intégrer cette comparaison au banc est à prévoir.
+Cette vérification est automatique : voir la section Empreinte du HTML
+d'export ci-dessous.
 
 Ce critère remplace l'exigence « HTML identiques octet pour octet » appliquée
 jusqu'au lot B2.
+
+## Empreinte du HTML d'export
+
+Automatisation du critère ci-dessus (`lib/html-fingerprint.ts`). Pour chaque
+cas, une page Chromium séparée charge le HTML d'export en `file://`, en mode
+impression (`emulateMedia('print')`), fenêtre de la taille de la page
+(794 × 1123 px). La page qui imprime le PDF n'est pas touchée. L'empreinte a
+deux parties.
+
+**a) Balisage de `#printable-cv`** (`references/<suite>/<template>/markup.txt`) :
+arbre du DOM lu par Chromium, une ligne par nœud. Normalisations :
+- attributs triés par nom (leur ordre est sans effet) ;
+- classes triées, espaces réduits (l'ordre des classes est sans effet en CSS) ;
+- URL `data:` (la photo) remplacées par `data:<type>;sha256=<16 hex>;len=<n>` ;
+- textes et attribut `style` inchangés. Le `<style>` injecté par
+  `PrintableCV` fait partie du balisage.
+
+**b) Règles CSS applicables**, dans **l'ordre du document**, car la cascade
+en dépend. Ce n'est pas un tri alphabétique : un changement d'ordre entre
+règles applicables est détecté (« ordre modifié »), alors que l'ajout de règles
+non applicables ne change pas cet ordre.
+- Règles `@media` : gardées si la condition est vraie en impression à 794 px
+  (`matchMedia`). `print` compte, `screen` et `hover` non.
+- `@supports` : gardées si la condition est vraie (`CSS.supports`). Règles
+  `@layer` et règles imbriquées : parcourues, la couche est notée dans le
+  contexte.
+- Une règle de style est **applicable** si son sélecteur, nettoyé, désigne
+  `#printable-cv`, un descendant ou un ancêtre (`html`, `body` ; `:root`
+  désigne `html`) : l'héritage et les variables passent par les ancêtres.
+- **Nettoyage du sélecteur** : lecture caractère par caractère (échappements
+  comme `.dark\:hover\:x`, chaînes, crochets et parenthèses respectés),
+  branche par branche. On retire les pseudo-éléments (`::before`, `::after`,
+  `::placeholder`, `::-webkit-…`, `:before`/`:after` anciens) et les
+  pseudo-classes d'interaction (`:hover`, `:focus…`, `:active`, `:visited`).
+  Une pseudo-classe fonctionnelle vidée (`:not()`, `:is()`…) disparaît. Une
+  branche vide devient `*`, et une branche qui commence ou finit par un
+  combinateur est complétée par `*`. La règle, elle, reste entière dans
+  l'empreinte : un `content` de `::after` modifié est détecté. Un sélecteur
+  resté invalide est compté comme applicable et listé dans `report.json`
+  (aucun actuellement).
+- **Variables CSS** : dans une règle applicable, une déclaration `--x` n'est
+  gardée que si la variable est utilisée. On part des `var()` des déclarations
+  ordinaires et des attributs `style` du CV, puis on suit les variables de
+  variable en variable. Une variable de `:root` utilisée par le CV fait donc
+  échouer le cas si elle change, mais pas une variable de thème inutilisée.
+- `@page` et l'ordre des couches `@layer` : toujours inclus. `@font-face` :
+  inclus si sa famille apparaît dans une déclaration retenue. `@keyframes` :
+  inclus si son nom apparaît dans `animation`/`animation-name`. `@property` :
+  inclus si la variable est retenue.
+- **Faux positif volontaire** : les règles portant sur `html` et `body` sont
+  toujours applicables, même quand l'enveloppe d'export les écrase (ex.
+  `body { background: var(--rf-bg) }` de l'interface). Changer ces règles fait
+  échouer les cas. Mieux vaut un faux positif rare qu'une régression manquée.
+
+**Références** :
+- `references/_css/rules.txt` : règles uniques partagées par tous les cas, une
+  par ligne (`identifiant<TAB>contexte<TAB>règle`, identifiant = 12 caractères
+  de SHA-256). Les règles inutilisées sont retirées lors d'un `--update-html`
+  complet.
+- `references/<suite>/<template>/html.json` : empreinte du HTML complet
+  (informative), empreinte du balisage, liste ordonnée des identifiants de
+  règles, sélecteurs invalides.
+- `references/<suite>/<template>/markup.txt` : balisage normalisé, pour le diff.
+- Taille (48 cas) : 765 735 octets (balisage 568 672, `html.json` 146 036,
+  `rules.txt` 51 027 pour 319 règles), contre 6 567 495 octets pour les 48 HTML
+  d'export complets.
+
+**En cas d'écart** : le balisage modifié et les règles ajoutées, supprimées,
+modifiées ou déplacées font échouer le cas. Les détails sont affichés, et le
+diff complet est écrit dans `.out/cases/<suite>/<template>/html.diff`. Si
+seule l'empreinte du HTML complet change, le message « HTML d'export modifié
+hors CV » est informatif, sans échec. `--update-html` ne réécrit que
+`html.json`, `markup.txt` et `_css/rules.txt`. Coût : environ 120 ms par cas,
+soit environ 6 s par passe complète.
+
+**Vérifié par défauts volontaires** (copies jetables, code restauré ensuite) :
+
+| Défaut | Résultat |
+|---|---|
+| classe Tailwind nouvelle dans le tableau de bord (hors CV) | informatif |
+| variable de `:root` non utilisée par le CV (`--rf-accent`) | informatif |
+| fond `body` de l'enveloppe d'export (`export-pdf.ts`) | échec : règle modifiée |
+| variable de `:root` utilisée par le CV (`--font-body`) | échec : règle modifiée |
+| `@media print { #printable-cv a[href] }` (`App.css`) | échec : règle modifiée (+ PNG) |
+| `rel` des liens de contact (`CVHeader.tsx`) | échec : balisage modifié |
+| deux utilitaires de même spécificité inversés (`.text-black` / `.text-gray-900`, copie du HTML) | échec : ordre modifié |
+| `content` du `::after` des virgules d'`academic` (copie du HTML) | échec : règle modifiée |
+
+Les deux derniers défauts ont été appliqués à une copie du HTML d'export :
+l'ordre des utilitaires est fixé par Tailwind, et le `content` passe par le nom
+de classe. Depuis le code source, ils changeraient aussi le balisage.
 
 ## Critères de comparaison
 
