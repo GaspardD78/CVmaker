@@ -3,6 +3,7 @@
  *
  *   bun run test:golden                 compare le rendu actuel aux références
  *   bun run test:golden -- --update     régénère les références
+ *   bun run test:golden -- --update-overflow   régénère seulement les overflow.json
  *   bun run test:golden -- --only tech  ne traite que les cas dont l'id contient « tech »
  *
  * Voir tests/golden/README.md.
@@ -16,6 +17,7 @@ import { extractPdfText } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
 import { lineDiff } from './lib/diff';
 import { checkEnvironment } from './lib/env-check';
+import { PAGE_HEIGHT_MM, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
 
 const GOLDEN_DIR = import.meta.dir;
 const PROJECT_DIR = resolve(GOLDEN_DIR, '../..');
@@ -34,7 +36,7 @@ export const MAX_DIFF_RATIO = 0.00001;
 
 const BASE_TZ = 'Europe/Paris';
 const NEGATIVE_TZ = 'America/New_York';
-const BASE_FIXTURES = ['anonymized-real', 'long-titles', 'minimal'];
+const BASE_FIXTURES = ['anonymized-real', 'long-titles', 'minimal', 'overflow'];
 const DERIVED_FIXTURES = ['my-settings'];
 /** Variante fuseau négatif : un template par famille de layout (toutes les dates passent par CVEntryBlock). */
 const TZ_TEMPLATES = ['ats-classic', 'sidebar-modern'];
@@ -66,6 +68,103 @@ const KNOWN_TZ_SHIFTS: { paris: string; newYork: string; what: string }[] = [
   { what: 'formation, année seule (2007-01)', paris: '2007 -', newYork: '2006 -' },
 ];
 
+// ── Dépassement de page (print-overflow.ts) ──────────────────────────────────
+
+/** Attente par fixture : dépassement oui/non. undefined = pas d'attente fixée (référence seule). */
+function expectedOverflow(c: GoldenCase): boolean | undefined {
+  if (c.suite === 'minimal' || c.suite === 'long-titles') return false;
+  if (c.suite === 'overflow') return true;
+  // academic, le template le plus compact, fait tenir anonymized-real sur une page.
+  if (c.suite === 'anonymized-real') return c.template !== 'academic';
+  return undefined;
+}
+
+/** Tolérance sur la quantité dépassée, en mm, face à la référence. */
+const OVERFLOW_TOLERANCE_MM = 0.5;
+/** Longueur minimale (normalisée) d'une ligne pour la tester dans le texte du PDF : évite les faux positifs. */
+const MIN_PROBE_CHARS = 12;
+
+interface OverflowRef {
+  overflows: boolean;
+  overflowMm: number;
+  remainingMm: number;
+  hiddenLines: number;
+  lastVisibleLine: string | null;
+  firstCutLine: string | null;
+}
+
+function toOverflowRef(o: PrintOverflow): OverflowRef {
+  return {
+    overflows: o.overflows,
+    overflowMm: o.overflowMm,
+    remainingMm: o.remainingMm,
+    hiddenLines: o.hiddenLines,
+    lastVisibleLine: o.lastVisibleLine?.text ?? null,
+    firstCutLine: o.firstCutLine?.text ?? null,
+  };
+}
+
+/**
+ * Normalisation commune DOM / PDF : lettres et chiffres en majuscules seulement
+ * (text-transform, letter-spacing, séparateurs générés en CSS ::after, puces).
+ */
+const norm = (t: string) => t.toUpperCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/**
+ * Cohérence de la mesure avec le PDF réellement imprimé, par colonne :
+ * - dépassement : la dernière ligne entièrement visible est dans le PDF, la
+ *   première ligne entièrement sous la page n'y est pas ;
+ * - pas de dépassement : la dernière ligne de chaque colonne est dans le PDF.
+ * Retourne aussi, pour information, les lignes mesurées introuvables dans le
+ * PDF (retour à la ligne différent à l'impression, voir README).
+ */
+function checkOverflowCoherence(o: PrintOverflow, pdfText: string, pages: number): { problems: string[]; unmatched: string[] } {
+  const problems: string[] = [];
+  const pdf = norm(pdfText.replace(/^=== page \d+ ===$/gm, ''));
+  const probe = (l: PrintLine) => norm(l.text).length >= MIN_PROBE_CHARS;
+  const inPdf = (l: PrintLine) => pdf.includes(norm(l.text));
+  if (pages !== 1) problems.push(`le PDF fait ${pages} pages : la mesure suppose une page unique`);
+  if (o.overflows) {
+    const visible = o.lines.filter((l) => l.bottomMm <= PAGE_HEIGHT_MM && probe(l)).sort((a, b) => b.bottomMm - a.bottomMm);
+    const hidden = o.lines.filter((l) => l.topMm >= PAGE_HEIGHT_MM && probe(l));
+    if (!visible[0]) problems.push('aucune ligne visible testable');
+    else if (!inPdf(visible[0])) problems.push(`dernière ligne visible absente du PDF : « ${visible[0].text} »`);
+    if (!hidden[0]) problems.push('aucune ligne entièrement coupée testable');
+    else if (inPdf(hidden[0])) problems.push(`ligne annoncée coupée présente dans le PDF : « ${hidden[0].text} »`);
+  } else {
+    for (const column of ['page', 'main', 'sidebar'] as const) {
+      const last = o.lines.filter((l) => l.column === column && probe(l)).sort((a, b) => b.bottomMm - a.bottomMm)[0];
+      if (last && !inPdf(last)) problems.push(`pas de dépassement annoncé mais dernière ligne (${column}) absente du PDF : « ${last.text} »`);
+    }
+  }
+  const unmatched = o.lines.filter((l) => l.bottomMm <= PAGE_HEIGHT_MM && probe(l) && !inPdf(l)).map((l) => l.text);
+  return { problems, unmatched };
+}
+
+function checkOverflow(c: GoldenCase, o: PrintOverflow, pdfText: string, pages: number, refDir: string): { problems: string[]; unmatched: string[] } {
+  const problems: string[] = [];
+  const expected = expectedOverflow(c);
+  if (expected !== undefined && expected !== o.overflows) {
+    problems.push(`dépassement ${o.overflows ? 'détecté' : 'non détecté'}, attendu : ${expected ? 'dépassement' : 'pas de dépassement'}`);
+  }
+  const coherence = checkOverflowCoherence(o, pdfText, pages);
+  problems.push(...coherence.problems);
+  const refPath = join(refDir, 'overflow.json');
+  if (!existsSync(refPath)) {
+    problems.push('référence overflow.json absente (lancer avec --update-overflow)');
+    return { problems, unmatched: coherence.unmatched };
+  }
+  const ref = JSON.parse(readFileSync(refPath, 'utf8')) as OverflowRef;
+  const cur = toOverflowRef(o);
+  if (ref.overflows !== cur.overflows) problems.push(`dépassement : ${cur.overflows} au lieu de ${ref.overflows}`);
+  if (Math.abs(ref.overflowMm - cur.overflowMm) > OVERFLOW_TOLERANCE_MM) problems.push(`dépassement : ${cur.overflowMm} mm au lieu de ${ref.overflowMm} mm`);
+  if (Math.abs(ref.remainingMm - cur.remainingMm) > OVERFLOW_TOLERANCE_MM) problems.push(`marge restante : ${cur.remainingMm} mm au lieu de ${ref.remainingMm} mm`);
+  if (ref.hiddenLines !== cur.hiddenLines) problems.push(`lignes coupées : ${cur.hiddenLines} au lieu de ${ref.hiddenLines}`);
+  if (ref.lastVisibleLine !== cur.lastVisibleLine) problems.push(`dernière ligne visible : « ${cur.lastVisibleLine} » au lieu de « ${ref.lastVisibleLine} »`);
+  if (ref.firstCutLine !== cur.firstCutLine) problems.push(`première ligne coupée : « ${cur.firstCutLine} » au lieu de « ${ref.firstCutLine} »`);
+  return { problems, unmatched: coherence.unmatched };
+}
+
 function listPngs(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((f) => /^page-\d+\.png$/.test(f)).sort((a, b) => parseInt(a.slice(5)) - parseInt(b.slice(5)));
@@ -77,11 +176,15 @@ interface CaseResult {
   problems: string[];
   pages: number;
   pageStats: (Omit<PageStats, 'diffPng'> & { page: number; ratio: number })[];
+  overflow: OverflowRef;
+  /** Lignes visibles mesurées introuvables dans le PDF (information, non bloquant). */
+  unmatchedLines?: string[];
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const update = args.includes('--update');
+  const updateOverflow = update || args.includes('--update-overflow');
   const onlyIdx = args.indexOf('--only');
   const only = onlyIdx >= 0 ? args[onlyIdx + 1] : undefined;
 
@@ -98,7 +201,7 @@ async function main() {
   const cases = buildCases().filter((c) => !only || c.id.includes(only));
   const renderer = new GoldenRenderer();
   await renderer.start();
-  console.log(`Chromium ${renderer.chromiumVersion()} — ${cases.length} cas — mode ${update ? 'MISE À JOUR des références' : 'comparaison'}\n`);
+  console.log(`Chromium ${renderer.chromiumVersion()} — ${cases.length} cas — mode ${update ? 'MISE À JOUR des références' : updateOverflow ? 'MISE À JOUR des overflow.json' : 'comparaison'}\n`);
 
   const results: CaseResult[] = [];
   const texts = new Map<string, string>();
@@ -110,7 +213,8 @@ async function main() {
       const refDir = join(REF_DIR, c.suite, c.template);
 
       const { data } = loadFixture(c.fixture, c.template);
-      const { pdf } = await renderer.renderPdf(data, c.timezoneId, outDir);
+      const { pdf, overflow } = await renderer.renderPdf(data, c.timezoneId, outDir);
+      writeFileSync(join(outDir, 'overflow.json'), JSON.stringify(overflow, null, 2));
       writeFileSync(join(outDir, 'actual.pdf'), pdf);
       const { pages, text } = await extractPdfText(pdf);
       texts.set(c.id, text);
@@ -118,7 +222,7 @@ async function main() {
       const pngs = await renderer.rasterize(pdf);
       pngs.forEach((png, k) => writeFileSync(join(outDir, `page-${k + 1}.png`), png));
 
-      const result: CaseResult = { id: c.id, ok: true, problems: [], pages, pageStats: [] };
+      const result: CaseResult = { id: c.id, ok: true, problems: [], pages, pageStats: [], overflow: toOverflowRef(overflow) };
 
       if (update) {
         rmSync(refDir, { recursive: true, force: true });
@@ -153,8 +257,20 @@ async function main() {
           }
         }
       }
+      if (updateOverflow) {
+        mkdirSync(refDir, { recursive: true });
+        writeFileSync(join(refDir, 'overflow.json'), JSON.stringify(toOverflowRef(overflow), null, 2) + '\n');
+      }
+      const overflowCheck = checkOverflow(c, overflow, text, pages, refDir);
+      if (overflowCheck.problems.length) { result.ok = false; result.problems.push(...overflowCheck.problems); }
+      result.unmatchedLines = overflowCheck.unmatched;
+
       results.push(result);
-      console.log(`${result.ok ? 'OK  ' : 'FAIL'} ${c.id.padEnd(34)} ${pages} p.${result.problems.map((p) => `\n    - ${p}`).join('')}`);
+      const ov = overflow.overflows
+        ? `dépasse de ${overflow.overflowMm} mm, ${overflow.hiddenLines} ligne(s) coupée(s)`
+        : `tient, marge ${overflow.remainingMm} mm`;
+      const wrapInfo = result.unmatchedLines?.length ? ` [${result.unmatchedLines.length} ligne(s) coupée(s) autrement à l'impression]` : '';
+      console.log(`${result.ok ? 'OK  ' : 'FAIL'} ${c.id.padEnd(34)} ${pages} p. — ${ov}${wrapInfo}${result.problems.map((p) => `\n    - ${p}`).join('')}`);
     }
   } finally {
     await renderer.stop();

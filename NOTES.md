@@ -39,3 +39,30 @@ tests en place. Chemins relatifs à `resume-forge/`.
    une seule ne suffit pas. Les références golden figent ce comportement actuel
    (ex. `anonymized-real` : les sections Projets et Compétences sont absentes
    du texte de référence).
+   **Suivi** : le CV doit tenir sur une page (choix volontaire). La troncature
+   est désormais détectée avant l'export (lot A : `src/lib/print-overflow.ts`
+   et confirmation dans le CV builder). La coupure elle-même est conservée.
+   Non couverts : export Android (html2canvas, plusieurs pages, pas de
+   troncature), repli `window.print()`, et export du mode Markdown (même
+   `exportNativePdf`, sans confirmation).
+
+
+## Lots à prévoir
+
+- **Lot B : indicateur dans l'aperçu.** `usePrintOverflow`, bandeau dans
+  `RightPanel` (dépassement, ou marge restante en mm) et trait de coupure
+  mesuré à la place du repère fixe « Limite Page 1 » (295 mm à l'écran, faux
+  car les marges d'impression diffèrent de celles de l'écran).
+- **Lot C : aligner « Ajuster à 1 page » sur `measurePrintOverflow`.**
+  `handleFitToPage` (`LeftPanel.tsx`) compare le `scrollHeight` **à l'écran** à
+  297 mm, alors que l'export imprime avec des marges de 8px 10px au lieu de
+  40px 48px. Le bouton peut donc dire « tient » quand la confirmation d'export
+  annonce un dépassement, ou l'inverse.
+- **Lot à décider : vérification côté Rust.** Mesurer aussi dans le Chrome de
+  l'export (`generate_pdf`) pour les webviews qui ne sont pas Chromium
+  (WebKit sous macOS et Linux). Hors lots A et B.
+- **Marge de sécurité de la mesure** (à décider). À l'impression, le texte est
+  très légèrement plus large qu'à l'écran : quelques lignes longues passent à
+  la ligne plus tôt, et le contenu suivant descend d'environ une ligne (voir
+  `tests/golden/README.md`, section Dépassement de page). Un CV à moins
+  d'environ 5 mm de la limite peut être annoncé « tient » à tort.

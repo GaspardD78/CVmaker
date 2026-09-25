@@ -16,6 +16,7 @@ Depuis `resume-forge/` :
 ```bash
 bun run test:golden                     # compare aux références (code ≠ 0 si écart)
 bun run test:golden -- --update         # régénère toutes les références
+bun run test:golden -- --update-overflow   # régénère seulement les overflow.json
 bun run test:golden -- --only elegant   # ne traite que les cas dont l'id contient « elegant »
 bun run test:golden:compare <pdf> <fixture> <template>   # validation croisée (voir plus bas)
 bun tests/golden/make-backup.ts <fixture> <template> [sortie.json]
@@ -124,6 +125,7 @@ Fuseau horaire et langue sont fixés par cas (`timezoneId`, `locale: fr-FR`).
 | `anonymized-real` | les 11 | Clone anonymisé du CV réel : 6 expériences + 1 alternance, 2 formations, 2 certifications, 1 projet, 9 compétences. Cas de collision : entreprise `GITEC • MATELLI • MICROPOLE` + lieu + dates sur la même ligne. Photo placeholder (`photo-placeholder.png`, silhouette générée). |
 | `long-titles` | les 11 | Nom, poste, contacts, intitulés, entreprises, sections, badges et un mot insécable extrêmement longs. |
 | `minimal` | les 11 | Nom, email, une expérience sans description ; pas de photo ni de résumé. |
+| `overflow` | les 11 | CV trop long pour une page dans tous les templates, `academic` compris. Sert à tester la détection du dépassement de page. |
 | `my-settings` | `ats-classic`, `sidebar-modern` (**provisoire**) | `anonymized-real` + réglages de design. **Valeurs provisoires** : voir ci-dessous. |
 | `tz-new-york` (suite) | `ats-classic`, `sidebar-modern` | `anonymized-real` rendu en `America/New_York` au lieu de `Europe/Paris`. |
 
@@ -159,6 +161,38 @@ En `America/New_York`, les dates `AAAA-MM` (lues en UTC) reculent d'un mois
 `2007 -` → `2006 -`. **Quand le lot « dates » corrigera ce bug, ces
 assertions (`KNOWN_TZ_SHIFTS` dans `run.ts`) et les références `tz-new-york`
 devront être mises à jour.**
+
+## Dépassement de page
+
+L'export desktop n'imprime qu'une page (NOTES.md §6). Avant d'exporter, l'app
+mesure si le CV dépasse avec `src/lib/print-overflow.ts` et demande
+confirmation. Le banc applique cette mesure, dans la page de test, au HTML
+d'export capturé, et la confronte au PDF réellement imprimé.
+
+Assertions par cas (`checkOverflow` dans `run.ts`) :
+- **attente par fixture** : `minimal` et `long-titles` ne dépassent pas ;
+  `overflow` dépasse ; `anonymized-real` dépasse, sauf `academic` (le template
+  le plus compact, qui le fait tenir avec 3,2 mm de marge) ;
+- **référence** `overflow.json` : dépassement oui/non, quantité en mm
+  (tolérance ± 0,5 mm), marge restante, nombre de lignes coupées, dernière
+  ligne visible et première ligne coupée ;
+- **cohérence avec le PDF** (texte réduit aux lettres et chiffres en
+  majuscules) :
+  - dépassement : la dernière ligne entièrement visible figure dans le PDF,
+    la première ligne entièrement sous la page n'y figure pas ;
+  - pas de dépassement : la dernière ligne de chaque colonne figure dans le PDF.
+
+**Précision de la mesure.** La mesure se fait à l'écran, avec les règles
+`@media print` activées par CSSOM. Elle donne la même mise en page que
+l'émulation d'impression native de Chromium (vérifié sur 248 lignes). Le
+texte imprimé est cependant très légèrement plus large qu'à l'écran : une
+ligne longue peut passer à la ligne un mot plus tôt dans le PDF. Tout ce qui
+suit descend alors d'environ une ligne (4 à 5 mm). Sur les 48 cas, c'est
+arrivé pour 5 lignes dans 3 cas (`long-titles/ats-modern`,
+`long-titles/sidebar-modern`, `long-titles/sidebar-elegant`). Le banc
+l'affiche pour information (`[n ligne(s) coupée(s) autrement à
+l'impression]`) sans échouer. Conséquence : un CV à moins d'une ligne de la
+limite peut être annoncé « tient » alors qu'une dernière ligne sera coupée.
 
 ## Critères de comparaison
 

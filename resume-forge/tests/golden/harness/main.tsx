@@ -5,11 +5,14 @@
  * (window.__GOLDEN_CASE__), puis appelle la vraie fonction exportNativePdf().
  * Seuls les modules Tauri sont simulés (voir vite.golden.config.ts) :
  * invoke('generate_pdf') capture le HTML final au lieu d'appeler Rust.
+ * La mesure de dépassement de page (print-overflow.ts) est ensuite appliquée
+ * à ce même HTML (window.__GOLDEN_OVERFLOW__).
  */
 import ReactDOM from 'react-dom/client';
 import { PrintableCV } from '@/components/export/PrintableCV';
 import { getTemplate } from '@/templates';
 import { exportNativePdf } from '@/lib/export-pdf';
+import { measurePrintOverflow, type PrintOverflow } from '@/lib/print-overflow';
 import type { CVBlock, CVDocument } from '@/types/cv';
 import type { MasterEntry, Profile } from '@/types/profile';
 import '@/App.css';
@@ -25,6 +28,7 @@ declare global {
   interface Window {
     __GOLDEN_CASE__?: GoldenCase;
     __GOLDEN_HTML__?: string;
+    __GOLDEN_OVERFLOW__?: PrintOverflow;
     __GOLDEN_ERROR__?: string;
     __TAURI_INTERNALS__?: unknown;
   }
@@ -51,6 +55,7 @@ async function run() {
   await document.fonts.ready;
   const ok = await exportNativePdf();
   if (!ok || !window.__GOLDEN_HTML__) throw new Error(`exportNativePdf a renvoyé ${ok} sans HTML capturé`);
+  window.__GOLDEN_OVERFLOW__ = await measurePrintOverflow(window.__GOLDEN_HTML__);
 }
 
 run().catch((e) => {
