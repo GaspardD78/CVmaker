@@ -52,7 +52,9 @@ tests en place. Chemins relatifs à `resume-forge/`.
    (~120 Ko), pas seulement celles du CV. Toute nouvelle classe Tailwind
    utilisée **n'importe où** dans l'interface modifie donc le HTML exporté, sans
    changer le rendu du PDF. Au lot B2, le bandeau et le trait utilisent des
-   styles en ligne pour garder les 48 HTML d'export identiques octet pour octet.
+   styles en ligne pour garder les 48 HTML d'export identiques octet pour octet
+   (exigence abandonnée ensuite : voir le critère de non-régression dans
+   `tests/golden/README.md`).
    Tailwind détecte aussi un mot comme `sticky` dans un simple texte source.
    C'est la même cause que le point 6 (règles de l'interface qui fuient dans
    l'export).
@@ -78,6 +80,19 @@ tests en place. Chemins relatifs à `resume-forge/`.
     trait de coupure), `RightPanel`. `exportPdfDesktop` utilise `overflowStatus`.
     Desktop uniquement : sur Android et dans le navigateur, le repère
     « Limite Page 1 » est conservé.
+- **Lot « CSS d'export isolé » (point 7).** N'intégrer au HTML d'export que le
+  CSS utile à `#printable-cv`, au lieu de toutes les feuilles de style de
+  l'app. Les classes de l'interface ne toucheraient plus le HTML exporté, ce qui
+  rendrait possible un bandeau d'aperçu collant (abandonné au lot B2). Ce lot
+  touche à ce qui s'applique au CV : il doit passer le banc (texte et PNG
+  identiques) et réévaluer les règles d'interface qui fuient aujourd'hui dans
+  l'export (point 6).
+- **Point 8 (`<style>` réinjecté à chaque rendu de `PrintableCV`).** À traiter
+  avec le lot « CSS d'export isolé » ou séparément. Le contournement dans
+  `usePrintOverflow` (comparaison du HTML de `#printable-cv`) pourra alors
+  être retiré.
+- **Comparaison automatique des HTML d'export dans le banc** (informative, voir
+  `tests/golden/README.md`, section Critère de non-régression d'un lot).
 - **Lot C : aligner « Ajuster à 1 page » sur `measurePrintOverflow`.**
   `handleFitToPage` (`LeftPanel.tsx`) compare le `scrollHeight` **à l'écran** à
   297 mm, alors que l'export imprime avec des marges de 8px 10px au lieu de

@@ -217,6 +217,31 @@ du pire écart observé (4,6 mm) : sous cette marge, le CV est signalé « de
 justesse » et l'export demande aussi confirmation. Si de nouveaux cas
 montrent un écart plus grand, relever cette constante.
 
+## Critère de non-régression d'un lot
+
+**Un lot est conforme si le texte et les PNG sont identiques sur les 48 cas**
+(`bun run test:golden` à 100 %, sans `--update`).
+
+Le diff des HTML d'export (`.out/cases/<suite>/<template>/export.html`,
+comparés avant et après le lot) est **affiché à titre informatif** et ne fait
+pas échouer le lot, avec une exception : il fait échouer le lot s'il touche
+
+- au contenu de `#printable-cv` (le `<body>` du HTML d'export), ou
+- aux règles CSS qui s'appliquent à `#printable-cv` ou à ses descendants.
+
+Pourquoi : l'export intègre tout le CSS de l'interface (NOTES.md §7). Une
+nouvelle classe Tailwind utilisée ailleurs dans l'app ajoute des règles au HTML
+exporté sans rien changer au CV : ce n'est pas une régression.
+
+Le banc ne compare pas encore les HTML automatiquement. Procédure actuelle :
+copier les `export.html` de `.out/cases/` avant le lot, relancer le banc après
+le lot, puis comparer : corps (`<body>…`) et règles CSS ajoutées ou retirées.
+C'est ce qui a été fait aux lots A, B1 et B2 (48/48 identiques octet pour
+octet). Intégrer cette comparaison au banc est à prévoir.
+
+Ce critère remplace l'exigence « HTML identiques octet pour octet » appliquée
+jusqu'au lot B2.
+
 ## Critères de comparaison
 
 - **Pagination** : même nombre de pages.
