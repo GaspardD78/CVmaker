@@ -1,0 +1,123 @@
+<div class="bg-white bg-white dark:bg-white dark:text-black max-w-[210mm] mx-auto print:m-0 print:max-w-none print:shadow-none print:w-full shadow-lg text-black text-gray-900" id="printable-cv" style="font-family: Calibri, Arial, sans-serif;">
+  <style>
+    "#printable-cv { display: flex; align-items: stretch; padding: 0 !important; min-height: 297mm; }\n#printable-cv .cv-sidebar { flex: 0 0 34%; width: 34%; background: #1e293b; color: #f8fafc; padding: 30px 24px; box-sizing: border-box;  }\n#printable-cv .cv-main-col { flex: 1 1 auto; min-width: 0; padding: 40px 44px; box-sizing: border-box;  }\n#printable-cv .cv-sidebar a { color: inherit; text-decoration: none; }\n#printable-cv .cv-sidebar, #printable-cv .cv-sidebar p, #printable-cv .cv-sidebar li, #printable-cv .cv-sidebar span, #printable-cv .cv-sidebar .cv-badge-item { color: #f8fafc !important; }\n#printable-cv .cv-sidebar { font-size: 11.5px; line-height: 1.5; }\n#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #f8fafc; border-bottom: 1px solid rgba(255,255,255,0.28); padding-bottom: 5px; margin-bottom: 10px; }\n#printable-cv .cv-sidebar-icon svg { opacity: 0.85; }\n#printable-cv .cv-sidebar-photo-ring { border: 3px solid rgba(255,255,255,0.5); }\n#printable-cv .cv-sidebar .cv-badge { background-color: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.32) !important; color: #f8fafc !important; }"
+  <aside class="cv-sidebar">
+    <div class="cv-sidebar-section mb-5">
+      <h3 class="cv-sidebar-heading">
+        "Contact"
+      <ul class="cv-sidebar-contact space-y-1.5">
+        <li class="break-words flex gap-2 items-start leading-snug">
+          <span class="cv-sidebar-icon mt-px shrink-0">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.161V6a2 2 0 00-2-2H3z">
+              <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z">
+          <a class="break-all hover:underline" href="mailto:marie-alexandrine.de-la-rochefoucauld-montmorency@entreprise-exemple-tres-longue.example.com" rel="noopener noreferrer" target="_blank">
+            "marie-alexandrine.de-la-rochefoucauld-montmorency@entreprise-exemple-tres-longue.example.com"
+        <li class="break-words flex gap-2 items-start leading-snug">
+          <span class="cv-sidebar-icon mt-px shrink-0">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 15.352V16.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z" fill-rule="evenodd">
+          <a class="break-all hover:underline" href="tel:+33600000000" rel="noopener noreferrer" target="_blank">
+            "+33 6 00 00 00 00"
+        <li class="break-words flex gap-2 items-start leading-snug">
+          <span class="cv-sidebar-icon mt-px shrink-0">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433a19.695 19.695 0 002.683-2.282c1.944-1.99 3.945-4.995 3.945-8.567a8 8 0 10-16 0c0 3.572 2.001 6.577 3.945 8.567a19.695 19.695 0 002.683 2.282 12.97 12.97 0 001.038.573l.018.008.006.003zM10 11.25a2.75 2.75 0 100-5.5 2.75 2.75 0 000 5.5z" fill-rule="evenodd">
+          <span class="break-all">
+            "Saint-Rémy-lès-Chevreuse"
+        <li class="break-words flex gap-2 items-start leading-snug">
+          <span class="cv-sidebar-icon mt-px shrink-0">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4.5 2A2.5 2.5 0 002 4.5v11A2.5 2.5 0 004.5 18h11a2.5 2.5 0 002.5-2.5v-11A2.5 2.5 0 0015.5 2h-11zM7 7.5v6H5v-6h2zm-1-1.75a1 1 0 110-2 1 1 0 010 2zM15 13.5h-2v-2.938c0-.789-.6-1.062-1-.1062-.4 0-1 .312-1 1.062V13.5h-2v-6h2v.938s.75-1.188 2-1.188 2 .75 2 2.5v3.75z">
+          <a class="break-all hover:underline" href="https://www.linkedin.com/in/marie-alexandrine-eleonore-de-la-rochefoucauld-montmorency-exemple" rel="noopener noreferrer" target="_blank">
+            "in/marie-alexandrine-eleonore-de-la-rochefoucauld-montmorency-exemple"
+        <li class="break-words flex gap-2 items-start leading-snug">
+          <span class="cv-sidebar-icon mt-px shrink-0">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M10 1.5a8.5 8.5 0 00-2.688 16.568c.425.078.58-.184.58-.41 0-.201-.007-.735-.011-1.442-2.364.514-2.863-1.14-2.863-1.14-.387-.982-.944-1.243-.944-1.243-.771-.527.058-.516.058-.516.853.06 1.302.876 1.302.876.758 1.298 1.988.923 2.473.706.077-.549.297-.923.54-1.135-1.887-.215-3.873-.944-3.873-4.202 0-.928.332-1.687.876-2.281-.088-.214-.38-1.079.083-2.248 0 0 .714-.229 2.339.871A8.159 8.159 0 0110 4.999c.723.004 1.45.098 2.128.286 1.624-1.1 2.337-.871 2.337-.871.464 1.17.172 2.034.084 2.248.546.594.875 1.353.875 2.281 0 3.266-1.989 3.984-3.882 4.195.305.263.578.783.578 1.578 0 1.139-.01 2.057-.01 2.337 0 .228.153.493.585.41A8.502 8.502 0 0010 1.5z" fill-rule="evenodd">
+          <a class="break-all hover:underline" href="https://github.com/marie-alexandrine-de-la-rochefoucauld" rel="noopener noreferrer" target="_blank">
+            "marie-alexandrine-de-la-rochefoucauld"
+        <li class="break-words flex gap-2 items-start leading-snug">
+          <span class="cv-sidebar-icon mt-px shrink-0">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.75 8.25a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 2.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zM8 5a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 018 5zm.75 9.25a.75.75 0 000 1.5h2.5a.75.75 0 000-1.5h-2.5z">
+          <a class="break-all hover:underline" href="https://portfolio.marie-alexandrine-de-la-rochefoucauld.example.org/realisations/" rel="noopener noreferrer" target="_blank">
+            "portfolio.marie-alexandrine-de-la-rochefoucauld.example.org/realisations"
+    <div class="cv-sidebar-section mb-5">
+      <h3 class="cv-sidebar-heading">
+        "Compétences techniques, fonctionnelles et managériales"
+      <div class="flex flex-wrap gap-1.5 mt-1">
+        <span class="border cv-badge cv-badge-item font-medium inline-block px-2.5 py-1 rounded-full text-[11px]">
+          "Gouvernance des données et conformité réglementaire (RGPD, DORA, AI Act)"
+        <span class="border cv-badge cv-badge-item font-medium inline-block px-2.5 py-1 rounded-full text-[11px]">
+          "Conduite du changement à grande échelle"
+        <span class="border cv-badge cv-badge-item font-medium inline-block px-2.5 py-1 rounded-full text-[11px]">
+          "SAP S/4HANA Finance"
+        <span class="border cv-badge cv-badge-item font-medium inline-block px-2.5 py-1 rounded-full text-[11px]">
+          "Architecture d'entreprise TOGAF"
+    <div class="cv-sidebar-section mb-5">
+      <h3 class="cv-sidebar-heading">
+        "Langues"
+      <div class="flex flex-wrap gap-1.5 mt-1">
+        <span class="border cv-badge cv-badge-item font-medium inline-block px-2.5 py-1 rounded-full text-[11px]">
+          "Anglais — Bilingue (C2) — dix ans d'expérience professionnelle à Londres"
+        <span class="border cv-badge cv-badge-item font-medium inline-block px-2.5 py-1 rounded-full text-[11px]">
+          "Espagnol — Courant (C1)"
+  <div class="cv-main-col">
+    <div class="cv-header-block mb-4">
+      <h1 class="cv-name font-extrabold leading-none mb-1 text-[32px] text-gray-900 tracking-tight">
+        "Marie-Alexandrine-Éléonore de La Rochefoucauld-Montmorency"
+      <h2 class="cv-job-title font-semibold text-[15px] text-indigo-700 tracking-[0.08em] uppercase">
+        "Directrice de programme de transformation numérique, data & intelligence artificielle — Europe, Moyen-Orient et Afrique"
+    <div class="mb-5">
+      <p class="cv-summary leading-relaxed text-[12.5px] text-gray-700">
+        "Résumé volontairement long pour tester le retour à la ligne : directrice de programmes de transformation numérique, finance, supply chain et ressources humaines, avec une expérience internationale de plus de vingt ans dans des groupes cotés, des ETI familiales et des organisations publiques, sur des périmètres budgétaires de plusieurs dizaines de millions d'euros."
+    <h3 class="border-b-2 border-indigo-100 font-bold mb-3 mt-6 pb-1.5 print:break-after-avoid text-[13px] text-indigo-700 tracking-[0.12em] uppercase">
+      "Expériences professionnelles significatives et missions de conseil en transformation"
+    <div class="cv-entry mb-4 print:break-inside-avoid">
+      <div class="cv-title-row flex items-baseline justify-between mb-1">
+        <div>
+          <span class="cv-title font-bold text-[13.5px] text-gray-900">
+            "Directrice de programme transformation numérique, data et intelligence artificielle générative"
+          <span class="cv-subtitle font-semibold text-[12.5px] text-indigo-700">
+            " | Compagnie Internationale de Services Financiers et d'Assurances Européennes — La Défense (Hauts-de-Seine), France"
+        <span class="cv-date mb-1 tabular-nums text-[11px] text-gray-500">
+          "novembre 2021 - Présent"
+      <div class="cv-desc leading-relaxed text-[12px] text-gray-700 whitespace-pre-line">
+        <ul class="list-disc my-1 pl-5">
+          <li>
+            "Pilotage d'un portefeuille de 27 projets transverses représentant un budget annuel de 48 millions d'euros et plus de 350 collaborateurs internes et externes répartis sur 11 pays"
+          <li>
+            "Référence documentaire : https://intranet.exemple.com/programmes/transformation/2021/gouvernance-des-donnees/charte-v12-finale-validee.pdf"
+    <div class="cv-entry mb-4 print:break-inside-avoid">
+      <div class="cv-title-row flex items-baseline justify-between mb-1">
+        <div>
+          <span class="cv-title font-bold text-[13.5px] text-gray-900">
+            "Responsable des systèmes d'information finance, contrôle de gestion et consolidation"
+          <span class="cv-subtitle font-semibold text-[12.5px] text-indigo-700">
+            " | GITEC • MATELLI • MICROPOLE • ALTEN • SOPRA STERIA • CAPGEMINI INVENT — Paris, Lyon, Bruxelles et Genève"
+        <span class="cv-date mb-1 tabular-nums text-[11px] text-gray-500">
+          "septembre 2015 - octobre 2021"
+      <div class="cv-desc leading-relaxed text-[12px] text-gray-700 whitespace-pre-line">
+        <p>
+          "Anticonstitutionnellement-intergouvernementalisations-supercalifragilisticexpialidocious-sans-espace-pour-forcer-la-coupure-du-mot."
+    <div class="cv-entry mb-4 print:break-inside-avoid">
+      <div class="cv-title-row flex items-baseline justify-between mb-1">
+        <div>
+          <span class="cv-title font-bold text-[13.5px] text-gray-900">
+            "Cheffe de projet"
+          <span class="cv-subtitle font-semibold text-[12.5px] text-indigo-700">
+            " | Établissement Public Administratif de Gestion des Infrastructures Ferroviaires Régionales — Clermont-Ferrand"
+        <span class="cv-date mb-1 tabular-nums text-[11px] text-gray-500">
+          "janvier 2010 - août 2015"
+    <h3 class="border-b-2 border-indigo-100 font-bold mb-3 mt-6 pb-1.5 print:break-after-avoid text-[13px] text-indigo-700 tracking-[0.12em] uppercase">
+      "Formation initiale et continue"
+    <div class="cv-entry mb-4 print:break-inside-avoid">
+      <div class="cv-title-row flex items-baseline justify-between mb-1">
+        <div>
+          <span class="cv-title font-bold text-[13.5px] text-gray-900">
+            "Executive Master en management stratégique des organisations et transformation digitale"
+          <span class="cv-subtitle font-semibold text-[12.5px] text-indigo-700">
+            " | École Supérieure des Sciences Économiques et Commerciales de Paris — Cergy-Pontoise"
+        <span class="cv-date mb-1 tabular-nums text-[11px] text-gray-500">
+          "2018 - 2019"

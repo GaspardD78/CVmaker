@@ -1,0 +1,26 @@
+<div class="bg-white bg-white border-indigo-700 border-l-[4px] dark:bg-white dark:text-black max-w-[210mm] mx-auto print:m-0 print:max-w-none print:p-0 print:shadow-none print:w-full px-12 py-11 shadow-lg text-black text-gray-900" id="printable-cv" style="font-family: Calibri, Arial, sans-serif;">
+  <style>
+    "@media print { #printable-cv { padding: 8px 10px !important; } }"
+  <div class="cv-header-block dark:text-black mb-4 text-black text-center">
+    <div class="">
+      <h1 class="[font-family:Georgia,serif] cv-name font-semibold mb-1 text-[32px] text-gray-900 tracking-wide">
+        "Léo Martin"
+      <div class="cv-contact-info mt-2 text-[12px] text-gray-600">
+        <div class="flex flex-wrap gap-x-4 gap-y-1 justify-center">
+          <a class="hover:underline inline-flex items-center whitespace-nowrap" href="mailto:leo.martin@example.com" rel="noopener noreferrer" target="_blank">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.161V6a2 2 0 00-2-2H3z">
+              <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z">
+            "leo.martin@example.com"
+  <hr class="border-gray-300 border-t mb-4 print:border-gray-400">
+  <h3 class="[font-family:Georgia,serif] border-b border-indigo-200 font-semibold mb-3.5 mt-6 pb-1.5 print:break-after-avoid text-[12px] text-indigo-800 tracking-[0.28em] uppercase">
+    "Expérience"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="[font-family:Georgia,serif] cv-title font-semibold text-[14px] text-gray-900">
+          "Vendeur"
+        <span class="cv-subtitle font-normal italic text-[12.5px] text-indigo-700">
+          " | Boulangerie du Centre"
+      <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600 tracking-wide">
+        "juin 2024 - septembre 2024"

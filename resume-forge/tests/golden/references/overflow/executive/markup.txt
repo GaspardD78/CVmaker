@@ -1,0 +1,214 @@
+<div class="[font-family:Cambria,Georgia,serif] bg-white bg-white dark:bg-white dark:text-black max-w-[210mm] mx-auto print:m-0 print:max-w-none print:p-0 print:shadow-none print:w-full px-14 py-12 shadow-lg text-black text-gray-900" id="printable-cv" style="font-family: Calibri, Arial, sans-serif;">
+  <style>
+    "@media print { #printable-cv { padding: 8px 10px !important; } }"
+  <div class="cv-header-block dark:text-black mb-4 text-black text-center">
+    <div class="">
+      <h1 class="cv-name font-normal mb-1 text-[34px] text-center text-gray-900 tracking-[0.04em]">
+        "Sacha Moreau"
+      <h2 class="cv-job-title font-normal italic text-[15px] text-center text-red-900 tracking-wide uppercase">
+        "Chef de projet informatique"
+      <div class="cv-contact-info mt-2 text-[11.5px] text-center text-gray-600 tracking-wide">
+        <div class="flex flex-wrap gap-x-4 gap-y-1 justify-center">
+          <a class="hover:underline inline-flex items-center whitespace-nowrap" href="mailto:sacha.moreau@example.com" rel="noopener noreferrer" target="_blank">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.161V6a2 2 0 00-2-2H3z">
+              <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z">
+            "sacha.moreau@example.com"
+          <a class="hover:underline inline-flex items-center whitespace-nowrap" href="tel:0700000000" rel="noopener noreferrer" target="_blank">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 15.352V16.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z" fill-rule="evenodd">
+            "07 00 00 00 00"
+          <span class="inline-flex items-center whitespace-nowrap">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433a19.695 19.695 0 002.683-2.282c1.944-1.99 3.945-4.995 3.945-8.567a8 8 0 10-16 0c0 3.572 2.001 6.577 3.945 8.567a19.695 19.695 0 002.683 2.282 12.97 12.97 0 001.038.573l.018.008.006.003zM10 11.25a2.75 2.75 0 100-5.5 2.75 2.75 0 000 5.5z" fill-rule="evenodd">
+            "Nantes"
+  <hr class="border-gray-300 border-t mb-4 print:border-gray-400">
+  <div class="mb-5">
+    <p class="cv-summary italic leading-[1.65] px-8 text-[12.5px] text-center text-gray-800">
+      "Chef de projet informatique avec quinze ans d'expérience dans l'intégration de progiciels, la conduite du changement et le pilotage de prestataires. Habitué aux contextes industriels et aux organisations multi-sites."
+  <h3 class="border-b border-red-900/40 border-t font-bold mb-4 mt-7 print:break-after-avoid py-1.5 text-[12px] text-center text-red-900 tracking-[0.24em] uppercase">
+    "Expérience professionnelle"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Chef de projet ERP"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Atelier Numérique de l'Ouest — Nantes"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "février 2021 - Présent"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Pilotage du déploiement d'un ERP sur 6 sites de production"
+        <li>
+          "Coordination de 3 prestataires et d'une équipe interne de 8 personnes"
+        <li>
+          "Suivi budgétaire mensuel et reporting au comité de direction"
+        <li>
+          "Animation des ateliers de conception avec les métiers"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Chef de projet applicatif"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Logistique Atlantique — Saint-Nazaire"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "septembre 2017 - janvier 2021"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Refonte de l'outil de gestion d'entrepôt"
+        <li>
+          "Rédaction des cahiers des charges et recette fonctionnelle"
+        <li>
+          "Formation de 120 utilisateurs"
+        <li>
+          "Mise en place d'un support de niveau 2"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Consultant fonctionnel"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Cabinet Estuaire Conseil — Nantes"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "mars 2014 - août 2017"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Paramétrage de modules finance et achats"
+        <li>
+          "Reprise de données et migration depuis des systèmes historiques"
+        <li>
+          "Accompagnement au démarrage chez 9 clients"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Analyste métier"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Mutuelle du Grand Ouest — Angers"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "juin 2011 - février 2014"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Modélisation des processus de gestion des adhérents"
+        <li>
+          "Priorisation du backlog avec le responsable produit"
+        <li>
+          "Suivi des indicateurs de qualité de service"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Développeur"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Éditions Numériques de Loire — Tours"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "septembre 2008 - mai 2011"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Développement d'applications web de gestion éditoriale"
+        <li>
+          "Maintenance corrective et évolutive"
+        <li>
+          "Rédaction de la documentation technique"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Technicien support"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Services Informatiques Ligériens — Blois"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "juillet 2006 - août 2008"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Support utilisateurs de niveau 1 et 2"
+        <li>
+          "Installation et maintenance de postes de travail"
+        <li>
+          "Gestion du parc et des licences"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Stagiaire développeur"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Agence Web Val de Loire — Orléans"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "janvier 2006 - juin 2006"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Intégration de maquettes et développement de modules"
+        <li>
+          "Tests et corrections avant mise en production"
+  <h3 class="border-b border-red-900/40 border-t font-bold mb-4 mt-7 print:break-after-avoid py-1.5 text-[12px] text-center text-red-900 tracking-[0.24em] uppercase">
+    "Formation"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Master Management des systèmes d'information"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Université de Nantes — Nantes"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "2012 - 2014"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Licence professionnelle Développement web"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | IUT d'Orléans — Orléans"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "2005 - 2006"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "BTS Informatique de gestion"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Lycée Descartes — Tours"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "2003 - 2005"
+  <h3 class="border-b border-red-900/40 border-t font-bold mb-4 mt-7 print:break-after-avoid py-1.5 text-[12px] text-center text-red-900 tracking-[0.24em] uppercase">
+    "Projets"
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Portail fournisseurs"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Projet transverse"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "mars 2022 - juin 2023"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <p>
+        "Conception et déploiement d'un portail d'échange de commandes et de factures avec 200 fournisseurs."
+  <div class="cv-entry mb-5 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-bold text-[14px] text-gray-900">
+          "Application mobile d'inventaire"
+        <span class="cv-subtitle italic text-[12.5px] text-red-900">
+          " | Projet interne"
+      <span class="cv-date italic mb-1 tabular-nums text-[11.5px] text-gray-600">
+        "janvier 2019 - décembre 2019"
+    <div class="cv-desc leading-[1.6] text-[12px] text-gray-800 whitespace-pre-line">
+      <p>
+        "Application de saisie d'inventaire hors ligne pour les équipes d'entrepôt."
+  <h3 class="border-b border-red-900/40 border-t font-bold mb-4 mt-7 print:break-after-avoid py-1.5 text-[12px] text-center text-red-900 tracking-[0.24em] uppercase">
+    "Langues"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="flex flex-wrap gap-x-2 gap-y-1 mt-1">
+      <span class="after:content-[\"•\"] after:ml-2 after:text-red-900/60 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Anglais — Professionnel (B2)"
+      <span class="after:content-[\"•\"] after:ml-2 after:text-red-900/60 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Allemand — Notions (A2)"
