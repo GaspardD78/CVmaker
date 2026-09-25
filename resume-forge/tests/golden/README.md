@@ -185,6 +185,23 @@ Assertions par cas (`checkOverflow` dans `run.ts`) :
     la première ligne entièrement sous la page n'y figure pas ;
   - pas de dépassement : la dernière ligne de chaque colonne figure dans le PDF.
 
+- **auto-tests de la page de test** (`harness/main.tsx`, liste
+  `window.__GOLDEN_CHECKS__`, un échec = cas en échec) :
+  - mémorisation : une mesure annulée en cours de route, une mesure avec une
+    image non décodée ou une police en erreur, et une mesure en échec (pas de
+    `#printable-cv`) ne sont **jamais** mémorisées ; une mesure complète l'est,
+    et donne le même résultat que la première mesure du même HTML ;
+  - export : `exportNativePdf` avec confirmation reçoit exactement la mesure
+    mémorisée. Elle n'est pas appelée si le CV tient, elle l'est pour « dépasse »
+    et « de justesse », et un refus annule l'export ;
+  - ancrage : la première ligne coupée et la dernière ligne visible se
+    retrouvent dans le DOM de l'aperçu (`resolveLineAnchor`), ce qui sert à
+    placer le trait de coupure.
+
+  Ces auto-tests ont été vérifiés en introduisant volontairement des défauts :
+  mémorisation de toute mesure, suppression des contrôles d'annulation. Le
+  banc échoue alors bien.
+
 **Précision de la mesure.** La mesure se fait à l'écran, avec les règles
 `@media print` activées par CSSOM. Elle donne la même mise en page que
 l'émulation d'impression native de Chromium (vérifié sur 248 lignes). Le

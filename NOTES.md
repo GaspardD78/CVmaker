@@ -53,17 +53,25 @@ tests en place. Chemins relatifs à `resume-forge/`.
   `RightPanel` (dépassement, ou marge restante en mm) et trait de coupure
   mesuré à la place du repère fixe « Limite Page 1 » (295 mm à l'écran, faux
   car les marges d'impression diffèrent de celles de l'écran).
+  - B1 (fait) : `overflowStatus` partagé, ancrage des lignes
+    (`resolveLineAnchor`), annulation (`AbortSignal`), mémorisation de la
+    dernière mesure complète (polices chargées, images décodées), auto-tests
+    dans le banc.
+  - B2 (à faire) : `usePrintOverflow`, `OverflowBanner`, `RightPanel`. Desktop
+    uniquement : sur Android, le repère « Limite Page 1 » est conservé.
 - **Lot C : aligner « Ajuster à 1 page » sur `measurePrintOverflow`.**
   `handleFitToPage` (`LeftPanel.tsx`) compare le `scrollHeight` **à l'écran** à
   297 mm, alors que l'export imprime avec des marges de 8px 10px au lieu de
   40px 48px. Le bouton peut donc dire « tient » quand la confirmation d'export
   annonce un dépassement, ou l'inverse.
-- **Lot à décider : vérification côté Rust.** Mesurer aussi dans le Chrome de
-  l'export (`generate_pdf`) pour les webviews qui ne sont pas Chromium
-  (WebKit sous macOS et Linux). Hors lots A et B.
+- **Vérification côté Rust : non nécessaire pour l'usage actuel (Windows).**
+  Sous Windows, la webview (WebView2) utilise le même moteur Chromium que
+  l'export : la mesure dans la webview suffit. À rouvrir si l'export doit un
+  jour fonctionner sous macOS ou Linux (webview WebKit) : il faudrait alors
+  mesurer aussi dans le Chrome de l'export (`generate_pdf`).
 - **Marge de sécurité de la mesure** (décidée, lot A). À l'impression, le
   texte est très légèrement plus large qu'à l'écran : quelques lignes longues
   passent à la ligne plus tôt, et le contenu suivant descend d'environ une ligne
   (pire écart observé : 4,6 mm). Sous `OVERFLOW_SAFETY_MARGIN_MM` (5 mm), l'export
-  demande confirmation « de justesse ». À réévaluer si le lot Rust est réalisé
-  (mesure dans le Chrome même de l'impression).
+  demande confirmation « de justesse ». À réévaluer si la vérification côté
+  Rust est un jour réalisée (mesure dans le Chrome même de l'impression).

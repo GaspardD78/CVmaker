@@ -6,7 +6,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import type { PrintOverflow } from '@/lib/print-overflow';
+import { overflowStatus, type PrintOverflow } from '@/lib/print-overflow';
 
 interface OverflowConfirmDialogProps {
   overflow: PrintOverflow | null;
@@ -28,7 +28,7 @@ const mm = (value: number) => value.toLocaleString('fr-FR');
  * - CV qui tient de justesse (`overflow.tight`), sous la marge de sécurité de la mesure.
  */
 export function OverflowConfirmDialog({ overflow, onConfirm, onCancel }: OverflowConfirmDialogProps) {
-  const tight = Boolean(overflow && !overflow.overflows && overflow.tight);
+  const tight = overflow !== null && overflowStatus(overflow) === 'de justesse';
   const lines = overflow?.hiddenLines ?? 0;
   const last = overflow?.lastVisibleLine;
   const cut = overflow?.firstCutLine;
