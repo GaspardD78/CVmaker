@@ -19,11 +19,16 @@ function excerpt(text: string, max = 80): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+const mm = (value: number) => value.toLocaleString('fr-FR');
+
 /**
  * Confirmation avant un export PDF desktop qui couperait du contenu :
- * l'export n'imprime qu'une page A4, le surplus est perdu.
+ * l'export n'imprime qu'une page A4, le surplus est perdu. Deux cas :
+ * - dépassement mesuré (`overflow.overflows`) ;
+ * - CV qui tient de justesse (`overflow.tight`), sous la marge de sécurité de la mesure.
  */
 export function OverflowConfirmDialog({ overflow, onConfirm, onCancel }: OverflowConfirmDialogProps) {
+  const tight = Boolean(overflow && !overflow.overflows && overflow.tight);
   const lines = overflow?.hiddenLines ?? 0;
   const last = overflow?.lastVisibleLine;
   const cut = overflow?.firstCutLine;
@@ -34,17 +39,26 @@ export function OverflowConfirmDialog({ overflow, onConfirm, onCancel }: Overflo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="text-amber-500">⚠</span>
-            Le CV dépasse une page
+            {tight ? 'Le CV tient de justesse' : 'Le CV dépasse une page'}
           </DialogTitle>
           <DialogDescription>
-            Le CV dépasse la page A4 de {overflow?.overflowMm.toLocaleString('fr-FR')} mm
-            ({lines} ligne{lines > 1 ? 's' : ''} de texte). L'export PDF ne contient qu'une page :
-            {last
-              ? <> le contenu après la ligne « {excerpt(last.text)} » sera coupé.</>
-              : <> tout le contenu sera coupé.</>}
+            {tight ? (
+              <>
+                Le CV tient de justesse (marge restante {mm(overflow!.remainingMm)} mm). À l'impression,
+                la dernière ligne{last ? <> (« {excerpt(last.text)} »)</> : null} risque d'être coupée.
+              </>
+            ) : (
+              <>
+                Le CV dépasse la page A4 de {overflow ? mm(overflow.overflowMm) : ''} mm
+                ({lines} ligne{lines > 1 ? 's' : ''} de texte). L'export PDF ne contient qu'une page :
+                {last
+                  ? <> le contenu après la ligne « {excerpt(last.text)} » sera coupé.</>
+                  : <> tout le contenu sera coupé.</>}
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
-        {cut && (
+        {!tight && cut && (
           <p className="text-sm text-gray-600 dark:text-gray-300">
             Première ligne coupée{cut.section ? <> (section « {cut.section} »)</> : null} : « {excerpt(cut.text)} »
           </p>

@@ -61,8 +61,9 @@ tests en place. Chemins relatifs à `resume-forge/`.
 - **Lot à décider : vérification côté Rust.** Mesurer aussi dans le Chrome de
   l'export (`generate_pdf`) pour les webviews qui ne sont pas Chromium
   (WebKit sous macOS et Linux). Hors lots A et B.
-- **Marge de sécurité de la mesure** (à décider). À l'impression, le texte est
-  très légèrement plus large qu'à l'écran : quelques lignes longues passent à
-  la ligne plus tôt, et le contenu suivant descend d'environ une ligne (voir
-  `tests/golden/README.md`, section Dépassement de page). Un CV à moins
-  d'environ 5 mm de la limite peut être annoncé « tient » à tort.
+- **Marge de sécurité de la mesure** (décidée, lot A). À l'impression, le
+  texte est très légèrement plus large qu'à l'écran : quelques lignes longues
+  passent à la ligne plus tôt, et le contenu suivant descend d'environ une ligne
+  (pire écart observé : 4,6 mm). Sous `OVERFLOW_SAFETY_MARGIN_MM` (5 mm), l'export
+  demande confirmation « de justesse ». À réévaluer si le lot Rust est réalisé
+  (mesure dans le Chrome même de l'impression).

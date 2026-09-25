@@ -170,10 +170,13 @@ confirmation. Le banc applique cette mesure, dans la page de test, au HTML
 d'export capturé, et la confronte au PDF réellement imprimé.
 
 Assertions par cas (`checkOverflow` dans `run.ts`) :
-- **attente par fixture** : `minimal` et `long-titles` ne dépassent pas ;
-  `overflow` dépasse ; `anonymized-real` dépasse, sauf `academic` (le template
-  le plus compact, qui le fait tenir avec 3,2 mm de marge) ;
-- **référence** `overflow.json` : dépassement oui/non, quantité en mm
+- **attente par fixture**, parmi trois statuts (« dépasse », « de justesse »,
+  « tient ») : `minimal` et `long-titles` tiennent ; `overflow` dépasse ;
+  `anonymized-real` dépasse, sauf `academic` (le template le plus compact), qui
+  tient avec 3,2 mm de marge, donc « de justesse » ;
+- **« de justesse »** : `tight` doit valoir vrai si et seulement si le CV tient
+  avec une marge inférieure à `OVERFLOW_SAFETY_MARGIN_MM` ;
+- **référence** `overflow.json` : dépassement oui/non, de justesse oui/non, quantité en mm
   (tolérance ± 0,5 mm), marge restante, nombre de lignes coupées, dernière
   ligne visible et première ligne coupée ;
 - **cohérence avec le PDF** (texte réduit aux lettres et chiffres en
@@ -191,8 +194,11 @@ suit descend alors d'environ une ligne (4 à 5 mm). Sur les 48 cas, c'est
 arrivé pour 5 lignes dans 3 cas (`long-titles/ats-modern`,
 `long-titles/sidebar-modern`, `long-titles/sidebar-elegant`). Le banc
 l'affiche pour information (`[n ligne(s) coupée(s) autrement à
-l'impression]`) sans échouer. Conséquence : un CV à moins d'une ligne de la
-limite peut être annoncé « tient » alors qu'une dernière ligne sera coupée.
+l'impression]`) sans échouer. D'où la marge de sécurité
+`OVERFLOW_SAFETY_MARGIN_MM = 5` (`src/lib/print-overflow.ts`), juste au-dessus
+du pire écart observé (4,6 mm) : sous cette marge, le CV est signalé « de
+justesse » et l'export demande aussi confirmation. Si de nouveaux cas
+montrent un écart plus grand, relever cette constante.
 
 ## Critères de comparaison
 

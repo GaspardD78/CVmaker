@@ -1,5 +1,6 @@
 {
   "overflows": false,
+  "tight": false,
   "overflowMm": 0,
   "remainingMm": 98.7,
   "hiddenLines": 0,

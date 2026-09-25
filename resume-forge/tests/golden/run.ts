@@ -17,7 +17,7 @@ import { extractPdfText } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
 import { lineDiff } from './lib/diff';
 import { checkEnvironment } from './lib/env-check';
-import { PAGE_HEIGHT_MM, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
+import { OVERFLOW_SAFETY_MARGIN_MM, PAGE_HEIGHT_MM, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
 
 const GOLDEN_DIR = import.meta.dir;
 const PROJECT_DIR = resolve(GOLDEN_DIR, '../..');
@@ -70,12 +70,17 @@ const KNOWN_TZ_SHIFTS: { paris: string; newYork: string; what: string }[] = [
 
 // ── Dépassement de page (print-overflow.ts) ──────────────────────────────────
 
-/** Attente par fixture : dépassement oui/non. undefined = pas d'attente fixée (référence seule). */
-function expectedOverflow(c: GoldenCase): boolean | undefined {
-  if (c.suite === 'minimal' || c.suite === 'long-titles') return false;
-  if (c.suite === 'overflow') return true;
-  // academic, le template le plus compact, fait tenir anonymized-real sur une page.
-  if (c.suite === 'anonymized-real') return c.template !== 'academic';
+type OverflowStatus = 'dépasse' | 'de justesse' | 'tient';
+
+const statusOf = (o: PrintOverflow): OverflowStatus => (o.overflows ? 'dépasse' : o.tight ? 'de justesse' : 'tient');
+
+/** Attente par fixture. undefined = pas d'attente fixée (référence seule). */
+function expectedStatus(c: GoldenCase): OverflowStatus | undefined {
+  if (c.suite === 'minimal' || c.suite === 'long-titles') return 'tient';
+  if (c.suite === 'overflow') return 'dépasse';
+  // academic, le template le plus compact, fait tenir anonymized-real avec
+  // 3,2 mm de marge : sous OVERFLOW_SAFETY_MARGIN_MM, donc « de justesse ».
+  if (c.suite === 'anonymized-real') return c.template === 'academic' ? 'de justesse' : 'dépasse';
   return undefined;
 }
 
@@ -86,6 +91,7 @@ const MIN_PROBE_CHARS = 12;
 
 interface OverflowRef {
   overflows: boolean;
+  tight: boolean;
   overflowMm: number;
   remainingMm: number;
   hiddenLines: number;
@@ -96,6 +102,7 @@ interface OverflowRef {
 function toOverflowRef(o: PrintOverflow): OverflowRef {
   return {
     overflows: o.overflows,
+    tight: o.tight,
     overflowMm: o.overflowMm,
     remainingMm: o.remainingMm,
     hiddenLines: o.hiddenLines,
@@ -143,10 +150,12 @@ function checkOverflowCoherence(o: PrintOverflow, pdfText: string, pages: number
 
 function checkOverflow(c: GoldenCase, o: PrintOverflow, pdfText: string, pages: number, refDir: string): { problems: string[]; unmatched: string[] } {
   const problems: string[] = [];
-  const expected = expectedOverflow(c);
-  if (expected !== undefined && expected !== o.overflows) {
-    problems.push(`dépassement ${o.overflows ? 'détecté' : 'non détecté'}, attendu : ${expected ? 'dépassement' : 'pas de dépassement'}`);
+  const expected = expectedStatus(c);
+  if (expected !== undefined && expected !== statusOf(o)) {
+    problems.push(`statut « ${statusOf(o)} », attendu « ${expected} »`);
   }
+  const shouldBeTight = !o.overflows && o.remainingMm < OVERFLOW_SAFETY_MARGIN_MM;
+  if (o.tight !== shouldBeTight) problems.push(`tight=${o.tight} incohérent avec la marge restante ${o.remainingMm} mm (seuil ${OVERFLOW_SAFETY_MARGIN_MM} mm)`);
   const coherence = checkOverflowCoherence(o, pdfText, pages);
   problems.push(...coherence.problems);
   const refPath = join(refDir, 'overflow.json');
@@ -157,6 +166,7 @@ function checkOverflow(c: GoldenCase, o: PrintOverflow, pdfText: string, pages: 
   const ref = JSON.parse(readFileSync(refPath, 'utf8')) as OverflowRef;
   const cur = toOverflowRef(o);
   if (ref.overflows !== cur.overflows) problems.push(`dépassement : ${cur.overflows} au lieu de ${ref.overflows}`);
+  if (ref.tight !== cur.tight) problems.push(`de justesse : ${cur.tight} au lieu de ${ref.tight}`);
   if (Math.abs(ref.overflowMm - cur.overflowMm) > OVERFLOW_TOLERANCE_MM) problems.push(`dépassement : ${cur.overflowMm} mm au lieu de ${ref.overflowMm} mm`);
   if (Math.abs(ref.remainingMm - cur.remainingMm) > OVERFLOW_TOLERANCE_MM) problems.push(`marge restante : ${cur.remainingMm} mm au lieu de ${ref.remainingMm} mm`);
   if (ref.hiddenLines !== cur.hiddenLines) problems.push(`lignes coupées : ${cur.hiddenLines} au lieu de ${ref.hiddenLines}`);
@@ -268,7 +278,9 @@ async function main() {
       results.push(result);
       const ov = overflow.overflows
         ? `dépasse de ${overflow.overflowMm} mm, ${overflow.hiddenLines} ligne(s) coupée(s)`
-        : `tient, marge ${overflow.remainingMm} mm`;
+        : overflow.tight
+          ? `DE JUSTESSE, marge ${overflow.remainingMm} mm`
+          : `tient, marge ${overflow.remainingMm} mm`;
       const wrapInfo = result.unmatchedLines?.length ? ` [${result.unmatchedLines.length} ligne(s) coupée(s) autrement à l'impression]` : '';
       console.log(`${result.ok ? 'OK  ' : 'FAIL'} ${c.id.padEnd(34)} ${pages} p. — ${ov}${wrapInfo}${result.problems.map((p) => `\n    - ${p}`).join('')}`);
     }

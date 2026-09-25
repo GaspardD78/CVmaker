@@ -19,6 +19,16 @@ const PX_PER_MM = 96 / 25.4;
 export const PAGE_WIDTH_MM = 210;
 export const PAGE_HEIGHT_MM = 297;
 
+/**
+ * Marge de sécurité (mm) sous laquelle un CV qui tient est signalé « de justesse ».
+ * La mesure se fait à l'écran : à l'impression, le texte est très légèrement
+ * plus large, et une ligne longue peut passer à la ligne un mot plus tôt,
+ * décalant tout le contenu suivant d'environ une ligne. Pire écart observé
+ * par les golden tests : 4,6 mm sur 48 cas (5 lignes sur 248, 3 cas
+ * long-titles ; voir tests/golden/README.md, section Dépassement de page).
+ */
+export const OVERFLOW_SAFETY_MARGIN_MM = 5;
+
 /** Écart vertical (px) sous lequel deux fragments de texte sont sur la même ligne. */
 const SAME_LINE_PX = 2;
 
@@ -35,6 +45,11 @@ export interface PrintLine {
 
 export interface PrintOverflow {
   overflows: boolean;
+  /**
+   * Le CV tient, mais avec moins de OVERFLOW_SAFETY_MARGIN_MM de marge :
+   * la dernière ligne risque d'être coupée à l'impression.
+   */
+  tight: boolean;
   /** Bas du dernier texte, en mm depuis le haut de la page. */
   contentBottomMm: number;
   /** Hauteur de contenu au-delà de la page (0 si le CV tient). */
@@ -160,11 +175,13 @@ export function analyzePrintLayout(doc: Document): PrintOverflow {
   const cut = lines.filter((l) => l.bottomMm > PAGE_HEIGHT_MM);
   const visible = lines.filter((l) => l.bottomMm <= PAGE_HEIGHT_MM);
   const round = (v: number) => Math.round(v * 10) / 10;
+  const remainingMm = round(Math.max(0, PAGE_HEIGHT_MM - contentBottomMm));
   return {
     overflows: cut.length > 0,
+    tight: cut.length === 0 && remainingMm < OVERFLOW_SAFETY_MARGIN_MM,
     contentBottomMm: round(contentBottomMm),
     overflowMm: round(Math.max(0, contentBottomMm - PAGE_HEIGHT_MM)),
-    remainingMm: round(Math.max(0, PAGE_HEIGHT_MM - contentBottomMm)),
+    remainingMm,
     hiddenLines: cut.length,
     lastVisibleLine: visible.length ? visible.reduce((a, b) => (b.bottomMm >= a.bottomMm ? b : a)) : null,
     firstCutLine: cut[0] ?? null,

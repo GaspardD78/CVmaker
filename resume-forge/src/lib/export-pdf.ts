@@ -247,7 +247,8 @@ async function exportPdfDesktop(sourceElementId: string, options: ExportPdfOptio
 
   const htmlContent = await buildDesktopExportHtml(cvNode);
 
-  // L'export desktop n'imprime qu'une page : prévenir avant de couper du contenu.
+  // L'export desktop n'imprime qu'une page : prévenir avant de couper du contenu,
+  // y compris quand le CV tient de justesse (marge de sécurité de la mesure).
   if (options.confirmOverflow) {
     let overflow: PrintOverflow | null = null;
     try {
@@ -256,7 +257,7 @@ async function exportPdfDesktop(sourceElementId: string, options: ExportPdfOptio
       console.error('Mesure du dépassement de page impossible :', error);
       toast.warning("Impossible de vérifier si le CV tient sur une page. L'export continue.");
     }
-    if (overflow?.overflows && !(await options.confirmOverflow(overflow))) {
+    if ((overflow?.overflows || overflow?.tight) && !(await options.confirmOverflow(overflow))) {
       return false;
     }
   }
@@ -286,7 +287,8 @@ async function exportPdfDesktop(sourceElementId: string, options: ExportPdfOptio
 export interface ExportPdfOptions {
   /**
    * Appelé sur desktop quand le CV dépasse la page A4 imprimée (le surplus
-   * serait coupé). Résoudre `false` annule l'export. Sans callback, aucune
+   * serait coupé) ou la remplit à moins de OVERFLOW_SAFETY_MARGIN_MM près
+   * (`overflow.tight`). Résoudre `false` annule l'export. Sans callback, aucune
    * vérification n'est faite.
    */
   confirmOverflow?: (overflow: PrintOverflow) => Promise<boolean>;
