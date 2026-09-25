@@ -1,0 +1,63 @@
+{
+  "description": "CV trop long pour une page dans tous les templates (y compris academic, le plus compact) : sert à vérifier la détection du dépassement de page. La dernière section (Langues) est toujours coupée.",
+  "profile": {
+    "firstName": "Sacha",
+    "lastName": "Moreau",
+    "email": "sacha.moreau@example.com",
+    "phone": "07 00 00 00 00",
+    "city": "Nantes",
+    "title": "Chef de projet informatique",
+    "summary": "Chef de projet informatique avec quinze ans d'expérience dans l'intégration de progiciels, la conduite du changement et le pilotage de prestataires. Habitué aux contextes industriels et aux organisations multi-sites."
+  },
+  "cv": {
+    "name": "CV golden — dépassement",
+    "targetJob": null,
+    "customSummary": null,
+    "settings": {}
+  },
+  "sections": [
+    {
+      "name": "Expérience professionnelle",
+      "items": [
+        { "entryType": "experience", "title": "Chef de projet ERP", "subtitle": "Atelier Numérique de l'Ouest", "location": "Nantes", "startDate": "2021-02", "isCurrent": true,
+          "description": "- Pilotage du déploiement d'un ERP sur 6 sites de production\n- Coordination de 3 prestataires et d'une équipe interne de 8 personnes\n- Suivi budgétaire mensuel et reporting au comité de direction\n- Animation des ateliers de conception avec les métiers" },
+        { "entryType": "experience", "title": "Chef de projet applicatif", "subtitle": "Logistique Atlantique", "location": "Saint-Nazaire", "startDate": "2017-09", "endDate": "2021-01",
+          "description": "- Refonte de l'outil de gestion d'entrepôt\n- Rédaction des cahiers des charges et recette fonctionnelle\n- Formation de 120 utilisateurs\n- Mise en place d'un support de niveau 2" },
+        { "entryType": "experience", "title": "Consultant fonctionnel", "subtitle": "Cabinet Estuaire Conseil", "location": "Nantes", "startDate": "2014-03", "endDate": "2017-08",
+          "description": "- Paramétrage de modules finance et achats\n- Reprise de données et migration depuis des systèmes historiques\n- Accompagnement au démarrage chez 9 clients" },
+        { "entryType": "experience", "title": "Analyste métier", "subtitle": "Mutuelle du Grand Ouest", "location": "Angers", "startDate": "2011-06", "endDate": "2014-02",
+          "description": "- Modélisation des processus de gestion des adhérents\n- Priorisation du backlog avec le responsable produit\n- Suivi des indicateurs de qualité de service" },
+        { "entryType": "experience", "title": "Développeur", "subtitle": "Éditions Numériques de Loire", "location": "Tours", "startDate": "2008-09", "endDate": "2011-05",
+          "description": "- Développement d'applications web de gestion éditoriale\n- Maintenance corrective et évolutive\n- Rédaction de la documentation technique" },
+        { "entryType": "experience", "title": "Technicien support", "subtitle": "Services Informatiques Ligériens", "location": "Blois", "startDate": "2006-07", "endDate": "2008-08",
+          "description": "- Support utilisateurs de niveau 1 et 2\n- Installation et maintenance de postes de travail\n- Gestion du parc et des licences" },
+        { "entryType": "experience", "title": "Stagiaire développeur", "subtitle": "Agence Web Val de Loire", "location": "Orléans", "startDate": "2006-01", "endDate": "2006-06",
+          "description": "- Intégration de maquettes et développement de modules\n- Tests et corrections avant mise en production" }
+      ]
+    },
+    {
+      "name": "Formation",
+      "items": [
+        { "entryType": "education", "title": "Master Management des systèmes d'information", "subtitle": "Université de Nantes", "location": "Nantes", "startDate": "2012-09", "endDate": "2014-06" },
+        { "entryType": "education", "title": "Licence professionnelle Développement web", "subtitle": "IUT d'Orléans", "location": "Orléans", "startDate": "2005-09", "endDate": "2006-06" },
+        { "entryType": "education", "title": "BTS Informatique de gestion", "subtitle": "Lycée Descartes", "location": "Tours", "startDate": "2003-09", "endDate": "2005-06" }
+      ]
+    },
+    {
+      "name": "Projets",
+      "items": [
+        { "entryType": "project", "title": "Portail fournisseurs", "subtitle": "Projet transverse", "startDate": "2022-03", "endDate": "2023-06",
+          "description": "Conception et déploiement d'un portail d'échange de commandes et de factures avec 200 fournisseurs." },
+        { "entryType": "project", "title": "Application mobile d'inventaire", "subtitle": "Projet interne", "startDate": "2019-01", "endDate": "2019-12",
+          "description": "Application de saisie d'inventaire hors ligne pour les équipes d'entrepôt." }
+      ]
+    },
+    {
+      "name": "Langues",
+      "items": [
+        { "entryType": "language", "title": "Anglais", "subtitle": "Professionnel (B2)" },
+        { "entryType": "language", "title": "Allemand", "subtitle": "Notions (A2)" }
+      ]
+    }
+  ]
+}

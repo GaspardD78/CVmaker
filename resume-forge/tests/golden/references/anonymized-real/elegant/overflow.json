@@ -1,0 +1,9 @@
+{
+  "overflows": true,
+  "tight": false,
+  "overflowMm": 53.8,
+  "remainingMm": 0,
+  "hiddenLines": 6,
+  "lastVisibleLine": "Certifications",
+  "firstCutLine": "Microsoft Certified: Azure Data Engineer Associate Databricks Certified Data Engineer Professional"
+}

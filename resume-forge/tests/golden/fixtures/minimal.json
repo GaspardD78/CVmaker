@@ -1,0 +1,28 @@
+{
+  "description": "CV minimal : nom, un seul contact, une section avec une expérience sans description. Pas de photo, pas de résumé, pas de poste visé.",
+  "profile": {
+    "firstName": "Léo",
+    "lastName": "Martin",
+    "email": "leo.martin@example.com"
+  },
+  "cv": {
+    "name": "CV golden — minimal",
+    "targetJob": null,
+    "customSummary": null,
+    "settings": {}
+  },
+  "sections": [
+    {
+      "name": "Expérience",
+      "items": [
+        {
+          "entryType": "experience",
+          "title": "Vendeur",
+          "subtitle": "Boulangerie du Centre",
+          "startDate": "2024-06",
+          "endDate": "2024-09"
+        }
+      ]
+    }
+  ]
+}

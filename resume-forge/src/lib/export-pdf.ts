@@ -4,6 +4,7 @@ import { writeFile } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
 import { isTauri, isAndroid } from './platform';
 import { shareBlob } from './share';
+import { measurePrintOverflow, type PrintOverflow } from './print-overflow';
 
 /**
  * Exporte le CV en PDF.
@@ -184,13 +185,12 @@ async function exportPdfAndroid(sourceElementId: string): Promise<boolean> {
 
 // ── Chemin Desktop (Vectoriel natif via Headless Chrome) ─────────────────────
 
-async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
-  const cvNode = document.getElementById(sourceElementId);
-  if (!cvNode) {
-    console.error(`exportPdfDesktop: #${sourceElementId} introuvable`);
-    return false;
-  }
-
+/**
+ * Construit le document HTML autonome envoyé à `generate_pdf` (Headless Chrome).
+ * Partagé avec la mesure de dépassement de page (`print-overflow.ts`) pour que
+ * la mesure porte exactement sur le document imprimé.
+ */
+export async function buildDesktopExportHtml(cvNode: HTMLElement): Promise<string> {
   const clonedCv = cvNode.cloneNode(true) as HTMLElement;
   const inlinedStyles = await getInlinedStyles();
 
@@ -235,6 +235,33 @@ async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
     </html>
   `;
 
+  return htmlContent;
+}
+
+async function exportPdfDesktop(sourceElementId: string, options: ExportPdfOptions): Promise<boolean> {
+  const cvNode = document.getElementById(sourceElementId);
+  if (!cvNode) {
+    console.error(`exportPdfDesktop: #${sourceElementId} introuvable`);
+    return false;
+  }
+
+  const htmlContent = await buildDesktopExportHtml(cvNode);
+
+  // L'export desktop n'imprime qu'une page : prévenir avant de couper du contenu,
+  // y compris quand le CV tient de justesse (marge de sécurité de la mesure).
+  if (options.confirmOverflow) {
+    let overflow: PrintOverflow | null = null;
+    try {
+      overflow = await measurePrintOverflow(htmlContent);
+    } catch (error) {
+      console.error('Mesure du dépassement de page impossible :', error);
+      toast.warning("Impossible de vérifier si le CV tient sur une page. L'export continue.");
+    }
+    if ((overflow?.overflows || overflow?.tight) && !(await options.confirmOverflow(overflow))) {
+      return false;
+    }
+  }
+
   try {
     const filePath = await save({
       defaultPath: 'cv_export.pdf',
@@ -257,13 +284,23 @@ async function exportPdfDesktop(sourceElementId: string): Promise<boolean> {
 
 // ── Point d'entrée public ─────────────────────────────────────────────────────
 
+export interface ExportPdfOptions {
+  /**
+   * Appelé sur desktop quand le CV dépasse la page A4 imprimée (le surplus
+   * serait coupé) ou la remplit à moins de OVERFLOW_SAFETY_MARGIN_MM près
+   * (`overflow.tight`). Résoudre `false` annule l'export. Sans callback, aucune
+   * vérification n'est faite.
+   */
+  confirmOverflow?: (overflow: PrintOverflow) => Promise<boolean>;
+}
+
 /**
  * Exporte le CV en PDF.
  * - Desktop Tauri   → Headless Chrome (vectoriel)
  * - Android Tauri   → jsPDF + html2canvas + Web Share API
  * - Navigateur web  → window.print()
  */
-export async function exportNativePdf(sourceElementId = 'printable-cv'): Promise<boolean> {
+export async function exportNativePdf(sourceElementId = 'printable-cv', options: ExportPdfOptions = {}): Promise<boolean> {
   if (!isTauri()) {
     return exportPdfWebFallback();
   }
@@ -272,5 +309,5 @@ export async function exportNativePdf(sourceElementId = 'printable-cv'): Promise
     return exportPdfAndroid(sourceElementId);
   }
 
-  return exportPdfDesktop(sourceElementId);
+  return exportPdfDesktop(sourceElementId, options);
 }
