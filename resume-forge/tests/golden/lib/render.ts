@@ -108,7 +108,7 @@ export class GoldenRenderer {
   }
 
   /** Rend un cas : HTML d'export capturé, mesure de dépassement de page et PDF imprimé. */
-  async renderPdf(data: CaseData, timezoneId: string, workDir: string): Promise<{ html: string; overflow: PrintOverflow; pdf: Uint8Array }> {
+  async renderPdf(data: CaseData, timezoneId: string, workDir: string): Promise<{ html: string; overflow: PrintOverflow; checks: string[]; pdf: Uint8Array }> {
     const context = await this.browser.newContext({
       timezoneId,
       locale: 'fr-FR',
@@ -124,9 +124,9 @@ export class GoldenRenderer {
         const w = window as unknown as { __GOLDEN_OVERFLOW__?: unknown; __GOLDEN_ERROR__?: string };
         return Boolean(w.__GOLDEN_OVERFLOW__ || w.__GOLDEN_ERROR__);
       }, undefined, { timeout: 30_000 });
-      const { html, overflow, error } = await page.evaluate(() => {
-        const w = window as unknown as { __GOLDEN_HTML__?: string; __GOLDEN_OVERFLOW__?: PrintOverflow; __GOLDEN_ERROR__?: string };
-        return { html: w.__GOLDEN_HTML__ ?? '', overflow: w.__GOLDEN_OVERFLOW__ as PrintOverflow, error: w.__GOLDEN_ERROR__ ?? '' };
+      const { html, overflow, checks, error } = await page.evaluate(() => {
+        const w = window as unknown as { __GOLDEN_HTML__?: string; __GOLDEN_OVERFLOW__?: PrintOverflow; __GOLDEN_CHECKS__?: string[]; __GOLDEN_ERROR__?: string };
+        return { html: w.__GOLDEN_HTML__ ?? '', overflow: w.__GOLDEN_OVERFLOW__ as PrintOverflow, checks: w.__GOLDEN_CHECKS__ ?? ['auto-tests absents'], error: w.__GOLDEN_ERROR__ ?? '' };
       });
       if (error) throw new Error(`Erreur dans la page de test : ${error}`);
       if (pageErrors.length) throw new Error(`Erreurs JS dans la page de test : ${pageErrors.join(' | ')}`);
@@ -141,7 +141,7 @@ export class GoldenRenderer {
       await printPage.goto(pathToFileURL(htmlPath).href, { waitUntil: 'load' });
       const pdf = await printPage.pdf(PDF_OPTIONS);
       await printPage.close();
-      return { html, overflow, pdf: new Uint8Array(pdf) };
+      return { html, overflow, checks, pdf: new Uint8Array(pdf) };
     } finally {
       await context.close();
     }

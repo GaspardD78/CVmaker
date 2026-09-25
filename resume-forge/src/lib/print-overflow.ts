@@ -12,6 +12,11 @@
  *   désactivées via le CSSOM, y compris dans les règles imbriquées (@layer…) ;
  * - chaque ligne de texte dont le bas dépasse 297 mm est considérée comme coupée.
  *
+ * Le dernier résultat complet est gardé en mémoire, associé au HTML mesuré :
+ * l'aperçu et la confirmation d'export obtiennent ainsi le même résultat pour
+ * un CV inchangé. Une mesure annulée, en échec ou incomplète (polices ou
+ * images non chargées) n'est jamais mémorisée.
+ *
  * Validée contre les PDF réels par les golden tests (tests/golden).
  */
 
@@ -29,6 +34,13 @@ export const PAGE_HEIGHT_MM = 297;
  */
 export const OVERFLOW_SAFETY_MARGIN_MM = 5;
 
+export type OverflowStatus = 'dépasse' | 'de justesse' | 'tient';
+
+/** Statut unique partagé par l'aperçu, la confirmation d'export et les tests. */
+export function overflowStatus(o: PrintOverflow): OverflowStatus {
+  return o.overflows ? 'dépasse' : o.tight ? 'de justesse' : 'tient';
+}
+
 /** Écart vertical (px) sous lequel deux fragments de texte sont sur la même ligne. */
 const SAME_LINE_PX = 2;
 
@@ -41,6 +53,22 @@ export interface PrintLine {
   column: 'sidebar' | 'main' | 'page';
   topMm: number;
   bottomMm: number;
+  /**
+   * Début de la ligne dans l'arbre du CV, pour la retrouver dans l'aperçu
+   * (voir resolveLineAnchor). Le document mesuré est un clone de l'aperçu
+   * repassé par du HTML : les nœuds texte adjacents y sont fusionnés, seule la
+   * structure des éléments est garantie identique.
+   */
+  anchor: LineAnchor;
+}
+
+export interface LineAnchor {
+  /** Indices des éléments enfants depuis #printable-cv jusqu'à l'élément contenant le texte. */
+  path: number[];
+  /** Position du premier caractère de la ligne dans le textContent de cet élément. */
+  offset: number;
+  /** Longueur du premier fragment de la ligne dans cet élément. */
+  length: number;
 }
 
 export interface PrintOverflow {
@@ -90,7 +118,7 @@ function activatePrintRules(doc: Document): void {
   }
 }
 
-interface Fragment { node: Text; text: string; top: number; bottom: number; column: Element | null }
+interface Fragment { node: Text; start: number; text: string; top: number; bottom: number; column: Element | null }
 
 /** Découpe chaque nœud texte en fragments par ligne visuelle. */
 function collectFragments(doc: Document, root: HTMLElement): Fragment[] {
@@ -106,7 +134,7 @@ function collectFragments(doc: Document, root: HTMLElement): Fragment[] {
     const rects = Array.from(range.getClientRects()).filter((r) => r.height > 0);
     if (rects.length === 0) continue;
     if (rects.length === 1) {
-      frags.push({ node, text: value, top: rects[0].top, bottom: rects[0].bottom, column });
+      frags.push({ node, start: 0, text: value, top: rects[0].top, bottom: rects[0].bottom, column });
       continue;
     }
     // Nœud sur plusieurs lignes : on répartit les caractères par ligne.
@@ -117,7 +145,7 @@ function collectFragments(doc: Document, root: HTMLElement): Fragment[] {
       const r = range.getBoundingClientRect();
       if (r.height === 0) { if (current) current.text += value[i]; continue; }
       if (!current || Math.abs(r.top - current.top) > SAME_LINE_PX) {
-        current = { node, text: '', top: r.top, bottom: r.bottom, column };
+        current = { node, start: i, text: '', top: r.top, bottom: r.bottom, column };
         frags.push(current);
       }
       current.text += value[i];
@@ -125,6 +153,46 @@ function collectFragments(doc: Document, root: HTMLElement): Fragment[] {
     }
   }
   return frags;
+}
+
+/** Ancrage d'un fragment : chemin d'éléments depuis `root` et position dans le texte de l'élément. */
+function anchorOf(root: Element, frag: Fragment): LineAnchor {
+  const parent = frag.node.parentElement!;
+  const path: number[] = [];
+  for (let el: Element = parent; el !== root && el.parentElement; el = el.parentElement) {
+    path.unshift(Array.prototype.indexOf.call(el.parentElement.children, el));
+  }
+  let offset = frag.start;
+  const walker = parent.ownerDocument.createTreeWalker(parent, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n && n !== frag.node; n = walker.nextNode()) offset += (n as Text).data.length;
+  return { path, offset, length: frag.text.length };
+}
+
+const squash = (t: string) => t.replace(/\s+/g, ' ').trim();
+
+/**
+ * Retrouve dans `root` (le #printable-cv de l'aperçu) le début d'une ligne
+ * mesurée : nœud texte et position du premier caractère. Retourne null si
+ * l'arbre ne correspond plus (CV modifié depuis la mesure) : le texte trouvé
+ * doit être le début de la ligne.
+ */
+export function resolveLineAnchor(root: Element, line: PrintLine): { node: Text; offset: number } | null {
+  let el: Element | undefined = root;
+  for (const i of line.anchor.path) {
+    el = el?.children[i];
+    if (!el) return null;
+  }
+  const text = el.textContent ?? '';
+  const head = squash(text.slice(line.anchor.offset, line.anchor.offset + line.anchor.length));
+  if (!head || !line.text.startsWith(head)) return null;
+  let remaining = line.anchor.offset;
+  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const node = n as Text;
+    if (remaining < node.data.length) return { node, offset: remaining };
+    remaining -= node.data.length;
+  }
+  return null;
 }
 
 /** Regroupe les fragments en lignes (par colonne pour les layouts sidebar). */
@@ -155,11 +223,12 @@ function buildLines(doc: Document, root: HTMLElement, frags: Fragment[]): PrintL
         text += f.text;
       }
       return {
-        text: text.replace(/\s+/g, ' ').trim(),
+        text: squash(text),
         section: sectionOf(g.frags[0].node),
         column: (g.column?.classList.contains('cv-sidebar') ? 'sidebar' : g.column ? 'main' : 'page') as PrintLine['column'],
         topMm: g.top / PX_PER_MM,
         bottomMm: g.bottom / PX_PER_MM,
+        anchor: anchorOf(root, g.frags[0]),
       };
     })
     .filter((l) => l.text)
@@ -189,11 +258,49 @@ export function analyzePrintLayout(doc: Document): PrintOverflow {
   };
 }
 
+export interface MeasureOptions {
+  /** Annule la mesure (l'appelant a un CV plus récent à mesurer). */
+  signal?: AbortSignal;
+}
+
+/** Dernière mesure complète, associée au HTML mesuré. */
+let lastComplete: { html: string; result: PrintOverflow } | null = null;
+
+/** Résultat mémorisé pour ce HTML exact, ou null (exposé pour les tests). */
+export function cachedPrintOverflow(html: string): PrintOverflow | null {
+  return lastComplete?.html === html ? structuredClone(lastComplete.result) : null;
+}
+
+/** Vide la mémoire (tests uniquement). */
+export function clearPrintOverflowCache(): void {
+  lastComplete = null;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new DOMException('Mesure annulée', 'AbortError');
+}
+
+/** Toutes les polices chargées sans erreur, et toutes les images décodées. */
+async function resourcesReady(doc: Document): Promise<boolean> {
+  await doc.fonts.ready;
+  let fontsOk = doc.fonts.status === 'loaded';
+  doc.fonts.forEach((face) => { if (face.status === 'error' || face.status === 'loading') fontsOk = false; });
+  const images = await Promise.all(
+    Array.from(doc.images).map((img) => img.decode().then(() => true, () => false)),
+  );
+  return fontsOk && images.every(Boolean);
+}
+
 /**
  * Mesure le dépassement de page du HTML d'export desktop.
  * Doit être appelée dans un navigateur (webview de l'app, ou Chromium pour les tests).
+ * Rejette avec une DOMException « AbortError » si `options.signal` est déclenché.
  */
-export async function measurePrintOverflow(html: string): Promise<PrintOverflow> {
+export async function measurePrintOverflow(html: string, options: MeasureOptions = {}): Promise<PrintOverflow> {
+  const cached = cachedPrintOverflow(html);
+  if (cached) return cached;
+  throwIfAborted(options.signal);
+
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
   iframe.tabIndex = -1;
@@ -208,9 +315,14 @@ export async function measurePrintOverflow(html: string): Promise<PrintOverflow>
     doc.write(html);
     doc.close();
     activatePrintRules(doc);
-    await doc.fonts.ready;
+    throwIfAborted(options.signal);
+    const complete = await resourcesReady(doc);
+    throwIfAborted(options.signal);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    return analyzePrintLayout(doc);
+    throwIfAborted(options.signal);
+    const result = analyzePrintLayout(doc);
+    if (complete) lastComplete = { html, result: structuredClone(result) };
+    return result;
   } finally {
     iframe.remove();
   }

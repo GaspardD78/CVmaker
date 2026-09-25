@@ -17,7 +17,7 @@ import { extractPdfText } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
 import { lineDiff } from './lib/diff';
 import { checkEnvironment } from './lib/env-check';
-import { OVERFLOW_SAFETY_MARGIN_MM, PAGE_HEIGHT_MM, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
+import { OVERFLOW_SAFETY_MARGIN_MM, PAGE_HEIGHT_MM, overflowStatus, type OverflowStatus, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
 
 const GOLDEN_DIR = import.meta.dir;
 const PROJECT_DIR = resolve(GOLDEN_DIR, '../..');
@@ -69,10 +69,6 @@ const KNOWN_TZ_SHIFTS: { paris: string; newYork: string; what: string }[] = [
 ];
 
 // ── Dépassement de page (print-overflow.ts) ──────────────────────────────────
-
-type OverflowStatus = 'dépasse' | 'de justesse' | 'tient';
-
-const statusOf = (o: PrintOverflow): OverflowStatus => (o.overflows ? 'dépasse' : o.tight ? 'de justesse' : 'tient');
 
 /** Attente par fixture. undefined = pas d'attente fixée (référence seule). */
 function expectedStatus(c: GoldenCase): OverflowStatus | undefined {
@@ -151,8 +147,8 @@ function checkOverflowCoherence(o: PrintOverflow, pdfText: string, pages: number
 function checkOverflow(c: GoldenCase, o: PrintOverflow, pdfText: string, pages: number, refDir: string): { problems: string[]; unmatched: string[] } {
   const problems: string[] = [];
   const expected = expectedStatus(c);
-  if (expected !== undefined && expected !== statusOf(o)) {
-    problems.push(`statut « ${statusOf(o)} », attendu « ${expected} »`);
+  if (expected !== undefined && expected !== overflowStatus(o)) {
+    problems.push(`statut « ${overflowStatus(o)} », attendu « ${expected} »`);
   }
   const shouldBeTight = !o.overflows && o.remainingMm < OVERFLOW_SAFETY_MARGIN_MM;
   if (o.tight !== shouldBeTight) problems.push(`tight=${o.tight} incohérent avec la marge restante ${o.remainingMm} mm (seuil ${OVERFLOW_SAFETY_MARGIN_MM} mm)`);
@@ -223,7 +219,7 @@ async function main() {
       const refDir = join(REF_DIR, c.suite, c.template);
 
       const { data } = loadFixture(c.fixture, c.template);
-      const { pdf, overflow } = await renderer.renderPdf(data, c.timezoneId, outDir);
+      const { pdf, overflow, checks } = await renderer.renderPdf(data, c.timezoneId, outDir);
       writeFileSync(join(outDir, 'overflow.json'), JSON.stringify(overflow, null, 2));
       writeFileSync(join(outDir, 'actual.pdf'), pdf);
       const { pages, text } = await extractPdfText(pdf);
@@ -273,6 +269,8 @@ async function main() {
       }
       const overflowCheck = checkOverflow(c, overflow, text, pages, refDir);
       if (overflowCheck.problems.length) { result.ok = false; result.problems.push(...overflowCheck.problems); }
+      // Auto-tests de la page de test : mémorisation des mesures, export, ancrage.
+      if (checks.length) { result.ok = false; result.problems.push(...checks.map((m) => `auto-test : ${m}`)); }
       result.unmatchedLines = overflowCheck.unmatched;
 
       results.push(result);

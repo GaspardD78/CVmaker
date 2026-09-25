@@ -4,7 +4,7 @@ import { writeFile } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
 import { isTauri, isAndroid } from './platform';
 import { shareBlob } from './share';
-import { measurePrintOverflow, type PrintOverflow } from './print-overflow';
+import { measurePrintOverflow, overflowStatus, type PrintOverflow } from './print-overflow';
 
 /**
  * Exporte le CV en PDF.
@@ -257,7 +257,7 @@ async function exportPdfDesktop(sourceElementId: string, options: ExportPdfOptio
       console.error('Mesure du dépassement de page impossible :', error);
       toast.warning("Impossible de vérifier si le CV tient sur une page. L'export continue.");
     }
-    if ((overflow?.overflows || overflow?.tight) && !(await options.confirmOverflow(overflow))) {
+    if (overflow && overflowStatus(overflow) !== 'tient' && !(await options.confirmOverflow(overflow))) {
       return false;
     }
   }
