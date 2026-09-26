@@ -117,7 +117,8 @@ tests en place. Chemins relatifs à `resume-forge/`.
     (U+FB01) au lieu de « fi » (ex. `artiﬁcielle`). On ne peut pas supposer
     que tous les ATS convertissent la ligature : un mot-clé comme
     « certification » pourrait ne pas être trouvé. pdfjs et pdftotext donnent
-    « fi ».
+    « fi ». **Corrigé** (lot « ligatures ») : `font-variant-ligatures: none`
+    sur `#printable-cv`, garde-fou dans le banc.
 
 ## Lots à prévoir
 
@@ -184,8 +185,18 @@ tests en place. Chemins relatifs à `resume-forge/`.
   d'union insécable U+2011, que les ATS verraient comme un autre caractère).
   Touche au balisage ou au CSS du CV : références à régénérer, vérification
   sur les 11 templates et les quatre extracteurs.
-- **Lot futur : ligatures** (point 14). Piste : `font-variant-ligatures: none`
-  sur `#printable-cv`, plus un garde-fou dans le banc qui échoue si le texte
-  extrait contient une ligature (U+FB00 à U+FB06). Le texte pdfjs ne suffit
-  pas pour le garde-fou (il décompose déjà la ligature) : vérifier les
-  caractères du PDF ou utiliser un second extracteur.
+- **Lot « ligatures »** (fait, point 14). `font-variant-ligatures: none` sur
+  `#printable-cv` (couvre `liga`, `clig`, `dlig`, `hlig` et `calt`).
+  Garde-fou dans le banc sur les styles calculés (sans nouvelle dépendance) :
+  `font-variant-ligatures` doit valoir `none` et `font-feature-settings` ne
+  doit réactiver aucune de ces fonctionnalités (`tests/golden/README.md`,
+  section Lisibilité ATS). Seules les ligatures qui ont un caractère Unicode
+  (ﬀ ﬁ ﬂ ﬃ ﬄ) étaient mal extraites ; les autres ligatures de Carlito (ft,
+  ti, tt…) et les autres substitutions (chiffres, fractions, ordinaux,
+  symboles) s'extrayaient déjà correctement.
+  Effet de bord observé : les 4 lignes que la mesure de l'écran coupait
+  autrement qu'à l'impression (`long-titles`, 3 cas) sont désormais coupées
+  au même endroit ; la marge mesurée de `long-titles/ats-modern` passe de 28
+  à 22,8 mm, valeur conforme au PDF. Les ligatures expliquaient donc au moins
+  une partie de l'écart écran/impression (voir « Marge de sécurité de la
+  mesure » : à réévaluer).

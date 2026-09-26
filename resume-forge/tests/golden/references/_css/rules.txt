@@ -98,6 +98,7 @@
 4a0dbabf900c	(racine)	#printable-cv .cv-subtitle { color: rgb(30, 58, 138) !important; }
 4a96771fe2bf	@layer utilities	.break-words { overflow-wrap: break-word; }
 4b00b5bad34a	(racine)	#printable-cv .cv-sidebar .cv-badge { background-color: rgba(255, 255, 255, 0.16) !important; border-top-color: rgba(255, 255, 255, 0.32) !important; border-right-color: rgba(255, 255, 255, 0.32) !important; border-bottom-color: rgba(255, 255, 255, 0.32) !important; border-left-color: rgba(255, 255, 255, 0.32) !important; color: rgb(236, 253, 245) !important; }
+4bc78e66aee4	(racine)	#printable-cv { font-variant-ligatures: none; }
 4bea7598b780	@layer utilities	.after\:left-0::after { content: var(--tw-content); left: calc(var(--spacing) * 0); }
 4cc7af92e0bb	@layer utilities	.items-baseline { align-items: baseline; }
 4cd9e1e389a3	(racine)	#printable-cv .cv-main-col { flex-grow: 1; flex-shrink: 1; flex-basis: auto; min-width: 0px; padding-top: 24px; padding-right: 28px; padding-bottom: 24px; padding-left: 28px; box-sizing: border-box; }

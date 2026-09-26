@@ -212,6 +212,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     ].filter(Boolean).join(' ');
 
     const cssOverrides = [
+      // Lisibilité ATS : pas de ligatures. Les glyphes ﬀ ﬁ ﬂ ﬃ ﬄ (U+FB00 à U+FB04)
+      // sont extraits tels quels par pdfminer et pypdf (« certiﬁcation »).
+      // Aussi à l'écran : l'aperçu et la mesure de page doivent suivre le PDF.
+      '#printable-cv { font-variant-ligatures: none; }',
       // Lisibilité ATS : plafond de letter-spacing (voir MAX_LETTER_SPACING_EM).
       letterSpacingCap('#printable-cv h3', template.preview.headingClass),
       letterSpacingCap('#printable-cv .cv-name', template.preview.nameClass),
