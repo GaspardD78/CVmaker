@@ -4,7 +4,7 @@ Lead Data Engineer / Architecte BI
 camille.durand@example.com 06 00 00 00 00 Lyon in/camille-durand-exemple camille-exemple
 Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud. Habituée
 aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les métiers.
-E X P É R I E N C E P R O F E S S I O N N E L L E
+EXPÉRIENCE PROFESSIONNELLE
 Lead Data Engineer | Nexora Solutions — Lyon septembre 2022 - Présent
 Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs métiers
 Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles
@@ -28,13 +28,13 @@ Traitement d'enquêtes de satisfaction et restitution des résultats aux clients
 Alternance — Assistante chef de projet décisionnel | Groupe Ventalis — Blois 2011 – 2012 (alternance, 1 an)
 Recette des rapports et documentation utilisateur
 Support de niveau 1 auprès des utilisateurs métiers
-F O R M AT I O N
+FORMATION
 Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
 Licence Mathématiques appliquées et sciences sociales | Université d'Orléans — Orléans 2007 - 2010
-C E R T I F I C AT I O N S
+CERTIFICATIONS
 Microsoft Certified: Azure Data Engineer Associate , Databricks Certified Data Engineer Professional
-P R O J E T S
+PROJETS
 Outil open source de contrôle qualité des données | Projet personnel mai 2021 - janvier 2022
 Bibliothèque Python de règles de validation déclaratives, 300 étoiles sur GitHub.
-C O M P É T E N C E S
+COMPÉTENCES
 SQL , Python , Azure Databricks , Snowflake , Power BI , Talend , dbt , Modélisation dimensionnelle , Gestion de projet agile

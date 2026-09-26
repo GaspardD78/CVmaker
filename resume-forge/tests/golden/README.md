@@ -366,14 +366,51 @@ Le compte rendu (`▸ ajustement : …`) affiche l'état retenu Sᵢ/k, les rég
 **Vérifié par défaut volontaire** : l'ancienne mesure de l'écran (`scrollHeight`
 comparé à 1123 px) remise dans l'ajustement fait échouer les 4 cas.
 
+## Lisibilité ATS (lot 1)
+
+Les extracteurs de texte des ATS insèrent une espace entre deux lettres quand
+l'espacement des lettres (`letter-spacing`) dépasse un seuil : le titre
+`EXPÉRIENCE` sort alors `E X P É R I E N C E`. Seuils mesurés sur les titres
+du CV (majuscules, gras) avec pdfjs-dist, pdftotext (poppler 24.02),
+pdfminer.six 20260107 et pypdf 6.19 :
+
+| Police | pdfjs | pdftotext | pdfminer | pypdf |
+|---|---|---|---|---|
+| Calibri (Carlito) | 0,09 em | 0,09 em | 0,09 em | 0,10 em |
+| Cambria (Caladea) | 0,09–0,10 em | 0,09–0,10 em | 0,09–0,10 em | 0,10 em |
+| Georgia (Gelasio) | 0,09–0,10 em | 0,18–0,2 em | 0,10 em | 0,32 em |
+
+Plafond retenu : `MAX_LETTER_SPACING_EM = 0.06` (exporté par
+`src/components/export/PrintableCV.tsx`), avec une marge sous le seuil le plus
+bas. `PrintableCV` l'applique aux titres de section (`h3`), au nom
+(`.cv-name`), au poste visé (`.cv-job-title`) et aux titres de la bande
+latérale (`.cv-sidebar-heading`) quand la classe `tracking-*` du template
+dépasse le plafond.
+
+Vérifications du banc (`run.ts`, `lib/html-fingerprint.ts`), bloquantes :
+- **garde-fou** : pendant l'empreinte HTML, le `letter-spacing` calculé de
+  chaque élément de `#printable-cv` qui porte du texte (et de ses `::before` /
+  `::after` non vides) doit rester ≤ `MAX_LETTER_SPACING_EM`. Sinon le cas
+  échoue avec la liste des éléments fautifs ;
+- **texte extrait** : chaque titre de section (plus « Contact » dans les
+  templates `sidebar-*`), le nom et le poste visé apparaissent en mots entiers
+  (casse ignorée). Un texte réparti sur plusieurs lignes est accepté si les
+  lignes mesurées le recomposent exactement. Les titres situés sous la coupure
+  de page sont ignorés.
+
+**Vérifié par défaut volontaire** : `tracking-[0.2em]` ajouté au résumé
+(`cv-summary`) fait échouer le cas avec
+`p.cv-summary… « Consultante data… » : 0.200 em`. Sans le plafond,
+`minimalist` échoue (titres et nom illisibles).
+
 ## Critères de comparaison
 
 - **Pagination** : même nombre de pages.
 - **Texte** : identique à l'octet près. Extraction par `lib/extract.ts` :
   fragments regroupés par ligne de base, triés par x, lignes de haut en bas.
-  Les titres avec un fort espacement des lettres sortent sous la forme
-  `E X P É R I E N C E` (espaces ajoutés par pdfjs). C'est déterministe et
-  appliqué de la même façon à la validation croisée.
+  Depuis le lot 1, les titres sortent en mots entiers (voir Lisibilité ATS) ;
+  avant, un fort espacement des lettres les faisait sortir sous la forme
+  `E X P É R I E N C E` (espaces ajoutés par pdfjs).
 - **Image** : voir Seuils.
 
 ### Seuils

@@ -184,6 +184,48 @@ function checkOverflow(c: GoldenCase, o: PrintOverflow, pdfText: string, pages: 
   return { problems, unmatched: coherence.unmatched };
 }
 
+// ── Lisibilité ATS (lot 1) ───────────────────────────────────────────────────
+
+/** Expression en mots entiers : casse et espaces libres (retours à la ligne compris), coupure possible après un tiret. */
+function phraseRegex(phrase: string): RegExp {
+  const words = phrase.normalize('NFC').split(/\s+/).filter(Boolean)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '-\\s*'));
+  return new RegExp(`(?<![\\p{L}\\p{N}])${words.join('\\s+')}(?![\\p{L}\\p{N}])`, 'iu');
+}
+
+/**
+ * Titres de section visibles, nom et poste visé : en mots entiers dans le
+ * texte extrait par pdfjs-dist (pas « E X P É R I E N C E »). Un titre situé
+ * sous la coupure de la page (mesure de dépassement) n'est pas attendu.
+ */
+function checkAtsText(data: ReturnType<typeof loadFixture>['data'], template: string, text: string, overflow: PrintOverflow): string[] {
+  const problems: string[] = [];
+  const pdf = text.normalize('NFC');
+  const below = (h: string) => overflow.lines.some((l) => l.text.toLowerCase() === h.toLowerCase() && l.bottomMm > PAGE_HEIGHT_MM);
+  // Mise en page à deux colonnes : l'extraction peut intercaler du texte de la
+  // bande latérale entre les lignes d'un texte long (NOTES.md). On accepte alors
+  // l'expression découpée selon ses lignes mesurées (par colonne), à condition
+  // que ces lignes la recomposent et que chacune soit en mots entiers.
+  const squash = (t: string) => t.normalize('NFC').toLowerCase().replace(/\s+/g, '');
+  const readable = (phrase: string) => {
+    if (phraseRegex(phrase).test(pdf)) return true;
+    const parts = overflow.lines.filter((l) => l.bottomMm <= PAGE_HEIGHT_MM && squash(l.text).length >= 3 && squash(phrase).includes(squash(l.text)));
+    return parts.length > 1 && parts.map((l) => squash(l.text)).join('') === squash(phrase) && parts.every((l) => phraseRegex(l.text).test(pdf));
+  };
+  const headings = data.blocks.filter((b) => b.blockType === 'section_header' && b.sectionName).map((b) => b.sectionName as string);
+  const p = data.profile;
+  const hasContact = [p.email, p.phone, p.city, p.linkedinUrl, p.githubUrl, p.portfolioUrl].some(Boolean);
+  if (template.startsWith('sidebar-') && hasContact) headings.push('Contact');
+  for (const h of headings) {
+    if (!readable(h) && !below(h)) problems.push(`titre de section illisible pour un ATS (pdfjs-dist) : « ${h} »`);
+  }
+  const name = `${p.firstName} ${p.lastName}`;
+  if (!readable(name)) problems.push(`nom illisible pour un ATS (pdfjs-dist) : « ${name} »`);
+  const title = data.cv.targetJob || p.title;
+  if (title && !readable(title)) problems.push(`poste visé illisible pour un ATS (pdfjs-dist) : « ${title} »`);
+  return problems;
+}
+
 function listPngs(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((f) => /^page-\d+\.png$/.test(f)).sort((a, b) => parseInt(a.slice(5)) - parseInt(b.slice(5)));
@@ -298,6 +340,13 @@ async function main() {
       }
       const overflowCheck = checkOverflow(c, overflow, text, pages, refDir);
       if (overflowCheck.problems.length) { result.ok = false; result.problems.push(...overflowCheck.problems); }
+      // Lisibilité ATS : garde-fou letter-spacing et mots entiers dans le texte extrait.
+      if (rawFp.letterSpacingViolations.length) {
+        result.ok = false;
+        result.problems.push(`letter-spacing au-delà du plafond ATS (${rawFp.letterSpacingViolations.length}) :\n      ${rawFp.letterSpacingViolations.slice(0, 12).join('\n      ')}${rawFp.letterSpacingViolations.length > 12 ? '\n      …' : ''}`);
+      }
+      const atsProblems = checkAtsText(data, c.template, text, overflow);
+      if (atsProblems.length) { result.ok = false; result.problems.push(...atsProblems); }
       // Auto-tests de la page de test : mémorisation des mesures, export, ancrage.
       if (checks.length) { result.ok = false; result.problems.push(...checks.map((m) => `auto-test : ${m}`)); }
       result.unmatchedLines = overflowCheck.unmatched;

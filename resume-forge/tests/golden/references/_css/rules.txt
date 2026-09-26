@@ -39,6 +39,7 @@
 1e6f3f980338	@layer utilities › @media print	.print\:break-after-avoid { break-after: avoid; }
 1e9cca94524b	(racine)	@page { margin: 0px; size: a4 portrait; }
 21176a95922c	@layer utilities	.tracking-\[0\.32em\] { letter-spacing: 0.32em; }
+21e6134f1c0c	(racine)	#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgb(248, 250, 252); border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgba(255, 255, 255, 0.28); padding-bottom: 5px; margin-bottom: 10px; }
 260ec2e0137a	(racine)	#printable-cv .cv-sidebar { flex-grow: 0; flex-shrink: 0; flex-basis: 33%; width: 33%; background-image: initial; background-position-x: initial; background-position-y: initial; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial; background-color: rgb(241, 245, 249); color: rgb(30, 41, 59); padding-top: 30px; padding-right: 24px; padding-bottom: 30px; padding-left: 24px; box-sizing: border-box; order: 2; }
 265b807835db	(racine)	:root { --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif; --rf-text: #ededf0; }
 27069797491d	@layer utilities	.leading-\[1\.55\] { line-height: 1.55; }
@@ -56,6 +57,7 @@
 2fc70d84ab25	@layer utilities	.border-indigo-200 { border-top-color: ; border-right-color: ; border-bottom-color: ; border-left-color: ; }
 310f14a2cdeb	@layer utilities	.text-gray-500 { color: var(--color-gray-500); }
 3190241a1f60	@layer theme	:root, :host { --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; --color-amber-900: oklch(41.4% .112 45.904); --color-gray-600: oklch(44.6% .03 256.802); --color-gray-900: oklch(21% .034 264.665); --color-black: #000; --color-white: #fff; --spacing: .25rem; --font-weight-semibold: 600; --font-weight-bold: 700; --tracking-wide: .025em; --default-font-family: var(--font-sans); }
+3223d93c8df4	(racine)	#printable-cv .cv-job-title { letter-spacing: 0.06em; }
 326c96da01d8	(racine)	#printable-cv .cv-sidebar, #printable-cv .cv-sidebar p, #printable-cv .cv-sidebar li, #printable-cv .cv-sidebar span, #printable-cv .cv-sidebar .cv-badge-item { color: rgb(30, 41, 59) !important; }
 339af3a8167b	@layer utilities	.py-10 { padding-block-start: ; padding-block-end: ; }
 33ccca2b79c3	@layer utilities	.list-disc { list-style-type: disc; }
@@ -75,6 +77,7 @@
 3bca0ca798b4	@layer utilities	.font-normal { font-weight: var(--font-weight-normal); }
 3c2f3eca8dd0	@layer utilities	.mr-1 { margin-right: calc(var(--spacing) * 1); }
 4004cf9735f1	@layer utilities	.gap-y-1 { row-gap: calc(var(--spacing) * 1); }
+417dff9b6020	(racine)	#printable-cv h3 { letter-spacing: 0.06em; }
 41ef5d689c6e	(racine)	@property --tw-shadow { syntax: "*"; inherits: false; initial-value: 0 0 #0000; }
 420d8ecdfad5	@layer base	::-webkit-search-decoration { appearance: none; }
 4260a6a5844b	@layer utilities	.gap-y-0\.5 { row-gap: calc(var(--spacing) * .5); }
@@ -135,6 +138,7 @@
 6426c7a4fc00	@layer utilities	.tracking-tight { letter-spacing: var(--tracking-tight); }
 6518302328e7	@layer utilities	.rounded-sm { border-top-left-radius: ; border-top-right-radius: ; border-bottom-right-radius: ; border-bottom-left-radius: ; }
 656e6934cc9b	@layer utilities	.after\:content-\[\"\"\]::after { --tw-content: ""; content: var(--tw-content); }
+6652731e7cf0	(racine)	#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgb(15, 23, 42); border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgba(0, 0, 0, 0.12); padding-bottom: 5px; margin-bottom: 10px; }
 6773dfcd9ea9	@layer theme	:root, :host { --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; --color-gray-600: oklch(44.6% .03 256.802); --color-gray-700: oklch(37.3% .034 259.733); --color-gray-900: oklch(21% .034 264.665); --color-black: #000; --color-white: #fff; --spacing: .25rem; --font-weight-bold: 700; --default-font-family: var(--font-sans); }
 691acdad4ae9	@layer theme	:root, :host { --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; --color-indigo-50: oklch(96.2% .018 272.314); --color-indigo-500: oklch(58.5% .233 277.117); --color-indigo-700: oklch(45.7% .24 277.023); --color-indigo-800: oklch(39.8% .195 277.366); --color-gray-600: oklch(44.6% .03 256.802); --color-gray-700: oklch(37.3% .034 259.733); --color-gray-800: oklch(27.8% .033 256.848); --color-gray-900: oklch(21% .034 264.665); --color-black: #000; --color-white: #fff; --spacing: .25rem; --font-weight-medium: 500; --font-weight-semibold: 600; --font-weight-bold: 700; --tracking-tight: -.025em; --leading-relaxed: 1.625; --default-font-family: var(--font-sans); }
 69b4be42a905	@layer base	html, :host { text-size-adjust: 100%; tab-size: 4; line-height: 1.5; font-family: var(--default-font-family,ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"); font-feature-settings: var(--default-font-feature-settings,normal); font-variation-settings: var(--default-font-variation-settings,normal); -webkit-tap-highlight-color: transparent; }
@@ -202,10 +206,8 @@
 9f0d667a49c2	(racine)	@property --tw-inset-ring-shadow { syntax: "*"; inherits: false; initial-value: 0 0 #0000; }
 a03f23ea411b	(racine)	body { font-family: var(--font-body); background-image: ; background-position-x: ; background-position-y: ; background-size: ; background-repeat: ; background-attachment: ; background-origin: ; background-clip: ; background-color: ; color: var(--rf-text); -webkit-font-smoothing: antialiased; }
 a0c211520877	@layer utilities	.text-\[13px\] { font-size: 13px; }
-a22fab8b6d66	(racine)	#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(248, 250, 252); border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgba(255, 255, 255, 0.28); padding-bottom: 5px; margin-bottom: 10px; }
 a332ffe7cbd2	@media print	#printable-cv { padding-top: 8px !important; padding-right: 10px !important; padding-bottom: 8px !important; padding-left: 10px !important; }
 a3f518046a3d	@layer utilities	.px-14 { padding-inline-start: ; padding-inline-end: ; }
-a5dd526496e7	(racine)	#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(15, 23, 42); border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgba(0, 0, 0, 0.12); padding-bottom: 5px; margin-bottom: 10px; }
 a70c84790993	@layer utilities	.text-\[17px\] { font-size: 17px; }
 a74ec7e5ca14	(racine)	@property --tw-numeric-spacing { syntax: "*"; inherits: false; }
 a902d75933ea	@layer utilities	.bg-white { background-color: var(--color-white); }
@@ -234,12 +236,14 @@ b78e7c2dee1e	@layer utilities	.text-\[12px\] { font-size: 12px; }
 b82e5ef2fd4b	@layer utilities	.justify-between { justify-content: space-between; }
 b85baa11baaf	@layer utilities	.items-center { align-items: center; }
 b88c29fce93a	@layer utilities	.flex { display: flex; }
+b9c0434c82e3	(racine)	#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgb(236, 253, 245); border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgba(255, 255, 255, 0.28); padding-bottom: 5px; margin-bottom: 10px; }
 ba0176c2cd27	@layer utilities	.tracking-\[0\.14em\] { letter-spacing: 0.14em; }
 ba3ba94e55a4	@layer utilities › @media print	.print\:border-gray-400 { border-top-color: ; border-right-color: ; border-bottom-color: ; border-left-color: ; }
 bb333c444e9b	@layer base	::file-selector-button { margin-inline-end: 4px; }
 bc8b4ec58853	@layer utilities	.leading-\[1\.7\] { line-height: 1.7; }
 bd4b22ac2801	@layer utilities	.after\:content-\[\"•\"\]::after { --tw-content: "•"; content: var(--tw-content); }
 be55f44f7237	@layer utilities › @supports (color:color-mix(in lab,red,red))	.border-amber-900\/40 { border-top-color: ; border-right-color: ; border-bottom-color: ; border-left-color: ; }
+beed3bedb3e8	(racine)	#printable-cv .cv-name { letter-spacing: 0.06em; }
 c003e52635ca	@layer utilities	.tracking-\[0\.06em\] { letter-spacing: 0.06em; }
 c04e47a2ca6a	(racine)	*, ::before, ::after { box-sizing: border-box; }
 c148062e0162	@layer utilities	.text-\[12\.5px\] { font-size: 12.5px; }
@@ -317,7 +321,6 @@ f9e012bcd2f6	@layer utilities	.border-blue-700 { border-top-color: ; border-righ
 faa1c3d71ef0	@layer utilities	.after\:bottom-0::after { content: var(--tw-content); bottom: calc(var(--spacing) * 0); }
 fc670aa9d473	@layer utilities	.text-\[28px\] { font-size: 28px; }
 fc7856da62cb	@layer base	::placeholder { opacity: 1; }
-fe26dfd75a47	(racine)	#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(236, 253, 245); border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgba(255, 255, 255, 0.28); padding-bottom: 5px; margin-bottom: 10px; }
 fe4f5e6cc7e2	@layer utilities	.leading-relaxed { line-height: var(--leading-relaxed); }
 fee51ebac4e3	@layer utilities	.mb-4 { margin-bottom: calc(var(--spacing) * 4); }
 fefb0c6458da	@layer utilities	.pb-2 { padding-bottom: calc(var(--spacing) * 2); }

@@ -5,7 +5,7 @@ camille.durand@example.com 06 00 00 00 00 Lyon in/camille-durand-exemple camille
 Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud.
 Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par
 les métiers.
-E X P É R I E N C E P R O F E S S I O N N E L L E
+EXPÉRIENCE PROFESSIONNELLE
 Lead Data Engineer | Nexora Solutions — Lyon septembre 2022 - Présent
 Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs métiers
 Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles
@@ -29,6 +29,6 @@ Traitement d'enquêtes de satisfaction et restitution des résultats aux clients
 Alternance — Assistante chef de projet décisionnel | Groupe Ventalis — Blois 2011 – 2012 (alternance, 1 an)
 Recette des rapports et documentation utilisateur
 Support de niveau 1 auprès des utilisateurs métiers
-F O R M A T I O N
+FORMATION
 Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
 Licence Mathématiques appliquées et sciences sociales | Université d'Orléans — Orléans 2007 - 2010

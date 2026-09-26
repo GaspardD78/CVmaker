@@ -24,15 +24,41 @@ export interface RawFingerprint {
   rules: { context: string; text: string }[];
   /** Sélecteurs restés invalides après nettoyage (comptés comme applicables). */
   invalidSelectors: string[];
+  /**
+   * Garde-fou ATS : éléments de #printable-cv portant du texte (ou un
+   * ::before/::after avec contenu) dont le letter-spacing calculé dépasse le
+   * plafond (MAX_LETTER_SPACING_EM de PrintableCV).
+   */
+  letterSpacingViolations: string[];
 }
 
 /**
  * Exécutée dans Chromium (page.evaluate) : doit rester autonome, sans import
  * ni référence extérieure.
  */
-export function collectInPage(): RawFingerprint {
+export function collectInPage(maxLetterSpacingEm: number): RawFingerprint {
   const cv = document.getElementById('printable-cv');
   if (!cv) throw new Error('#printable-cv absent du HTML d\'export');
+
+  // ── Garde-fou ATS : letter-spacing calculé, règles d'impression actives ──
+  const letterSpacingViolations: string[] = [];
+  const describe = (el: Element) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${Array.from(el.classList).slice(0, 4).map((c) => `.${c}`).join('')}`;
+  for (const el of [cv, ...Array.from(cv.querySelectorAll('*'))]) {
+    if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') continue;
+    const ownText = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? '').join('').trim();
+    const check = (cs: CSSStyleDeclaration, where: string, sample: string) => {
+      if (cs.letterSpacing === 'normal') return;
+      const px = parseFloat(cs.letterSpacing), size = parseFloat(cs.fontSize);
+      if (!size || !Number.isFinite(px)) return;
+      const em = px / size;
+      if (em > maxLetterSpacingEm + 0.001) letterSpacingViolations.push(`${describe(el)}${where} « ${sample.slice(0, 40)} » : ${em.toFixed(3)} em`);
+    };
+    if (ownText) check(getComputedStyle(el), '', ownText);
+    for (const pseudo of ['::before', '::after']) {
+      const cs = getComputedStyle(el, pseudo);
+      if (cs.content && cs.content !== 'none' && cs.content !== 'normal' && cs.content !== '""') check(cs, pseudo, cs.content);
+    }
+  }
 
   // ── Nettoyage des sélecteurs ─────────────────────────────────────────────
   // Lecture caractère par caractère : échappements (\:), chaînes, crochets et
@@ -230,7 +256,7 @@ export function collectInPage(): RawFingerprint {
   };
   dump(cv, 0);
 
-  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)] };
+  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)], letterSpacingViolations };
 }
 
 // ── Côté Node : empreinte, références, diff ───────────────────────────────────

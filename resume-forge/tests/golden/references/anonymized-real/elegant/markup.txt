@@ -1,6 +1,6 @@
 <div class="bg-white bg-white border-indigo-700 border-l-[4px] dark:bg-white dark:text-black max-w-[210mm] mx-auto print:m-0 print:max-w-none print:p-0 print:shadow-none print:w-full px-12 py-11 shadow-lg text-black text-gray-900" id="printable-cv" style="font-family: Calibri, Arial, sans-serif;">
   <style>
-    "@media print { #printable-cv { padding: 8px 10px !important; } }"
+    "#printable-cv h3 { letter-spacing: 0.06em; }\n@media print { #printable-cv { padding: 8px 10px !important; } }"
   <div class="cv-header-block dark:text-black flex gap-6 items-center mb-4 text-black">
     <div class="border-2 border-gray-200 flex-shrink-0 overflow-hidden rounded-full" style="width: 96px; height: 96px;">
       <img alt="Photo de profil" class="h-full object-cover w-full" src="data:image/png;sha256=f61caf571cf64bd9;len=8762">

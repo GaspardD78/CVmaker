@@ -1,6 +1,6 @@
 === page 1 ===
-C O N TA C T
+CONTACT
 Léo Martin
 leo.martin@example.com
-E X P É R I E N C E
+EXPÉRIENCE
 Vendeur | Boulangerie du Centre juin 2024 - septembre 2024

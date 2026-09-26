@@ -85,6 +85,40 @@ tests en place. Chemins relatifs à `resume-forge/`.
     (html2canvas + jsPDF, plusieurs pages) utilise les styles d'écran : la mesure
     à employer n'est pas `measurePrintOverflow`.
 
+11. **Mises en page à deux colonnes : lignes fusionnées à l'extraction (limite
+    ATS).** Dans les templates `sidebar-*`, un extracteur qui regroupe le texte
+    par ligne de base mêle les deux colonnes. Par exemple, `sidebar-elegant`
+    (`anonymized-real`) donne `EXPÉRIENCE PROFESSIONNELLE 06 00 00 00 00` : le
+    titre de la colonne principale est accolé au téléphone de la bande latérale.
+    Le résumé est aussi coupé par `CONTACT`. Les mots restent entiers (lot 1),
+    mais un ATS peut mal rattacher ces champs. C'est une limite structurelle des
+    mises en page à deux colonnes, pas corrigée : à signaler dans le choix du
+    template (un template à une colonne reste le plus sûr pour les ATS).
+
+12. **Classes `tracking-*` devenues sans effet (lot 1).** Au-delà de
+    `MAX_LETTER_SPACING_EM` (0,06 em), `PrintableCV` plafonne l'espacement des
+    lettres des titres de section, du nom et du poste visé. Les classes
+    `tracking-[0.2em]`, `tracking-widest`, etc. des `headingClass`, `nameClass`
+    et `headerTitleClass` dans `src/templates/*.ts` ne font donc plus rien à
+    l'export (ni dans l'aperçu, qui utilise le même `PrintableCV`). À nettoyer
+    dans un lot dédié, template par template, avec le banc (rendu identique
+    attendu).
+
+13. **Nom composé coupé au trait d'union : pdftotext colle les deux parties
+    (limite acceptée au lot 1).** Quand un nom passe à la ligne sur un trait
+    d'union, pdftotext (poppler) supprime ce trait d'union en fin de ligne :
+    `long-titles/minimalist` donne `… DE LA ROCHEFOUCAULDMONTMORENCY`. Déjà le
+    cas avant le lot 1 pour `long-titles/executive`. Pour `minimalist`, c'est
+    une conséquence du lot 1 : le nom, plus étroit, passe à la ligne au trait
+    d'union au lieu de l'espace. pdfjs, pdfminer et pypdf gardent le trait
+    d'union. Seul pdftotext est touché, sur un nom fictif extrême.
+
+14. **Ligatures dans le texte extrait.** pdfminer et pypdf extraient « ﬁ »
+    (U+FB01) au lieu de « fi » (ex. `artiﬁcielle`). On ne peut pas supposer
+    que tous les ATS convertissent la ligature : un mot-clé comme
+    « certification » pourrait ne pas être trouvé. pdfjs et pdftotext donnent
+    « fi ».
+
 ## Lots à prévoir
 
 - **Lot B : indicateur dans l'aperçu.** `usePrintOverflow`, bandeau dans
@@ -138,3 +172,20 @@ tests en place. Chemins relatifs à `resume-forge/`.
   (pire écart observé : 4,6 mm). Sous `OVERFLOW_SAFETY_MARGIN_MM` (5 mm), l'export
   demande confirmation « de justesse ». À réévaluer si la vérification côté
   Rust est un jour réalisée (mesure dans le Chrome même de l'impression).
+- **Lot 1 : titres de section lisibles par les ATS** (fait). Plafond
+  `MAX_LETTER_SPACING_EM = 0.06` sur les titres de section, le nom, le poste
+  visé et les titres de la bande latérale ; garde-fou et assertions ATS dans le
+  banc (`tests/golden/README.md`, section Lisibilité ATS). Restent les points
+  11 à 14.
+- **Lot futur : pas de coupure au trait d'union dans le nom et le poste visé**
+  (point 13). Les noms composés (prénoms et noms à trait d'union) sont
+  fréquents en France : empêcher le passage à la ligne sur le trait d'union
+  dans `.cv-name` et `.cv-job-title`, sans changer le caractère (pas de trait
+  d'union insécable U+2011, que les ATS verraient comme un autre caractère).
+  Touche au balisage ou au CSS du CV : références à régénérer, vérification
+  sur les 11 templates et les quatre extracteurs.
+- **Lot futur : ligatures** (point 14). Piste : `font-variant-ligatures: none`
+  sur `#printable-cv`, plus un garde-fou dans le banc qui échoue si le texte
+  extrait contient une ligature (U+FB00 à U+FB06). Le texte pdfjs ne suffit
+  pas pour le garde-fou (il décompose déjà la ligature) : vérifier les
+  caractères du PDF ou utiliser un second extracteur.

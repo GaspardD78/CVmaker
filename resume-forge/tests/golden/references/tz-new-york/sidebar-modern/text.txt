@@ -4,17 +4,17 @@ LEAD DATA ENGINEER / ARCHITECTE BI
 Consultante data avec plus de dix ans d'expérience en informatique décisionnelle,
 modélisation de données et pilotage de projets de migration vers le cloud. Habituée
 aux environnements multi-clients (banque, industrie, secteur public), je conçois des
-C O N TA C T
+CONTACT
 chaînes de données fiables et des tableaux de bord adoptés par les métiers.
 camille.durand@example.com
-E X P É R I E N C E P R O F E S S I O N N E L L E
+EXPÉRIENCE PROFESSIONNELLE
 06 00 00 00 00
 Lyon
 Lead Data Engineer | Nexora Solutions — Lyon août 2022 - Présent
 in/camille-durand-exemple
 camille-exemple Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs
 métiers
-C E R T I F I C AT I O N S
+CERTIFICATIONS
 Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles
 Réduction de 35 % du temps de traitement des flux quotidiens
 Microsoft Certified: Azure Data Engineer
@@ -24,7 +24,7 @@ Databricks Certified Data Engineer Migration d'un entrepôt Oracle vers Snowflak
 Professional
 Mise en place de tableaux de bord Power BI pour la direction financière
 Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
-C O M P É T E N C E S
+COMPÉTENCES
 Consultant BI & Data Engineer (prestations multi-clients) | décembre 2015 -
 SQL Python Azure Databricks janvier 2020
 GITEC • MATELLI • MICROPOLE — Paris
@@ -50,6 +50,6 @@ Alternance — Assistante chef de projet décisionnel | 2011 – 2012
 Groupe Ventalis — Blois
 Recette des rapports et documentation utilisateur
 Support de niveau 1 auprès des utilisateurs métiers
-F O R M AT I O N
+FORMATION
 Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
 Licence Mathématiques appliquées et sciences sociales | Université 2006 -

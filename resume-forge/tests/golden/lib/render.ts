@@ -17,6 +17,7 @@ import { pathToFileURL } from 'node:url';
 import type { CaseData } from './fixtures';
 import type { PrintOverflow } from '../../../src/lib/print-overflow';
 import { collectInPage, type RawFingerprint } from './html-fingerprint';
+import { MAX_LETTER_SPACING_EM } from '../../../src/components/export/PrintableCV';
 
 const GOLDEN_DIR = resolve(import.meta.dir, '..');
 const PROJECT_DIR = resolve(GOLDEN_DIR, '../..');
@@ -157,7 +158,7 @@ export class GoldenRenderer {
       await fpPage.setViewportSize(PAGE_VIEWPORT);
       await fpPage.goto(pathToFileURL(htmlPath).href, { waitUntil: 'load' });
       await fpPage.emulateMedia({ media: 'print' });
-      const fingerprint = await fpPage.evaluate(collectInPage);
+      const fingerprint = await fpPage.evaluate(collectInPage, MAX_LETTER_SPACING_EM);
       await fpPage.close();
       const fingerprintMs = performance.now() - t0;
 
