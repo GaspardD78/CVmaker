@@ -403,6 +403,35 @@ Vérifications du banc (`run.ts`, `lib/html-fingerprint.ts`), bloquantes :
 `p.cv-summary… « Consultante data… » : 0.200 em`. Sans le plafond,
 `minimalist` échoue (titres et nom illisibles).
 
+### Ligatures (lot « ligatures »)
+
+pdfminer et pypdf extraient les ligatures qui ont leur propre caractère
+Unicode (ﬀ ﬁ ﬂ ﬃ ﬄ, U+FB00 à U+FB04) telles quelles : « certiﬁcation » ne
+correspond plus au mot-clé « certification ». pdfjs et pdftotext les
+décomposent. Les autres ligatures de Carlito (ft, ti, tt…, sans caractère
+Unicode) et les autres substitutions (chiffres, fractions, ordinaux,
+symboles) s'extraient correctement (page de test imprimée par Chromium 141,
+quatre extracteurs).
+
+`PrintableCV` désactive les ligatures dans le CV :
+`#printable-cv { font-variant-ligatures: none; }` (couvre `liga`, `clig`,
+`dlig`, `hlig` et `calt`), à l'écran comme à l'impression pour que la mesure
+de page suive le PDF.
+
+**Garde-fou**, sur les mêmes éléments que celui du letter-spacing : le
+`font-variant-ligatures` calculé doit valoir `none`, et le
+`font-feature-settings` calculé ne doit activer ni `liga`, ni `clig`, ni
+`dlig`, ni `hlig`, ni `calt` (`"liga"`, `"liga" 1` ou `"liga" on` activent ;
+`"liga" 0` ou `"liga" off` non). Analyse : `enabledLigatureFeatures`
+(`lib/html-fingerprint.ts`, test unitaire `lib/html-fingerprint.test.ts`).
+
+**Vérifié par défauts volontaires** sur le résumé (`cv-summary`) :
+`[font-variant-ligatures:normal]` fait échouer le cas
+(`font-variant-ligatures: normal`) ; `[font-feature-settings:'liga'_1]`, avec
+`font-variant-ligatures: none` toujours actif, aussi
+(`font-feature-settings active liga`) et le PDF contient de nouveau
+« ﬁables ». Sans la règle, les 52 cas échouent.
+
 ## Critères de comparaison
 
 - **Pagination** : même nombre de pages.

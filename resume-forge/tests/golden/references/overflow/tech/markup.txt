@@ -1,6 +1,6 @@
 <div class="bg-white bg-white dark:bg-white dark:text-black max-w-[210mm] mx-auto print:m-0 print:max-w-none print:p-0 print:shadow-none print:w-full px-11 py-10 shadow-lg text-black text-gray-800" id="printable-cv" style="font-family: Calibri, Arial, sans-serif;">
   <style>
-    "#printable-cv h3 { letter-spacing: 0.06em; }\n@media print { #printable-cv { padding: 8px 10px !important; } }"
+    "#printable-cv { font-variant-ligatures: none; }\n#printable-cv h3 { letter-spacing: 0.06em; }\n@media print { #printable-cv { padding: 8px 10px !important; } }"
   <div class="cv-header-block dark:text-black mb-4 text-black text-center">
     <div class="">
       <h1 class="cv-name font-bold mb-0.5 text-[26px] text-gray-900 tracking-tight">

@@ -18,7 +18,7 @@ import { extractPdfText } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
 import { lineDiff } from './lib/diff';
 import { checkEnvironment } from './lib/env-check';
-import { buildFingerprint, compareFingerprint, RuleStore, toHtmlRef, type HtmlRef } from './lib/html-fingerprint';
+import { buildFingerprint, compareFingerprint, ligatureViolations, RuleStore, toHtmlRef, type HtmlRef } from './lib/html-fingerprint';
 import { OVERFLOW_SAFETY_MARGIN_MM, PAGE_HEIGHT_MM, overflowStatus, type OverflowStatus, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
 
 const GOLDEN_DIR = import.meta.dir;
@@ -344,6 +344,11 @@ async function main() {
       if (rawFp.letterSpacingViolations.length) {
         result.ok = false;
         result.problems.push(`letter-spacing au-delà du plafond ATS (${rawFp.letterSpacingViolations.length}) :\n      ${rawFp.letterSpacingViolations.slice(0, 12).join('\n      ')}${rawFp.letterSpacingViolations.length > 12 ? '\n      …' : ''}`);
+      }
+      const ligViolations = ligatureViolations(rawFp);
+      if (ligViolations.length) {
+        result.ok = false;
+        result.problems.push(`ligatures non désactivées (${ligViolations.length}) :\n      ${ligViolations.slice(0, 12).join('\n      ')}${ligViolations.length > 12 ? '\n      …' : ''}`);
       }
       const atsProblems = checkAtsText(data, c.template, text, overflow);
       if (atsProblems.length) { result.ok = false; result.problems.push(...atsProblems); }

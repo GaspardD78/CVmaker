@@ -30,6 +30,13 @@ export interface RawFingerprint {
    * plafond (MAX_LETTER_SPACING_EM de PrintableCV).
    */
   letterSpacingViolations: string[];
+  /**
+   * Garde-fou ligatures : éléments de #printable-cv portant du texte (ou un
+   * ::before/::after avec contenu) dont font-variant-ligatures calculé n'est pas
+   * `none` ou dont font-feature-settings n'est pas `normal` (analysé par
+   * ligatureViolations).
+   */
+  ligatureStyles: { where: string; variantLigatures: string; featureSettings: string }[];
 }
 
 /**
@@ -42,11 +49,15 @@ export function collectInPage(maxLetterSpacingEm: number): RawFingerprint {
 
   // ── Garde-fou ATS : letter-spacing calculé, règles d'impression actives ──
   const letterSpacingViolations: string[] = [];
+  const ligatureStyles: RawFingerprint['ligatureStyles'] = [];
   const describe = (el: Element) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${Array.from(el.classList).slice(0, 4).map((c) => `.${c}`).join('')}`;
   for (const el of [cv, ...Array.from(cv.querySelectorAll('*'))]) {
     if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') continue;
     const ownText = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? '').join('').trim();
     const check = (cs: CSSStyleDeclaration, where: string, sample: string) => {
+      if (cs.fontVariantLigatures !== 'none' || cs.fontFeatureSettings !== 'normal') {
+        ligatureStyles.push({ where: `${describe(el)}${where} « ${sample.slice(0, 40)} »`, variantLigatures: cs.fontVariantLigatures, featureSettings: cs.fontFeatureSettings });
+      }
       if (cs.letterSpacing === 'normal') return;
       const px = parseFloat(cs.letterSpacing), size = parseFloat(cs.fontSize);
       if (!size || !Number.isFinite(px)) return;
@@ -256,7 +267,7 @@ export function collectInPage(maxLetterSpacingEm: number): RawFingerprint {
   };
   dump(cv, 0);
 
-  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)], letterSpacingViolations };
+  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)], letterSpacingViolations, ligatureStyles };
 }
 
 // ── Côté Node : empreinte, références, diff ───────────────────────────────────
@@ -264,6 +275,38 @@ export function collectInPage(maxLetterSpacingEm: number): RawFingerprint {
 const sha = (s: string | Uint8Array) => createHash('sha256').update(s).digest('hex');
 const ruleLine = (r: { context: string; text: string }) => `${r.context || '(racine)'}\t${r.text}`;
 export const ruleId = (r: { context: string; text: string }) => sha(ruleLine(r)).slice(0, 12);
+
+/** Fonctionnalités OpenType qui produisent des ligatures (dont U+FB00 à U+FB06, mal extraites par pdfminer et pypdf). */
+const LIGATURE_FEATURES = ['liga', 'clig', 'dlig', 'hlig', 'calt'];
+
+/**
+ * Fonctionnalités de ligature activées par une valeur de font-feature-settings :
+ * `"liga"`, `"liga" 1` ou `"liga" on` activent ; `"liga" 0` ou `"liga" off`
+ * désactivent. Pour une même fonctionnalité, la dernière occurrence l'emporte.
+ */
+export function enabledLigatureFeatures(featureSettings: string): string[] {
+  const state = new Map<string, boolean>();
+  for (const part of featureSettings.split(',')) {
+    const m = part.trim().match(/^["']([a-zA-Z0-9 ]{4})["']\s*(\S+)?$/);
+    if (!m) continue;
+    const value = (m[2] ?? '1').toLowerCase();
+    state.set(m[1], value === 'on' || (value !== 'off' && Number(value) !== 0));
+  }
+  return LIGATURE_FEATURES.filter((f) => state.get(f));
+}
+
+/** Éléments du CV dont les ligatures ne sont pas désactivées (garde-fou du lot ligatures). */
+export function ligatureViolations(raw: RawFingerprint): string[] {
+  const out: string[] = [];
+  for (const s of raw.ligatureStyles) {
+    const reasons: string[] = [];
+    if (s.variantLigatures !== 'none') reasons.push(`font-variant-ligatures: ${s.variantLigatures}`);
+    const on = enabledLigatureFeatures(s.featureSettings);
+    if (on.length) reasons.push(`font-feature-settings active ${on.join(', ')}`);
+    if (reasons.length) out.push(`${s.where} : ${reasons.join(' ; ')}`);
+  }
+  return out;
+}
 
 export interface HtmlFingerprint {
   exportHtmlSha256: string;
