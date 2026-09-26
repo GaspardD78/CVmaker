@@ -65,6 +65,26 @@ tests en place. Chemins relatifs à `resume-forge/`.
    `#printable-cv` (sinon, une nouvelle mesure serait relancée après chaque
    résultat). Sans effet visible, non corrigé.
 
+9. **Le `<style>` de `PrintableCV` figure deux fois dans le HTML d'export** —
+   `getInlinedStyles` (`src/lib/export-pdf.ts`) recopie dans l'en-tête toutes les
+   balises `<style>` du document, y compris celle qui est injectée dans
+   `#printable-cv`. Ses règles apparaissent donc deux fois (en-tête et
+   `#printable-cv` cloné), ce qui se voit dans l'empreinte HTML du banc (règles
+   en double). Sans effet sur le rendu, non corrigé. À traiter avec le lot
+   « CSS d'export isolé ».
+
+10. **BUG Android : « Ajuster à 1 page » applique tous les planchers après un
+    échec.** Sur Android et dans le navigateur, le bouton utilise encore l'ancien
+    algorithme (`handleFitToPageLegacy`, `LeftPanel.tsx`). Il modifie l'état
+    local de `LeftPanel`, alors que l'aperçu lit les réglages du store, mis à jour
+    seulement par la sauvegarde différée (1 s) : la hauteur mesurée ne change
+    pas pendant la boucle. Si le CV ne tient pas au départ, tous les candidats
+    sont parcourus, le message « reste trop long » s'affiche, puis la sauvegarde
+    applique **tous les planchers** (police 9 px, interligne 1,2, espacements de
+    2 à 4 px). À corriger dans un lot Android séparé. Sur Android, l'export
+    (html2canvas + jsPDF, plusieurs pages) utilise les styles d'écran : la mesure
+    à employer n'est pas `measurePrintOverflow`.
+
 ## Lots à prévoir
 
 - **Lot B : indicateur dans l'aperçu.** `usePrintOverflow`, bandeau dans
@@ -95,11 +115,18 @@ tests en place. Chemins relatifs à `resume-forge/`.
   du balisage de `#printable-cv` et des règles CSS applicables, bloquante ;
   empreinte du HTML complet, informative (`tests/golden/README.md`, section
   Empreinte du HTML d'export).
-- **Lot C : aligner « Ajuster à 1 page » sur `measurePrintOverflow`.**
-  `handleFitToPage` (`LeftPanel.tsx`) compare le `scrollHeight` **à l'écran** à
-  297 mm, alors que l'export imprime avec des marges de 8px 10px au lieu de
-  40px 48px. Le bouton peut donc dire « tient » quand la confirmation d'export
-  annonce un dépassement, ou l'inverse.
+- **Lot C : aligner « Ajuster à 1 page » sur `measurePrintOverflow`** (fait,
+  desktop).
+  - C1 : `src/lib/fit-to-page.tsx` (échelle de compression, dichotomie, mesure
+    identique à l'export, patch limité aux réglages modifiés) et suite `fit` du
+    banc.
+  - C2 : branchement dans `LeftPanel`/`DesignPanel` (bouton « Ajustement… »
+    pendant le calcul, annulation si le CV ou un réglage change). Planchers
+    choisis sur rendu comparé : entrées 8 px, titres de section 6 px, titres
+    d'entrée 2 px, interligne 1,25, police 11 px. En cas d'échec, rien n'est
+    modifié et le message indique ce qui dépasse encore.
+  - Android et navigateur : ancien algorithme conservé, voir le bug du point 10.
+- **Lot Android : corriger « Ajuster à 1 page »** (point 10).
 - **Vérification côté Rust : non nécessaire pour l'usage actuel (Windows).**
   Sous Windows, la webview (WebView2) utilise le même moteur Chromium que
   l'export : la mesure dans la webview suffit. À rouvrir si l'export doit un

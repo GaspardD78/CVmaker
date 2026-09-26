@@ -1,9 +1,9 @@
 {
-  "overflows": false,
+  "overflows": true,
   "tight": false,
-  "overflowMm": 0,
-  "remainingMm": 5.4,
-  "hiddenLines": 0,
-  "lastVisibleLine": "Anglais — Professionnel (B2) Allemand — Notions (A2)",
-  "firstCutLine": null
+  "overflowMm": 75.3,
+  "remainingMm": 0,
+  "hiddenLines": 8,
+  "lastVisibleLine": "Licence professionnelle Développement web | IUT d'Orléans — Orléans 2005 - 2006",
+  "firstCutLine": "BTS Informatique de gestion | Lycée Descartes — Tours 2003 - 2005"
 }

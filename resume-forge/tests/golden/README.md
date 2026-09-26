@@ -340,10 +340,13 @@ Références : texte, PNG, `overflow.json` et `html.json`, comme les autres cas.
 
 | Cas | Attendu |
 |---|---|
-| `fit-anonymized-real/ats-classic` | ajusté |
+| `fit-anonymized-real/ats-classic` | ajusté, au plancher (police 11 px) |
 | `fit-anonymized-real/sidebar-modern` | ajusté (réduit aussi les marges de la colonne principale) |
-| `fit-overflow/ats-classic` | ajusté, au plancher |
-| `fit-overflow/ats-modern` | **échec explicite** : trop long même au plancher de lisibilité |
+| `fit-overflow/ats-classic` | **échec explicite** : dépasse encore de 11,4 mm au plancher |
+| `fit-overflow/ats-modern` | **échec explicite** : dépasse encore de 31,3 mm au plancher |
+
+Planchers (lot C2, choisis sur rendu comparé) : entrées 8 px, titres de
+section 6 px, titres d'entrée 2 px, interligne 1,25, police 11 px.
 
 Auto-tests (`runFit` dans `harness/main.tsx`) :
 - **succès** : statut « tient » ; l'export après ajustement donne exactement la

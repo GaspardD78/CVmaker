@@ -23,16 +23,18 @@ import type { MasterEntry, Profile } from '@/types/profile';
 import type { CVTemplate } from '@/types/template';
 
 // ── Bornes de lisibilité ─────────────────────────────────────────────────────
+// Choisies sur rendu comparé (lot C2) : espacements et interligne plus aérés,
+// quitte à réduire la police jusqu'à son plancher.
 /** Espace minimal entre deux entrées (réglage entrySpacing). */
-export const FIT_MIN_ENTRY_SPACING_PX = 4;
+export const FIT_MIN_ENTRY_SPACING_PX = 8;
 /** Espace minimal sous un titre de section (sectionHeaderGap). */
-export const FIT_MIN_SECTION_GAP_PX = 2;
+export const FIT_MIN_SECTION_GAP_PX = 6;
 /** Espace minimal sous la ligne titre d'une entrée (entryTitleGap). */
 export const FIT_MIN_TITLE_GAP_PX = 2;
 /** Marges minimales de la colonne principale (pageMargin), vertical puis horizontal. */
 export const FIT_MIN_PAGE_MARGIN = '24px 28px';
 /** Interligne minimal du texte courant (bodyLineHeight). */
-export const FIT_MIN_LINE_HEIGHT = 1.2;
+export const FIT_MIN_LINE_HEIGHT = 1.25;
 /** Taille minimale du texte courant (bodyFontSize) : 11 px = 8,25 pt. */
 export const FIT_MIN_BODY_FONT_PX = 11;
 
@@ -41,7 +43,7 @@ const ENTRY_SPACING_GRID = [24, 20, 16, 12, 8, 4];
 const SECTION_GAP_GRID = [16, 12, 10, 8, 6, 4, 2];
 const TITLE_GAP_GRID = [8, 6, 4, 2];
 const PAGE_MARGIN_GRID: [number, number][] = [[40, 44], [32, 36], [24, 28]];
-const LINE_HEIGHT_GRID = [1.6, 1.5, 1.4, 1.3, 1.2];
+const LINE_HEIGHT_GRID = [1.6, 1.5, 1.4, 1.3, 1.25, 1.2];
 const BODY_FONT_STEP_PX = 0.5;
 
 /** Marges par défaut de la colonne principale des templates sidebar (PrintableCV). */

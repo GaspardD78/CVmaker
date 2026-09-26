@@ -2,8 +2,8 @@
 SACHA MOREAU
 Chef de projet informatique
 sacha.moreau@example.com 07 00 00 00 00 Nantes
-Chef de projet informatique avec quinze ans d'expérience dans l'intégration de progiciels, la conduite du changement et le pilotage de prestataires. Habitué aux contextes
-industriels et aux organisations multi-sites.
+Chef de projet informatique avec quinze ans d'expérience dans l'intégration de progiciels, la conduite du changement et le pilotage de prestataires. Habitué
+aux contextes industriels et aux organisations multi-sites.
 E X P É R I E N C E P R O F E S S I O N N E L L E
 Chef de projet ERP | Atelier Numérique de l'Ouest — Nantes février 2021 - Présent
 Pilotage du déploiement d'un ERP sur 6 sites de production
@@ -37,11 +37,3 @@ Tests et corrections avant mise en production
 F O R M AT I O N
 Master Management des systèmes d'information | Université de Nantes — Nantes 2012 - 2014
 Licence professionnelle Développement web | IUT d'Orléans — Orléans 2005 - 2006
-BTS Informatique de gestion | Lycée Descartes — Tours 2003 - 2005
-P R O J E T S
-Portail fournisseurs | Projet transverse mars 2022 - juin 2023
-Conception et déploiement d'un portail d'échange de commandes et de factures avec 200 fournisseurs.
-Application mobile d'inventaire | Projet interne janvier 2019 - décembre 2019
-Application de saisie d'inventaire hors ligne pour les équipes d'entrepôt.
-L A N G U E S
-Anglais — Professionnel (B2) Allemand — Notions (A2)
