@@ -5,6 +5,8 @@ import { DENSITY_PRESETS, type DensityId } from '../../theme/tokens';
 
 interface DesignPanelProps {
   onFitToPage: () => void;
+  /** Ajustement à une page en cours : bouton désactivé. */
+  fitting?: boolean;
   template: CVTemplate;
   onApplyDensity: (id: DensityId) => void;
   onApplyPalette: (accent: string) => void;
@@ -44,6 +46,7 @@ interface DesignPanelProps {
 
 export function DesignPanel({
   onFitToPage,
+  fitting = false,
   template,
   onApplyDensity,
   onApplyPalette,
@@ -145,9 +148,11 @@ export function DesignPanel({
         <button
           type="button"
           onClick={onFitToPage}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-md transition-colors shadow-sm"
+          disabled={fitting}
+          aria-busy={fitting}
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-md transition-colors shadow-sm disabled:opacity-60 disabled:cursor-wait"
         >
-          <span>✨</span> Ajuster à 1 page
+          <span>✨</span> {fitting ? 'Ajustement…' : 'Ajuster à 1 page'}
         </button>
       </div>
 

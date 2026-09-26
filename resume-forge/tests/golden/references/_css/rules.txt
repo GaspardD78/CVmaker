@@ -18,6 +18,7 @@
 0fa2d8e01618	@layer utilities	.before\:content-\[\"▹\"\]::before { --tw-content: "▹"; content: var(--tw-content); }
 116bb1a65f89	@layer utilities	.text-black { color: var(--color-black); }
 11c1b20c5b14	(racine)	#printable-cv h3::before { color: rgb(30, 58, 138) !important; }
+12a9844ad287	(racine)	#printable-cv .cv-entry { margin-bottom: 8px !important; }
 12b7845f0d39	@layer utilities	.text-\[15px\] { font-size: 15px; }
 12d941b29ca7	@layer utilities	.after\:h-\[3px\]::after { content: var(--tw-content); height: 3px; }
 13b42347624d	@layer utilities	.mt-5 { margin-top: calc(var(--spacing) * 5); }
@@ -60,6 +61,7 @@
 33ccca2b79c3	@layer utilities	.list-disc { list-style-type: disc; }
 351a0c7e2851	@layer utilities	.px-2 { padding-inline-start: ; padding-inline-end: ; }
 3536e7626b66	@layer utilities	.gap-1\.5 { row-gap: ; column-gap: ; }
+3780d7024943	(racine)	#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: 1.4 !important; }
 37cc55d046d4	@layer utilities	.tabular-nums { --tw-numeric-spacing: tabular-nums; font-variant-numeric: var(--tw-ordinal,) var(--tw-slashed-zero,) var(--tw-numeric-figure,) var(--tw-numeric-spacing,) var(--tw-numeric-fraction,); }
 37d60f69fba9	@layer theme	:root, :host { --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; --color-red-900: oklch(39.6% .141 25.723); --color-gray-600: oklch(44.6% .03 256.802); --color-gray-900: oklch(21% .034 264.665); --color-black: #000; --color-white: #fff; --spacing: .25rem; --font-weight-normal: 400; --font-weight-bold: 700; --tracking-wide: .025em; --default-font-family: var(--font-sans); }
 37e42363b0fd	@layer utilities	.h-full { height: 100%; }
@@ -95,6 +97,7 @@
 4b00b5bad34a	(racine)	#printable-cv .cv-sidebar .cv-badge { background-color: rgba(255, 255, 255, 0.16) !important; border-top-color: rgba(255, 255, 255, 0.32) !important; border-right-color: rgba(255, 255, 255, 0.32) !important; border-bottom-color: rgba(255, 255, 255, 0.32) !important; border-left-color: rgba(255, 255, 255, 0.32) !important; color: rgb(236, 253, 245) !important; }
 4bea7598b780	@layer utilities	.after\:left-0::after { content: var(--tw-content); left: calc(var(--spacing) * 0); }
 4cc7af92e0bb	@layer utilities	.items-baseline { align-items: baseline; }
+4cd9e1e389a3	(racine)	#printable-cv .cv-main-col { flex-grow: 1; flex-shrink: 1; flex-basis: auto; min-width: 0px; padding-top: 24px; padding-right: 28px; padding-bottom: 24px; padding-left: 28px; box-sizing: border-box; }
 4e02b6c4cc13	@layer utilities	.border-gray-800 { border-top-color: ; border-right-color: ; border-bottom-color: ; border-left-color: ; }
 4ea352e2638c	(racine)	#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: 1.5 !important; }
 4f49191034cd	@layer base	img, video { max-width: 100%; height: auto; }
@@ -171,10 +174,12 @@
 83dea3a6a105	@layer utilities	.border-t { border-top-style: var(--tw-border-style); border-top-width: 1px; }
 843a36dde54b	@layer utilities	.font-bold { font-weight: var(--font-weight-bold); }
 8596120a8326	(racine)	#printable-cv .cv-main-col { flex-grow: 1; flex-shrink: 1; flex-basis: auto; min-width: 0px; padding-top: 40px; padding-right: 48px; padding-bottom: 40px; padding-left: 48px; box-sizing: border-box; }
+85e83e096c6b	(racine)	#printable-cv .cv-title-row { margin-bottom: 2px !important; }
 8643356eee95	(racine)	::-webkit-scrollbar-track { background-image: initial; background-position-x: 0px; background-position-y: 0px; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial; background-color: initial; }
 86dc64c47a60	@layer base › @supports (not ((-webkit-appearance:-apple-pay-button))) or (contain-intrinsic-size:1px)	::placeholder { color: currentcolor; }
 87243b76b7ff	@layer utilities	.text-gray-700 { color: var(--color-gray-700); }
 88cbd363155f	@layer utilities	.inline-block { display: inline-block; }
+8a81ed738de0	(racine)	#printable-cv h3 { margin-bottom: 6px !important; }
 8d2b066508a8	@layer theme	:root, :host { --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; --color-indigo-50: oklch(96.2% .018 272.314); --color-indigo-700: oklch(45.7% .24 277.023); --color-indigo-800: oklch(39.8% .195 277.366); --color-gray-600: oklch(44.6% .03 256.802); --color-gray-700: oklch(37.3% .034 259.733); --color-gray-900: oklch(21% .034 264.665); --color-black: #000; --color-white: #fff; --spacing: .25rem; --font-weight-normal: 400; --font-weight-medium: 500; --font-weight-semibold: 600; --tracking-wide: .025em; --leading-relaxed: 1.625; --default-font-family: var(--font-sans); }
 8d64c0420f17	@layer utilities	.mb-1 { margin-bottom: calc(var(--spacing) * 1); }
 8d777ab16ec9	@layer utilities	.after\:w-10::after { content: var(--tw-content); width: calc(var(--spacing) * 10); }
@@ -247,6 +252,7 @@ c5783356860b	@layer utilities	.py-1 { padding-block-start: ; padding-block-end: 
 c5be6a32f9e6	@layer base	::file-selector-button { font-style: inherit; font-variant-ligatures: inherit; font-variant-caps: inherit; font-variant-numeric: inherit; font-variant-east-asian: inherit; font-variant-alternates: inherit; font-variant-position: inherit; font-variant-emoji: inherit; font-weight: inherit; font-stretch: inherit; font-size: inherit; line-height: inherit; font-family: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; letter-spacing: inherit; color: inherit; opacity: 1; background-color: rgba(0, 0, 0, 0); border-top-left-radius: 0px; border-top-right-radius: 0px; border-bottom-right-radius: 0px; border-bottom-left-radius: 0px; }
 c678e2f05965	@layer utilities	.overflow-hidden { overflow-x: hidden; overflow-y: hidden; }
 c7128e7ba537	@layer utilities	.px-3 { padding-inline-start: ; padding-inline-end: ; }
+c89ac2728df6	(racine)	#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: 1.25 !important; }
 c94582c2b596	@layer utilities	.tracking-\[0\.24em\] { letter-spacing: 0.24em; }
 c9dfb6488cf7	@layer utilities	.relative { position: relative; }
 c9f6b6890fbc	@layer utilities	.after\:content-\[\"\,\"\]::after { --tw-content: ","; content: var(--tw-content); }

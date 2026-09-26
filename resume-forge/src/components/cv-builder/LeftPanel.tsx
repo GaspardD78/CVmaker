@@ -8,6 +8,10 @@ import { DesignPanel } from './DesignPanel';
 import { BlockList } from './BlockList';
 import { getTemplate } from '@/templates';
 import { DENSITY_PRESETS, type DensityId } from '@/theme/tokens';
+import { useProfileStore } from '@/stores/profileStore';
+import { isAndroid, isTauri } from '@/lib/platform';
+import { fitToPage, readEffectiveValues, type FitSettingKey } from '@/lib/fit-to-page';
+import { overflowStatus } from '@/lib/print-overflow';
 
 import { AIPromptPanel } from './AIPromptPanel';
 import type { SidebarTab } from './SidebarNav';
@@ -91,6 +95,10 @@ export function LeftPanel({
   const [contactFontSize, setContactFontSize]         = useState(cvSettings.contactFontSize      || '');
 
   const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // « Ajuster à 1 page » : calcul en cours, et version des réglages de design
+  // (incrémentée à chaque modification) pour annuler si l'utilisateur change un réglage.
+  const [isFitting, setIsFitting] = useState(false);
+  const designVersionRef = useRef(0);
 
   useEffect(() => {
     // Skip initial render or if currentCv is missing
@@ -233,6 +241,7 @@ export function LeftPanel({
   });
 
   useEffect(() => {
+    designVersionRef.current++;
     const saved = lastSavedDesign.current;
     const current = {
       fontFamily, fontSize, primaryColor,
@@ -277,7 +286,95 @@ export function LeftPanel({
       titleFontSize, titleFontStyle, contactFontSize,
       cvId, updateCv]);
 
-  const handleFitToPage = () => {
+  /** Réglages que l'ajustement peut modifier → setters locaux (sauvegarde différée habituelle). */
+  const fitSetters: Record<FitSettingKey, React.Dispatch<React.SetStateAction<string>>> = {
+    entrySpacing: setEntrySpacing,
+    sectionHeaderGap: setSectionHeaderGap,
+    entryTitleGap: setEntryTitleGap,
+    pageMargin: setPageMargin,
+    bodyLineHeight: setBodyLineHeight,
+    bodyFontSize: setBodyFontSize,
+  };
+  const FIT_LABELS: Record<FitSettingKey, string> = {
+    entrySpacing: 'espace entre entrées',
+    sectionHeaderGap: 'espace sous les titres de section',
+    entryTitleGap: "espace sous les titres d'entrée",
+    pageMargin: 'marges',
+    bodyLineHeight: 'interligne',
+    bodyFontSize: 'taille du texte',
+  };
+  const mm = (v: number) => v.toLocaleString('fr-FR');
+
+  /**
+   * « Ajuster à 1 page » (desktop) : même mesure que l'export PDF
+   * (src/lib/fit-to-page.tsx). Succès = « tient » ; en cas d'échec, rien n'est
+   * modifié et le message indique ce qui dépasse encore. Annulé si le CV ou un
+   * réglage de design change pendant le calcul.
+   */
+  const handleFitToPage = async () => {
+    if (!isTauri() || isAndroid()) { handleFitToPageLegacy(); return; }
+    if (isFitting) return;
+    const { currentCv: cv, currentCvBlocks: blocks } = useCvStore.getState();
+    const { profile, entries } = useProfileStore.getState();
+    const cvEl = document.getElementById('printable-cv');
+    if (!cv || !profile || !cvEl) return;
+
+    const controller = new AbortController();
+    const unsubCv = useCvStore.subscribe((s, prev) => {
+      if (s.currentCv !== prev.currentCv || s.currentCvBlocks !== prev.currentCvBlocks) controller.abort();
+    });
+    const unsubProfile = useProfileStore.subscribe((s, prev) => {
+      if (s.profile !== prev.profile || s.entries !== prev.entries) controller.abort();
+    });
+    const designVersion = designVersionRef.current;
+    setIsFitting(true);
+    try {
+      const result = await fitToPage(
+        { cv, profile, blocks, entries, template: getTemplate(cv.templateId) },
+        readEffectiveValues(cvEl),
+        { signal: controller.signal },
+      );
+      if (result.kind === 'cancelled' || designVersionRef.current !== designVersion) {
+        toast.info('Ajustement annulé : le CV a été modifié pendant le calcul.');
+        return;
+      }
+      if (result.kind === 'already') {
+        toast.info(`Le CV tient déjà sur une page (marge restante ${mm(result.initial.remainingMm)} mm).`);
+        return;
+      }
+      if (result.kind === 'fitted') {
+        // Seuls les réglages réduits sont écrits : un réglage vide reste vide.
+        const keys = Object.keys(result.patch) as FitSettingKey[];
+        flushSync(() => { for (const key of keys) fitSetters[key](result.patch[key]!); });
+        toast.success(`CV ajusté à 1 page : marge restante ${mm(result.overflow.remainingMm)} mm.`, {
+          description: `Réglages modifiés : ${keys.map((k) => `${FIT_LABELS[k]} ${result.patch[k]}`).join(', ')}.`,
+        });
+        return;
+      }
+      const floor = result.atFloor;
+      const cut = floor.firstCutLine;
+      toast.warning('Le CV ne tient pas sur une page, même au minimum lisible. Aucun réglage modifié.', {
+        duration: 12000,
+        description: overflowStatus(floor) === 'de justesse'
+          ? `Au minimum lisible, il ne tient que de justesse (marge ${mm(floor.remainingMm)} mm) : raccourcissez un peu le contenu.`
+          : `Au minimum lisible, il dépasse encore de ${mm(floor.overflowMm)} mm (${floor.hiddenLines} ligne${floor.hiddenLines > 1 ? 's' : ''})` +
+            `${cut ? `, à partir de « ${cut.text.length > 60 ? `${cut.text.slice(0, 59)}…` : cut.text} »${cut.section ? ` (section ${cut.section})` : ''}` : ''}. Raccourcissez le contenu.`,
+      });
+    } catch (error) {
+      console.error("Erreur pendant l'ajustement à une page :", error);
+      toast.error(`Ajustement impossible : ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      unsubCv();
+      unsubProfile();
+      setIsFitting(false);
+    }
+  };
+
+  /**
+   * Ancien ajustement, conservé pour Android et le navigateur (export
+   * multipage ou window.print). Bug connu : voir NOTES.md.
+   */
+  const handleFitToPageLegacy = () => {
     const A4_PX = Math.round(297 * 96 / 25.4); // 297 mm → px at 96 dpi
     const cvEl = () => document.getElementById('printable-cv');
     const fits = () => (cvEl()?.scrollHeight ?? 0) <= A4_PX;
@@ -410,6 +507,7 @@ export function LeftPanel({
           <h2 className="text-lg font-bold text-gray-900 mb-4">Design du CV</h2>
           <DesignPanel
             onFitToPage={handleFitToPage}
+            fitting={isFitting}
             template={currentTemplate}
             onApplyDensity={handleApplyDensity}
             onApplyPalette={handleApplyPalette}

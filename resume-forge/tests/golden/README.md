@@ -331,6 +331,41 @@ Les deux derniers défauts ont été appliqués à une copie du HTML d'export :
 l'ordre des utilitaires est fixé par Tailwind, et le `content` passe par le nom
 de classe. Depuis le code source, ils changeraient aussi le balisage.
 
+## Suite fit : « Ajuster à 1 page »
+
+Quatre cas (`fit-<fixture>/<template>`) lancent, avant l'export, l'ajustement
+à une page de `src/lib/fit-to-page.tsx`, avec la même mesure que l'export.
+Le CV est ensuite rendu avec les réglages obtenus, puis exporté.
+Références : texte, PNG, `overflow.json` et `html.json`, comme les autres cas.
+
+| Cas | Attendu |
+|---|---|
+| `fit-anonymized-real/ats-classic` | ajusté, au plancher (police 11 px) |
+| `fit-anonymized-real/sidebar-modern` | ajusté (réduit aussi les marges de la colonne principale) |
+| `fit-overflow/ats-classic` | **échec explicite** : dépasse encore de 11,4 mm au plancher |
+| `fit-overflow/ats-modern` | **échec explicite** : dépasse encore de 31,3 mm au plancher |
+
+Planchers (lot C2, choisis sur rendu comparé) : entrées 8 px, titres de
+section 6 px, titres d'entrée 2 px, interligne 1,25, police 11 px.
+
+Auto-tests (`runFit` dans `harness/main.tsx`) :
+- **succès** : statut « tient » ; l'export après ajustement donne exactement la
+  mesure annoncée ;
+- **échec** : l'état plancher ne tient pas, rien n'est appliqué (l'export est
+  celui du CV d'origine) ;
+- **annulation** après la première mesure : rien à appliquer ;
+- **seuls les réglages modifiés sont écrits** : aucune clé hors des réglages
+  de l'ajustement, aucune clé écrite avec sa valeur d'origine ;
+- **changement de template** après ajustement : un réglage non modifié par
+  l'ajustement (resté vide) prend la valeur du nouveau template, et un réglage
+  modifié garde sa valeur.
+
+Le compte rendu (`▸ ajustement : …`) affiche l'état retenu Sᵢ/k, les réglages
+écrits, la marge obtenue, le nombre de mesures et le temps.
+
+**Vérifié par défaut volontaire** : l'ancienne mesure de l'écran (`scrollHeight`
+comparé à 1123 px) remise dans l'ajustement fait échouer les 4 cas.
+
 ## Critères de comparaison
 
 - **Pagination** : même nombre de pages.

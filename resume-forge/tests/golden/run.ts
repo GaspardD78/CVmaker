@@ -43,7 +43,16 @@ const DERIVED_FIXTURES = ['my-settings'];
 /** Variante fuseau négatif : un template par famille de layout (toutes les dates passent par CVEntryBlock). */
 const TZ_TEMPLATES = ['ats-classic', 'sidebar-modern'];
 
-interface GoldenCase { id: string; suite: string; fixture: string; template: string; timezoneId: string }
+interface GoldenCase { id: string; suite: string; fixture: string; template: string; timezoneId: string; fit?: boolean }
+
+/** Suite fit : ajustement à une page appliqué avant l'export (src/lib/fit-to-page.tsx). */
+const FIT_CASES: [string, string][] = [
+  ['anonymized-real', 'ats-classic'],
+  ['anonymized-real', 'sidebar-modern'],
+  ['overflow', 'ats-classic'],
+  // Cas d'échec explicite : trop long même au plancher de lisibilité.
+  ['overflow', 'ats-modern'],
+];
 
 function buildCases(): GoldenCase[] {
   const cases: GoldenCase[] = [];
@@ -55,6 +64,8 @@ function buildCases(): GoldenCase[] {
       cases.push({ id: `${fixture}/${template}`, suite: fixture, fixture, template, timezoneId: BASE_TZ });
   for (const template of TZ_TEMPLATES)
     cases.push({ id: `tz-new-york/${template}`, suite: 'tz-new-york', fixture: 'anonymized-real', template, timezoneId: NEGATIVE_TZ });
+  for (const [fixture, template] of FIT_CASES)
+    cases.push({ id: `fit-${fixture}/${template}`, suite: `fit-${fixture}`, fixture, template, timezoneId: BASE_TZ, fit: true });
   return cases;
 }
 
@@ -191,6 +202,8 @@ interface CaseResult {
   htmlInfo?: string[];
   /** Temps de calcul de l'empreinte du HTML d'export (ms). */
   fingerprintMs?: number;
+  /** Compte rendu de l'ajustement à une page (suite fit). */
+  fit?: Record<string, unknown> | null;
 }
 
 async function main() {
@@ -230,7 +243,7 @@ async function main() {
       const refDir = join(REF_DIR, c.suite, c.template);
 
       const { data } = loadFixture(c.fixture, c.template);
-      const { pdf, overflow, checks, html, fingerprint: rawFp, fingerprintMs } = await renderer.renderPdf(data, c.timezoneId, outDir);
+      const { pdf, overflow, checks, html, fingerprint: rawFp, fingerprintMs, fit } = await renderer.renderPdf(c.fit ? { ...data, fit: true } as typeof data : data, c.timezoneId, outDir);
       const fp = buildFingerprint(rawFp, html);
       fp.rules.forEach((id) => usedRules.add(id));
       fp.invalidSelectors.forEach((sel) => invalidSelectors.add(sel));
@@ -291,6 +304,7 @@ async function main() {
 
       // Empreinte du HTML d'export : balisage de #printable-cv et règles CSS applicables.
       result.fingerprintMs = Math.round(fingerprintMs);
+      result.fit = fit;
       if (updateHtml) {
         mkdirSync(refDir, { recursive: true });
         writeFileSync(join(refDir, 'html.json'), JSON.stringify(toHtmlRef(fp), null, 2) + '\n');
@@ -314,8 +328,14 @@ async function main() {
           ? `DE JUSTESSE, marge ${overflow.remainingMm} mm`
           : `tient, marge ${overflow.remainingMm} mm`;
       const wrapInfo = result.unmatchedLines?.length ? ` [${result.unmatchedLines.length} ligne(s) coupée(s) autrement à l'impression]` : '';
+      const fitInfo = fit
+        ? `\n    ▸ ajustement : ${fit.kind}` +
+          (fit.kind === 'fitted' ? ` — S${fit.stateIndex}/${fit.ladderLength} ${JSON.stringify(fit.patch)}, marge ${fit.finalRemainingMm} mm` : '') +
+          (fit.kind === 'failed' ? ` — au plancher (S${fit.ladderLength}) dépasse encore de ${fit.floorOverflowMm} mm, dès « ${fit.floorFirstCut} »` : '') +
+          ` ; ${fit.measurements} mesure(s), ${fit.ms} ms`
+        : '';
       const htmlInfo = result.htmlInfo?.length ? result.htmlInfo.map((m) => `\n    · ${m}`).join('') : '';
-      console.log(`${result.ok ? 'OK  ' : 'FAIL'} ${c.id.padEnd(34)} ${pages} p. — ${ov}${wrapInfo}${result.problems.map((p) => `\n    - ${p}`).join('')}${htmlInfo}`);
+      console.log(`${result.ok ? 'OK  ' : 'FAIL'} ${c.id.padEnd(34)} ${pages} p. — ${ov}${wrapInfo}${fitInfo}${result.problems.map((p) => `\n    - ${p}`).join('')}${htmlInfo}`);
     }
   } finally {
     await renderer.stop();

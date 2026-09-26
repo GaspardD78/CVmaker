@@ -114,6 +114,8 @@ export class GoldenRenderer {
   /** Rend un cas : HTML d'export capturé, mesure de dépassement de page et PDF imprimé. */
   async renderPdf(data: CaseData, timezoneId: string, workDir: string): Promise<{
     html: string; overflow: PrintOverflow; checks: string[]; pdf: Uint8Array; fingerprint: RawFingerprint; fingerprintMs: number;
+    /** Compte rendu de l'ajustement à une page (suite fit), sinon null. */
+    fit: Record<string, unknown> | null;
   }> {
     const context = await this.browser.newContext({
       timezoneId,
@@ -130,9 +132,9 @@ export class GoldenRenderer {
         const w = window as unknown as { __GOLDEN_OVERFLOW__?: unknown; __GOLDEN_ERROR__?: string };
         return Boolean(w.__GOLDEN_OVERFLOW__ || w.__GOLDEN_ERROR__);
       }, undefined, { timeout: 30_000 });
-      const { html, overflow, checks, error } = await page.evaluate(() => {
-        const w = window as unknown as { __GOLDEN_HTML__?: string; __GOLDEN_OVERFLOW__?: PrintOverflow; __GOLDEN_CHECKS__?: string[]; __GOLDEN_ERROR__?: string };
-        return { html: w.__GOLDEN_HTML__ ?? '', overflow: w.__GOLDEN_OVERFLOW__ as PrintOverflow, checks: w.__GOLDEN_CHECKS__ ?? ['auto-tests absents'], error: w.__GOLDEN_ERROR__ ?? '' };
+      const { html, overflow, checks, fit, error } = await page.evaluate(() => {
+        const w = window as unknown as { __GOLDEN_HTML__?: string; __GOLDEN_OVERFLOW__?: PrintOverflow; __GOLDEN_CHECKS__?: string[]; __GOLDEN_FIT__?: Record<string, unknown>; __GOLDEN_ERROR__?: string };
+        return { html: w.__GOLDEN_HTML__ ?? '', overflow: w.__GOLDEN_OVERFLOW__ as PrintOverflow, checks: w.__GOLDEN_CHECKS__ ?? ['auto-tests absents'], fit: w.__GOLDEN_FIT__ ?? null, error: w.__GOLDEN_ERROR__ ?? '' };
       });
       if (error) throw new Error(`Erreur dans la page de test : ${error}`);
       if (pageErrors.length) throw new Error(`Erreurs JS dans la page de test : ${pageErrors.join(' | ')}`);
@@ -159,7 +161,7 @@ export class GoldenRenderer {
       await fpPage.close();
       const fingerprintMs = performance.now() - t0;
 
-      return { html, overflow, checks, pdf: new Uint8Array(pdf), fingerprint, fingerprintMs };
+      return { html, overflow, checks, pdf: new Uint8Array(pdf), fingerprint, fingerprintMs, fit };
     } finally {
       await context.close();
     }
