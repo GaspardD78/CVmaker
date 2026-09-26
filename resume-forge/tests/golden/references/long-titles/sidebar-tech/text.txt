@@ -1,5 +1,5 @@
 === page 1 ===
-C O N TA C T
+CONTACT
 Marie-Alexandrine-Éléonore de La
 marie-alexandrine.de-la-rochefoucauld-mo
 ntmorency@entreprise-exemple-tres-longu
@@ -18,11 +18,11 @@ programmes de transformation numérique, finance, supply chain et ressources
 portfolio.marie-alexandrine-de-la-rochefou
 cauld.example.org/realisations humaines, avec une expérience internationale de plus de vingt ans dans des
 groupes cotés, des ETI familiales et des organisations publiques, sur des périmètres
-C O M P É T E N C E S T E C H N I Q U E S , budgétaires de plusieurs dizaines de millions d'euros.
-F O N C T I O N N E L L E S E T M A N A G É R I A L E S
-E X P É R I E N C E S P R O F E S S I O N N E L L E S S I G N I F I C AT I V E S E T M I S S I O N S
+COMPÉTENCES TECHNIQUES, budgétaires de plusieurs dizaines de millions d'euros.
+FONCTIONNELLES ET MANAGÉRIALES
+EXPÉRIENCES PROFESSIONNELLES SIGNIFICATIVES ET MISSIONS DE
 Gouvernance des données et conformité
-D E C O N S E I L E N T R A N S F O R M AT I O N
+CONSEIL EN TRANSFORMATION
 réglementaire (RGPD, DORA, AI Act)
 Conduite du changement à grande échelle
 Directrice de programme transformation numérique, data et novembre
@@ -34,7 +34,7 @@ Services Financiers et d'Assurances Européennes — La Défense (Hauts-de-
 Architecture d'entreprise TOGAF
 Seine), France
 Pilotage d'un portefeuille de 27 projets transverses représentant un budget annuel
-L A N G U E S
+LANGUES
 de 48 millions d'euros et plus de 350 collaborateurs internes et externes répartis
 sur 11 pays
 Anglais — Bilingue (C2) — dix ans
@@ -53,7 +53,7 @@ supercalifragilisticexpialidocious-sans-espace-pour-forcer-la-coupure-du-mot.
 Cheffe de projet | Établissement Public Administratif de Gestion des janvier 2010
 - août 2015
 Infrastructures Ferroviaires Régionales — Clermont-Ferrand
-F O R M AT I O N I N I T I A L E E T C O N T I N U E
+FORMATION INITIALE ET CONTINUE
 Executive Master en management stratégique des organisations et 2018
 -
 transformation digitale | École Supérieure des Sciences Économiques et

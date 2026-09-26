@@ -35,6 +35,41 @@ const FONT_STACKS: Record<string, string> = {
   'Helvetica': "'Helvetica', 'Arial', sans-serif",
 };
 
+/**
+ * Plafond de letter-spacing du texte du CV (lisibilité ATS). Au-delà d'environ
+ * 0,09 em, les extracteurs de texte PDF (pdfjs-dist, pdftotext, pdfminer.six,
+ * pypdf) insèrent des espaces entre les lettres (« E X P É R I E N C E ») et un
+ * ATS ne reconnaît plus le mot. Mesures : tests/golden/README.md.
+ * Appliqué aux titres de section, aux titres de la bande latérale, au nom et au
+ * poste visé, seulement quand le template déclare un espacement plus grand.
+ */
+export const MAX_LETTER_SPACING_EM = 0.06;
+/** Espace ajouté entre les mots des éléments plafonnés (compensation visuelle ; 0 = aucune). */
+const CAPPED_WORD_SPACING_EM = 0;
+
+/** Letter-spacing (em) des classes Tailwind `tracking-*` d'un template, ou null. */
+const TRACKING_EM: Record<string, number> = {
+  'tracking-tighter': -0.05, 'tracking-tight': -0.025, 'tracking-normal': 0,
+  'tracking-wide': 0.025, 'tracking-wider': 0.05, 'tracking-widest': 0.1,
+};
+function trackingEm(classes: string | undefined): number | null {
+  let value: number | null = null;
+  for (const cls of (classes ?? '').split(/\s+/)) {
+    const arbitrary = /^tracking-\[(-?[\d.]+)em\]$/.exec(cls);
+    if (arbitrary) value = parseFloat(arbitrary[1]);
+    else if (cls in TRACKING_EM) value = TRACKING_EM[cls];
+  }
+  return value;
+}
+
+/** Règle ramenant `selector` au plafond si les classes du template le dépassent. */
+function letterSpacingCap(selector: string, classes: string | undefined): string {
+  const em = trackingEm(classes);
+  if (em === null || em <= MAX_LETTER_SPACING_EM) return '';
+  const words = CAPPED_WORD_SPACING_EM ? ` word-spacing: ${CAPPED_WORD_SPACING_EM}em;` : '';
+  return `${selector} { letter-spacing: ${MAX_LETTER_SPACING_EM}em;${words} }`;
+}
+
 /** Entry types rendered as inline badges instead of full entry blocks */
 const BADGE_ENTRY_TYPES: EntryType[] = ['skill', 'language', 'interest', 'certification'];
 
@@ -177,6 +212,10 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
     ].filter(Boolean).join(' ');
 
     const cssOverrides = [
+      // Lisibilité ATS : plafond de letter-spacing (voir MAX_LETTER_SPACING_EM).
+      letterSpacingCap('#printable-cv h3', template.preview.headingClass),
+      letterSpacingCap('#printable-cv .cv-name', template.preview.nameClass),
+      letterSpacingCap('#printable-cv .cv-job-title', template.preview.headerTitleClass),
       h3Rules ? `#printable-cv h3 { ${h3Rules} }` : '',
       headerFontFamily   ? `#printable-cv h3 { font-family: ${headerFontFamily} !important; }` : '',
       fontSize !== '11px'
@@ -239,7 +278,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       isSidebar ? `#printable-cv .cv-sidebar a { color: inherit; text-decoration: none; }` : '',
       isSidebar ? `#printable-cv .cv-sidebar, #printable-cv .cv-sidebar p, #printable-cv .cv-sidebar li, #printable-cv .cv-sidebar span, #printable-cv .cv-sidebar .cv-badge-item { color: ${sidebarText} !important; }` : '',
       isSidebar ? `#printable-cv .cv-sidebar { font-size: 11.5px; line-height: 1.5; }` : '',
-      isSidebar ? `#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: ${sidebarHeading}; border-bottom: 1px solid ${sbRule}; padding-bottom: 5px; margin-bottom: 10px; }` : '',
+      isSidebar ? `#printable-cv .cv-sidebar-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: ${MAX_LETTER_SPACING_EM}em;${CAPPED_WORD_SPACING_EM ? ` word-spacing: ${CAPPED_WORD_SPACING_EM}em;` : ''} color: ${sidebarHeading}; border-bottom: 1px solid ${sbRule}; padding-bottom: 5px; margin-bottom: 10px; }` : '',
       isSidebar ? `#printable-cv .cv-sidebar-icon svg { opacity: 0.85; }` : '',
       isSidebar ? `#printable-cv .cv-sidebar-photo-ring { border: 3px solid ${sbRing}; }` : '',
       isSidebar ? `#printable-cv .cv-sidebar .cv-badge { background-color: ${sbBadgeBg} !important; border-color: ${sbBadgeBorder} !important; color: ${sidebarText} !important; }` : '',
