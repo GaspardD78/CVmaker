@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CaseData } from './fixtures';
 import type { PrintOverflow } from '../../../src/lib/print-overflow';
+import { extractPdfText } from './extract';
 import { collectInPage, type RawFingerprint } from './html-fingerprint';
 import { MAX_LETTER_SPACING_EM } from '../../../src/components/export/PrintableCV';
 
@@ -69,6 +70,36 @@ export interface PageStats {
   diffPng?: string;
 }
 
+const PROBE_LEFT = 'GOLDENPROBELEFT';
+const PROBE_RIGHT = 'GOLDENPROBERIGHT';
+
+/**
+ * Largeur réelle de #printable-cv à l'impression : la page d'impression (déjà
+ * imprimée, le PDF de référence est intact) reçoit un repère en
+ * `position: absolute` de bord à bord de #printable-cv, puis est imprimée une
+ * seconde fois avec les mêmes options. Les deux extrémités du repère dans ce
+ * PDF de contrôle donnent la largeur de la boîte de remplissage ; on ajoute les
+ * bordures. L'impression émulée ne suffit pas : sa fenêtre est un nombre entier
+ * de pixels, alors que Chrome tronque la zone de la page à l'impression.
+ */
+async function measurePrintedCvWidth(page: Page): Promise<number> {
+  const borders = await page.evaluate(({ left, right }) => {
+    const cv = document.getElementById('printable-cv')!;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;left:0;right:0;top:0;height:0;overflow:visible;font:10px monospace;color:#000;';
+    probe.innerHTML = `<span style="position:absolute;left:0;top:0">${left}</span><span style="position:absolute;right:0;top:0">${right}</span>`;
+    cv.prepend(probe);
+    const cs = getComputedStyle(cv);
+    return parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+  }, { left: PROBE_LEFT, right: PROBE_RIGHT });
+  const { firstPage } = await extractPdfText(new Uint8Array(await page.pdf(PDF_OPTIONS)));
+  const l = firstPage.find((f) => f.str.includes(PROBE_LEFT));
+  const r = firstPage.find((f) => f.str.includes(PROBE_RIGHT));
+  if (!l || !r) return NaN;
+  const PX_PER_MM = 96 / 25.4;
+  return Math.round(((r.xMm + r.wMm - l.xMm) * PX_PER_MM + borders) * 100) / 100;
+}
+
 export class GoldenRenderer {
   private browser!: Browser;
   private server!: ReturnType<typeof Bun.serve>;
@@ -117,6 +148,8 @@ export class GoldenRenderer {
     html: string; overflow: PrintOverflow; checks: string[]; pdf: Uint8Array; fingerprint: RawFingerprint; fingerprintMs: number;
     /** Compte rendu de l'ajustement à une page (suite fit), sinon null. */
     fit: Record<string, unknown> | null;
+    /** Largeur de #printable-cv (boîte de bordure, px CSS) dans un PDF de contrôle. */
+    printCvWidthPx: number;
   }> {
     const context = await this.browser.newContext({
       timezoneId,
@@ -149,6 +182,7 @@ export class GoldenRenderer {
       await printPage.setViewportSize(PRINT_VIEWPORT);
       await printPage.goto(pathToFileURL(htmlPath).href, { waitUntil: 'load' });
       const pdf = await printPage.pdf(PDF_OPTIONS);
+      const printCvWidthPx = await measurePrintedCvWidth(printPage);
       await printPage.close();
 
       // Empreinte du HTML d'export, règles d'impression actives (page séparée :
@@ -162,7 +196,7 @@ export class GoldenRenderer {
       await fpPage.close();
       const fingerprintMs = performance.now() - t0;
 
-      return { html, overflow, checks, pdf: new Uint8Array(pdf), fingerprint, fingerprintMs, fit };
+      return { html, overflow, checks, pdf: new Uint8Array(pdf), fingerprint, fingerprintMs, fit, printCvWidthPx };
     } finally {
       await context.close();
     }

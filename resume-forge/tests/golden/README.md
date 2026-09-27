@@ -204,19 +204,47 @@ Assertions par cas (`checkOverflow` dans `run.ts`) :
   banc échoue alors bien.
 
 **Précision de la mesure.** La mesure se fait à l'écran, avec les règles
-`@media print` activées par CSSOM. Elle donne la même mise en page que
-l'émulation d'impression native de Chromium (vérifié sur 248 lignes). Le
-texte imprimé est cependant très légèrement plus large qu'à l'écran : une
-ligne longue peut passer à la ligne un mot plus tôt dans le PDF. Tout ce qui
-suit descend alors d'environ une ligne (4 à 5 mm). Sur les 48 cas, c'est
-arrivé pour 5 lignes dans 3 cas (`long-titles/ats-modern`,
-`long-titles/sidebar-modern`, `long-titles/sidebar-elegant`). Le banc
-l'affiche pour information (`[n ligne(s) coupée(s) autrement à
-l'impression]`) sans échouer. D'où la marge de sécurité
-`OVERFLOW_SAFETY_MARGIN_MM = 5` (`src/lib/print-overflow.ts`), juste au-dessus
-du pire écart observé (4,6 mm) : sous cette marge, le CV est signalé « de
-justesse » et l'export demande aussi confirmation. Si de nouveaux cas
-montrent un écart plus grand, relever cette constante.
+`@media print` activées par CSSOM, dans une iframe de 210 × 297 mm.
+
+*Retours à la ligne (contrôle bloquant).* Chaque ligne mesurée entièrement
+visible doit être, mot pour mot, une ligne du PDF : une suite de fragments
+entiers sur une même ligne de base, à ±2 mm de la position mesurée, sans
+fragment de même taille accolé avant ou après (`checkLineBreaks`,
+`lib/extract.ts`, partagé avec la validation croisée). Un mot renvoyé à la
+ligne suivante à l'impression fait échouer le cas, même si le texte mis bout
+à bout est identique. L'ancien contrôle (ligne cherchée dans le texte du PDF
+mis bout à bout, `[n ligne(s) coupée(s) autrement à l'impression]`, informatif)
+ne voyait pas ces écarts : il en restait 10 lignes dans 4 cas.
+
+*Largeur du CV (lot « retours à la ligne »).* Cause de ces écarts : à
+l'impression, `#printable-cv` est en `position: fixed` (`App.css`) et sa
+largeur suit la zone de la page A4 (793,70 px), que Chrome tronque à 793 px ;
+l'iframe de mesure arrondit sa fenêtre à 794 px. Un repère aligné à droite
+dans un élément fixed s'imprime à 793,00 px (794,00 px dans le flux normal) ;
+avec 793 px, la mesure retrouve les coupures du PDF. Pistes écartées : barre
+de défilement (aucune, `overflow: hidden`), styles calculés différents (17
+propriétés identiques entre l'iframe et l'impression émulée), chargement des
+polices (coupures identiques 1,5 s plus tard). Correctif :
+`print-overflow.ts` impose `PRINT_CV_WIDTH_PX` (`Math.floor(210 mm en px)`) à
+`#printable-cv` dans l'iframe. Résultat : 0 ligne coupée autrement sur les
+52 cas, texte et PNG inchangés.
+
+*Garde-fou de largeur.* À chaque cas, après le PDF de référence, la page
+d'impression reçoit un repère en `position: absolute` de bord à bord de
+`#printable-cv` et est imprimée une seconde fois (PDF de contrôle, jeté). La
+largeur ainsi relevée (bordures comprises) doit être égale, à 0,05 px près, à
+`PRINT_CV_WIDTH_PX` ; sinon le cas échoue avec les deux valeurs (par exemple
+après une mise à jour de Chrome). L'impression émulée ne suffit pas : sa
+fenêtre est un nombre entier de pixels. **Vérifié par défaut volontaire** :
+`PRINT_CV_WIDTH_PX = 794` fait échouer le cas (`793 px à l'impression, 794 px
+dans la mesure`) et le contrôle des retours à la ligne.
+
+*Marge de sécurité.* Avant ce correctif, un mot passé à la ligne plus tôt à
+l'impression pouvait faire descendre tout ce qui suit d'environ une ligne
+(pire écart observé au lot A : 4,6 mm). D'où `OVERFLOW_SAFETY_MARGIN_MM = 5`
+(`src/lib/print-overflow.ts`) : sous cette marge, le CV est signalé « de
+justesse » et l'export demande confirmation. Valeur gardée ; réévaluation
+prévue dans un lot suivant (NOTES.md).
 
 ## Critère de non-régression d'un lot
 

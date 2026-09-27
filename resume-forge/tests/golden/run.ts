@@ -14,12 +14,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join, resolve } from 'node:path';
 import { TEMPLATE_ORDER } from '../../src/templates';
 import { fixtureTemplates, loadFixture } from './lib/fixtures';
-import { extractPdfText } from './lib/extract';
+import { checkLineBreaks, extractPdfText, norm } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
 import { lineDiff } from './lib/diff';
 import { checkEnvironment } from './lib/env-check';
 import { buildFingerprint, compareFingerprint, ligatureViolations, RuleStore, toHtmlRef, type HtmlRef } from './lib/html-fingerprint';
-import { OVERFLOW_SAFETY_MARGIN_MM, PAGE_HEIGHT_MM, overflowStatus, type OverflowStatus, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
+import { OVERFLOW_SAFETY_MARGIN_MM, PAGE_HEIGHT_MM, PRINT_CV_WIDTH_PX, overflowStatus, type OverflowStatus, type PrintLine, type PrintOverflow } from '../../src/lib/print-overflow';
 
 const GOLDEN_DIR = import.meta.dir;
 const PROJECT_DIR = resolve(GOLDEN_DIR, '../..');
@@ -119,12 +119,6 @@ function toOverflowRef(o: PrintOverflow): OverflowRef {
     firstCutLine: o.firstCutLine?.text ?? null,
   };
 }
-
-/**
- * Normalisation commune DOM / PDF : lettres et chiffres en majuscules seulement
- * (text-transform, letter-spacing, séparateurs générés en CSS ::after, puces).
- */
-const norm = (t: string) => t.toUpperCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
 /**
  * Cohérence de la mesure avec le PDF réellement imprimé, par colonne :
@@ -285,7 +279,7 @@ async function main() {
       const refDir = join(REF_DIR, c.suite, c.template);
 
       const { data } = loadFixture(c.fixture, c.template);
-      const { pdf, overflow, checks, html, fingerprint: rawFp, fingerprintMs, fit } = await renderer.renderPdf(c.fit ? { ...data, fit: true } as typeof data : data, c.timezoneId, outDir);
+      const { pdf, overflow, checks, html, fingerprint: rawFp, fingerprintMs, fit, printCvWidthPx } = await renderer.renderPdf(c.fit ? { ...data, fit: true } as typeof data : data, c.timezoneId, outDir);
       const fp = buildFingerprint(rawFp, html);
       fp.rules.forEach((id) => usedRules.add(id));
       fp.invalidSelectors.forEach((sel) => invalidSelectors.add(sel));
@@ -293,7 +287,7 @@ async function main() {
       writeFileSync(join(outDir, 'rules.txt'), fp.rules.map((id) => `${id}\t${fp.ruleText.get(id)}`).join('\n') + '\n');
       writeFileSync(join(outDir, 'overflow.json'), JSON.stringify(overflow, null, 2));
       writeFileSync(join(outDir, 'actual.pdf'), pdf);
-      const { pages, text } = await extractPdfText(pdf);
+      const { pages, text, firstPage } = await extractPdfText(pdf);
       texts.set(c.id, text);
       writeFileSync(join(outDir, 'text.txt'), text);
       const pngs = await renderer.rasterize(pdf);
@@ -340,6 +334,16 @@ async function main() {
       }
       const overflowCheck = checkOverflow(c, overflow, text, pages, refDir);
       if (overflowCheck.problems.length) { result.ok = false; result.problems.push(...overflowCheck.problems); }
+      // Égalité à l'arrondi des coordonnées du PDF près (0,05 px).
+      if (!(Math.abs(printCvWidthPx - PRINT_CV_WIDTH_PX) < 0.05)) {
+        result.ok = false;
+        result.problems.push(`largeur de #printable-cv : ${printCvWidthPx} px à l'impression, ${PRINT_CV_WIDTH_PX} px dans la mesure (PRINT_CV_WIDTH_PX, print-overflow.ts)`);
+      }
+      const lineBreaks = checkLineBreaks(overflow.lines, firstPage);
+      if (lineBreaks.length) {
+        result.ok = false;
+        result.problems.push(`retours à la ligne différents de la mesure (${lineBreaks.length} ligne(s)) :\n      ${lineBreaks.slice(0, 12).join('\n      ')}${lineBreaks.length > 12 ? '\n      …' : ''}`);
+      }
       // Lisibilité ATS : garde-fou letter-spacing et mots entiers dans le texte extrait.
       if (rawFp.letterSpacingViolations.length) {
         result.ok = false;
