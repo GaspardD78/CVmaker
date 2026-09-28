@@ -216,8 +216,12 @@ tests en place. Chemins relatifs à `resume-forge/`.
   arrondie). Correctif : largeur imposée au CV dans l'iframe
   (`PRINT_CV_WIDTH_PX`). Garde-fou : impression de contrôle à chaque cas,
   largeur réelle comparée à celle de la mesure.
-- **Lot « retours à la ligne », partie B** (à faire, après fusion de A) : accès
-  à la mesure de l'app en développement (`window.__RF_PRINT_OVERFLOW__`,
-  `import.meta.env.DEV` seulement) et contrôle ligne par ligne dans
-  `test:golden:compare`, pour valider sous Windows (WebView2, mise à l'échelle
-  d'affichage).
+- **Lot « retours à la ligne », partie B** (fait). En développement seulement
+  (`import.meta.env.DEV`), `measurePrintOverflow` expose la dernière mesure
+  complète dans `window.__RF_PRINT_OVERFLOW__` (lignes, largeur du CV,
+  `devicePixelRatio`, empreinte du contenu). `test:golden:compare -- --lines`
+  la confronte au PDF exporté : même CV (sinon code 2), puis contrôle ligne par
+  ligne du banc (code 0 ou 1). Build de production inchangée (identique octet
+  pour octet). Procédure Windows : `tests/golden/README.md`, section
+  Validation croisée. À faire par l'utilisateur : validation sous Windows
+  avec mise à l'échelle d'affichage.

@@ -12,13 +12,10 @@
  * modifie le texte extrait.
  */
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { PAGE_HEIGHT_MM, type PrintLine } from '../../../src/lib/print-overflow';
+import { PAGE_HEIGHT_MM, normalizeLineText, type PrintLine } from '../../../src/lib/print-overflow';
 
-/**
- * Normalisation commune DOM / PDF : lettres et chiffres en majuscules seulement
- * (text-transform, letter-spacing, séparateurs générés en CSS ::after, puces).
- */
-export const norm = (t: string) => t.toUpperCase().replace(/[^\p{L}\p{N}]+/gu, '');
+/** Normalisation commune DOM / PDF (normalizeLineText, print-overflow.ts). */
+export const norm = normalizeLineText;
 
 interface Frag { str: string; x: number; y: number; w: number }
 
