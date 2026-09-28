@@ -508,3 +508,51 @@ l'app (même texte, mêmes retours à la ligne, même pagination).
 
 Le script affiche « Texte IDENTIQUE » ou un diff ligne à ligne
 (`-` référence, `+` PDF de l'app). La photo n'entre pas dans le texte.
+
+### Retours à la ligne de la mesure de l'app (Windows, WebView2)
+
+But : vérifier sur ton poste, avec ta mise à l'échelle d'affichage, que la
+mesure de dépassement faite par l'app (WebView2) coupe les lignes comme
+l'export réel (Chrome de `generate_pdf`). N'importe quel CV convient.
+
+1. `bun run tauri dev` (depuis `resume-forge/`).
+2. Ouvrir le CV à tester et attendre le bandeau de dépassement dans l'aperçu
+   (mesure terminée).
+3. Ouvrir les outils de développement (clic droit → Inspecter, ou
+   Ctrl+Maj+I), onglet Console :
+   `copy(JSON.stringify(window.__RF_PRINT_OVERFLOW__))`, puis coller dans un
+   fichier `mesure.json`.
+4. **Sans modifier le CV ni ses réglages**, exporter le PDF.
+5. `bun run test:golden:compare -- --lines mesure.json <export.pdf>`
+
+`window.__RF_PRINT_OVERFLOW__` n'existe qu'en développement
+(`import.meta.env.DEV`) : la build de production est identique, octet pour
+octet, à celle qui précède ce lot (vérifié). Contenu : lignes mesurées (texte,
+colonne, haut, bas), marge, largeur imposée au CV (`PRINT_CV_WIDTH_PX`) et
+largeur réellement obtenue dans l'iframe, `devicePixelRatio`, et une empreinte
+du contenu (nombre de lignes visibles, première et dernière, SHA-256 du texte
+normalisé des lignes visibles).
+
+Le script :
+- vérifie l'empreinte du fichier (copie tronquée ou modifiée → code 2) ;
+- vérifie que la mesure et le PDF portent sur le même CV : première et
+  dernière lignes visibles présentes dans le PDF, et au moins 90 % des lignes
+  mesurées retrouvées dans son texte. Sinon : « la mesure et le PDF ne
+  portent pas sur le même CV (modifié entre la copie et l'export ?) », code 2 ;
+- applique le contrôle ligne par ligne du banc (`checkLineBreaks`) : code 0
+  si toutes les lignes se retrouvent mot pour mot, code 1 sinon (liste des
+  lignes en écart) ;
+- affiche la largeur du CV dans la mesure et le `devicePixelRatio` : une
+  largeur différente de 793 px signalerait un arrondi lié à la mise à
+  l'échelle.
+
+Limite : un changement de réglages de mise en page (sans changement de texte)
+entre la copie et l'export n'est pas reconnu comme un autre CV ; il ressort en
+code 1 (lignes coupées ou placées autrement).
+
+Vérifié sur le banc (page de test construite en mode développement) :
+mesure et PDF d'un même cas → code 0 (`anonymized-real/ats-classic`,
+`long-titles/elegant`) ; mesure d'`anonymized-real` confrontée au PDF de
+`long-titles` → code 2 (2/35 lignes retrouvées) ; fichier de mesure modifié →
+code 2 ; mesure d'`anonymized-real/ats-classic` confrontée au PDF de
+`my-settings/ats-classic` (même texte, autres réglages) → code 1.

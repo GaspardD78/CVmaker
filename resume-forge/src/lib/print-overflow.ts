@@ -273,6 +273,57 @@ export function analyzePrintLayout(doc: Document): PrintOverflow {
   };
 }
 
+/**
+ * Normalisation du texte d'une ligne pour la comparer au PDF : lettres et
+ * chiffres en majuscules seulement (text-transform, letter-spacing, séparateurs
+ * générés en CSS, puces). Partagée avec le banc (tests/golden/lib/extract.ts).
+ */
+export const normalizeLineText = (t: string) => t.toUpperCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/** Mesure exposée en développement (window.__RF_PRINT_OVERFLOW__), lue par test:golden:compare --lines. */
+export interface MeasureSnapshot {
+  lines: Pick<PrintLine, 'text' | 'column' | 'topMm' | 'bottomMm'>[];
+  overflows: boolean;
+  contentBottomMm: number;
+  remainingMm: number;
+  /** Largeur imposée au CV dans l'iframe (PRINT_CV_WIDTH_PX). */
+  printCvWidthPx: number;
+  /** Largeur obtenue dans l'iframe (getBoundingClientRect). */
+  measuredCvWidthPx: number;
+  devicePixelRatio: number;
+  /** Empreinte du contenu mesuré : lignes entièrement visibles (bas ≤ 297 mm). */
+  fingerprint: { visibleLines: number; firstVisibleLine: string | null; lastVisibleLine: string | null; sha256: string };
+}
+
+/** Lignes entièrement visibles sur la page. */
+export function visibleLines<T extends Pick<PrintLine, 'bottomMm'>>(lines: T[]): T[] {
+  return lines.filter((l) => l.bottomMm <= PAGE_HEIGHT_MM);
+}
+
+/** SHA-256 (hex) du texte normalisé des lignes visibles, une par ligne. */
+export async function linesSha256(lines: Pick<PrintLine, 'text' | 'bottomMm'>[]): Promise<string> {
+  const data = new TextEncoder().encode(visibleLines(lines).map((l) => normalizeLineText(l.text)).join('\n'));
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Construit la mesure exposée en développement (voir MeasureSnapshot). */
+export async function buildMeasureSnapshot(o: PrintOverflow, measuredCvWidthPx: number, devicePixelRatio: number): Promise<MeasureSnapshot> {
+  const lines = o.lines.map((l) => ({ text: l.text, column: l.column, topMm: l.topMm, bottomMm: l.bottomMm }));
+  const visible = visibleLines(lines);
+  const last = visible.length ? visible.reduce((a, b) => (b.bottomMm >= a.bottomMm ? b : a)) : null;
+  return {
+    lines,
+    overflows: o.overflows,
+    contentBottomMm: o.contentBottomMm,
+    remainingMm: o.remainingMm,
+    printCvWidthPx: PRINT_CV_WIDTH_PX,
+    measuredCvWidthPx,
+    devicePixelRatio,
+    fingerprint: { visibleLines: visible.length, firstVisibleLine: visible[0]?.text ?? null, lastVisibleLine: last?.text ?? null, sha256: await linesSha256(lines) },
+  };
+}
+
 export interface MeasureOptions {
   /** Annule la mesure (l'appelant a un CV plus récent à mesurer). */
   signal?: AbortSignal;
@@ -341,6 +392,13 @@ export async function measurePrintOverflow(html: string, options: MeasureOptions
     throwIfAborted(options.signal);
     const result = analyzePrintLayout(doc);
     if (complete) lastComplete = { html, result: structuredClone(result) };
+    // Développement uniquement (supprimé de la build de production) : dernière
+    // mesure complète, pour la comparer à un export réel (test:golden:compare --lines).
+    if (import.meta.env.DEV && complete) {
+      const cv = doc.getElementById('printable-cv');
+      const snapshot = await buildMeasureSnapshot(result, cv ? cv.getBoundingClientRect().width : NaN, window.devicePixelRatio);
+      (window as unknown as { __RF_PRINT_OVERFLOW__?: MeasureSnapshot }).__RF_PRINT_OVERFLOW__ = snapshot;
+    }
     return result;
   } finally {
     iframe.remove();
