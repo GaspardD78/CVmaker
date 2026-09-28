@@ -173,6 +173,12 @@ tests en place. Chemins relatifs à `resume-forge/`.
   (pire écart observé : 4,6 mm). Sous `OVERFLOW_SAFETY_MARGIN_MM` (5 mm), l'export
   demande confirmation « de justesse ». À réévaluer si la vérification côté
   Rust est un jour réalisée (mesure dans le Chrome même de l'impression).
+  **Cause trouvée (lot « retours à la ligne »)** : ce n'est pas le texte qui est
+  plus large à l'impression, c'est le CV qui y est plus étroit (793 px au lieu
+  de 794 px, voir `PRINT_CV_WIDTH_PX`). Mesure corrigée : 0 ligne coupée
+  autrement sur les 52 cas. La marge de 5 mm est gardée ; sa réévaluation fera
+  l'objet d'un lot suivant (le commentaire de `OVERFLOW_SAFETY_MARGIN_MM`,
+  qui décrit l'ancienne explication, sera mis à jour avec).
 - **Lot 1 : titres de section lisibles par les ATS** (fait). Plafond
   `MAX_LETTER_SPACING_EM = 0.06` sur les titres de section, le nom, le poste
   visé et les titres de la bande latérale ; garde-fou et assertions ATS dans le
@@ -194,9 +200,24 @@ tests en place. Chemins relatifs à `resume-forge/`.
   (ﬀ ﬁ ﬂ ﬃ ﬄ) étaient mal extraites ; les autres ligatures de Carlito (ft,
   ti, tt…) et les autres substitutions (chiffres, fractions, ordinaux,
   symboles) s'extrayaient déjà correctement.
-  Effet de bord observé : les 4 lignes que la mesure de l'écran coupait
-  autrement qu'à l'impression (`long-titles`, 3 cas) sont désormais coupées
-  au même endroit ; la marge mesurée de `long-titles/ats-modern` passe de 28
-  à 22,8 mm, valeur conforme au PDF. Les ligatures expliquaient donc au moins
-  une partie de l'écart écran/impression (voir « Marge de sécurité de la
-  mesure » : à réévaluer).
+  Effet de bord observé : le contrôle de l'époque ne signalait plus aucune
+  ligne coupée autrement qu'à l'impression, et la marge mesurée de
+  `long-titles/ats-modern` est passée de 28 à 22,8 mm, valeur conforme au PDF.
+  **Correction (lot « retours à la ligne »)** : ce contrôle cherchait chaque
+  ligne mesurée dans le texte du PDF mis bout à bout ; il ne voyait pas un mot
+  renvoyé à la ligne suivante. Un contrôle exact trouvait encore 10 lignes
+  coupées autrement (4 cas). Leur cause n'était pas les ligatures mais la
+  largeur du CV (794 px mesurés, 793 px imprimés), corrigée par ce lot.
+- **Lot « retours à la ligne »** (fait, partie A). Contrôle exact et bloquant
+  dans le banc : chaque ligne mesurée doit être, mot pour mot, une ligne du PDF
+  (`checkLineBreaks`, `tests/golden/lib/extract.ts`). Cause des écarts : à
+  l'impression, #printable-cv (`position: fixed`) fait 793 px (zone de page
+  A4 tronquée par Chrome), contre 794 px dans l'iframe de mesure (fenêtre
+  arrondie). Correctif : largeur imposée au CV dans l'iframe
+  (`PRINT_CV_WIDTH_PX`). Garde-fou : impression de contrôle à chaque cas,
+  largeur réelle comparée à celle de la mesure.
+- **Lot « retours à la ligne », partie B** (à faire, après fusion de A) : accès
+  à la mesure de l'app en développement (`window.__RF_PRINT_OVERFLOW__`,
+  `import.meta.env.DEV` seulement) et contrôle ligne par ligne dans
+  `test:golden:compare`, pour valider sous Windows (WebView2, mise à l'échelle
+  d'affichage).

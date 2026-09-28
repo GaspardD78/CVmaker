@@ -25,6 +25,21 @@ export const PAGE_WIDTH_MM = 210;
 export const PAGE_HEIGHT_MM = 297;
 
 /**
+ * Largeur (px CSS) de #printable-cv dans le PDF, imposée au CV dans l'iframe
+ * de mesure. À l'impression, `@media print` (App.css) place #printable-cv en
+ * `position: fixed` ; sa largeur de 100 % suit alors la zone de la page A4
+ * (210 mm = 793,70 px), que Chrome tronque à l'entier : 793 px. L'iframe de
+ * 210 mm, elle, arrondit sa fenêtre à 794 px : 1 px de plus faisait passer
+ * certains mots à la ligne plus tard qu'à l'impression.
+ * Mesures (golden tests, Chromium 141) : repère aligné à droite dans un élément
+ * fixed imprimé à 793,00 px (794,00 px dans le flux normal) ; avec 793 px,
+ * la mesure retrouve les coupures du PDF sur les 10 lignes en écart (4 cas).
+ * Vérifiée à chaque cas par le banc (impression de contrôle, voir
+ * tests/golden/README.md).
+ */
+export const PRINT_CV_WIDTH_PX = Math.floor(PAGE_WIDTH_MM * PX_PER_MM);
+
+/**
  * Marge de sécurité (mm) sous laquelle un CV qui tient est signalé « de justesse ».
  * La mesure se fait à l'écran : à l'impression, le texte est très légèrement
  * plus large, et une ligne longue peut passer à la ligne un mot plus tôt,
@@ -315,6 +330,10 @@ export async function measurePrintOverflow(html: string, options: MeasureOptions
     doc.write(html);
     doc.close();
     activatePrintRules(doc);
+    // Largeur du CV à l'impression (voir PRINT_CV_WIDTH_PX), en dernier pour l'emporter.
+    const width = doc.createElement('style');
+    width.textContent = `#printable-cv { width: ${PRINT_CV_WIDTH_PX}px !important; }`;
+    doc.head.appendChild(width);
     throwIfAborted(options.signal);
     const complete = await resourcesReady(doc);
     throwIfAborted(options.signal);
