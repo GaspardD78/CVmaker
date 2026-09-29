@@ -176,9 +176,15 @@ tests en place. Chemins relatifs à `resume-forge/`.
   **Cause trouvée (lot « retours à la ligne »)** : ce n'est pas le texte qui est
   plus large à l'impression, c'est le CV qui y est plus étroit (793 px au lieu
   de 794 px, voir `PRINT_CV_WIDTH_PX`). Mesure corrigée : 0 ligne coupée
-  autrement sur les 52 cas. La marge de 5 mm est gardée ; sa réévaluation fera
-  l'objet d'un lot suivant (le commentaire de `OVERFLOW_SAFETY_MARGIN_MM`,
-  qui décrit l'ancienne explication, sera mis à jour avec).
+  autrement sur les 52 cas.
+  **Réévaluée à 2 mm** (lot « marge ») : 0 retour à la ligne différent sur les
+  52 cas et sur une validation croisée Windows (WebView2, 48/48 lignes, 793 px),
+  écart vertical résiduel de 0,3 mm au plus, plus une réserve pour les écarts
+  de version entre WebView2 et Chrome. Commentaire de la constante réécrit.
+  Effets : `anonymized-real/academic` (3,2 mm) passe « de justesse » → « tient » ;
+  « Ajuster à 1 page » retient un état moins compressé (`ats-classic` :
+  S13 → S12, police 11,5 px, marge 12,3 → 3,7 mm ; `sidebar-modern` :
+  S11 → S10, interligne 1,5, marge 7,9 → 2,6 mm).
 - **Lot 1 : titres de section lisibles par les ATS** (fait). Plafond
   `MAX_LETTER_SPACING_EM = 0.06` sur les titres de section, le nom, le poste
   visé et les titres de la bande latérale ; garde-fou et assertions ATS dans le
@@ -225,3 +231,9 @@ tests en place. Chemins relatifs à `resume-forge/`.
   pour octet). Procédure Windows : `tests/golden/README.md`, section
   Validation croisée. À faire par l'utilisateur : validation sous Windows
   avec mise à l'échelle d'affichage.
+- **Couverture du statut « de justesse » dans le banc** (à prévoir). Depuis la
+  marge de 2 mm, aucune fixture n'est « de justesse » (`anonymized-real/academic`,
+  3,2 mm, tient désormais) : le statut n'est plus couvert par une attente de
+  fixture, seulement par l'assertion `tight` ⇔ marge < seuil. Piste : une
+  fixture dérivée calibrée pour tenir avec environ 1 mm de marge (ex. le cas
+  réel de validation Windows, 1,6 mm).

@@ -174,7 +174,9 @@ Assertions par cas (`checkOverflow` dans `run.ts`) :
 - **attente par fixture**, parmi trois statuts (« dépasse », « de justesse »,
   « tient ») : `minimal` et `long-titles` tiennent ; `overflow` dépasse ;
   `anonymized-real` dépasse, sauf `academic` (le template le plus compact), qui
-  tient avec 3,2 mm de marge, donc « de justesse » ;
+  tient avec 3,2 mm de marge, donc « tient » depuis que la marge de sécurité
+  est de 2 mm (« de justesse » avec 5 mm). Aucune fixture n'est plus « de
+  justesse » : voir NOTES.md (lot à prévoir) ;
 - **« de justesse »** : `tight` doit valoir vrai si et seulement si le CV tient
   avec une marge inférieure à `OVERFLOW_SAFETY_MARGIN_MM` ;
 - **référence** `overflow.json` : dépassement oui/non, de justesse oui/non, quantité en mm
@@ -239,12 +241,21 @@ fenêtre est un nombre entier de pixels. **Vérifié par défaut volontaire** :
 `PRINT_CV_WIDTH_PX = 794` fait échouer le cas (`793 px à l'impression, 794 px
 dans la mesure`) et le contrôle des retours à la ligne.
 
-*Marge de sécurité.* Avant ce correctif, un mot passé à la ligne plus tôt à
-l'impression pouvait faire descendre tout ce qui suit d'environ une ligne
-(pire écart observé au lot A : 4,6 mm). D'où `OVERFLOW_SAFETY_MARGIN_MM = 5`
-(`src/lib/print-overflow.ts`) : sous cette marge, le CV est signalé « de
-justesse » et l'export demande confirmation. Valeur gardée ; réévaluation
-prévue dans un lot suivant (NOTES.md).
+*Marge de sécurité (réévaluée : 2 mm).* Sous `OVERFLOW_SAFETY_MARGIN_MM`
+(`src/lib/print-overflow.ts`), le CV est signalé « de justesse » et l'export
+demande confirmation. Elle valait 5 mm pour couvrir un mot passé à la ligne
+plus tôt à l'impression (pire écart au lot A : 4,6 mm), dû en réalité au CV
+plus étroit de 1 px (voir ci-dessus). Depuis le correctif de largeur :
+- 0 retour à la ligne différent sur les 52 cas (contrôle bloquant) et sur une
+  validation croisée sous Windows (WebView2, `devicePixelRatio` 1, CV réel :
+  48/48 lignes identiques, largeur 793 px) ;
+- écart vertical résiduel entre la mesure et le PDF : 0,3 mm au plus sur le
+  bas du contenu (25 cas qui tiennent, polices réelles comprises pour Georgia),
+  ±0,25 mm sur la position des lignes.
+D'où 2 mm : l'écart résiduel plus une réserve pour les différences de version
+entre WebView2 (mesure) et le Chrome de l'export. Effets sur le banc :
+`anonymized-real/academic` (3,2 mm) passe de « de justesse » à « tient » ;
+suite fit : voir ci-dessous.
 
 ## Critère de non-régression d'un lot
 
@@ -368,10 +379,14 @@ Références : texte, PNG, `overflow.json` et `html.json`, comme les autres cas.
 
 | Cas | Attendu |
 |---|---|
-| `fit-anonymized-real/ats-classic` | ajusté, au plancher (police 11 px) |
-| `fit-anonymized-real/sidebar-modern` | ajusté (réduit aussi les marges de la colonne principale) |
+| `fit-anonymized-real/ats-classic` | ajusté, S12/13 (police 11,5 px), marge 3,7 mm |
+| `fit-anonymized-real/sidebar-modern` | ajusté, S10/15 (réduit aussi les marges de la colonne principale ; interligne 1,5), marge 2,6 mm |
 | `fit-overflow/ats-classic` | **échec explicite** : dépasse encore de 11,4 mm au plancher |
 | `fit-overflow/ats-modern` | **échec explicite** : dépasse encore de 31,3 mm au plancher |
+
+Avec la marge de 5 mm, ces deux cas retenaient S13/13 (police 11 px, marge
+12,3 mm) et S11/15 (interligne 1,4, marge 7,9 mm) : le seuil de 2 mm fait
+retenir un état moins compressé.
 
 Planchers (lot C2, choisis sur rendu comparé) : entrées 8 px, titres de
 section 6 px, titres d'entrée 2 px, interligne 1,25, police 11 px.

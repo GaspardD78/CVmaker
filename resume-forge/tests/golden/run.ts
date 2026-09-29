@@ -88,8 +88,8 @@ function expectedStatus(c: GoldenCase): OverflowStatus | undefined {
   if (c.suite === 'minimal' || c.suite === 'long-titles') return 'tient';
   if (c.suite === 'overflow') return 'dépasse';
   // academic, le template le plus compact, fait tenir anonymized-real avec
-  // 3,2 mm de marge : sous OVERFLOW_SAFETY_MARGIN_MM, donc « de justesse ».
-  if (c.suite === 'anonymized-real') return c.template === 'academic' ? 'de justesse' : 'dépasse';
+  // 3,2 mm de marge : au-dessus d'OVERFLOW_SAFETY_MARGIN_MM (2 mm), donc « tient ».
+  if (c.suite === 'anonymized-real') return c.template === 'academic' ? 'tient' : 'dépasse';
   return undefined;
 }
 
