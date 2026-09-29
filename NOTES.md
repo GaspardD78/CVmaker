@@ -120,6 +120,14 @@ tests en place. Chemins relatifs à `resume-forge/`.
     « fi ». **Corrigé** (lot « ligatures ») : `font-variant-ligatures: none`
     sur `#printable-cv`, garde-fou dans le banc.
 
+15. **Bruit PNG au-dessus du seuil observé une fois (lot « marge »).** Sur une
+    passe complète, `tight/elegant` a différé de sa référence de 17 px (écart
+    de composante 26, anti-aliasing), au-delà du seuil de 8 px par page
+    (`MAX_DIFF_RATIO`, calibré sur un bruit maximal de 5 px). Non reproduit :
+    8 passes suivantes conformes (1 complète, 6 limitées aux cas `tight`, plus
+    la génération de la référence). Seuil non modifié ; si l'écart réapparaît,
+    refaire la mesure du bruit (README, section Seuils) avant de l'élargir.
+
 ## Lots à prévoir
 
 - **Lot B : indicateur dans l'aperçu.** `usePrintOverflow`, bandeau dans
@@ -231,9 +239,9 @@ tests en place. Chemins relatifs à `resume-forge/`.
   pour octet). Procédure Windows : `tests/golden/README.md`, section
   Validation croisée. À faire par l'utilisateur : validation sous Windows
   avec mise à l'échelle d'affichage.
-- **Couverture du statut « de justesse » dans le banc** (à prévoir). Depuis la
-  marge de 2 mm, aucune fixture n'est « de justesse » (`anonymized-real/academic`,
-  3,2 mm, tient désormais) : le statut n'est plus couvert par une attente de
-  fixture, seulement par l'assertion `tight` ⇔ marge < seuil. Piste : une
-  fixture dérivée calibrée pour tenir avec environ 1 mm de marge (ex. le cas
-  réel de validation Windows, 1,6 mm).
+- **Couverture du statut « de justesse » dans le banc** (fait, lot « marge »).
+  Depuis la marge de 2 mm, `anonymized-real/academic` (3,2 mm) tient : la
+  fixture `tight` (calibrée à partir d'`anonymized-real` : 3 expériences
+  retirées, 54 mots ajoutés au résumé) tient de justesse sur `elegant` (1,1 mm)
+  et `sidebar-elegant` (0,7 mm), statut attendu fixé dans `run.ts`. Voir
+  `tests/golden/README.md`, section `tight` : calibrage.

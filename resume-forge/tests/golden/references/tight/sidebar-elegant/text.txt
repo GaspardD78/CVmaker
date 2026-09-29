@@ -1,0 +1,58 @@
+=== page 1 ===
+Camille Durand-Lefèvre
+Lead Data Engineer / Architecte BI
+Consultante data avec plus de dix ans d'expérience en informatique décisionnelle,
+modélisation de données et pilotage de projets de migration vers le cloud. Habituée aux
+environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes
+CONTACT
+de données fiables et des tableaux de bord adoptés par les métiers. Autonome,
+rigoureuse et pédagogue, j'accompagne les équipes métiers dans l'adoption des camille.durand@example.com
+nouveaux outils et la montée en compétence sur les données. Je m'appuie sur une
+06 00 00 00 00
+connaissance fine des référentiels comptables et financiers, sur une pratique régulière
+Lyon
+de la gouvernance des données et sur une culture de la qualité logicielle : tests
+in/camille-durand-exemple
+automatisés, revues de
+camille-exemple
+EXPÉRIENCE PROFESSIONNELLE CERTIFICATIONS
+Microsoft Certified: Azure Data Engineer
+Lead Data Engineer | Nexora Solutions — Lyon septembre 2022 - Présent
+Associate
+Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs
+métiers Databricks Certified Data Engineer
+Professional
+Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles
+Réduction de 35 % du temps de traitement des flux quotidiens
+COMPÉTENCES
+Consultante Senior BI & Data | Altimeo Conseil — Lyon mars 2020 - août 2022
+SQL Python Azure Databricks
+Migration d'un entrepôt Oracle vers Snowflake (1,2 To, 180 tables)
+Mise en place de tableaux de bord Power BI pour la direction financière
+Snowflake Power BI Talend
+Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
+dbt Modélisation dimensionnelle
+Consultant BI & Data Engineer (prestations multi- janvier 2016 -
+Gestion de projet agile
+février 2020
+clients) | GITEC • MATELLI • MICROPOLE — Paris
+Missions successives dans la banque, l'assurance et l'industrie
+Développement de flux ETL Talend et SSIS, modélisation en étoile
+Rédaction des spécifications fonctionnelles et techniques
+Développeuse décisionnel | Banque Régionale du septembre 2014 -
+décembre 2015
+Centre — Orléans
+Maintenance évolutive des rapports Business Objects
+Optimisation de requêtes SQL sur un entrepôt Teradata
+FORMATION
+Master Informatique décisionnelle | Université de Tours — 2010 -
+2012
+Tours
+Licence Mathématiques appliquées et sciences sociales | 2007 -
+2010
+Université d'Orléans — Orléans
+PROJETS
+Outil open source de contrôle qualité des données | mai 2021 - janvier
+2022
+Projet personnel
+Bibliothèque Python de règles de validation déclaratives, 300 étoiles sur GitHub.
