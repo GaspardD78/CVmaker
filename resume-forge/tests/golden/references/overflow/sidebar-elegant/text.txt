@@ -12,7 +12,8 @@ contextes industriels et aux organisations multi-sites.
 Anglais — Professionnel (B2)
 EXPÉRIENCE PROFESSIONNELLE
 Allemand — Notions (A2)
-Chef de projet ERP | Atelier Numérique de l'Ouest — Nantes février 2021 - Présent
+Chef de projet ERP | Atelier Numérique de l'Ouest — Nantes février 2021 -
+Présent
 Pilotage du déploiement d'un ERP sur 6 sites de production
 Coordination de 3 prestataires et d'une équipe interne de 8 personnes
 Suivi budgétaire mensuel et reporting au comité de direction
@@ -49,4 +50,3 @@ Stagiaire développeur | Agence Web Val de Loire — janvier 2006 - juin
 Orléans
 Intégration de maquettes et développement de modules
 Tests et corrections avant mise en production
-FORMATION

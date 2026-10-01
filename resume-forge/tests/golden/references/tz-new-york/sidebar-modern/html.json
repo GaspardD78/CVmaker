@@ -1,6 +1,6 @@
 {
-  "exportHtmlSha256": "d758f58101dc7b5faefd4c6718f967368192cd560b317a8df5374998034b20c5",
-  "markupSha256": "4dc0497b703162d47558ea332b1e5f49fdb7d58c2ca492014ffceebbb3e5b7d8",
+  "exportHtmlSha256": "4454cbcba27a8bb11bb5b3bb223c85b52d12e011d025e733345d935cc5dffa8d",
+  "markupSha256": "d1c29ac948f963569a513efcf30605c28209c0d1cd9dd32e50f2c788082720fd",
   "rules": [
     "6f6c36dcab1b",
     "d7ba09a03ab6",
@@ -135,6 +135,8 @@
     "9f0d667a49c2",
     "9e2827b2551a",
     "4bc78e66aee4",
+    "a7227f633a37",
+    "d5dcdb0e19f1",
     "417dff9b6020",
     "3223d93c8df4",
     "f2a71f0f5727",
@@ -151,6 +153,8 @@
     "1891fb153792",
     "1e9cca94524b",
     "4bc78e66aee4",
+    "a7227f633a37",
+    "d5dcdb0e19f1",
     "417dff9b6020",
     "3223d93c8df4",
     "f2a71f0f5727",

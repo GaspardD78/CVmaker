@@ -120,13 +120,24 @@ tests en place. Chemins relatifs à `resume-forge/`.
     « fi ». **Corrigé** (lot « ligatures ») : `font-variant-ligatures: none`
     sur `#printable-cv`, garde-fou dans le banc.
 
-15. **Bruit PNG au-dessus du seuil observé une fois (lot « marge »).** Sur une
-    passe complète, `tight/elegant` a différé de sa référence de 17 px (écart
-    de composante 26, anti-aliasing), au-delà du seuil de 8 px par page
-    (`MAX_DIFF_RATIO`, calibré sur un bruit maximal de 5 px). Non reproduit :
-    8 passes suivantes conformes (1 complète, 6 limitées aux cas `tight`, plus
-    la génération de la référence). Seuil non modifié ; si l'écart réapparaît,
-    refaire la mesure du bruit (README, section Seuils) avant de l'élargir.
+15. **Bruit PNG au-dessus du seuil sur `tight/elegant` (lots « marge » et 2).**
+    `tight/elegant` diffère de sa référence de 17 à 21 px (écart de composante
+    26, bords de glyphes isolés, texte identique), au-delà du seuil de 8 px par
+    page (`MAX_DIFF_RATIO`, calibré sur un bruit maximal de 5 px). Observé sur
+    4 passes complètes sur 8 environ, toujours sur ce seul cas, presque toujours
+    sur la première passe d'une série, jamais sur 6 passes limitées aux cas
+    `tight`. Aucun lien avec le contenu : le cas est à une colonne, sans
+    changement de mise en page. `--update` peut enregistrer une référence
+    bruitée : au lot 2, la référence de `tight/elegant` a été restaurée à celle
+    de `main`. Seuil non modifié. À traiter dans un lot dédié : chercher la
+    cause (cache de polices à froid ? ordre des cas ?) avant de toucher au
+    seuil ; sinon refaire la mesure du bruit (README, section Seuils).
+
+16. **Dates coupées en deux lignes à l'export (lot 2).** Parce que la date d'une
+    entrée peut rétrécir (`flex-shrink`), elle est repliée sur 2 lignes ou plus
+    dans 94 rangées sur 395 des cas du banc : `janvier 2010` puis `- août 2015`,
+    `2018 -` puis `2019`. Pour un ATS, une date coupée est au moins aussi
+    gênante qu'un mot collé. Non corrigé par le lot 2.
 
 ## Lots à prévoir
 
@@ -245,3 +256,15 @@ tests en place. Chemins relatifs à `resume-forge/`.
   retirées, 54 mots ajoutés au résumé) tient de justesse sur `elegant` (1,1 mm)
   et `sidebar-elegant` (0,7 mm), statut attendu fixé dans `run.ts`. Voir
   `tests/golden/README.md`, section `tight` : calibrage.
+- **Lot « collision intitulé / date »** (fait, lot 2). `column-gap` de 4 px et
+  espace rendu en fin de bloc d'intitulé dans le CSS de `PrintableCV`, contrôles
+  bloquants (mot collé dans le texte pdfjs, écart minimal de 3 px) et fixture
+  `entry-date-gap` (`tests/golden/README.md`, section Collision intitulé / date).
+- **Lot futur : dates indivisibles** (point 16). Variante « B8 » mesurée au
+  lot 2, hors périmètre : intitulé `flex: 1 1 0; min-width: 0`, date
+  `flex: 0 0 auto; max-width: 45 %`, `column-gap` de 8 px. Les 94 dates coupées
+  disparaissent et l'écart minimal passe à 8 px, mais 15 cas descendent
+  (jusqu'à +19,1 mm sur les mises en page à bande latérale) :
+  `tight/sidebar-elegant` (0,7 mm) dépasserait, `anonymized-real/sidebar-elegant`
+  et `sidebar-tech`, `my-settings/sidebar-modern` et l'ajustement à une page de
+  `sidebar-modern` seraient à recalibrer.

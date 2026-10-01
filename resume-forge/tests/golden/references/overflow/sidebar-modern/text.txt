@@ -36,7 +36,8 @@ Développeur | Éditions Numériques de Loire — Tours septembre 2008 - mai 201
 Développement d'applications web de gestion éditoriale
 Maintenance corrective et évolutive
 Rédaction de la documentation technique
-Technicien support | Services Informatiques Ligériens — Blois juillet 2006 - août 2008
+Technicien support | Services Informatiques Ligériens — Blois juillet 2006 - août
+2008
 Support utilisateurs de niveau 1 et 2
 Installation et maintenance de postes de travail
 Gestion du parc et des licences
@@ -46,4 +47,3 @@ Tests et corrections avant mise en production
 FORMATION
 Master Management des systèmes d'information | Université de 2012 -
 2014
-Nantes — Nantes

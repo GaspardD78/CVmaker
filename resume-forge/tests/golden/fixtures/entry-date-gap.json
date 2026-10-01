@@ -1,0 +1,37 @@
+{
+  "description": "Collision intitulé / date (lot 2). Deux expériences dont l'intitulé remplit la ligne jusqu'à la date : écart de 0,09 px sur ats-classic (première entrée) et de 0,23 px sur sidebar-modern (seconde), contre 1,5 px au moins pour que les extracteurs de texte insèrent un espace. Sans correctif, « Paris » et « février » sortent collés (« Parisfévrier »). Calibrage : écart mesuré dans le DOM d'un export réel, en impression émulée à 793 px (largeur réelle du CV dans le PDF, voir PRINT_CV_WIDTH_PX), en faisant varier le texte de l'intitulé (titres de type long-titles) et de l'entreprise jusqu'à obtenir un écart entre 0 et 0,6 px sur la ligne de la date. Les deux entrées figurent dans les deux templates : chacune n'est collée que sur le template pour lequel elle est calibrée. À recalibrer si la largeur du CV, les polices ou les classes des templates changent.",
+  "profile": {
+    "firstName": "Léo",
+    "lastName": "Martin",
+    "email": "leo.martin@example.com"
+  },
+  "cv": {
+    "name": "CV golden — collision intitulé / date",
+    "targetJob": null,
+    "customSummary": null,
+    "settings": {}
+  },
+  "sections": [
+    {
+      "name": "Expérience",
+      "items": [
+        {
+          "entryType": "experience",
+          "title": "Responsable des systèmes d'information finance, contrôle de gestion et consolidation",
+          "subtitle": "Banque Ouest Atlantique",
+          "location": "Paris",
+          "startDate": "2020-02",
+          "endDate": "2022-03"
+        },
+        {
+          "entryType": "experience",
+          "title": "Responsable des systèmes d'information",
+          "subtitle": "Finances",
+          "location": "Paris",
+          "startDate": "2020-02",
+          "endDate": "2022-03"
+        }
+      ]
+    }
+  ]
+}

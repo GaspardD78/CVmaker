@@ -130,6 +130,7 @@ Fuseau horaire et langue sont fixés par cas (`timezoneId`, `locale: fr-FR`).
 | `my-settings` | `ats-classic`, `sidebar-modern` (**provisoire**) | `anonymized-real` + réglages de design. **Valeurs provisoires** : voir ci-dessous. |
 | `tz-new-york` (suite) | `ats-classic`, `sidebar-modern` | `anonymized-real` rendu en `America/New_York` au lieu de `Europe/Paris`. |
 | `tight` | `elegant`, `sidebar-elegant` | CV « de justesse » : tient avec 0,5 à 1,5 mm de marge (1,1 et 0,7 mm), sous `OVERFLOW_SAFETY_MARGIN_MM`. Calibré à partir d'`anonymized-real`, sans réglage de mise en page : 3 expériences retirées (Analyste données, Chargée d'études junior, Alternance) et 54 mots ajoutés au résumé. Voir ci-dessous. |
+| `entry-date-gap` (suite) | `ats-classic`, `sidebar-modern` | Collision intitulé / date : deux expériences dont l'intitulé remplit la ligne jusqu'à la date (écart de 0,09 et 0,23 px sans correctif). Voir la section Collision intitulé / date. |
 
 Toutes les données sont fictives. Aucune donnée personnelle réelle n'est versionnée.
 
@@ -466,6 +467,65 @@ Vérifications du banc (`run.ts`, `lib/html-fingerprint.ts`), bloquantes :
 (`cv-summary`) fait échouer le cas avec
 `p.cv-summary… « Consultante data… » : 0.200 em`. Sans le plafond,
 `minimalist` échoue (titres et nom illisibles).
+
+### Collision intitulé / date (lot 2)
+
+Sur la ligne d'une entrée (`.cv-title-row`, `CVEntryBlock.tsx`), l'intitulé et la
+date sont deux éléments d'une rangée flex `justify-between` sans espace
+imposé. Quand la ligne est pleine, l'intitulé touche la date et les extracteurs
+de texte PDF collent les mots : « Paris » + « février 2020 » donne
+`Parisfévrier 2020`. Un ATS lit alors un lieu inexistant et perd le début de
+la date.
+
+*Seuil mesuré* (rangée synthétique, Carlito 11 px, pdftotext, pdfminer, pypdf
+et pdfjs identiques) : mots collés pour un écart de 0, 0,5 ou 1 px ; espace
+insérée dès 1,5 px (0,14 em). Un espace écrit dans le HTML entre les deux
+éléments d'une rangée flex est supprimé à la mise en page : il n'existe pas
+dans le PDF (mesuré : toujours collé). Ce qui fonctionne est un espace
+*rendu*. Sur les 54 premiers cas, l'écart minimal était de 1,1 px
+(`long-titles/sidebar-tech`), 5 rangées étaient sous 3 px.
+
+*Correctif* (`PrintableCV.tsx`, CSS du CV, aucune modification du balisage) :
+- `column-gap` de 4 px (`ENTRY_DATE_GAP_PX`) entre l'intitulé et la date :
+  écart géométrique garanti, 0,36 em à 11 px ;
+- `.cv-title-row > :first-child::after { content: " "; white-space: pre }` :
+  un vrai espace en fin de bloc d'intitulé, qui reste dans le texte du PDF
+  même si l'écart tombait à zéro (vérifié à écart nul avec les quatre
+  extracteurs). Placé en début de date, ou hors flux, il ne convient pas : en
+  début de date il décale d'un espace la première ligne d'une date repliée
+  (2,5 px mesurés), hors flux il recouvre la fin de l'intitulé à écart nul
+  (« Parisfévrier » à nouveau).
+
+*Contrôles du banc* (bloquants, sur les 56 cas) :
+- **mot collé** : dans le texte pdfjs, un mois suivi d'une année, une année
+  seule ou « Présent » directement précédés d'une lettre ou d'une parenthèse
+  (`DATE_GLUE`, `run.ts`) ; aucun faux positif sur les 54 textes d'origine ;
+- **écart minimal** : l'écart géométrique entre la fin de l'intitulé et le
+  début de la date, sur la première ligne de la date, doit être d'au moins
+  `ENTRY_DATE_MIN_GAP_PX` (3 px, soit 2 fois le seuil des extracteurs), mesuré
+  dans `collectInPage` (`entryDateGapViolations`). Il porte sur toutes les
+  entrées de tous les cas, pas seulement sur la fixture.
+  Les extracteurs pdftotext, pdfminer et pypdf ne sont pas des dépendances du
+  banc ; ils ont été passés une fois sur les 56 PDF (0 mot collé, contre 2
+  sur `entry-date-gap` sans correctif) avec la même expression.
+
+*Fixture `entry-date-gap`*. Chaque entrée est calibrée pour un template : en
+faisant varier le texte de l'intitulé et de l'entreprise dans le DOM d'un
+export réel, à 793 px (largeur réelle du CV dans le PDF), jusqu'à un écart de
+0 à 0,6 px. Mesures sans correctif : 1,09 px (`ats-classic`) et 0,89 px
+(`sidebar-modern`) dans le banc. À recalibrer si la largeur du CV, les polices
+ou les classes des templates changent.
+
+**Vérifié par défaut volontaire** : sans les deux règles CSS, les deux cas
+échouent (`Parisfévrier 2020` dans le texte pdfjs, écart de 1,09 et 0,89 px)
+et 5 cas existants échouent sur l'écart minimal (de 1,08 à 2,81 px) ; avec les
+règles, tous passent.
+
+*Effets de mise en page* (variante « écart seul », sans modifier le repli
+des dates) : l'intitulé passe à la ligne un peu plus tôt quand la ligne est
+pleine. 10 textes de référence changent (replis de lignes, aucun contenu
+perdu), 6 marges changent d'une ligne (5,7 mm) ; le repli des dates en deux
+lignes est inchangé (voir NOTES.md).
 
 ### Ligatures (lot « ligatures »)
 
