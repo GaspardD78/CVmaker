@@ -41,13 +41,19 @@ export const PRINT_CV_WIDTH_PX = Math.floor(PAGE_WIDTH_MM * PX_PER_MM);
 
 /**
  * Marge de sécurité (mm) sous laquelle un CV qui tient est signalé « de justesse ».
- * La mesure se fait à l'écran : à l'impression, le texte est très légèrement
- * plus large, et une ligne longue peut passer à la ligne un mot plus tôt,
- * décalant tout le contenu suivant d'environ une ligne. Pire écart observé
- * par les golden tests : 4,6 mm sur 48 cas (5 lignes sur 248, 3 cas
- * long-titles ; voir tests/golden/README.md, section Dépassement de page).
+ * Depuis que la mesure impose au CV sa largeur d'impression (PRINT_CV_WIDTH_PX),
+ * elle coupe les lignes exactement comme le PDF : 0 retour à la ligne
+ * différent sur les 52 cas des golden tests (contrôle bloquant, ligne par
+ * ligne) et sur une validation croisée sous Windows (WebView2, 48/48 lignes).
+ * Écart vertical résiduel entre la mesure et le PDF : 0,3 mm au plus (bas du
+ * contenu, 25 cas qui tiennent ; position des lignes à ±0,25 mm). Les 2 mm
+ * couvrent cet écart et gardent une réserve pour les différences de version
+ * entre WebView2 (mesure) et le Chrome de l'export. L'ancienne valeur (5 mm)
+ * compensait un mot passé à la ligne plus tôt à l'impression : ce n'était pas
+ * le texte qui était plus large, mais le CV plus étroit (793 px au lieu de 794).
+ * Voir tests/golden/README.md, section Dépassement de page.
  */
-export const OVERFLOW_SAFETY_MARGIN_MM = 5;
+export const OVERFLOW_SAFETY_MARGIN_MM = 2;
 
 export type OverflowStatus = 'dépasse' | 'de justesse' | 'tient';
 

@@ -42,6 +42,12 @@ const BASE_FIXTURES = ['anonymized-real', 'long-titles', 'minimal', 'overflow'];
 const DERIVED_FIXTURES = ['my-settings'];
 /** Variante fuseau négatif : un template par famille de layout (toutes les dates passent par CVEntryBlock). */
 const TZ_TEMPLATES = ['ats-classic', 'sidebar-modern'];
+/**
+ * Fixture « de justesse » (fixtures/tight.json, calibrée : voir sa description) :
+ * tient avec 0,5 à 1,5 mm de marge, sous OVERFLOW_SAFETY_MARGIN_MM, sur un
+ * template à une colonne et un template à bande latérale.
+ */
+const TIGHT_TEMPLATES = ['elegant', 'sidebar-elegant'];
 
 interface GoldenCase { id: string; suite: string; fixture: string; template: string; timezoneId: string; fit?: boolean }
 
@@ -62,6 +68,8 @@ function buildCases(): GoldenCase[] {
   for (const fixture of DERIVED_FIXTURES)
     for (const template of fixtureTemplates(fixture) ?? [])
       cases.push({ id: `${fixture}/${template}`, suite: fixture, fixture, template, timezoneId: BASE_TZ });
+  for (const template of TIGHT_TEMPLATES)
+    cases.push({ id: `tight/${template}`, suite: 'tight', fixture: 'tight', template, timezoneId: BASE_TZ });
   for (const template of TZ_TEMPLATES)
     cases.push({ id: `tz-new-york/${template}`, suite: 'tz-new-york', fixture: 'anonymized-real', template, timezoneId: NEGATIVE_TZ });
   for (const [fixture, template] of FIT_CASES)
@@ -87,9 +95,10 @@ const KNOWN_TZ_SHIFTS: { paris: string; newYork: string; what: string }[] = [
 function expectedStatus(c: GoldenCase): OverflowStatus | undefined {
   if (c.suite === 'minimal' || c.suite === 'long-titles') return 'tient';
   if (c.suite === 'overflow') return 'dépasse';
+  if (c.suite === 'tight') return 'de justesse';
   // academic, le template le plus compact, fait tenir anonymized-real avec
-  // 3,2 mm de marge : sous OVERFLOW_SAFETY_MARGIN_MM, donc « de justesse ».
-  if (c.suite === 'anonymized-real') return c.template === 'academic' ? 'de justesse' : 'dépasse';
+  // 3,2 mm de marge : au-dessus d'OVERFLOW_SAFETY_MARGIN_MM (2 mm), donc « tient ».
+  if (c.suite === 'anonymized-real') return c.template === 'academic' ? 'tient' : 'dépasse';
   return undefined;
 }
 

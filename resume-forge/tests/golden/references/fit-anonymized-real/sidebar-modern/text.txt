@@ -16,25 +16,28 @@ camille-exemple Encadrement d'une équipe de 4 data engineers, revues de code et
 Réduction de 35 % du temps de traitement des flux quotidiens
 CERTIFICATIONS
 Consultante Senior BI & Data | Altimeo Conseil — Lyon mars 2020 - août 2022
-Microsoft Certified: Azure Data Engineer Migration d'un entrepôt Oracle vers Snowflake (1,2 To, 180 tables)
-Associate Mise en place de tableaux de bord Power BI pour la direction financière
+Microsoft Certified: Azure Data Engineer
+Migration d'un entrepôt Oracle vers Snowflake (1,2 To, 180 tables)
+Associate
+Mise en place de tableaux de bord Power BI pour la direction financière
 Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
 Databricks Certified Data Engineer
-Consultant BI & Data Engineer (prestations multi-clients) | GITEC • janvier 2016 -
 Professional
+Consultant BI & Data Engineer (prestations multi-clients) | GITEC • janvier 2016 -
 février 2020
 MATELLI • MICROPOLE — Paris
-COMPÉTENCES Missions successives dans la banque, l'assurance et l'industrie
+COMPÉTENCES
+Missions successives dans la banque, l'assurance et l'industrie
 Développement de flux ETL Talend et SSIS, modélisation en étoile
 SQL Python Azure Databricks
 Rédaction des spécifications fonctionnelles et techniques
-Snowflake Power BI Talend Développeuse décisionnel | Banque Régionale du Centre — septembre 2014 - décembre
+Snowflake Power BI Talend
+Développeuse décisionnel | Banque Régionale du Centre — septembre 2014 - décembre
 2015
-Orléans
-dbt Modélisation dimensionnelle
+dbt Modélisation dimensionnelle Orléans
 Maintenance évolutive des rapports Business Objects
-Optimisation de requêtes SQL sur un entrepôt Teradata
 Gestion de projet agile
+Optimisation de requêtes SQL sur un entrepôt Teradata
 Analyste données | Institut Statistique Territorial — Tours octobre 2013 - août 2014
 Production d'indicateurs socio-économiques trimestriels
 Automatisation de la collecte avec des scripts Python

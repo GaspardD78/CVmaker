@@ -120,6 +120,14 @@ tests en place. Chemins relatifs à `resume-forge/`.
     « fi ». **Corrigé** (lot « ligatures ») : `font-variant-ligatures: none`
     sur `#printable-cv`, garde-fou dans le banc.
 
+15. **Bruit PNG au-dessus du seuil observé une fois (lot « marge »).** Sur une
+    passe complète, `tight/elegant` a différé de sa référence de 17 px (écart
+    de composante 26, anti-aliasing), au-delà du seuil de 8 px par page
+    (`MAX_DIFF_RATIO`, calibré sur un bruit maximal de 5 px). Non reproduit :
+    8 passes suivantes conformes (1 complète, 6 limitées aux cas `tight`, plus
+    la génération de la référence). Seuil non modifié ; si l'écart réapparaît,
+    refaire la mesure du bruit (README, section Seuils) avant de l'élargir.
+
 ## Lots à prévoir
 
 - **Lot B : indicateur dans l'aperçu.** `usePrintOverflow`, bandeau dans
@@ -176,9 +184,15 @@ tests en place. Chemins relatifs à `resume-forge/`.
   **Cause trouvée (lot « retours à la ligne »)** : ce n'est pas le texte qui est
   plus large à l'impression, c'est le CV qui y est plus étroit (793 px au lieu
   de 794 px, voir `PRINT_CV_WIDTH_PX`). Mesure corrigée : 0 ligne coupée
-  autrement sur les 52 cas. La marge de 5 mm est gardée ; sa réévaluation fera
-  l'objet d'un lot suivant (le commentaire de `OVERFLOW_SAFETY_MARGIN_MM`,
-  qui décrit l'ancienne explication, sera mis à jour avec).
+  autrement sur les 52 cas.
+  **Réévaluée à 2 mm** (lot « marge ») : 0 retour à la ligne différent sur les
+  52 cas et sur une validation croisée Windows (WebView2, 48/48 lignes, 793 px),
+  écart vertical résiduel de 0,3 mm au plus, plus une réserve pour les écarts
+  de version entre WebView2 et Chrome. Commentaire de la constante réécrit.
+  Effets : `anonymized-real/academic` (3,2 mm) passe « de justesse » → « tient » ;
+  « Ajuster à 1 page » retient un état moins compressé (`ats-classic` :
+  S13 → S12, police 11,5 px, marge 12,3 → 3,7 mm ; `sidebar-modern` :
+  S11 → S10, interligne 1,5, marge 7,9 → 2,6 mm).
 - **Lot 1 : titres de section lisibles par les ATS** (fait). Plafond
   `MAX_LETTER_SPACING_EM = 0.06` sur les titres de section, le nom, le poste
   visé et les titres de la bande latérale ; garde-fou et assertions ATS dans le
@@ -225,3 +239,9 @@ tests en place. Chemins relatifs à `resume-forge/`.
   pour octet). Procédure Windows : `tests/golden/README.md`, section
   Validation croisée. À faire par l'utilisateur : validation sous Windows
   avec mise à l'échelle d'affichage.
+- **Couverture du statut « de justesse » dans le banc** (fait, lot « marge »).
+  Depuis la marge de 2 mm, `anonymized-real/academic` (3,2 mm) tient : la
+  fixture `tight` (calibrée à partir d'`anonymized-real` : 3 expériences
+  retirées, 54 mots ajoutés au résumé) tient de justesse sur `elegant` (1,1 mm)
+  et `sidebar-elegant` (0,7 mm), statut attendu fixé dans `run.ts`. Voir
+  `tests/golden/README.md`, section `tight` : calibrage.

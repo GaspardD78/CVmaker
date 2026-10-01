@@ -1,10 +1,12 @@
 === page 1 ===
-CAMILLE DURAND-LEFÈVRE
+Camille Durand-Lefèvre
 Lead Data Engineer / Architecte BI
 camille.durand@example.com 06 00 00 00 00 Lyon in/camille-durand-exemple camille-exemple
-Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud.
-Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les
-métiers.
+Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le
+cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord
+adoptés par les métiers. Autonome, rigoureuse et pédagogue, j'accompagne les équipes métiers dans l'adoption des nouveaux outils et la montée en
+compétence sur les données. Je m'appuie sur une connaissance fine des référentiels comptables et financiers, sur une pratique régulière de la
+gouvernance des données et sur une culture de la qualité logicielle : tests automatisés, revues de
 EXPÉRIENCE PROFESSIONNELLE
 Lead Data Engineer | Nexora Solutions — Lyon septembre 2022 - Présent
 Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs métiers
@@ -21,14 +23,6 @@ Rédaction des spécifications fonctionnelles et techniques
 Développeuse décisionnel | Banque Régionale du Centre — Orléans septembre 2014 - décembre 2015
 Maintenance évolutive des rapports Business Objects
 Optimisation de requêtes SQL sur un entrepôt Teradata
-Analyste données | Institut Statistique Territorial — Tours octobre 2013 - août 2014
-Production d'indicateurs socio-économiques trimestriels
-Automatisation de la collecte avec des scripts Python
-Chargée d'études junior | Cabinet Horizon Études — Tours novembre 2012 - septembre 2013
-Traitement d'enquêtes de satisfaction et restitution des résultats aux clients.
-Alternance — Assistante chef de projet décisionnel | Groupe Ventalis — Blois 2011 – 2012 (alternance, 1 an)
-Recette des rapports et documentation utilisateur
-Support de niveau 1 auprès des utilisateurs métiers
 FORMATION
 Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
 Licence Mathématiques appliquées et sciences sociales | Université d'Orléans — Orléans 2007 - 2010

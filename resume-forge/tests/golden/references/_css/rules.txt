@@ -146,6 +146,7 @@
 69c313ca44ce	(racine)	#printable-cv h3::after { background-color: rgb(30, 58, 138) !important; }
 69d0a89e8f0c	@layer utilities	.mt-10 { margin-top: calc(var(--spacing) * 10); }
 6b128c4db196	@layer utilities	.text-center { text-align: center; }
+6b2a4dc3b78d	(racine)	#printable-cv p, #printable-cv li, #printable-cv .cv-desc, #printable-cv .cv-badge-item { font-size: 11.5px !important; }
 6b8f1ce3945c	@layer utilities	.mt-7 { margin-top: calc(var(--spacing) * 7); }
 6c239174f332	@layer utilities	.text-orange-700 { color: var(--color-orange-700); }
 6da504b6d72e	@layer utilities › @supports (color:color-mix(in lab,red,red))	.after\:text-red-900\/60::after { color: color-mix(in oklab,var(--color-red-900) 60%,transparent); }
