@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join, resolve } from 'node:path';
 import { TEMPLATE_ORDER } from '../../src/templates';
 import { ENTRY_DATE_MIN_GAP_PX } from '../../src/components/export/PrintableCV';
+import { readDateSettings } from '../../src/lib/entry-dates';
 import { fixtureTemplates, loadFixture } from './lib/fixtures';
 import { checkLineBreaks, extractPdfText, norm } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
@@ -40,7 +41,7 @@ export const MAX_DIFF_RATIO = 0.00001;
 const BASE_TZ = 'Europe/Paris';
 const NEGATIVE_TZ = 'America/New_York';
 const BASE_FIXTURES = ['anonymized-real', 'long-titles', 'minimal', 'overflow'];
-const DERIVED_FIXTURES = ['my-settings'];
+const DERIVED_FIXTURES = ['my-settings', 'dates-year', 'dates-year-no-education', 'dates-no-education'];
 /** Variante fuseau négatif : un template par famille de layout (toutes les dates passent par CVEntryBlock). */
 const TZ_TEMPLATES = ['ats-classic', 'sidebar-modern'];
 /**
@@ -223,6 +224,60 @@ function checkDateGlue(text: string): string[] {
 }
 
 /**
+ * Format des dates (fixtures `dates-*`, dérivées d'anonymized-real) : les dates
+ * attendues sont recalculées ici par simple lecture de la chaîne `AAAA-MM`,
+ * indépendamment du module testé (src/lib/entry-dates.ts). Seules les entrées
+ * dont le titre figure dans le texte du PDF sont vérifiées (un CV qui dépasse
+ * la page en coupe le bas).
+ */
+const BADGE_TYPES = new Set(['skill', 'language', 'interest', 'certification']);
+const YEAR_ANYWHERE = /\b(?:19|20)\d\d\b/;
+const MONTH_YEAR_DATE = /(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+(?:19|20)\d\d/;
+function checkDateSettings(data: ReturnType<typeof loadFixture>['data'], template: string, text: string): string[] {
+  const problems: string[] = [];
+  const opts = readDateSettings(data.cv.settings);
+  const flat = text.replace(/=== page \d+ ===/g, '').replace(/\s+/g, ' ');
+  const lines = text.split('\n');
+  const yr = (d: string) => d.slice(0, 4);
+  for (const e of data.entries) {
+    const key = e.title.normalize('NFC').slice(0, 14);
+    const titleLines = lines.filter((l) => l.normalize('NFC').includes(key));
+    if (!titleLines.length) continue; // coupé par la page
+    if (e.entryType === 'education' && !opts.showEducationYears) {
+      const shown = titleLines.filter((l) => YEAR_ANYWHERE.test(l));
+      if (shown.length) problems.push(`année affichée dans une formation masquée (« ${e.title.slice(0, 30)} ») : « ${shown[0].slice(0, 80)} »`);
+      continue;
+    }
+    // Compétences, langues, centres d'intérêt et certifications : badges, sans date.
+    if (BADGE_TYPES.has(e.entryType)) continue;
+    if (opts.dateFormat !== 'year') continue;
+    // `datesOverride` (texte libre) : affiché tel quel, même en mode année.
+    const override = data.blocks.find((b) => b.entryId === e.id)?.overrideData?.datesOverride;
+    let expected: string;
+    if (typeof override === 'string' && override.trim()) expected = override.trim();
+    else {
+      if (!e.startDate) continue;
+      const start = yr(e.startDate);
+      const end = e.isCurrent ? 'Présent' : e.endDate ? yr(e.endDate) : '';
+      expected = !end ? start : end === start ? start : `${start} - ${end}`;
+    }
+    // Une date repliée sur deux lignes (NOTES.md §16) peut voir du texte de l'autre colonne s'intercaler : « 2016 - » … « 2020 ».
+    const [from, to] = expected.split(' - ');
+    const found = to === undefined ? flat.includes(expected) : new RegExp(`${from} -(?: \\S+){0,10} ${to.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(flat);
+    if (!found) problems.push(`date attendue « ${expected} » absente (« ${e.title.slice(0, 30)} »)`);
+  }
+  if (opts.dateFormat === 'year') {
+    const m = flat.match(MONTH_YEAR_DATE);
+    if (m) problems.push(`mois affiché en mode année : « ${m[0]} »`);
+  } else if (!flat.includes('septembre 2022 - Présent')) {
+    problems.push('format mois et année perdu : « septembre 2022 - Présent » absent');
+  }
+  // Le test n'est pas vide : au moins une entrée vérifiée avec ses dates (ou, formation masquée, vue sans année).
+  if (!data.entries.some((e) => lines.some((l) => l.normalize('NFC').includes(e.title.normalize('NFC').slice(0, 14))))) problems.push('aucune entrée visible : contrôle sans objet');
+  return problems;
+}
+
+/**
  * Titres de section visibles, nom et poste visé : en mots entiers dans le
  * texte extrait par pdfjs-dist (pas « E X P É R I E N C E »). Un titre situé
  * sous la coupure de la page (mesure de dépassement) n'est pas attendu.
@@ -373,6 +428,10 @@ async function main() {
       if (!(Math.abs(printCvWidthPx - PRINT_CV_WIDTH_PX) < 0.05)) {
         result.ok = false;
         result.problems.push(`largeur de #printable-cv : ${printCvWidthPx} px à l'impression, ${PRINT_CV_WIDTH_PX} px dans la mesure (PRINT_CV_WIDTH_PX, print-overflow.ts)`);
+      }
+      if (c.suite.startsWith('dates-')) {
+        const dateProblems = checkDateSettings(data, c.template, text);
+        if (dateProblems.length) { result.ok = false; result.problems.push(`format des dates (${dateProblems.length}) :\n      ${dateProblems.join('\n      ')}`); }
       }
       const dateGlue = checkDateGlue(text);
       if (dateGlue.length) {

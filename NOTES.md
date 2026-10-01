@@ -139,6 +139,38 @@ tests en place. Chemins relatifs à `resume-forge/`.
     `2018 -` puis `2019`. Pour un ATS, une date coupée est au moins aussi
     gênante qu'un mot collé. Non corrigé par le lot 2.
 
+17. **Export DOCX : dates dupliquées, désormais centralisées (lot 3B).** Avant ce
+    lot, `export-docx.ts` recopiait `formatDate`, `formatDateYear` et la logique
+    de période du PDF, et ignorait les réglages de dates : il affichait les années
+    de formation même masquées dans le PDF. PDF et DOCX utilisent maintenant
+    `formatEntryDates` (`src/lib/entry-dates.ts`) et lisent `dateFormat` et
+    `showEducationYears`. Deux écarts avec le PDF, traités ainsi :
+    - **conservé** : une entrée avec début, sans fin et pas « en cours » affiche
+      « mars 2020 - Aujourd'hui » dans le DOCX (`missingEnd: 'today'`), seulement
+      « mars 2020 » dans le PDF ;
+    - **résolu** : une entrée « en cours » sans date de début affiche « Présent »
+      dans le DOCX, comme dans le PDF (le DOCX n'affichait rien).
+    Le DOCX n'avait aucun test ; `src/lib/export-docx.test.ts` en ajoute 10.
+
+18. **Fuseau horaire : deux lectures des dates (lots 3A et 3B).** Le mode « année »
+    lit l'année dans la chaîne (`2007-01` donne 2007 partout). Le mode « mois et
+    année » garde la lecture historique via `Date` (point 3) : sous un fuseau à
+    décalage négatif, un début en janvier recule d'un an pour les formations (en
+    années seules) et d'un mois ailleurs. Incohérence provisoire : à New York,
+    une formation `2007-01` s'affiche 2007 en mode année et 2006 en mode mois et
+    année. À corriger dans le lot « dates » (lire aussi le mois dans la chaîne),
+    qui inversera les assertions figées de `tz-new-york`. Six tests unitaires du
+    mode mois et année échouent volontairement sous `TZ=America/New_York`.
+
+19. **Certifications : toujours des badges, jamais de date (lot 3A).** Les types
+    rendus en badges (`BADGE_ENTRY_TYPES` : compétences, langues, centres d'intérêt
+    et certifications) n'affichent aucune date, ni dans le PDF ni dans le DOCX,
+    avant comme après les lots 3A et 3B. La branche `certification` de
+    `CVEntryBlock`/`entry-dates.ts` (années seules) n'est donc jamais atteinte avec
+    les mises en page actuelles, et `showEducationYears` ne les concerne pas.
+    Afficher la validité d'une certification (AZ-900…) serait une évolution à
+    part (format de badge avec année).
+
 ## Lots à prévoir
 
 - **Lot B : indicateur dans l'aperçu.** `usePrintOverflow`, bandeau dans
@@ -268,3 +300,11 @@ tests en place. Chemins relatifs à `resume-forge/`.
   `tight/sidebar-elegant` (0,7 mm) dépasserait, `anonymized-real/sidebar-elegant`
   et `sidebar-tech`, `my-settings/sidebar-modern` et l'ajustement à une page de
   `sidebar-modern` seraient à recalibrer.
+- **Lot 3 : format des dates** (fait). 3A : `dateFormat` (`"year"`) et
+  `showEducationYears` (`false`) dans `cv.settings`, module `entry-dates.ts`,
+  fixtures `dates-*` du banc. 3B : sélecteur « Format des dates » et case
+  « Afficher les années des formations » (zone « Typographie & Mise en page » du
+  `DesignPanel`), persistance dans `LeftPanel` (état, resynchronisation au
+  changement de template, sauvegarde différée de 1 s) et export DOCX. Le
+  texte libre `datesOverride` reste affiché tel quel dans les deux modes
+  (masqué pour une formation masquée). À valider à la main sous `tauri dev`.

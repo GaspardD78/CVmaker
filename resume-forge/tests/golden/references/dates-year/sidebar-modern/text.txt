@@ -1,0 +1,53 @@
+=== page 1 ===
+Camille Durand-Lefèvre
+LEAD DATA ENGINEER / ARCHITECTE BI
+Consultante data avec plus de dix ans d'expérience en informatique décisionnelle,
+modélisation de données et pilotage de projets de migration vers le cloud. Habituée
+aux environnements multi-clients (banque, industrie, secteur public), je conçois des
+CONTACT
+chaînes de données fiables et des tableaux de bord adoptés par les métiers.
+camille.durand@example.com
+EXPÉRIENCE PROFESSIONNELLE
+06 00 00 00 00
+Lyon
+Lead Data Engineer | Nexora Solutions — Lyon 2022 - Présent
+in/camille-durand-exemple
+camille-exemple Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs
+métiers
+CERTIFICATIONS
+Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles
+Réduction de 35 % du temps de traitement des flux quotidiens
+Microsoft Certified: Azure Data Engineer
+Associate
+Consultante Senior BI & Data | Altimeo Conseil — Lyon 2020 - 2022
+Databricks Certified Data Engineer Migration d'un entrepôt Oracle vers Snowflake (1,2 To, 180 tables)
+Professional
+Mise en place de tableaux de bord Power BI pour la direction financière
+Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
+COMPÉTENCES
+Consultant BI & Data Engineer (prestations multi-clients) | GITEC • 2016 -
+SQL Python Azure Databricks 2020
+MATELLI • MICROPOLE — Paris
+Snowflake Power BI Talend Missions successives dans la banque, l'assurance et l'industrie
+Développement de flux ETL Talend et SSIS, modélisation en étoile
+dbt Modélisation dimensionnelle
+Rédaction des spécifications fonctionnelles et techniques
+Gestion de projet agile
+Développeuse décisionnel | Banque Régionale du Centre — Orléans 2014 - 2015
+Maintenance évolutive des rapports Business Objects
+Optimisation de requêtes SQL sur un entrepôt Teradata
+Analyste données | Institut Statistique Territorial — Tours 2013 - 2014
+Production d'indicateurs socio-économiques trimestriels
+Automatisation de la collecte avec des scripts Python
+Chargée d'études junior | Cabinet Horizon Études — Tours 2012 - 2013
+Traitement d'enquêtes de satisfaction et restitution des résultats aux clients.
+Alternance — Assistante chef de projet décisionnel | 2011 – 2012
+(alternance, 1 an)
+Groupe Ventalis — Blois
+Recette des rapports et documentation utilisateur
+Support de niveau 1 auprès des utilisateurs métiers
+FORMATION
+Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
+Licence Mathématiques appliquées et sciences sociales | Université 2007 -
+2010
+d'Orléans — Orléans

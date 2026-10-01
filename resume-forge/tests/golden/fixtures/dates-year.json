@@ -1,0 +1,12 @@
+{
+  "description": "Lot 3A : anonymized-real avec dateFormat « year » (années seules pour toutes les dates : expériences, projets, formations, certifications). Le poste en cours garde « Présent ». academic montre aussi le projet et les certifications.",
+  "extends": "anonymized-real",
+  "templates": [
+    "academic",
+    "ats-classic",
+    "sidebar-modern"
+  ],
+  "settings": {
+    "dateFormat": "year"
+  }
+}

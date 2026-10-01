@@ -131,6 +131,9 @@ Fuseau horaire et langue sont fixés par cas (`timezoneId`, `locale: fr-FR`).
 | `tz-new-york` (suite) | `ats-classic`, `sidebar-modern` | `anonymized-real` rendu en `America/New_York` au lieu de `Europe/Paris`. |
 | `tight` | `elegant`, `sidebar-elegant` | CV « de justesse » : tient avec 0,5 à 1,5 mm de marge (1,1 et 0,7 mm), sous `OVERFLOW_SAFETY_MARGIN_MM`. Calibré à partir d'`anonymized-real`, sans réglage de mise en page : 3 expériences retirées (Analyste données, Chargée d'études junior, Alternance) et 54 mots ajoutés au résumé. Voir ci-dessous. |
 | `entry-date-gap` (suite) | `ats-classic`, `sidebar-modern` | Collision intitulé / date : deux expériences dont l'intitulé remplit la ligne jusqu'à la date (écart de 0,09 et 0,23 px sans correctif). Voir la section Collision intitulé / date. |
+| `dates-year` | `academic`, `ats-classic`, `sidebar-modern` | `anonymized-real` avec `dateFormat: "year"` : toutes les dates en années seules. `academic` montre aussi le projet. |
+| `dates-year-no-education` | idem | `dateFormat: "year"` et `showEducationYears: false` : aucune date dans les formations. |
+| `dates-no-education` | idem | `showEducationYears: false` seul : le masquage ne dépend pas du format (mois et année gardés ailleurs). |
 
 Toutes les données sont fictives. Aucune donnée personnelle réelle n'est versionnée.
 
@@ -526,6 +529,63 @@ des dates) : l'intitulé passe à la ligne un peu plus tôt quand la ligne est
 pleine. 10 textes de référence changent (replis de lignes, aucun contenu
 perdu), 6 marges changent d'une ligne (5,7 mm) ; le repli des dates en deux
 lignes est inchangé (voir NOTES.md).
+
+### Format des dates (lot 3A)
+
+Deux réglages du CV (`cv.settings`, lus par `readDateSettings`, `src/lib/entry-dates.ts`) :
+- `dateFormat` : `"year"` n'affiche que les années (`2020 - 2022`, `2022 - Présent`,
+  `2023` pour une période dans une seule année) ; absent ou autre valeur : mois et année ;
+- `showEducationYears` : `false` masque toutes les dates des entrées de type `education`
+  (surcharge `datesOverride` comprise, l'élément de date n'est plus rendu) ; absent ou autre
+  valeur : affichées.
+
+Les CV existants n'ont pas ces clés : rendu identique (les 56 références d'origine sont
+inchangées). Il n'y a pas de schéma Zod dans le projet : `settings` est un
+`Record<string, unknown>` et les valeurs inattendues (sauvegarde importée) retombent sur
+les défauts.
+
+*Fonction centralisée* : `formatEntryDates` est utilisée par `CVEntryBlock` (tous les
+templates, y compris la colonne principale des templates à bande latérale). L'export DOCX
+(`export-docx.ts`) a sa propre copie de la logique, non encore branchée (lot 3B) ; l'option
+`missingEnd: 'today'` conserve son comportement historique (« mars 2020 - Aujourd'hui »
+quand la date de fin est vide, absent du PDF).
+
+*Choix et limites constatés*
+- **`datesOverride`** (texte libre, rempli par le générateur de CV par IA) est affiché tel
+  quel dans les deux modes : `2011 – 2012 (alternance, 1 an)` reste ainsi en mode année.
+  Il est masqué pour les formations quand leurs années le sont.
+- **Fuseau horaire** : en mode année, l'année est lue dans la chaîne (`AAAA-MM`), donc
+  indépendante du fuseau. Le mode mois et année garde son comportement historique, sensible
+  au fuseau (NOTES.md §3 : un début en janvier recule d'un an à New York). Les 6 tests
+  « mois et année » échouent sous `TZ=America/New_York` ; ceux du mode année passent.
+- **Certifications** : elles sont toujours rendues en badges (`BADGE_ENTRY_TYPES`, avec
+  compétences, langues et centres d'intérêt), donc **sans date**, avant comme après. Le
+  réglage ne les concerne pas ; leurs années n'apparaissent dans aucun template.
+- **Dates repliées sur deux lignes** (NOTES.md §16) : en mode année une date courte se
+  replie moins, mais le problème subsiste ; l'assertion du banc tolère l'intercalation de
+  texte de l'autre colonne (`2016 -` … `2020`).
+- **DOCX, cas « en cours » sans date de début** : le PDF affiche « Présent », le DOCX rien.
+  Divergence historique non traitée (le module affiche « Présent »).
+
+*Contrôles du banc* (bloquants, fixtures `dates-*`, `checkDateSettings` dans `run.ts`). Les
+dates attendues sont recalculées par simple lecture de la chaîne `AAAA-MM`, indépendamment
+du module testé :
+- mode année : chaque entrée visible (hors badges) a sa période attendue, `datesOverride`
+  tel quel quand il existe, et aucun nom de mois suivi d'une année n'apparaît ;
+- mode mois et année : `septembre 2022 - Présent` présent ;
+- formations masquées : aucune année sur les lignes des formations visibles.
+Unitaires : `src/lib/entry-dates.test.ts` (25 tests, dont fuseau négatif).
+
+**Vérifié par défauts volontaires** (restaurés après chaque essai) :
+| Défaut | Résultat |
+|---|---|
+| `dateFormat` ignoré | les 6 cas « année » échouent, les 3 cas « mois et année » passent |
+| `showEducationYears` ignoré | les 6 cas « sans formation » échouent |
+| « Présent » supprimé en mode année | les cas « année » échouent (`2022 - Présent` absent) |
+| `PrintableCV` ne transmet plus les réglages | les 9 cas échouent |
+| année lue via `Date` (sensible au fuseau) | 5 tests unitaires échouent sous `TZ=America/New_York` |
+| fusion « même année » supprimée | 1 test unitaire échoue |
+| surcharge d'une formation masquée affichée | 1 test unitaire échoue |
 
 ### Ligatures (lot « ligatures »)
 

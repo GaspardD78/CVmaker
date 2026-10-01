@@ -2,36 +2,26 @@ import { CVBlock } from '../../types/cv';
 import { MasterEntry } from '../../types/profile';
 import { CVTemplate } from '../../types/template';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return 'Aujourd\'hui';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
-}
-
-function formatDateYear(dateString: string | null): string {
-  if (!dateString) return 'Aujourd\'hui';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { year: 'numeric' }).format(date);
-}
+import { DEFAULT_DATE_SETTINGS, formatEntryDates, type DateSettings } from '../../lib/entry-dates';
 
 interface CVEntryBlockProps {
   block: CVBlock;
   entry: MasterEntry;
   template: CVTemplate;
+  /** Format des dates du CV (cv.settings, voir entry-dates.ts) ; défaut : mois et année. */
+  dateSettings?: DateSettings;
 }
 
-export function CVEntryBlock({ block, entry, template }: CVEntryBlockProps) {
+export function CVEntryBlock({ block, entry, template, dateSettings = DEFAULT_DATE_SETTINGS }: CVEntryBlockProps) {
   const entryData = { ...entry, ...block.overrideData };
-  const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
-  const fmtDate = yearOnly ? formatDateYear : formatDate;
 
-  // Non-destructive verbatim dates override (from the targeted-CV generator).
-  // When present it takes precedence over the computed start/end formatting.
-  const rawDatesOverride = (block.overrideData as Record<string, unknown> | undefined)?.datesOverride;
-  const datesOverride = typeof rawDatesOverride === 'string' ? rawDatesOverride.trim() : '';
+  // Non-destructive verbatim dates override (from the targeted-CV generator)
+  // takes precedence over the computed start/end formatting (see entry-dates.ts).
+  const dateText = formatEntryDates(
+    { entryType: entry.entryType, startDate: entryData.startDate, endDate: entryData.endDate, isCurrent: entryData.isCurrent },
+    (block.overrideData as Record<string, unknown> | undefined)?.datesOverride,
+    dateSettings,
+  );
 
   return (
     <div className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
@@ -46,16 +36,8 @@ export function CVEntryBlock({ block, entry, template }: CVEntryBlockProps) {
             </span>
           )}
         </div>
-        {(datesOverride || entryData.startDate || entryData.endDate || entryData.isCurrent) && (
-          <span className={`cv-date ${template.preview.dateClass}`}>
-            {datesOverride ? datesOverride : (
-              <>
-                {entryData.startDate ? fmtDate(entryData.startDate) : ''}
-                {entryData.startDate && (entryData.endDate || entryData.isCurrent) ? ' - ' : ''}
-                {entryData.isCurrent ? 'Présent' : (entryData.endDate ? fmtDate(entryData.endDate) : '')}
-              </>
-            )}
-          </span>
+        {dateText && (
+          <span className={`cv-date ${template.preview.dateClass}`}>{dateText}</span>
         )}
       </div>
       {entryData.description && (

@@ -9,6 +9,7 @@ import { CVBadgeGroup } from './CVBadgeGroup';
 import { CVCustomText } from './CVCustomText';
 import { CVSidebar, type SidebarSection } from './CVSidebar';
 import { safeCssValue, type CssValueKind } from '../../lib/css-sanitize';
+import { readDateSettings } from '../../lib/entry-dates';
 
 /** Relative luminance of a #rgb / #rrggbb color (0 = black, 1 = white). */
 function hexLuminance(hex: string): number {
@@ -103,6 +104,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
 
     const title = cv.targetJob || profile.title;
     const summary = cv.customSummary || profile.summary;
+    const dateSettings = readDateSettings(cv.settings);
 
     // Design settings — chaque valeur interpolée dans cssOverrides passe par
     // safeCssValue : les réglages viennent de la DB (backup/sync importables)
@@ -414,7 +416,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       if (block.blockType === 'entry_ref' && block.entryId) {
         const entry = entries.find((e) => e.id === block.entryId);
         if (!entry) return null;
-        return <CVEntryBlock key={block.id} block={block} entry={entry} template={template} />;
+        return <CVEntryBlock key={block.id} block={block} entry={entry} template={template} dateSettings={dateSettings} />;
       }
 
       return null;
