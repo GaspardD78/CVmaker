@@ -1,0 +1,213 @@
+<div class="[font-family:Cambria,Georgia,serif] bg-white bg-white dark:bg-white dark:text-black max-w-[210mm] mx-auto print:m-0 print:max-w-none print:p-0 print:shadow-none print:w-full px-12 py-10 shadow-lg text-black text-gray-900" id="printable-cv" style="font-family: Calibri, Arial, sans-serif;">
+  <style>
+    "#printable-cv { font-variant-ligatures: none; }\n#printable-cv .cv-title-row { column-gap: 4px; }\n#printable-cv .cv-title-row > :first-child::after { content: \" \"; white-space: pre; }\n#printable-cv h3 { letter-spacing: 0.06em; }\n@media print { #printable-cv { padding: 8px 10px !important; } }"
+  <div class="cv-header-block dark:text-black flex gap-6 items-center mb-4 text-black">
+    <div class="border-2 border-gray-200 flex-shrink-0 overflow-hidden rounded-full" style="width: 96px; height: 96px;">
+      <img alt="Photo de profil" class="h-full object-cover w-full" src="data:image/png;sha256=f61caf571cf64bd9;len=8762">
+    <div class="flex-1">
+      <h1 class="cv-name font-semibold mb-0.5 text-[26px] text-gray-900 tracking-wide">
+        "Camille Durand-Lefèvre"
+      <h2 class="cv-job-title font-normal italic text-[14px] text-amber-900">
+        "Lead Data Engineer / Architecte BI"
+      <div class="cv-contact-info mt-2 text-[11px] text-gray-600">
+        <div class="flex flex-wrap gap-x-4 gap-y-1 justify-center">
+          <a class="hover:underline inline-flex items-center whitespace-nowrap" href="mailto:camille.durand@example.com" rel="noopener noreferrer" target="_blank">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.161V6a2 2 0 00-2-2H3z">
+              <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z">
+            "camille.durand@example.com"
+          <a class="hover:underline inline-flex items-center whitespace-nowrap" href="tel:0600000000" rel="noopener noreferrer" target="_blank">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 15.352V16.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z" fill-rule="evenodd">
+            "06 00 00 00 00"
+          <span class="inline-flex items-center whitespace-nowrap">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433a19.695 19.695 0 002.683-2.282c1.944-1.99 3.945-4.995 3.945-8.567a8 8 0 10-16 0c0 3.572 2.001 6.577 3.945 8.567a19.695 19.695 0 002.683 2.282 12.97 12.97 0 001.038.573l.018.008.006.003zM10 11.25a2.75 2.75 0 100-5.5 2.75 2.75 0 000 5.5z" fill-rule="evenodd">
+            "Lyon"
+          <a class="hover:underline inline-flex items-center whitespace-nowrap" href="https://www.linkedin.com/in/camille-durand-exemple" rel="noopener noreferrer" target="_blank">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4.5 2A2.5 2.5 0 002 4.5v11A2.5 2.5 0 004.5 18h11a2.5 2.5 0 002.5-2.5v-11A2.5 2.5 0 0015.5 2h-11zM7 7.5v6H5v-6h2zm-1-1.75a1 1 0 110-2 1 1 0 010 2zM15 13.5h-2v-2.938c0-.789-.6-1.062-1-.1062-.4 0-1 .312-1 1.062V13.5h-2v-6h2v.938s.75-1.188 2-1.188 2 .75 2 2.5v3.75z">
+            "in/camille-durand-exemple"
+          <a class="hover:underline inline-flex items-center whitespace-nowrap" href="https://github.com/camille-exemple" rel="noopener noreferrer" target="_blank">
+            <svg class="mr-1 opacity-60" fill="currentColor" height="14" style="width: 14px; height: 14px; display: block; flex-shrink: 0;" viewBox="0 0 20 20" width="14" xmlns="http://www.w3.org/2000/svg">
+              <path clip-rule="evenodd" d="M10 1.5a8.5 8.5 0 00-2.688 16.568c.425.078.58-.184.58-.41 0-.201-.007-.735-.011-1.442-2.364.514-2.863-1.14-2.863-1.14-.387-.982-.944-1.243-.944-1.243-.771-.527.058-.516.058-.516.853.06 1.302.876 1.302.876.758 1.298 1.988.923 2.473.706.077-.549.297-.923.54-1.135-1.887-.215-3.873-.944-3.873-4.202 0-.928.332-1.687.876-2.281-.088-.214-.38-1.079.083-2.248 0 0 .714-.229 2.339.871A8.159 8.159 0 0110 4.999c.723.004 1.45.098 2.128.286 1.624-1.1 2.337-.871 2.337-.871.464 1.17.172 2.034.084 2.248.546.594.875 1.353.875 2.281 0 3.266-1.989 3.984-3.882 4.195.305.263.578.783.578 1.578 0 1.139-.01 2.057-.01 2.337 0 .228.153.493.585.41A8.502 8.502 0 0010 1.5z" fill-rule="evenodd">
+            "camille-exemple"
+  <hr class="border-gray-300 border-t mb-4 print:border-gray-400">
+  <div class="mb-5">
+    <p class="cv-summary italic leading-[1.55] text-[11.5px] text-gray-800">
+      "Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les métiers."
+  <h3 class="border-amber-900/40 border-b font-bold mb-2.5 mt-5 pb-1 print:break-after-avoid text-[11.5px] text-amber-900 tracking-[0.16em] uppercase">
+    "Expérience professionnelle"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Lead Data Engineer"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Nexora Solutions — Lyon"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "septembre 2022 - Présent"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Conception d'une plateforme de données "
+          <strong>
+            "Azure Databricks"
+          " pour 40 utilisateurs métiers"
+        <li>
+          "Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles"
+        <li>
+          "Réduction de 35 % du temps de traitement des flux quotidiens"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Consultante Senior BI & Data"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Altimeo Conseil — Lyon"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "mars 2020 - août 2022"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Migration d'un entrepôt Oracle vers Snowflake (1,2 To, 180 tables)"
+        <li>
+          "Mise en place de tableaux de bord Power BI pour la direction financière"
+        <li>
+          "Animation d'ateliers de recueil de besoins avec les équipes "
+          <em>
+            "contrôle de gestion"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Consultant BI & Data Engineer (prestations multi-clients)"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | GITEC • MATELLI • MICROPOLE — Paris"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "janvier 2016 - février 2020"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Missions successives dans la banque, l'assurance et l'industrie"
+        <li>
+          "Développement de flux ETL Talend et SSIS, modélisation en étoile"
+        <li>
+          "Rédaction des spécifications fonctionnelles et techniques"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Développeuse décisionnel"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Banque Régionale du Centre — Orléans"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "septembre 2014 - décembre 2015"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Maintenance évolutive des rapports Business Objects"
+        <li>
+          "Optimisation de requêtes SQL sur un entrepôt Teradata"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Analyste données"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Institut Statistique Territorial — Tours"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "octobre 2013 - août 2014"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Production d'indicateurs socio-économiques trimestriels"
+        <li>
+          "Automatisation de la collecte avec des scripts Python"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Chargée d'études junior"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Cabinet Horizon Études — Tours"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "novembre 2012 - septembre 2013"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <p>
+        "Traitement d'enquêtes de satisfaction et restitution des résultats aux clients."
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Alternance — Assistante chef de projet décisionnel"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Groupe Ventalis — Blois"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "2011 – 2012 (alternance, 1 an)"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <ul class="list-disc my-1 pl-5">
+        <li>
+          "Recette des rapports et documentation utilisateur"
+        <li>
+          "Support de niveau 1 auprès des utilisateurs métiers"
+  <h3 class="border-amber-900/40 border-b font-bold mb-2.5 mt-5 pb-1 print:break-after-avoid text-[11.5px] text-amber-900 tracking-[0.16em] uppercase">
+    "Formation"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Master Informatique décisionnelle"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Université de Tours — Tours"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Licence Mathématiques appliquées et sciences sociales"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Université d'Orléans — Orléans"
+  <h3 class="border-amber-900/40 border-b font-bold mb-2.5 mt-5 pb-1 print:break-after-avoid text-[11.5px] text-amber-900 tracking-[0.16em] uppercase">
+    "Certifications"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Microsoft Certified: Azure Data Engineer Associate"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Databricks Certified Data Engineer Professional"
+  <h3 class="border-amber-900/40 border-b font-bold mb-2.5 mt-5 pb-1 print:break-after-avoid text-[11.5px] text-amber-900 tracking-[0.16em] uppercase">
+    "Projets"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="cv-title-row flex items-baseline justify-between mb-1">
+      <div>
+        <span class="cv-title font-semibold text-[12.5px] text-gray-900">
+          "Outil open source de contrôle qualité des données"
+        <span class="cv-subtitle italic text-[12px] text-amber-900">
+          " | Projet personnel"
+      <span class="cv-date mb-0.5 tabular-nums text-[11px] text-gray-600">
+        "mai 2021 - janvier 2022"
+    <div class="cv-desc leading-[1.45] text-[11.5px] text-gray-800 whitespace-pre-line">
+      <p>
+        "Bibliothèque Python de règles de validation déclaratives, 300 étoiles sur GitHub."
+  <h3 class="border-amber-900/40 border-b font-bold mb-2.5 mt-5 pb-1 print:break-after-avoid text-[11.5px] text-amber-900 tracking-[0.16em] uppercase">
+    "Compétences"
+  <div class="cv-entry mb-3 print:break-inside-avoid">
+    <div class="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "SQL"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Python"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Azure Databricks"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Snowflake"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Power BI"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Talend"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "dbt"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Modélisation dimensionnelle"
+      <span class="after:content-[\",\"] after:ml-1 cv-badge cv-badge-item inline-block last:after:content-[\"\"] text-[11.5px] text-gray-800">
+        "Gestion de projet agile"

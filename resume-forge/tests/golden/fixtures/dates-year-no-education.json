@@ -1,0 +1,13 @@
+{
+  "description": "Lot 3A : anonymized-real avec dateFormat « year » et showEducationYears à false (aucune date dans les formations ; expériences, projets et certifications gardent leurs années).",
+  "extends": "anonymized-real",
+  "templates": [
+    "academic",
+    "ats-classic",
+    "sidebar-modern"
+  ],
+  "settings": {
+    "dateFormat": "year",
+    "showEducationYears": false
+  }
+}

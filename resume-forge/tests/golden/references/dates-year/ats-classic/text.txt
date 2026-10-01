@@ -1,0 +1,36 @@
+=== page 1 ===
+CAMILLE DURAND-LEFÈVRE
+Lead Data Engineer / Architecte BI
+camille.durand@example.com 06 00 00 00 00 Lyon in/camille-durand-exemple camille-exemple
+Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud.
+Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par
+les métiers.
+EXPÉRIENCE PROFESSIONNELLE
+Lead Data Engineer | Nexora Solutions — Lyon 2022 - Présent
+Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs métiers
+Encadrement d'une équipe de 4 data engineers, revues de code et rituels agiles
+Réduction de 35 % du temps de traitement des flux quotidiens
+Consultante Senior BI & Data | Altimeo Conseil — Lyon 2020 - 2022
+Migration d'un entrepôt Oracle vers Snowflake (1,2 To, 180 tables)
+Mise en place de tableaux de bord Power BI pour la direction financière
+Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
+Consultant BI & Data Engineer (prestations multi-clients) | GITEC • MATELLI • MICROPOLE — Paris 2016 - 2020
+Missions successives dans la banque, l'assurance et l'industrie
+Développement de flux ETL Talend et SSIS, modélisation en étoile
+Rédaction des spécifications fonctionnelles et techniques
+Développeuse décisionnel | Banque Régionale du Centre — Orléans 2014 - 2015
+Maintenance évolutive des rapports Business Objects
+Optimisation de requêtes SQL sur un entrepôt Teradata
+Analyste données | Institut Statistique Territorial — Tours 2013 - 2014
+Production d'indicateurs socio-économiques trimestriels
+Automatisation de la collecte avec des scripts Python
+Chargée d'études junior | Cabinet Horizon Études — Tours 2012 - 2013
+Traitement d'enquêtes de satisfaction et restitution des résultats aux clients.
+Alternance — Assistante chef de projet décisionnel | Groupe Ventalis — Blois 2011 – 2012 (alternance, 1 an)
+Recette des rapports et documentation utilisateur
+Support de niveau 1 auprès des utilisateurs métiers
+FORMATION
+Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
+Licence Mathématiques appliquées et sciences sociales | Université d'Orléans — Orléans 2007 - 2010
+CERTIFICATIONS
+Microsoft Certified: Azure Data Engineer Associate Databricks Certified Data Engineer Professional

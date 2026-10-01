@@ -1,0 +1,12 @@
+{
+  "description": "Lot 3A : anonymized-real avec showEducationYears à false seul (format mois et année par défaut) : le masquage des formations ne dépend pas du format.",
+  "extends": "anonymized-real",
+  "templates": [
+    "academic",
+    "ats-classic",
+    "sidebar-modern"
+  ],
+  "settings": {
+    "showEducationYears": false
+  }
+}
