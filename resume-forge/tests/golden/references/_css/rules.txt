@@ -211,6 +211,7 @@ a0c211520877	@layer utilities	.text-\[13px\] { font-size: 13px; }
 a332ffe7cbd2	@media print	#printable-cv { padding-top: 8px !important; padding-right: 10px !important; padding-bottom: 8px !important; padding-left: 10px !important; }
 a3f518046a3d	@layer utilities	.px-14 { padding-inline-start: ; padding-inline-end: ; }
 a70c84790993	@layer utilities	.text-\[17px\] { font-size: 17px; }
+a7227f633a37	(racine)	#printable-cv .cv-title-row { column-gap: 4px; }
 a74ec7e5ca14	(racine)	@property --tw-numeric-spacing { syntax: "*"; inherits: false; }
 a902d75933ea	@layer utilities	.bg-white { background-color: var(--color-white); }
 a93a00f29f47	@layer utilities	.mx-auto { margin-inline-start: auto; margin-inline-end: auto; }
@@ -271,6 +272,7 @@ d06a471b2f69	@layer utilities	.font-extrabold { font-weight: var(--font-weight-e
 d0fcf8db7eff	@layer utilities	.text-gray-900 { color: var(--color-gray-900); }
 d3aa71de10ef	@layer utilities	.before\:text-indigo-500::before { content: var(--tw-content); color: var(--color-indigo-500); }
 d4e372e68a22	(racine)	#printable-cv .cv-entry { margin-bottom: 14px !important; }
+d5dcdb0e19f1	(racine)	#printable-cv .cv-title-row > :first-child::after { content: " "; white-space-collapse: preserve; text-wrap-mode: nowrap; }
 d641796d44d3	@layer utilities	.text-blue-900 { color: var(--color-blue-900); }
 d73d27ae8557	(racine)	#printable-cv .cv-sidebar .cv-badge { background-color: rgba(255, 255, 255, 0.16) !important; border-top-color: rgba(255, 255, 255, 0.32) !important; border-right-color: rgba(255, 255, 255, 0.32) !important; border-bottom-color: rgba(255, 255, 255, 0.32) !important; border-left-color: rgba(255, 255, 255, 0.32) !important; color: rgb(248, 250, 252) !important; }
 d754ae6e594b	@layer utilities	.mb-2\.5 { margin-bottom: calc(var(--spacing) * 2.5); }

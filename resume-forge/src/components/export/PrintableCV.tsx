@@ -44,6 +44,20 @@ const FONT_STACKS: Record<string, string> = {
  * poste visé, seulement quand le template déclare un espacement plus grand.
  */
 export const MAX_LETTER_SPACING_EM = 0.06;
+/**
+ * Espace minimal (px) exigé par le banc entre la fin de l'intitulé et la date
+ * d'une entrée (garde-fou, voir tests/golden/README.md, section Collision
+ * intitulé / date). Les extracteurs de texte PDF collent les mots sous 1 px et
+ * insèrent une espace dès 1,5 px (mesures à 11 px) : le seuil laisse un facteur 2.
+ */
+export const ENTRY_DATE_MIN_GAP_PX = 3;
+/**
+ * Collision intitulé / date : quand la ligne d'une entrée est pleine, l'intitulé
+ * touche la date (écart nul) et les extracteurs de texte PDF collent les mots
+ * (« Parisfévrier »). Espace minimal garanti entre les deux (`column-gap`, 0,4 em
+ * à 11 px, au-dessus du seuil de 1,5 px des extracteurs).
+ */
+const ENTRY_DATE_GAP_PX = 4;
 /** Espace ajouté entre les mots des éléments plafonnés (compensation visuelle ; 0 = aucune). */
 const CAPPED_WORD_SPACING_EM = 0;
 
@@ -216,6 +230,14 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       // sont extraits tels quels par pdfminer et pypdf (« certiﬁcation »).
       // Aussi à l'écran : l'aperçu et la mesure de page doivent suivre le PDF.
       '#printable-cv { font-variant-ligatures: none; }',
+      // Lisibilité ATS : intitulé et date d'une entrée séparés (voir ENTRY_DATE_GAP_PX).
+      // Un espace placé dans le HTML entre les deux éléments d'une rangée flex est
+      // ignoré à la mise en page, donc absent du PDF : l'espace est rendu par un
+      // pseudo-élément (`white-space: pre` le conserve) en fin de bloc d'intitulé.
+      // Il reste dans le texte du PDF même si l'écart tombait à zéro, sans toucher à
+      // la boîte de la date (en début de date, il décalerait ses lignes repliées).
+      `#printable-cv .cv-title-row { column-gap: ${ENTRY_DATE_GAP_PX}px; }`,
+      '#printable-cv .cv-title-row > :first-child::after { content: " "; white-space: pre; }',
       // Lisibilité ATS : plafond de letter-spacing (voir MAX_LETTER_SPACING_EM).
       letterSpacingCap('#printable-cv h3', template.preview.headingClass),
       letterSpacingCap('#printable-cv .cv-name', template.preview.nameClass),

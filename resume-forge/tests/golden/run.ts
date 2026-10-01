@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { TEMPLATE_ORDER } from '../../src/templates';
+import { ENTRY_DATE_MIN_GAP_PX } from '../../src/components/export/PrintableCV';
 import { fixtureTemplates, loadFixture } from './lib/fixtures';
 import { checkLineBreaks, extractPdfText, norm } from './lib/extract';
 import { GoldenRenderer, OUT_DIR, type PageStats } from './lib/render';
@@ -48,6 +49,11 @@ const TZ_TEMPLATES = ['ats-classic', 'sidebar-modern'];
  * template à une colonne et un template à bande latérale.
  */
 const TIGHT_TEMPLATES = ['elegant', 'sidebar-elegant'];
+/**
+ * Fixture « collision intitulé / date » (fixtures/entry-date-gap.json) : une
+ * entrée par template dont l'intitulé touche la date. Voir sa description.
+ */
+const ENTRY_DATE_GAP_TEMPLATES = ['ats-classic', 'sidebar-modern'];
 
 interface GoldenCase { id: string; suite: string; fixture: string; template: string; timezoneId: string; fit?: boolean }
 
@@ -70,6 +76,8 @@ function buildCases(): GoldenCase[] {
       cases.push({ id: `${fixture}/${template}`, suite: fixture, fixture, template, timezoneId: BASE_TZ });
   for (const template of TIGHT_TEMPLATES)
     cases.push({ id: `tight/${template}`, suite: 'tight', fixture: 'tight', template, timezoneId: BASE_TZ });
+  for (const template of ENTRY_DATE_GAP_TEMPLATES)
+    cases.push({ id: `entry-date-gap/${template}`, suite: 'entry-date-gap', fixture: 'entry-date-gap', template, timezoneId: BASE_TZ });
   for (const template of TZ_TEMPLATES)
     cases.push({ id: `tz-new-york/${template}`, suite: 'tz-new-york', fixture: 'anonymized-real', template, timezoneId: NEGATIVE_TZ });
   for (const [fixture, template] of FIT_CASES)
@@ -96,6 +104,7 @@ function expectedStatus(c: GoldenCase): OverflowStatus | undefined {
   if (c.suite === 'minimal' || c.suite === 'long-titles') return 'tient';
   if (c.suite === 'overflow') return 'dépasse';
   if (c.suite === 'tight') return 'de justesse';
+  if (c.suite === 'entry-date-gap') return 'tient';
   // academic, le template le plus compact, fait tenir anonymized-real avec
   // 3,2 mm de marge : au-dessus d'OVERFLOW_SAFETY_MARGIN_MM (2 mm), donc « tient ».
   if (c.suite === 'anonymized-real') return c.template === 'academic' ? 'tient' : 'dépasse';
@@ -194,6 +203,23 @@ function phraseRegex(phrase: string): RegExp {
   const words = phrase.normalize('NFC').split(/\s+/).filter(Boolean)
     .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '-\\s*'));
   return new RegExp(`(?<![\\p{L}\\p{N}])${words.join('\\s+')}(?![\\p{L}\\p{N}])`, 'iu');
+}
+
+/**
+ * Collision intitulé / date : un mot collé à une date dans le texte extrait
+ * (« Parisfévrier 2020 », « Économiques2018 », « Cergy-PontoisePrésent »). Un
+ * mois, une année seule ou « Présent » directement précédé d'une lettre ou
+ * d'une parenthèse, sans espace, n'est jamais légitime dans les fixtures.
+ */
+const DATE_GLUE = new RegExp(
+  '[\\p{L})](?:(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\\s(?:19|20)\\d\\d|(?:19|20)\\d\\d(?=\\s-\\s|\\s*$)|Présent|Aujourd)',
+  'gmu',
+);
+function checkDateGlue(text: string): string[] {
+  return [...text.normalize('NFC').matchAll(DATE_GLUE)].map((m) => {
+    const i = m.index ?? 0;
+    return `« …${text.slice(Math.max(0, i - 28), i + m[0].length + 8).replace(/\n/g, ' ⏎ ')} »`;
+  });
 }
 
 /**
@@ -347,6 +373,15 @@ async function main() {
       if (!(Math.abs(printCvWidthPx - PRINT_CV_WIDTH_PX) < 0.05)) {
         result.ok = false;
         result.problems.push(`largeur de #printable-cv : ${printCvWidthPx} px à l'impression, ${PRINT_CV_WIDTH_PX} px dans la mesure (PRINT_CV_WIDTH_PX, print-overflow.ts)`);
+      }
+      const dateGlue = checkDateGlue(text);
+      if (dateGlue.length) {
+        result.ok = false;
+        result.problems.push(`mot collé à une date dans le texte extrait (${dateGlue.length}) :\n      ${dateGlue.slice(0, 12).join('\n      ')}${dateGlue.length > 12 ? '\n      …' : ''}`);
+      }
+      if (rawFp.entryDateGapViolations.length) {
+        result.ok = false;
+        result.problems.push(`écart intitulé / date sous ${ENTRY_DATE_MIN_GAP_PX} px (${rawFp.entryDateGapViolations.length}) :\n      ${rawFp.entryDateGapViolations.slice(0, 12).join('\n      ')}${rawFp.entryDateGapViolations.length > 12 ? '\n      …' : ''}`);
       }
       const lineBreaks = checkLineBreaks(overflow.lines, firstPage);
       if (lineBreaks.length) {

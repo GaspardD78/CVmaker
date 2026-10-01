@@ -18,7 +18,7 @@ import type { CaseData } from './fixtures';
 import type { PrintOverflow } from '../../../src/lib/print-overflow';
 import { extractPdfText } from './extract';
 import { collectInPage, type RawFingerprint } from './html-fingerprint';
-import { MAX_LETTER_SPACING_EM } from '../../../src/components/export/PrintableCV';
+import { ENTRY_DATE_MIN_GAP_PX, MAX_LETTER_SPACING_EM } from '../../../src/components/export/PrintableCV';
 
 const GOLDEN_DIR = resolve(import.meta.dir, '..');
 const PROJECT_DIR = resolve(GOLDEN_DIR, '../..');
@@ -192,7 +192,7 @@ export class GoldenRenderer {
       await fpPage.setViewportSize(PAGE_VIEWPORT);
       await fpPage.goto(pathToFileURL(htmlPath).href, { waitUntil: 'load' });
       await fpPage.emulateMedia({ media: 'print' });
-      const fingerprint = await fpPage.evaluate(collectInPage, MAX_LETTER_SPACING_EM);
+      const fingerprint = await fpPage.evaluate(collectInPage, { maxLetterSpacingEm: MAX_LETTER_SPACING_EM, minEntryDateGapPx: ENTRY_DATE_MIN_GAP_PX });
       await fpPage.close();
       const fingerprintMs = performance.now() - t0;
 

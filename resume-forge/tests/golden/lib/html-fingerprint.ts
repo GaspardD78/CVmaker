@@ -37,13 +37,19 @@ export interface RawFingerprint {
    * ligatureViolations).
    */
   ligatureStyles: { where: string; variantLigatures: string; featureSettings: string }[];
+  /**
+   * Garde-fou collision intitulé / date : lignes d'entrée (.cv-title-row) dont
+   * l'écart entre la fin de l'intitulé et le début de la date, sur la première
+   * ligne de la date, est inférieur au minimum (ENTRY_DATE_MIN_GAP_PX).
+   */
+  entryDateGapViolations: string[];
 }
 
 /**
  * Exécutée dans Chromium (page.evaluate) : doit rester autonome, sans import
  * ni référence extérieure.
  */
-export function collectInPage(maxLetterSpacingEm: number): RawFingerprint {
+export function collectInPage({ maxLetterSpacingEm, minEntryDateGapPx }: { maxLetterSpacingEm: number; minEntryDateGapPx: number }): RawFingerprint {
   const cv = document.getElementById('printable-cv');
   if (!cv) throw new Error('#printable-cv absent du HTML d\'export');
 
@@ -68,6 +74,26 @@ export function collectInPage(maxLetterSpacingEm: number): RawFingerprint {
     for (const pseudo of ['::before', '::after']) {
       const cs = getComputedStyle(el, pseudo);
       if (cs.content && cs.content !== 'none' && cs.content !== 'normal' && cs.content !== '""') check(cs, pseudo, cs.content);
+    }
+  }
+
+  // ── Garde-fou ATS : écart intitulé / date des entrées ────────────────────
+  const entryDateGapViolations: string[] = [];
+  for (const row of Array.from(cv.querySelectorAll('.cv-title-row'))) {
+    const left = row.firstElementChild as HTMLElement | null;
+    const date = row.querySelector('.cv-date') as HTMLElement | null;
+    if (!left || !date || date === left) continue;
+    const dateRect = date.getClientRects()[0];
+    if (!dateRect) continue;
+    const range = document.createRange();
+    range.selectNodeContents(left);
+    // Fragments de l'intitulé sur la première ligne de la date (même ligne de base).
+    const onDateLine = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.top < dateRect.bottom - 2 && r.bottom > dateRect.top + 2);
+    if (!onDateLine.length) continue;
+    const gap = dateRect.left - Math.max(...onDateLine.map((r) => r.right));
+    if (gap < minEntryDateGapPx) {
+      const title = (left.textContent ?? '').replace(/\s+/g, ' ').trim();
+      entryDateGapViolations.push(`« …${title.slice(-30)} » | « ${(date.textContent ?? '').trim()} » : ${gap.toFixed(2)} px`);
     }
   }
 
@@ -267,7 +293,7 @@ export function collectInPage(maxLetterSpacingEm: number): RawFingerprint {
   };
   dump(cv, 0);
 
-  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)], letterSpacingViolations, ligatureStyles };
+  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)], letterSpacingViolations, ligatureStyles, entryDateGapViolations };
 }
 
 // ── Côté Node : empreinte, références, diff ───────────────────────────────────
