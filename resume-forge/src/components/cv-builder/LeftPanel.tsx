@@ -12,6 +12,7 @@ import { useProfileStore } from '@/stores/profileStore';
 import { isAndroid, isTauri } from '@/lib/platform';
 import { fitToPage, readEffectiveValues, type FitSettingKey } from '@/lib/fit-to-page';
 import { overflowStatus } from '@/lib/print-overflow';
+import { readDateSettings, type DateFormat } from '@/lib/entry-dates';
 
 import { AIPromptPanel } from './AIPromptPanel';
 import type { SidebarTab } from './SidebarNav';
@@ -93,6 +94,10 @@ export function LeftPanel({
   const [titleFontSize, setTitleFontSize]             = useState(cvSettings.titleFontSize        || '');
   const [titleFontStyle, setTitleFontStyle]           = useState(cvSettings.titleFontStyle       || '');
   const [contactFontSize, setContactFontSize]         = useState(cvSettings.contactFontSize      || '');
+  // Format des dates (entry-dates.ts) : valeurs lues avec readDateSettings (une valeur inattendue retombe sur le défaut).
+  const initialDates = readDateSettings(currentCv?.settings);
+  const [dateFormat, setDateFormat]                   = useState<DateFormat>(initialDates.dateFormat);
+  const [showEducationYears, setShowEducationYears]   = useState<boolean>(initialDates.showEducationYears);
 
   const designSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // « Ajuster à 1 page » : calcul en cours, et version des réglages de design
@@ -173,6 +178,9 @@ export function LeftPanel({
       setTitleFontSize(freshSettings.titleFontSize || '');
       setTitleFontStyle(freshSettings.titleFontStyle || '');
       setContactFontSize(freshSettings.contactFontSize || '');
+      const freshDates = readDateSettings(freshSettings);
+      setDateFormat(freshDates.dateFormat);
+      setShowEducationYears(freshDates.showEducationYears);
       // Update lastSavedDesign so the save effect doesn't re-trigger from resync
       const resynced = {
         fontFamily: freshSettings.fontFamily || 'Calibri',
@@ -216,6 +224,8 @@ export function LeftPanel({
         titleFontSize: freshSettings.titleFontSize || '',
         titleFontStyle: freshSettings.titleFontStyle || '',
         contactFontSize: freshSettings.contactFontSize || '',
+        dateFormat: freshDates.dateFormat,
+        showEducationYears: freshDates.showEducationYears,
       };
       lastSavedDesign.current = resynced;
     }
@@ -238,6 +248,7 @@ export function LeftPanel({
     headerStyle,
     nameFontSize, nameFontWeight, nameTextTransform, nameLineBreak,
     titleFontSize, titleFontStyle, contactFontSize,
+    dateFormat, showEducationYears,
   });
 
   useEffect(() => {
@@ -255,6 +266,7 @@ export function LeftPanel({
       headerStyle,
       nameFontSize, nameFontWeight, nameTextTransform, nameLineBreak,
       titleFontSize, titleFontStyle, contactFontSize,
+      dateFormat, showEducationYears,
     };
     const hasChanged = (Object.keys(current) as (keyof typeof current)[]).some(k => current[k] !== saved[k]);
     if (hasChanged) {
@@ -284,6 +296,7 @@ export function LeftPanel({
       headerStyle,
       nameFontSize, nameFontWeight, nameTextTransform, nameLineBreak,
       titleFontSize, titleFontStyle, contactFontSize,
+      dateFormat, showEducationYears,
       cvId, updateCv]);
 
   /** Réglages que l'ajustement peut modifier → setters locaux (sauvegarde différée habituelle). */
@@ -543,6 +556,8 @@ export function LeftPanel({
             titleFontSize={titleFontSize} setTitleFontSize={setTitleFontSize}
             titleFontStyle={titleFontStyle} setTitleFontStyle={setTitleFontStyle}
             contactFontSize={contactFontSize} setContactFontSize={setContactFontSize}
+            dateFormat={dateFormat} setDateFormat={setDateFormat}
+            showEducationYears={showEducationYears} setShowEducationYears={setShowEducationYears}
           />
         </div>
       )}
