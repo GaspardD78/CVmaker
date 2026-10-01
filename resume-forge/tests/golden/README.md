@@ -129,7 +129,7 @@ Fuseau horaire et langue sont fixés par cas (`timezoneId`, `locale: fr-FR`).
 | `overflow` | les 11 | CV trop long pour une page dans tous les templates, `academic` compris. Sert à tester la détection du dépassement de page. |
 | `my-settings` | `ats-classic`, `sidebar-modern` (**provisoire**) | `anonymized-real` + réglages de design. **Valeurs provisoires** : voir ci-dessous. |
 | `tz-new-york` (suite) | `ats-classic`, `sidebar-modern` | `anonymized-real` rendu en `America/New_York` au lieu de `Europe/Paris`. |
-| `tight` | `elegant`, `sidebar-elegant` | CV « de justesse » : tient avec 0,5 à 1,5 mm de marge (1,1 et 0,7 mm), sous `OVERFLOW_SAFETY_MARGIN_MM`. Calibré à partir d'`anonymized-real`, sans réglage de mise en page : 3 expériences retirées (Analyste données, Chargée d'études junior, Alternance) et 54 mots ajoutés au résumé. Voir ci-dessous. |
+| `tight` | `elegant`, `sidebar-elegant` | CV « de justesse » : tient avec moins de 2 mm de marge (1,1 et 0,4 mm), sous `OVERFLOW_SAFETY_MARGIN_MM`. Calibré à partir d'`anonymized-real`, sans réglage de mise en page : 3 expériences retirées (Analyste données, Chargée d'études junior, Alternance) et 49 mots ajoutés au résumé (5 mots retirés au lot 4). Voir ci-dessous. |
 | `entry-date-gap` (suite) | `ats-classic`, `sidebar-modern` | Collision intitulé / date : deux expériences dont l'intitulé remplit la ligne jusqu'à la date (écart de 0,09 et 0,23 px sans correctif). Voir la section Collision intitulé / date. |
 | `dates-year` | `academic`, `ats-classic`, `sidebar-modern` | `anonymized-real` avec `dateFormat: "year"` : toutes les dates en années seules. `academic` montre aussi le projet. |
 | `dates-year-no-education` | idem | `dateFormat: "year"` et `showEducationYears: false` : aucune date dans les formations. |
@@ -151,6 +151,13 @@ familles de templates. Avec 3 expériences retirées et 54 mots ajoutés :
 de la fenêtre de 0,5 à 1,5 mm). Si une évolution du rendu fait sortir ces cas
 de la fenêtre, recalibrer (longueur du résumé) plutôt que changer le statut
 attendu.
+
+Lot 4 (dates indivisibles) : la colonne principale des templates à bande
+latérale gagne des lignes, `sidebar-elegant` dépassait de 5 mm. Retirer la fin
+du résumé (« : tests automatisés, revues de », 5 mots, une ligne) donne
+`elegant` 1,1 mm et `sidebar-elegant` 0,4 mm. 0,7 mm n'est pas atteignable par le
+contenu seul (la marge avance d'une ligne, environ 5 mm) ; 0,4 mm reste « de
+justesse » (sous 2 mm, au-dessus de 0).
 
 ### `my-settings` : récupérer les vrais réglages
 
@@ -196,7 +203,7 @@ Assertions par cas (`checkOverflow` dans `run.ts`) :
   `anonymized-real` dépasse, sauf `academic` (le template le plus compact), qui
   tient avec 3,2 mm de marge, donc « tient » depuis que la marge de sécurité
   est de 2 mm (« de justesse » avec 5 mm) ; `tight` est « de justesse » (1,1 et
-  0,7 mm). L'auto-test de la page de test vérifie alors que la confirmation
+  0,4 mm). L'auto-test de la page de test vérifie alors que la confirmation
   d'export est demandée et reçoit la mesure de l'aperçu. **Vérifié par défauts
   volontaires** : `OVERFLOW_SAFETY_MARGIN_MM = 0` fait échouer les 2 cas
   (« tient » au lieu de « de justesse ») ; une confirmation demandée seulement
@@ -712,3 +719,16 @@ mesure et PDF d'un même cas → code 0 (`anonymized-real/ats-classic`,
 `long-titles` → code 2 (2/35 lignes retrouvées) ; fichier de mesure modifié →
 code 2 ; mesure d'`anonymized-real/ats-classic` confrontée au PDF de
 `my-settings/ats-classic` (même texte, autres réglages) → code 1.
+
+### Dates indivisibles (lot 4)
+
+Contrôle bloquant `wrappedDateViolations` (`html-fingerprint.ts`, branché dans
+`run.ts`) : chaque `.cv-date` d'une rangée d'entrée doit tenir sur une seule
+ligne (les rectangles de ses lignes, lus avec un `Range`, ne diffèrent pas de
+plus de 2 px en hauteur). Avant le correctif : 116 dates repliées dans 26 cas
+(« janvier 2016 - » puis « février 2020 »). Correctif dans `PrintableCV` :
+intitulé `flex: 1 1 0; min-width: 0`, date `flex: 0 0 auto; max-width: 45 %`,
+`column-gap` de 8 px. Sans `white-space: nowrap` : une surcharge `datesOverride`
+plus longue que 45 % de la ligne se replie encore, et ce contrôle la signalerait.
+Défauts volontaires : sans les deux règles flex, 26 cas échouent ; sans
+`column-gap` ni espace `::after`, l'écart minimal et le mot collé échouent.

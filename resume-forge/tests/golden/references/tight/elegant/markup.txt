@@ -1,6 +1,6 @@
 <div class="bg-white bg-white border-indigo-700 border-l-[4px] dark:bg-white dark:text-black max-w-[210mm] mx-auto print:m-0 print:max-w-none print:p-0 print:shadow-none print:w-full px-12 py-11 shadow-lg text-black text-gray-900" id="printable-cv" style="font-family: Calibri, Arial, sans-serif;">
   <style>
-    "#printable-cv { font-variant-ligatures: none; }\n#printable-cv .cv-title-row { column-gap: 4px; }\n#printable-cv .cv-title-row > :first-child::after { content: \" \"; white-space: pre; }\n#printable-cv h3 { letter-spacing: 0.06em; }\n@media print { #printable-cv { padding: 8px 10px !important; } }"
+    "#printable-cv { font-variant-ligatures: none; }\n#printable-cv .cv-title-row { column-gap: 8px; }\n#printable-cv .cv-title-row > :first-child { flex: 1 1 0; min-width: 0; }\n#printable-cv .cv-title-row > .cv-date { flex: 0 0 auto; max-width: 45%; }\n#printable-cv .cv-title-row > :first-child::after { content: \" \"; white-space: pre; }\n#printable-cv h3 { letter-spacing: 0.06em; }\n@media print { #printable-cv { padding: 8px 10px !important; } }"
   <div class="cv-header-block dark:text-black flex gap-6 items-center mb-4 text-black">
     <div class="border-2 border-gray-200 flex-shrink-0 overflow-hidden rounded-full" style="width: 96px; height: 96px;">
       <img alt="Photo de profil" class="h-full object-cover w-full" src="data:image/png;sha256=f61caf571cf64bd9;len=8762">
@@ -35,7 +35,7 @@
   <hr class="border-gray-300 border-t mb-4 print:border-gray-400">
   <div class="mb-5">
     <p class="cv-summary italic leading-relaxed text-[12.5px] text-gray-700">
-      "Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les métiers. Autonome, rigoureuse et pédagogue, j'accompagne les équipes métiers dans l'adoption des nouveaux outils et la montée en compétence sur les données. Je m'appuie sur une connaissance fine des référentiels comptables et financiers, sur une pratique régulière de la gouvernance des données et sur une culture de la qualité logicielle : tests automatisés, revues de"
+      "Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les métiers. Autonome, rigoureuse et pédagogue, j'accompagne les équipes métiers dans l'adoption des nouveaux outils et la montée en compétence sur les données. Je m'appuie sur une connaissance fine des référentiels comptables et financiers, sur une pratique régulière de la gouvernance des données et sur une culture de la qualité logicielle."
   <h3 class="[font-family:Georgia,serif] border-b border-indigo-200 font-semibold mb-3.5 mt-6 pb-1.5 print:break-after-avoid text-[12px] text-indigo-800 tracking-[0.28em] uppercase">
     "Expérience professionnelle"
   <div class="cv-entry mb-5 print:break-inside-avoid">

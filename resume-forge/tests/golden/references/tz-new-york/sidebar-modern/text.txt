@@ -25,31 +25,28 @@ Professional
 Mise en place de tableaux de bord Power BI pour la direction financière
 Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
 COMPÉTENCES
-Consultant BI & Data Engineer (prestations multi-clients) | décembre 2015 -
-SQL Python Azure Databricks janvier 2020
-GITEC • MATELLI • MICROPOLE — Paris
+Consultant BI & Data Engineer (prestations multi- décembre 2015 - janvier 2020
+SQL Python Azure Databricks
+clients) | GITEC • MATELLI • MICROPOLE — Paris
 Snowflake Power BI Talend Missions successives dans la banque, l'assurance et l'industrie
 Développement de flux ETL Talend et SSIS, modélisation en étoile
 dbt Modélisation dimensionnelle
 Rédaction des spécifications fonctionnelles et techniques
 Gestion de projet agile
-Développeuse décisionnel | Banque Régionale du Centre — août 2014 - novembre
-2015
-Orléans
+Développeuse décisionnel | Banque Régionale du août 2014 - novembre 2015
+Centre — Orléans
 Maintenance évolutive des rapports Business Objects
 Optimisation de requêtes SQL sur un entrepôt Teradata
-Analyste données | Institut Statistique Territorial — septembre 2013 - juillet
-2014
+Analyste données | Institut Statistique Territorial — septembre 2013 - juillet 2014
 Tours
 Production d'indicateurs socio-économiques trimestriels
 Automatisation de la collecte avec des scripts Python
 Chargée d'études junior | Cabinet Horizon Études — Tours octobre 2012 - août 2013
 Traitement d'enquêtes de satisfaction et restitution des résultats aux clients.
-Alternance — Assistante chef de projet décisionnel | 2011 – 2012
-(alternance, 1 an)
-Groupe Ventalis — Blois
+Alternance — Assistante chef de projet décisionnel 2011 – 2012 (alternance, 1 an)
+| Groupe Ventalis — Blois
 Recette des rapports et documentation utilisateur
 Support de niveau 1 auprès des utilisateurs métiers
 FORMATION
 Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
-Licence Mathématiques appliquées et sciences sociales | Université 2006 -
+Licence Mathématiques appliquées et sciences sociales | Université 2006 - 2010

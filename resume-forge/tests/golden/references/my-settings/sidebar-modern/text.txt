@@ -25,17 +25,16 @@ Mise en place de tableaux de bord Power BI pour la direction financière
 Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
 Databricks Certified Data Engineer
 Professional
-Consultant BI & Data Engineer (prestations multi-clients) | janvier 2016 -
-février 2020
-GITEC • MATELLI • MICROPOLE — Paris
+Consultant BI & Data Engineer (prestations multi- janvier 2016 - février 2020
+clients) | GITEC • MATELLI • MICROPOLE — Paris
 COMPÉTENCES
 Missions successives dans la banque, l'assurance et l'industrie
 Développement de flux ETL Talend et SSIS, modélisation en étoile
 SQL Python Azure Databricks
 Rédaction des spécifications fonctionnelles et techniques
 Snowflake Power BI Talend
-Développeuse décisionnel | Banque Régionale du septembre 2014 -
-dbt Modélisation dimensionnelle décembre 2015
+Développeuse décisionnel | Banque Régionale du septembre 2014 - décembre 2015
+dbt Modélisation dimensionnelle
 Centre — Orléans
 Maintenance évolutive des rapports Business Objects
 Gestion de projet agile
@@ -43,18 +42,15 @@ Optimisation de requêtes SQL sur un entrepôt Teradata
 Analyste données | Institut Statistique Territorial — Tours octobre 2013 - août 2014
 Production d'indicateurs socio-économiques trimestriels
 Automatisation de la collecte avec des scripts Python
-Chargée d'études junior | Cabinet Horizon Études — novembre 2012 - septembre
-2013
-Tours
+Chargée d'études junior | Cabinet Horizon Études novembre 2012 - septembre 2013
+— Tours
 Traitement d'enquêtes de satisfaction et restitution des résultats aux clients.
-Alternance — Assistante chef de projet décisionnel | 2011 – 2012
-(alternance, 1 an)
-Groupe Ventalis — Blois
+Alternance — Assistante chef de projet 2011 – 2012 (alternance, 1 an)
+décisionnel | Groupe Ventalis — Blois
 Recette des rapports et documentation utilisateur
 Support de niveau 1 auprès des utilisateurs métiers
 FORMATION
 Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
-Licence Mathématiques appliquées et sciences sociales | Université 2007 -
-2010
-d'Orléans — Orléans
+Licence Mathématiques appliquées et sciences sociales | 2007 - 2010
+Université d'Orléans — Orléans
 PROJETS

@@ -442,6 +442,10 @@ async function main() {
         result.ok = false;
         result.problems.push(`écart intitulé / date sous ${ENTRY_DATE_MIN_GAP_PX} px (${rawFp.entryDateGapViolations.length}) :\n      ${rawFp.entryDateGapViolations.slice(0, 12).join('\n      ')}${rawFp.entryDateGapViolations.length > 12 ? '\n      …' : ''}`);
       }
+      if (rawFp.wrappedDateViolations.length) {
+        result.ok = false;
+        result.problems.push(`date d'entrée repliée sur plusieurs lignes (${rawFp.wrappedDateViolations.length}) :\n      ${rawFp.wrappedDateViolations.slice(0, 12).join('\n      ')}${rawFp.wrappedDateViolations.length > 12 ? '\n      …' : ''}`);
+      }
       const lineBreaks = checkLineBreaks(overflow.lines, firstPage);
       if (lineBreaks.length) {
         result.ok = false;

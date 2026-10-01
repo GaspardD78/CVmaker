@@ -106,6 +106,7 @@
 4ea352e2638c	(racine)	#printable-cv .cv-desc, #printable-cv .cv-desc p, #printable-cv .cv-desc li { line-height: 1.5 !important; }
 4f49191034cd	@layer base	img, video { max-width: 100%; height: auto; }
 4f5b23f54921	@layer utilities	.items-start { align-items: flex-start; }
+507cf51d29a5	(racine)	#printable-cv .cv-title-row > :first-child { flex-grow: 1; flex-shrink: 1; flex-basis: 0px; min-width: 0px; }
 5230c57fae8f	@layer base	hr { height: 0px; color: inherit; border-top-width: 1px; }
 53015e85d62f	@layer utilities	.mb-6 { margin-bottom: calc(var(--spacing) * 6); }
 53d0ed7bfa1e	@layer utilities	.tracking-\[0\.28em\] { letter-spacing: 0.28em; }
@@ -126,6 +127,7 @@
 5d225b7ba794	@layer utilities	.before\:mr-2::before { content: var(--tw-content); margin-right: calc(var(--spacing) * 2); }
 5d8af6dc16e1	@layer utilities	.text-orange-900 { color: var(--color-orange-900); }
 5dfa8045c8a1	@layer utilities	.\[font-family\:Cambria\,Georgia\,serif\] { font-family: Cambria, Georgia, serif; }
+5e004b8ab027	(racine)	#printable-cv .cv-title-row { column-gap: 8px; }
 5e9d0860b3a1	@layer base	::file-selector-button { box-sizing: border-box; border-top-width: 0px; border-right-width: 0px; border-bottom-width: 0px; border-left-width: 0px; border-top-style: solid; border-right-style: solid; border-bottom-style: solid; border-left-style: solid; border-top-color: initial; border-right-color: initial; border-bottom-color: initial; border-left-color: initial; border-image-source: initial; border-image-slice: initial; border-image-width: initial; border-image-outset: initial; border-image-repeat: initial; margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px; padding-top: 0px; padding-right: 0px; padding-bottom: 0px; padding-left: 0px; }
 5ed04f4c0b64	@layer utilities	.border-blue-200 { border-top-color: ; border-right-color: ; border-bottom-color: ; border-left-color: ; }
 60c0143422a9	@layer utilities	.border-l-4, .border-l-\[4px\] { border-left-style: var(--tw-border-style); border-left-width: 4px; }
@@ -211,7 +213,6 @@ a0c211520877	@layer utilities	.text-\[13px\] { font-size: 13px; }
 a332ffe7cbd2	@media print	#printable-cv { padding-top: 8px !important; padding-right: 10px !important; padding-bottom: 8px !important; padding-left: 10px !important; }
 a3f518046a3d	@layer utilities	.px-14 { padding-inline-start: ; padding-inline-end: ; }
 a70c84790993	@layer utilities	.text-\[17px\] { font-size: 17px; }
-a7227f633a37	(racine)	#printable-cv .cv-title-row { column-gap: 4px; }
 a74ec7e5ca14	(racine)	@property --tw-numeric-spacing { syntax: "*"; inherits: false; }
 a902d75933ea	@layer utilities	.bg-white { background-color: var(--color-white); }
 a93a00f29f47	@layer utilities	.mx-auto { margin-inline-start: auto; margin-inline-end: auto; }
@@ -233,6 +234,7 @@ b1d03a0aceef	@layer base	::-webkit-calendar-picker-indicator { line-height: 1; }
 b32eeaf6c2fd	@layer base	::file-selector-button { appearance: button; }
 b33869653437	@layer utilities	.border-amber-900\/40 { border-top-color: rgba(123, 51, 6, 0.4); border-right-color: rgba(123, 51, 6, 0.4); border-bottom-color: rgba(123, 51, 6, 0.4); border-left-color: rgba(123, 51, 6, 0.4); }
 b3e2e425c1df	@layer utilities	.after\:text-red-900\/60::after { content: var(--tw-content); color: rgba(130, 24, 26, 0.6); }
+b5d17cbe7a88	(racine)	#printable-cv .cv-title-row > .cv-date { flex-grow: 0; flex-shrink: 0; flex-basis: auto; max-width: 45%; }
 b5e5e10c68c3	@layer utilities	.border-indigo-700 { border-top-color: ; border-right-color: ; border-bottom-color: ; border-left-color: ; }
 b74fcae1c496	@layer utilities	.text-\[30px\] { font-size: 30px; }
 b78e7c2dee1e	@layer utilities	.text-\[12px\] { font-size: 12px; }

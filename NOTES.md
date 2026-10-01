@@ -138,6 +138,7 @@ tests en place. Chemins relatifs à `resume-forge/`.
     dans 94 rangées sur 395 des cas du banc : `janvier 2010` puis `- août 2015`,
     `2018 -` puis `2019`. Pour un ATS, une date coupée est au moins aussi
     gênante qu'un mot collé. Non corrigé par le lot 2.
+    **Corrigé au lot 4** (variante B8) : voir l'entrée « Lot 4 ».
 
 17. **Export DOCX : dates dupliquées, désormais centralisées (lot 3B).** Avant ce
     lot, `export-docx.ts` recopiait `formatDate`, `formatDateYear` et la logique
@@ -170,6 +171,14 @@ tests en place. Chemins relatifs à `resume-forge/`.
     les mises en page actuelles, et `showEducationYears` ne les concerne pas.
     Afficher la validité d'une certification (AZ-900…) serait une évolution à
     part (format de badge avec année).
+
+20. **Donnée personnelle réelle versionnée : `resume-forge/mesure.json` (constaté
+    au lot 4).** Le fichier, ajouté sur `main` par le commit `1ff5983`
+    (« Create mesure.json »), contient les lignes mesurées d'un CV avec un nom, une
+    adresse e-mail et un numéro de téléphone qui semblent réels. Contraire à la
+    règle « aucune donnée personnelle réelle versionnée ». **Non corrigé dans ce
+    lot** : à traiter par une intervention isolée sur `main` (suppression du
+    fichier, puis décision sur la purge de l'historique).
 
 ## Lots à prévoir
 
@@ -292,14 +301,17 @@ tests en place. Chemins relatifs à `resume-forge/`.
   espace rendu en fin de bloc d'intitulé dans le CSS de `PrintableCV`, contrôles
   bloquants (mot collé dans le texte pdfjs, écart minimal de 3 px) et fixture
   `entry-date-gap` (`tests/golden/README.md`, section Collision intitulé / date).
-- **Lot futur : dates indivisibles** (point 16). Variante « B8 » mesurée au
-  lot 2, hors périmètre : intitulé `flex: 1 1 0; min-width: 0`, date
-  `flex: 0 0 auto; max-width: 45 %`, `column-gap` de 8 px. Les 94 dates coupées
-  disparaissent et l'écart minimal passe à 8 px, mais 15 cas descendent
-  (jusqu'à +19,1 mm sur les mises en page à bande latérale) :
-  `tight/sidebar-elegant` (0,7 mm) dépasserait, `anonymized-real/sidebar-elegant`
-  et `sidebar-tech`, `my-settings/sidebar-modern` et l'ajustement à une page de
-  `sidebar-modern` seraient à recalibrer.
+- **Lot 4 : dates indivisibles** (fait, point 16). Dans `PrintableCV` : intitulé
+  `flex: 1 1 0; min-width: 0`, date `flex: 0 0 auto; max-width: 45 %`,
+  `column-gap` de 8 px, espace `::after` du lot 2 conservé. Contrôle bloquant du
+  banc (`wrappedDateViolations`) : aucune `.cv-date` sur plusieurs lignes ;
+  il relevait 116 dates repliées dans 26 cas avant le correctif, aucune après.
+  Pas de `white-space: nowrap` : une surcharge `datesOverride` plus longue que 45 %
+  de la ligne se replie encore, plutôt que de déborder. 17 cas recalibrés
+  (`overflow.json`), tous à bande latérale sauf `long-titles/elegant`. La
+  fixture `tight` perd la fin de son résumé (5 mots) : `sidebar-elegant` passe de
+  0,7 à 0,4 mm de marge (0,7 mm n'est pas atteignable par le contenu, une ligne
+  vaut environ 5 mm), toujours « de justesse ».
 - **Lot 3 : format des dates** (fait). 3A : `dateFormat` (`"year"`) et
   `showEducationYears` (`false`) dans `cv.settings`, module `entry-dates.ts`,
   fixtures `dates-*` du banc. 3B : sélecteur « Format des dates » et case
