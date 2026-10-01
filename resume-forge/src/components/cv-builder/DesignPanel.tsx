@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, Palette, SlidersHorizontal, Settings2 } from 'lucide-react';
 import type { CVTemplate } from '../../types/template';
 import { DENSITY_PRESETS, type DensityId } from '../../theme/tokens';
+import type { DateFormat } from '../../lib/entry-dates';
 
 interface DesignPanelProps {
   onFitToPage: () => void;
@@ -42,6 +43,8 @@ interface DesignPanelProps {
   titleFontSize: string; setTitleFontSize: (v: string) => void;
   titleFontStyle: string; setTitleFontStyle: (v: string) => void;
   contactFontSize: string; setContactFontSize: (v: string) => void;
+  dateFormat: DateFormat; setDateFormat: (v: DateFormat) => void;
+  showEducationYears: boolean; setShowEducationYears: (v: boolean) => void;
 }
 
 export function DesignPanel({
@@ -82,6 +85,8 @@ export function DesignPanel({
   titleFontSize, setTitleFontSize,
   titleFontStyle, setTitleFontStyle,
   contactFontSize, setContactFontSize,
+  dateFormat, setDateFormat,
+  showEducationYears, setShowEducationYears,
 }: DesignPanelProps) {
   const [isStandardOpen, setIsStandardOpen] = useState(true);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -257,6 +262,26 @@ export function DesignPanel({
                 <option value="double">Double ligne</option>
                 <option value="none">Aucune bordure</option>
               </select>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 pb-1 border-b border-gray-100 dark:border-gray-700">Dates</p>
+              <div className="space-y-2">
+                <div>
+                  <label htmlFor="design-date-format" className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Format des dates</label>
+                  <select id="design-date-format" value={dateFormat} onChange={e => setDateFormat(e.target.value === 'year' ? 'year' : 'month-year')}
+                    className="w-full p-1 border rounded text-sm focus:ring focus:ring-purple-200 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                    <option value="month-year">Mois et année</option>
+                    <option value="year">Année seule</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <input type="checkbox" checked={showEducationYears} onChange={e => setShowEducationYears(e.target.checked)}
+                    className="accent-purple-600" />
+                  <span>Afficher les années des formations</span>
+                </label>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">Les périodes saisies à la main restent affichées telles quelles.</p>
+              </div>
             </div>
           </div>
         )}

@@ -9,24 +9,11 @@ import { CVTemplate } from '../types/template';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { isAndroid } from './platform';
+import { formatEntryDates, readDateSettings } from './entry-dates';
 import { shareBlob } from './share';
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return 'Aujourd\'hui';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
-}
-
-function formatDateYear(dateString: string | null): string {
-  if (!dateString) return 'Aujourd\'hui';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { year: 'numeric' }).format(date);
-}
 
 function shortenUrl(url: string): string {
   try {
@@ -186,6 +173,7 @@ export async function generateDocxBlob(
   template: CVTemplate
 ): Promise<Blob> {
   const cvSettings = (cv.settings || {}) as Record<string, string>;
+  const dateSettings = readDateSettings(cv.settings);
 
   // ── Typography ──
   const fontFamily = cvSettings.fontFamily || '';
@@ -653,16 +641,13 @@ export async function generateDocxBlob(
       } else {
         // Regular entries (experience, education, certification…)
         const entryData = { ...entry, ...(block.overrideData || {}) };
-        const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
-        const fmtDate = yearOnly ? formatDateYear : formatDate;
-        // Verbatim dates override takes precedence over computed start/end formatting.
-        const rawDatesOverride = (block.overrideData as Record<string, unknown> | undefined)?.datesOverride;
-        const datesOverride = typeof rawDatesOverride === 'string' ? rawDatesOverride.trim() : '';
-        const dateText = datesOverride
-          ? datesOverride
-          : entryData.startDate
-          ? `${fmtDate(entryData.startDate as string)} - ${entryData.isCurrent ? 'Présent' : fmtDate(entryData.endDate as string)}`
-          : (entryData.endDate ? fmtDate(entryData.endDate as string) : '');
+        // Même mise en forme que le PDF (entry-dates.ts) ; « Aujourd'hui » conservé sans date de fin.
+        const dateText = formatEntryDates(
+          { entryType: entry.entryType, startDate: entryData.startDate as string | null, endDate: entryData.endDate as string | null, isCurrent: entryData.isCurrent as boolean | null },
+          (block.overrideData as Record<string, unknown> | undefined)?.datesOverride,
+          dateSettings,
+          { missingEnd: 'today' },
+        );
 
         const titleText = (entryData.title as string) || '';
         let subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
