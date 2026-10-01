@@ -1,9 +1,9 @@
 {
   "overflows": true,
   "tight": false,
-  "overflowMm": 100.8,
+  "overflowMm": 106.5,
   "remainingMm": 0,
-  "hiddenLines": 19,
+  "hiddenLines": 17,
   "lastVisibleLine": "Tests et corrections avant mise en production",
   "firstCutLine": "Formation"
 }

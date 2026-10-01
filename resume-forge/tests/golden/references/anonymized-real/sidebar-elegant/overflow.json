@@ -1,9 +1,9 @@
 {
   "overflows": true,
   "tight": false,
-  "overflowMm": 46.5,
+  "overflowMm": 57.9,
   "remainingMm": 0,
-  "hiddenLines": 10,
-  "lastVisibleLine": "Tours",
-  "firstCutLine": "Licence Mathématiques appliquées et sciences sociales |"
+  "hiddenLines": 9,
+  "lastVisibleLine": "Master Informatique décisionnelle | Université de Tours —",
+  "firstCutLine": "Tours"
 }

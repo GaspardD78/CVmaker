@@ -1,5 +1,5 @@
 {
-  "description": "Fixture « de justesse » (lot marge 2 mm) : tient avec une marge entre 0,5 et 1,5 mm, sous OVERFLOW_SAFETY_MARGIN_MM (2 mm). Calibrée à partir d'anonymized-real, sans réglage de mise en page : 3 expériences retirées (Analyste données, Chargée d'études junior, Alternance — Assistante chef de projet décisionnel) et 54 mots ajoutés au résumé (cv.customSummary). Le résumé occupe plus de lignes dans la colonne étroite des templates à bande latérale, ce qui rapproche les deux familles de templates. Marges mesurées (Chromium 141) : elegant 1,1 mm, sidebar-elegant 0,7 mm.",
+  "description": "Fixture « de justesse » (lot marge 2 mm) : tient avec une marge inférieure à 2 mm, sous OVERFLOW_SAFETY_MARGIN_MM (2 mm). Calibrée à partir d'anonymized-real, sans réglage de mise en page : 3 expériences retirées (Analyste données, Chargée d'études junior, Alternance — Assistante chef de projet décisionnel) et 49 mots ajoutés au résumé (cv.customSummary ; fin « : tests automatisés, revues de » retirée au lot 4). Le résumé occupe plus de lignes dans la colonne étroite des templates à bande latérale, ce qui rapproche les deux familles de templates. Marges mesurées (Chromium 141) : elegant 1,1 mm, sidebar-elegant 0,4 mm.",
   "profile": {
     "firstName": "Camille",
     "lastName": "Durand-Lefèvre",
@@ -15,7 +15,7 @@
   "cv": {
     "name": "CV golden — de justesse",
     "targetJob": "Lead Data Engineer / Architecte BI",
-    "customSummary": "Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les métiers. Autonome, rigoureuse et pédagogue, j'accompagne les équipes métiers dans l'adoption des nouveaux outils et la montée en compétence sur les données. Je m'appuie sur une connaissance fine des référentiels comptables et financiers, sur une pratique régulière de la gouvernance des données et sur une culture de la qualité logicielle : tests automatisés, revues de",
+    "customSummary": "Consultante data avec plus de dix ans d'expérience en informatique décisionnelle, modélisation de données et pilotage de projets de migration vers le cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord adoptés par les métiers. Autonome, rigoureuse et pédagogue, j'accompagne les équipes métiers dans l'adoption des nouveaux outils et la montée en compétence sur les données. Je m'appuie sur une connaissance fine des référentiels comptables et financiers, sur une pratique régulière de la gouvernance des données et sur une culture de la qualité logicielle.",
     "settings": {}
   },
   "sections": [

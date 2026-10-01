@@ -17,9 +17,8 @@ Pilotage du déploiement d'un ERP sur 6 sites de production
 Coordination de 3 prestataires et d'une équipe interne de 8 personnes
 Suivi budgétaire mensuel et reporting au comité de direction
 Animation des ateliers de conception avec les métiers
-Chef de projet applicatif | Logistique Atlantique — Saint- septembre 2017 - janvier
-2021
-Nazaire
+Chef de projet applicatif | Logistique Atlantique — septembre 2017 - janvier 2021
+Saint-Nazaire
 Refonte de l'outil de gestion d'entrepôt
 Rédaction des cahiers des charges et recette fonctionnelle
 Formation de 120 utilisateurs
@@ -36,15 +35,12 @@ Développeur | Éditions Numériques de Loire — Tours septembre 2008 - mai 201
 Développement d'applications web de gestion éditoriale
 Maintenance corrective et évolutive
 Rédaction de la documentation technique
-Technicien support | Services Informatiques Ligériens — juillet 2006 - août
-2008
+Technicien support | Services Informatiques Ligériens — juillet 2006 - août 2008
 Blois
 Support utilisateurs de niveau 1 et 2
 Installation et maintenance de postes de travail
 Gestion du parc et des licences
-Stagiaire développeur | Agence Web Val de Loire — Orléans janvier 2006 - juin
-2006
+Stagiaire développeur | Agence Web Val de Loire — janvier 2006 - juin 2006
+Orléans
 Intégration de maquettes et développement de modules
 Tests et corrections avant mise en production
-FORMATION
-Master Management des systèmes d'information | Université de 2012 -

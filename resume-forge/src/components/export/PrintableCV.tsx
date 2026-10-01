@@ -55,10 +55,10 @@ export const ENTRY_DATE_MIN_GAP_PX = 3;
 /**
  * Collision intitulé / date : quand la ligne d'une entrée est pleine, l'intitulé
  * touche la date (écart nul) et les extracteurs de texte PDF collent les mots
- * (« Parisfévrier »). Espace minimal garanti entre les deux (`column-gap`, 0,4 em
- * à 11 px, au-dessus du seuil de 1,5 px des extracteurs).
+ * (« Parisfévrier »). Espace minimal garanti entre les deux (`column-gap`, 8 px,
+ * bien au-dessus du seuil de 1,5 px des extracteurs).
  */
-const ENTRY_DATE_GAP_PX = 4;
+const ENTRY_DATE_GAP_PX = 8;
 /** Espace ajouté entre les mots des éléments plafonnés (compensation visuelle ; 0 = aucune). */
 const CAPPED_WORD_SPACING_EM = 0;
 
@@ -238,7 +238,12 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       // pseudo-élément (`white-space: pre` le conserve) en fin de bloc d'intitulé.
       // Il reste dans le texte du PDF même si l'écart tombait à zéro, sans toucher à
       // la boîte de la date (en début de date, il décalerait ses lignes repliées).
+      // Dates indivisibles : l'intitulé cède la place (il se replie lui-même) et la date
+      // garde sa largeur, plafonnée à 45 % de la ligne. Sans cela, `flex-shrink` repliait
+      // la date sur deux lignes (« janvier 2010 » puis « - août 2015 »).
       `#printable-cv .cv-title-row { column-gap: ${ENTRY_DATE_GAP_PX}px; }`,
+      '#printable-cv .cv-title-row > :first-child { flex: 1 1 0; min-width: 0; }',
+      '#printable-cv .cv-title-row > .cv-date { flex: 0 0 auto; max-width: 45%; }',
       '#printable-cv .cv-title-row > :first-child::after { content: " "; white-space: pre; }',
       // Lisibilité ATS : plafond de letter-spacing (voir MAX_LETTER_SPACING_EM).
       letterSpacingCap('#printable-cv h3', template.preview.headingClass),

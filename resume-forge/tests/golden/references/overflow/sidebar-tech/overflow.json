@@ -1,9 +1,9 @@
 {
   "overflows": true,
   "tight": false,
-  "overflowMm": 88.1,
+  "overflowMm": 99.5,
   "remainingMm": 0,
-  "hiddenLines": 18,
-  "lastVisibleLine": "Formation",
-  "firstCutLine": "Master Management des systèmes d'information | Université de"
+  "hiddenLines": 17,
+  "lastVisibleLine": "Tests et corrections avant mise en production",
+  "firstCutLine": "Formation"
 }

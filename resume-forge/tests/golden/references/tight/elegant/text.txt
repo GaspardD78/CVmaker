@@ -6,7 +6,7 @@ Consultante data avec plus de dix ans d'expérience en informatique décisionnel
 cloud. Habituée aux environnements multi-clients (banque, industrie, secteur public), je conçois des chaînes de données fiables et des tableaux de bord
 adoptés par les métiers. Autonome, rigoureuse et pédagogue, j'accompagne les équipes métiers dans l'adoption des nouveaux outils et la montée en
 compétence sur les données. Je m'appuie sur une connaissance fine des référentiels comptables et financiers, sur une pratique régulière de la
-gouvernance des données et sur une culture de la qualité logicielle : tests automatisés, revues de
+gouvernance des données et sur une culture de la qualité logicielle.
 EXPÉRIENCE PROFESSIONNELLE
 Lead Data Engineer | Nexora Solutions — Lyon septembre 2022 - Présent
 Conception d'une plateforme de données Azure Databricks pour 40 utilisateurs métiers

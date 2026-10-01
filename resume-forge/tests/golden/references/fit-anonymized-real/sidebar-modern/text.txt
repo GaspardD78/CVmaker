@@ -20,17 +20,15 @@ Microsoft Certified: Azure Data Engineer Migration d'un entrepôt Oracle vers Sn
 Associate Mise en place de tableaux de bord Power BI pour la direction financière
 Animation d'ateliers de recueil de besoins avec les équipes contrôle de gestion
 Databricks Certified Data Engineer
-Consultant BI & Data Engineer (prestations multi-clients) | GITEC • janvier 2016 -
+Consultant BI & Data Engineer (prestations multi-clients) | janvier 2016 - février 2020
 Professional
-février 2020
-MATELLI • MICROPOLE — Paris
+GITEC • MATELLI • MICROPOLE — Paris
 COMPÉTENCES Missions successives dans la banque, l'assurance et l'industrie
 Développement de flux ETL Talend et SSIS, modélisation en étoile
 SQL Python Azure Databricks
 Rédaction des spécifications fonctionnelles et techniques
-Snowflake Power BI Talend Développeuse décisionnel | Banque Régionale du Centre — septembre 2014 - décembre
-2015
-Orléans
+Snowflake Power BI Talend Développeuse décisionnel | Banque Régionale du Centre septembre 2014 - décembre 2015
+— Orléans
 dbt Modélisation dimensionnelle
 Maintenance évolutive des rapports Business Objects
 Optimisation de requêtes SQL sur un entrepôt Teradata
@@ -38,21 +36,18 @@ Gestion de projet agile
 Analyste données | Institut Statistique Territorial — Tours octobre 2013 - août 2014
 Production d'indicateurs socio-économiques trimestriels
 Automatisation de la collecte avec des scripts Python
-Chargée d'études junior | Cabinet Horizon Études — Tours novembre 2012 - septembre
-2013
+Chargée d'études junior | Cabinet Horizon Études — novembre 2012 - septembre 2013
+Tours
 Traitement d'enquêtes de satisfaction et restitution des résultats aux clients.
-Alternance — Assistante chef de projet décisionnel | Groupe 2011 – 2012 (alternance,
-1 an)
-Ventalis — Blois
+Alternance — Assistante chef de projet décisionnel | 2011 – 2012 (alternance, 1 an)
+Groupe Ventalis — Blois
 Recette des rapports et documentation utilisateur
 Support de niveau 1 auprès des utilisateurs métiers
 FORMATION
 Master Informatique décisionnelle | Université de Tours — Tours 2010 - 2012
-Licence Mathématiques appliquées et sciences sociales | Université 2007 -
-2010
+Licence Mathématiques appliquées et sciences sociales | Université 2007 - 2010
 d'Orléans — Orléans
 PROJETS
-Outil open source de contrôle qualité des données | Projet mai 2021 - janvier
-2022
+Outil open source de contrôle qualité des données | Projet mai 2021 - janvier 2022
 personnel
 Bibliothèque Python de règles de validation déclaratives, 300 étoiles sur GitHub.
