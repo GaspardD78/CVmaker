@@ -1,9 +1,9 @@
 {
   "overflows": true,
   "tight": false,
-  "overflowMm": 13.2,
+  "overflowMm": 18.9,
   "remainingMm": 0,
-  "hiddenLines": 5,
+  "hiddenLines": 4,
   "lastVisibleLine": "Projets",
-  "firstCutLine": "Outil open source de contrôle qualité des données | Projet"
+  "firstCutLine": "Outil open source de contrôle qualité des données |"
 }

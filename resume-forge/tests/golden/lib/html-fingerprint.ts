@@ -43,6 +43,12 @@ export interface RawFingerprint {
    * ligne de la date, est inférieur au minimum (ENTRY_DATE_MIN_GAP_PX).
    */
   entryDateGapViolations: string[];
+  /**
+   * Garde-fou dates indivisibles : dates d'entrée (.cv-date) rendues sur plus
+   * d'une ligne (« janvier 2010 » puis « - août 2015 »), ce qui sépare la période
+   * dans le texte extrait.
+   */
+  wrappedDateViolations: string[];
 }
 
 /**
@@ -95,6 +101,18 @@ export function collectInPage({ maxLetterSpacingEm, minEntryDateGapPx }: { maxLe
       const title = (left.textContent ?? '').replace(/\s+/g, ' ').trim();
       entryDateGapViolations.push(`« …${title.slice(-30)} » | « ${(date.textContent ?? '').trim()} » : ${gap.toFixed(2)} px`);
     }
+  }
+
+  // ── Garde-fou ATS : date d'entrée sur une seule ligne ────────────────────
+  const wrappedDateViolations: string[] = [];
+  for (const date of Array.from(cv.querySelectorAll('.cv-title-row .cv-date'))) {
+    const range = document.createRange();
+    range.selectNodeContents(date);
+    const lineTops: number[] = [];
+    for (const r of Array.from(range.getClientRects())) {
+      if (r.width > 0 && !lineTops.some((t) => Math.abs(t - r.top) < 2)) lineTops.push(r.top);
+    }
+    if (lineTops.length > 1) wrappedDateViolations.push(`« ${(date.textContent ?? '').trim()} » : ${lineTops.length} lignes`);
   }
 
   // ── Nettoyage des sélecteurs ─────────────────────────────────────────────
@@ -293,7 +311,7 @@ export function collectInPage({ maxLetterSpacingEm, minEntryDateGapPx }: { maxLe
   };
   dump(cv, 0);
 
-  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)], letterSpacingViolations, ligatureStyles, entryDateGapViolations };
+  return { markup: lines.join('\n') + '\n', dataUrls, rules, invalidSelectors: [...new Set(invalidSelectors)], letterSpacingViolations, ligatureStyles, entryDateGapViolations, wrappedDateViolations };
 }
 
 // ── Côté Node : empreinte, références, diff ───────────────────────────────────
