@@ -12,13 +12,20 @@ export const DEFAULT_DIFFERENTIATOR =
  * templates and ensures consistent LLM behaviour.
  * Positioned AFTER data sections in the final prompt for better LLM attention.
  */
-export const SYSTEM_RULES = `## Règles
+export const TEXT_RULES = `## Règles
 - Factuel uniquement : ne jamais inventer de compétence, certification, expérience ou chiffre absent du profil fourni
 - Ton naturel et direct, comme un professionnel expérimenté — pas comme une IA
 - Phrases courtes, zéro remplissage, pas de superlatifs ("expert reconnu", "passionné", "dynamique")
 - Mettre en **gras** les termes-clés (technologies, certifications, métriques chiffrées)
 - Tirets simples " - " ou virgules, jamais de tiret cadratin "—"
 - Formulations interdites : "en effet", "il convient de noter", "force est de constater", "dans le cadre de", "il est important de souligner", "n'hésitez pas", "je me permets"`;
+
+/**
+ * Alias historique de `TEXT_RULES`. Règles de rédaction libre (lettres, messages,
+ * analyses), injectées dans les prompts hors CV. Le prompt « CV ciblé » (sortie
+ * JSON) utilise `CV_WRITING_RULES` + `JSON_RULES` (./cv-prompt).
+ */
+export const SYSTEM_RULES = TEXT_RULES;
 
 
 
@@ -273,152 +280,8 @@ export function getPromptTemplate(id: string): PromptTemplate | undefined {
 
 import { Profile, MasterEntry } from '@/types/profile';
 
-/**
- * Light, opt-in clarification protocol. When enabled, the LLM may ask up to a
- * few high-impact questions BEFORE producing the JSON — but only when a real
- * ambiguity blocks good targeting. Kept deliberately short so it never turns the
- * one-shot flow into a heavy interview.
- */
-const CLARIFY_PROTOCOL = `## Avant de générer — affinage par questions (léger)
-Si, ET SEULEMENT SI, une information à fort impact manque pour bien cibler le CV, pose d'abord des questions courtes puis ARRÊTE-TOI et attends mes réponses. Sinon, produis directement le JSON sans rien demander.
-- Maximum **3 questions**, une ligne chacune, numérotées, avec une **réponse par défaut entre crochets** que je peux valider d'un mot.
-- Zéro question triviale ou cosmétique. Priorise : poste réellement visé, arbitrage entre expériences concurrentes, éléments à mettre en avant ou masquer, séniorité/ton attendus.
-- Si je réponds, ou si j'écris « génère » / « ok », produis IMMÉDIATEMENT le JSON final (et UNIQUEMENT le JSON).`;
-
-export function generateFullCVMatchPrompt(
-  _profile: Profile,
-  entries: MasterEntry[],
-  jobOfferText: string,
-  targetCompany?: string,
-  extraContext?: string,
-  clarify = false,
-): string {
-  const trimmedContext = extraContext?.trim();
-  const experiences = entries
-    .filter(e => e.entryType === 'experience')
-    .map(e => {
-      const dates = (e.startDate || e.endDate) ? `${e.startDate || '?'} - ${e.endDate || 'Présent'}` : 'Non précisée';
-      return `- ID: "${e.id}" | Titre: "${e.title}" | Entreprise: "${e.subtitle ?? ''}" | Dates: "${dates}" | Description: "${(e.description ?? '').replace(/\n/g, ' ')}"`;
-    })
-    .join('\n');
-
-  const skills = entries
-    .filter(e => e.entryType === 'skill')
-    .map(e => `- ID: "${e.id}" | Titre: "${e.title}"`)
-    .join('\n');
-
-  const education = entries
-    .filter(e => e.entryType === 'education')
-    .map(e => `- ID: "${e.id}" | Diplôme: "${e.title}" | École: "${e.subtitle ?? ''}"`)
-    .join('\n');
-
-  const certifications = entries
-    .filter(e => e.entryType === 'certification')
-    .map(e => `- ID: "${e.id}" | Titre: "${e.title}" | Émetteur: "${e.subtitle ?? ''}"`)
-    .join('\n');
-
-  const languages = entries
-    .filter(e => e.entryType === 'language')
-    .map(e => `- ID: "${e.id}" | Langue: "${e.title}" | Niveau: "${e.subtitle ?? ''}"`)
-    .join('\n');
-
-  const projects = entries
-    .filter(e => e.entryType === 'project')
-    .map(e => `- ID: "${e.id}" | Titre: "${e.title}" | Détail: "${(e.description ?? '').replace(/\n/g, ' ')}"`)
-    .join('\n');
-
-  const interests = entries
-    .filter(e => e.entryType === 'interest')
-    .map(e => `- ID: "${e.id}" | Titre: "${e.title}"`)
-    .join('\n');
-
-  const volunteer = entries
-    .filter(e => e.entryType === 'volunteer')
-    .map(e => `- ID: "${e.id}" | Titre: "${e.title}" | Organisation: "${e.subtitle ?? ''}"`)
-    .join('\n');
-
-  return `# Rôle
-Expert en rédaction de CV ATS et recruteur senior.
-
-## Objectif
-Générer un CV sur-mesure (JSON) en sélectionnant et adaptant uniquement les éléments pertinents du profil maître pour l'annonce.
-
-## Contexte
-${targetCompany ? `Entreprise cible : ${targetCompany}\n` : ''}Annonce : ${jobOfferText}
-
-## Profil Maître (Données sources)
-### Expériences
-${experiences || '(aucune)'}
-
-### Compétences
-${skills || '(aucune)'}
-
-### Formations
-${education || '(aucune)'}
-
-### Certifications
-${certifications || '(aucune)'}
-
-### Langues
-${languages || '(aucune)'}
-
-### Projets
-${projects || '(aucun)'}
-
-### Centres d'intérêt
-${interests || '(aucun)'}
-
-### Bénévolat
-${volunteer || '(aucun)'}
-
-## Contexte additionnel (source UNIQUE des entrées suggérées)
-${trimmedContext || '(aucun — donc "suggestedEntries" DOIT être un tableau vide)'}
-
-${SYSTEM_RULES}
-- **SÉLECTION (tous types)** : Pour CHAQUE entrée du profil (expériences, formations, compétences, certifications, langues, projets, centres d'intérêt, bénévolat), décide \`visible: true\` si utile pour l'annonce, \`visible: false\` sinon. Une entrée absente de \`entries\` reste affichée telle quelle.
-- **ADAPTATION** : Réécrire les descriptions d'expériences et de projets en puces (•) percutantes.
-- **RÉALISME** : Ne jamais inventer de chiffres, responsabilités, niveaux de langue ou compétences.
-- **VOLUME** : Le résultat final doit tenir sur une page (prioriser les 3-5 dernières années).
-- **SURCHARGES D'AFFICHAGE (optionnelles, non destructives)** : sur une entrée de N'IMPORTE QUEL type, tu peux ajouter \`titleOverride\` (libellé principal : intitulé de poste, libellé de compétence reformulé, nom de certification…), \`subtitleOverride\` (libellé secondaire : entreprise, école, **niveau de langue normalisé** ex « Courant - C1 », émetteur de certification…) et/ou \`datesOverride\`. UNIQUEMENT si l'annonce justifie un affichage différent de la source. Ces champs ne modifient jamais la donnée maître. Si rien n'est utile, ne les mets pas.
-- **RÉORDONNANCEMENT (optionnel)** : \`entryOrder\` = liste d'IDs d'entrées dans l'ordre d'affichage souhaité (les plus pertinentes pour l'annonce d'abord, à l'intérieur de leur section). \`sectionOrder\` = liste de libellés de sections dans l'ordre souhaité. Libellés EXACTS autorisés : "Expériences Professionnelles", "Formations", "Compétences", "Certifications", "Langues", "Projets", "Centres d'intérêt", "Bénévolat". Omets ces champs si l'ordre actuel convient.
-- **REGROUPEMENT DES COMPÉTENCES (optionnel)** : \`skillGroups\` regroupe les compétences existantes en catégories thématiques (ex : "Langages", "Outils & Frameworks", "Méthodes"). C'est une RÉORGANISATION, pas une création : chaque \`entryIds\` ne référence QUE des IDs de compétences déjà présentes dans le profil. N'invente aucune compétence. Omets \`skillGroups\` si un regroupement n'apporte rien.
-- **ENTRÉES SUGGÉRÉES — RÈGLE ABSOLUE ANTI-INVENTION** : \`suggestedEntries\` ne peut contenir QUE des éléments réellement pertinents pour l'annonce ET absents du profil maître. Chaque entrée suggérée doit être DIRECTEMENT et EXPLICITEMENT étayée par le « Contexte additionnel » ci-dessus — jamais déduite de l'annonce, jamais extrapolée. INTERDICTION FORMELLE d'inventer une expérience, compétence, formation, employeur, date ou chiffre. Si le contexte additionnel est vide ou ne contient rien de pertinent et d'absent, renvoie \`"suggestedEntries": []\`. Ne jamais y dupliquer une entrée déjà présente dans le profil maître.
-
-${clarify ? `${CLARIFY_PROTOCOL}\n\n` : ''}## Format de sortie OBLIGATOIRE
-Retourne UNIQUEMENT l'objet JSON ci-dessous (sans texte ni markdown). Les champs \`titleOverride\`, \`subtitleOverride\`, \`companyOverride\`, \`datesOverride\` et les tableaux \`suggestedEntries\`, \`entryOrder\`, \`sectionOrder\`, \`skillGroups\` sont optionnels : omets-les s'ils ne servent pas.
-
-{
-  "title": "Titre du poste (reprendre celui de l'annonce)",
-  "summary": "Accroche de 2-3 lignes factuelle et ciblée",
-  "entries": [
-    {
-      "id": "[ID EXACT DE L'ENTRÉE]",
-      "visible": true,
-      "description": "• action 1 avec **mot-clé**\\n• action 2",
-      "titleOverride": "(optionnel) libellé principal à afficher à la place de la source",
-      "subtitleOverride": "(optionnel) libellé secondaire : entreprise, école, niveau de langue, émetteur…",
-      "datesOverride": "(optionnel) période à afficher telle quelle, ex: 2021 - 2023"
-    }
-  ],
-  "entryOrder": ["(optionnel) id_entrée_la_plus_pertinente", "id_suivante"],
-  "sectionOrder": ["(optionnel) Compétences", "Expériences Professionnelles"],
-  "skillGroups": [
-    { "category": "(optionnel) Langages", "entryIds": ["id_skill_1", "id_skill_2"] }
-  ],
-  "suggestedEntries": [
-    {
-      "entryType": "experience|education|skill|certification|language|project|interest|volunteer",
-      "title": "Intitulé (issu du contexte additionnel)",
-      "subtitle": "(optionnel) entreprise / école",
-      "startDate": "YYYY-MM (optionnel)",
-      "endDate": "YYYY-MM (optionnel)",
-      "isCurrent": false,
-      "description": "• point clé issu du contexte",
-      "reason": "(optionnel) pourquoi c'est pertinent pour l'annonce"
-    }
-  ]
-}`;
-}
+// Prompt « CV ciblé » v2 : blocs composables dans ./cv-prompt (règles texte / JSON séparées).
+export { generateFullCVMatchPrompt } from './cv-prompt';
 
 export function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], jobPosting?: string): string {
   const byType = (type: MasterEntry['entryType']) => entries.filter(e => e.entryType === type);

@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sparkles, Copy, Check, FileText, Mail, ChevronRight, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { generateFullCVMatchPrompt, generateCoverLetterPrompt } from '@/lib/prompt-templates';
-import { parseAiCvResponse, type AiCvSuggestedEntry } from '@/lib/ai-cv-response';
+import type { AiCvSuggestedEntry } from '@/lib/ai-cv-response';
+import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
+import { AiCvGuardReport } from '@/components/cv-builder/AiCvGuardReport';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import type { JobOffer } from '@/types/job-watch';
 
@@ -71,30 +73,30 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     }
   }, [open, offer?.id, fetchCvs]);
 
-  // Silently parse the pasted JSON to surface off-profile suggestions for review.
-  // Errors are ignored here — full validation happens on apply.
+  // Parse + garde-fou du JSON collé : alimente le rapport, la revue des suggestions et le récapitulatif.
+  // Les erreurs de format sont ignorées ici (signalées à l'application).
+  const analysis = useMemo(
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext }) : null),
+    [jsonInput, entries, profile, extraContext],
+  );
+
   useEffect(() => {
-    if (!jsonInput.trim()) {
+    if (!analysis || !analysis.ok) {
       setSuggestions([]);
       setAcceptedSug(new Set());
       setRestructure({ reordered: 0, sections: 0, groups: 0 });
       return;
     }
-    try {
-      const parsed = parseAiCvResponse(jsonInput);
-      setSuggestions(parsed.suggestedEntries);
-      setRestructure({
-        reordered: parsed.entryOrder?.length ?? 0,
-        sections: parsed.sectionOrder?.length ?? 0,
-        groups: parsed.skillGroups?.length ?? 0,
-      });
-    } catch {
-      setSuggestions([]);
-      setRestructure({ reordered: 0, sections: 0, groups: 0 });
-    }
+    const parsed = analysis.data;
+    setSuggestions(parsed.suggestedEntries);
+    setRestructure({
+      reordered: parsed.entryOrder?.length ?? 0,
+      sections: parsed.sectionOrder?.length ?? 0,
+      groups: parsed.skillGroups?.length ?? 0,
+    });
     // Reset selection whenever the input changes.
     setAcceptedSug(new Set());
-  }, [jsonInput]);
+  }, [analysis]);
 
   // Escape key
   useEffect(() => {
@@ -189,6 +191,10 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     </label>
   );
 
+  const renderGuardReport = () =>
+    analysis && analysis.ok ? <AiCvGuardReport report={analysis.report} /> : null;
+  const applyLabel = (base: string) => (analysis && analysis.ok && analysis.report.errors.length > 0 ? 'Appliquer quand même' : base);
+
   const renderRestructure = () => {
     const parts: string[] = [];
     if (restructure.reordered > 0) parts.push(`réordonner ${restructure.reordered} entrée${restructure.reordered > 1 ? 's' : ''}`);
@@ -274,13 +280,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const handleApplyMasterJson = async () => {
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    let data;
-    try {
-      data = parseAiCvResponse(jsonInput);
-    } catch {
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext });
+    if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
     }
+    const data = result.data;
 
     setIsApplying(true);
     try {
@@ -335,13 +340,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!selectedCvId) { toast.error('Sélectionnez un CV à dupliquer'); return; }
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    let data;
-    try {
-      data = parseAiCvResponse(jsonInput);
-    } catch {
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext });
+    if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
     }
+    const data = result.data;
 
     setIsApplying(true);
     try {
@@ -565,6 +569,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               </div>
 
               {/* Restructuration recap + off-profile suggestions review (opt-in) */}
+              {renderGuardReport()}
               {renderRestructure()}
               {renderSuggestions()}
 
@@ -581,7 +586,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
-                  {isApplying ? 'Création en cours…' : 'Créer le CV ciblé'}
+                  {isApplying ? 'Création en cours…' : applyLabel('Créer le CV ciblé')}
                 </button>
               </div>
             </>
@@ -669,6 +674,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               </div>
 
               {/* Restructuration recap + off-profile suggestions review (opt-in) */}
+              {renderGuardReport()}
               {renderRestructure()}
               {renderSuggestions()}
 
@@ -685,7 +691,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
-                  {isApplying ? 'Création en cours…' : 'Dupliquer et appliquer'}
+                  {isApplying ? 'Création en cours…' : applyLabel('Dupliquer et appliquer')}
                 </button>
               </div>
             </>

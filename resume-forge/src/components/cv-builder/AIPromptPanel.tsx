@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Copy, Check, Sparkles, Wand2 } from 'lucide-react';
 import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { PROMPT_TEMPLATES, generateFullCVMatchPrompt } from '@/lib/prompt-templates';
-import { parseAiCvResponse } from '@/lib/ai-cv-response';
+import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
+import { AiCvGuardReport } from './AiCvGuardReport';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import { CVBlock, CVDocument } from '@/types/cv';
 import { toast } from 'sonner';
@@ -37,6 +38,13 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
   useEffect(() => {
     if (!isLoaded) loadDifferentiator();
   }, [isLoaded, loadDifferentiator]);
+
+  // Parse + garde-fou du JSON collé (rapport affiché avant l'application).
+  const analysis = useMemo(
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile }) : null),
+    [jsonInput, entries, profile],
+  );
+  const hasBlockingIssues = analysis !== null && analysis.ok && analysis.report.errors.length > 0;
 
   const selectedTemplate = PROMPT_TEMPLATES.find(t => t.id === selectedTemplateId);
 
@@ -117,13 +125,12 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     }
     if (!currentCv) return;
 
-    let data;
-    try {
-      data = parseAiCvResponse(jsonInput);
-    } catch {
+    const result = analyzeAiCvJson(jsonInput, { entries, profile });
+    if (!result.ok) {
       toast.error("Erreur de parsing JSON. Vérifiez le format.");
       return;
     }
+    const data = result.data;
 
     try {
       // Update CV metadata (only the fields the AI actually returned)
@@ -365,12 +372,16 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
               />
             </div>
 
+            {analysis && analysis.ok && <AiCvGuardReport report={analysis.report} />}
+
             <button
               onClick={handleApplyFullCV}
-              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-md transition-colors shadow-sm flex items-center justify-center gap-2"
+              className={`w-full py-2.5 text-white text-sm font-semibold rounded-md transition-colors shadow-sm flex items-center justify-center gap-2 ${
+                hasBlockingIssues ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
+              }`}
             >
               <Sparkles className="w-4 h-4" />
-              3. Appliquer au CV
+              {hasBlockingIssues ? '3. Appliquer quand même' : '3. Appliquer au CV'}
             </button>
           </>
         )}
