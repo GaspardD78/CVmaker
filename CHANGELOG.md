@@ -7,6 +7,11 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-02
 
+### Pages cibles (spec 004)
+
+- **Changé** : la règle de budget de pages « 1 page jusqu'à 8 ans d'expérience, 2 au-delà » est remplacée par le réglage **Pages cibles** (Paramètres, clé `cv_target_pages`) : 1 page par défaut quelle que soit l'ancienneté, 2 en option.
+- **Ajout** : à 1 page, le prompt v2 impose résumé de 2 lignes, 3 puces maximum pour les expériences des 5 dernières années ou couvrant un indispensable (1 ligne ou 1 à 2 puces pour les plus anciennes), expériences sans lien masquées, 12 à 15 compétences sans catégories, formations et certifications d'une ligne, centres d'intérêt et bénévolat masqués. Le garde-fou contrôle les mêmes limites (`ONE_PAGE_LIMITS`), retire `skillGroups` des données nettoyées et affiche « Dépasse probablement 1 page » avec la liste des éléments à retirer en priorité.
+
 ### Moteur de CV IA v2 (spec 004)
 
 - **Corrigé** : la section « Compétences » n'est plus renommée ni supprimée par `skillGroups` ; les catégories deviennent des **sous-en-têtes** (`section_header` avec `overrideData.level = 'sub'`, petit libellé gras). Regroupement appliqué seulement avec au moins 8 compétences visibles, 2 à 4 groupes, 2 compétences minimum par groupe (sinon ignoré avec avertissement), et **idempotent** (réappliquer le même JSON ne duplique rien).

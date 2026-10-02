@@ -12,10 +12,24 @@
  * prompts (texte libre) n'est plus utilisé ici.
  */
 import type { MasterEntry, Profile } from '@/types/profile';
-import { experienceYears, suggestPageBudget } from './cv-experience';
+import { DEFAULT_TARGET_PAGES, experienceYears } from './cv-experience';
 
 /** Nombre de puces d'un CV d'une page (base du budget de volume du prompt et du garde-fou). */
 export const BULLETS_PER_PAGE = 18;
+/** Limites imposées quand la cible est 1 page (prompt et garde-fou partagent ces valeurs). */
+export const ONE_PAGE_LIMITS = {
+  summaryLines: 2,
+  /** Expériences récentes ou couvrant un indispensable. */
+  recentBullets: 3,
+  /** Expériences plus anciennes : 1 ligne (aucune puce) ou 1 à 2 puces. */
+  olderBullets: 2,
+  recentYears: 5,
+  maxSkills: 15,
+  minSkills: 12,
+  maxEducation: 2,
+  maxCertifications: 3,
+} as const;
+
 /** Longueur maximale d'une puce, en caractères. */
 export const MAX_BULLET_CHARS = 120;
 /** Nombre maximal de puces par expérience. */
@@ -28,7 +42,7 @@ export const STANDARD_SECTION_LABELS = [
 ] as const;
 
 export interface CvPromptOptions {
-  /** Pages visées ; défaut : 1 jusqu'à 8 ans d'expérience, sinon 2. */
+  /** Pages cibles (réglage « Pages cibles ») ; défaut : 1, quelle que soit l'ancienneté. */
   pageBudget?: number;
   /** Date de référence du calcul d'expérience (tests déterministes) ; défaut : maintenant. */
   now?: Date;
@@ -104,11 +118,11 @@ Produire UN objet JSON (schéma en fin de prompt) qui sélectionne, ordonne et r
 export function buildContext(input: CvPromptInput): string {
   const { profile, entries, jobOfferText, targetCompany, options } = input;
   const years = experienceYears(entries, options?.now);
-  const pages = options?.pageBudget ?? suggestPageBudget(years);
+  const pages = options?.pageBudget ?? DEFAULT_TARGET_PAGES;
   const lines = [
     '## Contexte',
     targetCompany ? `Entreprise cible : ${targetCompany}` : '',
-    `Pages visées : ${pages}`,
+    `Pages cibles : ${pages}`,
     `Durée d'expérience professionnelle calculée depuis les dates du profil : ${years === 0 ? "moins d'un an" : `${years} an${years > 1 ? 's' : ''}`} (valeur à utiliser dans l'accroche, sans l'arrondir à la hausse)`,
     profile.title ? `Titre actuel du profil : ${profile.title}` : '',
     `Annonce :\n<<<\n${jobOfferText.trim()}\n>>>`,
@@ -174,10 +188,21 @@ export function buildAnalysisStep(): string {
 Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette analyse.`;
 }
 
+/** Règles de contenu imposées pour une cible d'une page (remplacent PUCES, VOLUME et COMPÉTENCES). */
+export function buildOnePageRules(): string {
+  const L = ONE_PAGE_LIMITS;
+  return `- UNE PAGE (contrainte stricte, prioritaire sur toute autre consigne de volume) :
+  - RÉSUMÉ : ${L.summaryLines} lignes maximum (environ 200 caractères).
+  - EXPÉRIENCES des ${L.recentYears} dernières années ou couvrant un indispensable de l'annonce : ${L.recentBullets} puces maximum chacune. Expériences plus anciennes : 1 ligne (titre, employeur, dates : omets "description") ou 1 à ${L.olderBullets} puces selon leur utilité pour l'annonce. Une expérience sans lien avec l'annonce : \`visible: false\`.
+  - COMPÉTENCES : ${L.minSkills} à ${L.maxSkills} maximum, les plus pertinentes d'abord (entryOrder), les autres \`visible: false\`. Pas de regroupement : omets "skillGroups".
+  - FORMATIONS et CERTIFICATIONS : uniquement les plus récentes ou les plus pertinentes, une ligne chacune (aucune description). Les autres \`visible: false\`.
+  - CENTRES D'INTÉRÊT et BÉNÉVOLAT : \`visible: false\`, sauf s'ils servent directement l'annonce.
+  - Si le tout dépasse encore 1 page, masque d'abord ce qui est le moins lié à l'annonce.`;
+}
+
 export function buildRules(input: CvPromptInput): string {
-  const { entries, options } = input;
-  const years = experienceYears(entries, options?.now);
-  const pages = options?.pageBudget ?? suggestPageBudget(years);
+  const pages = input.options?.pageBudget ?? DEFAULT_TARGET_PAGES;
+  const onePage = pages === 1;
   const labels = STANDARD_SECTION_LABELS.map(l => `"${l}"`).join(', ');
   return `## Règles
 ### Langue
@@ -192,11 +217,11 @@ export function buildRules(input: CvPromptInput): string {
 
 ### Contenu
 - TITRE ("title") : l'intitulé de l'annonce seulement s'il est cohérent avec les postes réellement tenus ; sinon « {intitulé réellement tenu} - {mot-clé de l'annonce} ». Jamais un poste que le profil n'a pas occupé.
-- ACCROCHE ("summary", 2 à 3 phrases) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
-- PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : ${MAX_BULLETS_PER_EXPERIENCE - 2} à ${MAX_BULLETS_PER_EXPERIENCE} puces pour une expérience récente ou pertinente, 2 à 3 pour une plus ancienne, ${MAX_BULLET_CHARS} caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun.
+- ACCROCHE ("summary", ${onePage ? '2 lignes maximum' : '2 à 3 phrases'}) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
+- PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : ${onePage ? '' : `${MAX_BULLETS_PER_EXPERIENCE - 2} à ${MAX_BULLETS_PER_EXPERIENCE} puces pour une expérience récente ou pertinente, 2 à 3 pour une plus ancienne, `}${MAX_BULLET_CHARS} caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun.${onePage ? ' Les nombres de puces sont fixés par la règle UNE PAGE ci-dessous.' : ''}
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
-- VOLUME : ${pages} page${pages > 1 ? 's' : ''} maximum, soit environ ${pages * BULLETS_PER_PAGE} puces au total. Priorité aux 5 dernières années et aux expériences qui couvrent un indispensable ; masque ou raccourcis le reste.
-- COMPÉTENCES : masque les non pertinentes, ordonne par pertinence. Utilise "skillGroups" seulement s'il y a au moins 8 compétences visibles : 2 à 4 groupes, au moins 2 compétences par groupe, libellés dans la langue de l'annonce, chaque compétence visible dans un seul groupe. Sinon omets "skillGroups".
+${onePage ? buildOnePageRules() : `- VOLUME : ${pages} pages maximum, soit environ ${pages * BULLETS_PER_PAGE} puces au total. Priorité aux 5 dernières années et aux expériences qui couvrent un indispensable ; masque ou raccourcis le reste.
+- COMPÉTENCES : masque les non pertinentes, ordonne par pertinence. Utilise "skillGroups" seulement s'il y a au moins 8 compétences visibles : 2 à 4 groupes, au moins 2 compétences par groupe, libellés dans la langue de l'annonce, chaque compétence visible dans un seul groupe. Sinon omets "skillGroups".`}
 - ORDRE : le plus pertinent d'abord, entre les sections ("sectionOrder", avec les libellés standard ci-dessus) et à l'intérieur de chaque section ("entryOrder").
 - SURCHARGES D'AFFICHAGE (optionnelles) : "titleOverride" (libellé principal), "subtitleOverride" (libellé secondaire : entreprise, école, niveau de langue traduit, émetteur). Uniquement si l'annonce justifie un affichage différent de la source ; elles ne modifient jamais le profil.
 

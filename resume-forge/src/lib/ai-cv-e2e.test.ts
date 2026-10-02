@@ -48,7 +48,7 @@ describe('flux complet : annonce EN', () => {
   });
 
   it('une réponse EN est parsée, validée sans erreur bloquante et appliquée', async () => {
-    const analysis = analyzeAiCvJson(EN_RESPONSE, ctx);
+    const analysis = analyzeAiCvJson(EN_RESPONSE, { ...ctx, pageBudget: 2 }); // regroupement conservé : cible 2 pages
     expect(analysis.ok).toBe(true);
     if (!analysis.ok) return;
     expect(analysis.report.errors).toEqual([]);
@@ -71,6 +71,17 @@ describe('flux complet : annonce EN', () => {
     expect(x1.overrideData.description).toBe('- Monitored 12 log sources with Splunk\n- Cut handling time by 30%');
     expect(x1.overrideData.title).toBe('SOC Analyst');
     expect(store.currentCvBlocks.find(b => b.entryId === 'l1')!.overrideData.subtitle).toBe('Native');
+  });
+
+  it('cible 1 page (défaut) : le regroupement des compétences est retiré avant application', async () => {
+    const analysis = analyzeAiCvJson(EN_RESPONSE, ctx);
+    expect(analysis.ok).toBe(true);
+    if (!analysis.ok) return;
+    expect(analysis.data.skillGroups).toBeUndefined();
+    const store = makeFakeStore(makeBlocks(entries));
+    const report = await applyAiCvToBlocks('cv1', analysis.data, { store: () => store, entries });
+    expect(report.skillGrouping).toBe('none');
+    expect(store.currentCvBlocks.some(b => b.overrideData.level === 'sub')).toBe(false);
   });
 
   it('un nombre inventé est détecté avant l\'application', () => {

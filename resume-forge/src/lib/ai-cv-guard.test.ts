@@ -104,7 +104,7 @@ describe('guardAiCv - nettoyage structurel', () => {
       entries: [{ id: 'x1', visible: true }, { id: 'zzz', visible: true }],
       entryOrder: ['zzz', 's2'],
       skillGroups: [{ category: 'A', entryIds: ['s1', 'nope', 'x1'] }],
-    }), ctx());
+    }), ctx({ pageBudget: 2 }));
     expect(r.data.entries.map(e => e.id)).toEqual(['x1']);
     expect(r.data.entryOrder).toEqual(['s2']);
     expect(r.data.skillGroups).toEqual([{ category: 'A', entryIds: ['s1'] }]);
@@ -112,7 +112,7 @@ describe('guardAiCv - nettoyage structurel', () => {
   });
 
   it('compétence dans plusieurs groupes : gardée dans le premier uniquement', () => {
-    const r = guardAiCv(resp({ skillGroups: [{ category: 'A', entryIds: ['s1', 's2'] }, { category: 'B', entryIds: ['s2', 's3'] }] }), ctx());
+    const r = guardAiCv(resp({ skillGroups: [{ category: 'A', entryIds: ['s1', 's2'] }, { category: 'B', entryIds: ['s2', 's3'] }] }), ctx({ pageBudget: 2 }));
     expect(r.data.skillGroups).toEqual([{ category: 'A', entryIds: ['s1', 's2'] }, { category: 'B', entryIds: ['s3'] }]);
     expect(codes(r)).toContain('skill-in-several-groups');
   });
@@ -131,7 +131,7 @@ describe('guardAiCv - rédaction', () => {
         { id: 'x1', visible: true, description: `${long}\n- a\n- b\n- c\n- d\n- e` },
         { id: 'x2', visible: true, description: '' },
       ],
-    }), ctx({ entries: entries.map(e => (e.id === 'x2' ? { ...e, description: null } : e)) }));
+    }), ctx({ pageBudget: 2, entries: entries.map(e => (e.id === 'x2' ? { ...e, description: null } : e)) }));
     expect(codes(r)).toEqual(expect.arrayContaining(['long-bullet', 'too-many-bullets', 'empty-description']));
   });
 
@@ -209,9 +209,150 @@ describe('guardAiCv - métriques', () => {
     const r = guardAiCv(resp(), ctx());
     expect(codes(r)).not.toContain('volume');
     expect(r.report.metrics.pageBudget).toBe(1);
+    expect(r.report.metrics.overflow.exceedsTarget).toBe(false);
+  });
+
+  it('cible par défaut : 1 page, même pour un profil senior (15 ans)', () => {
+    const senior = [makeEntry('a', 'experience', 'RSSI', { startDate: '2011-01', isCurrent: true, description: '- Pilotage' })];
+    expect(guardAiCv(resp(), ctx({ entries: senior })).report.metrics.pageBudget).toBe(1);
+    expect(guardAiCv(resp(), ctx({ entries: senior, pageBudget: 2 })).report.metrics.pageBudget).toBe(2);
   });
 
   it('questions de l\'IA transmises', () => {
     expect(guardAiCv(resp({ warnings: ['Poste X : combien d\'alertes ?'] }), ctx()).report.aiWarnings).toHaveLength(1);
+  });
+});
+
+describe('guardAiCv - cible 1 page', () => {
+  const bullets = (n: number, prefix = 'Action') => Array.from({ length: n }, (_, i) => `- ${prefix} ${i}`).join('\n');
+  const exp = (id: string, title: string, start: string, end: string | null, n: number) =>
+    makeEntry(id, 'experience', title, { startDate: start, endDate: end, isCurrent: end === null, description: bullets(n) });
+  const onePage = (data: AiCvResponse, entriesList = entries, extra: Partial<GuardContext> = {}) =>
+    guardAiCv(data, ctx({ entries: entriesList, pageBudget: 1, ...extra }));
+  const onePageMsgs = (r: ReturnType<typeof guardAiCv>) => r.report.warnings.filter(w => w.code === 'one-page').map(w => w.message);
+
+  it('résumé de plus de 2 lignes signalé', () => {
+    const long = 'Analyste SOC. '.repeat(20);
+    expect(onePageMsgs(onePage(resp({ summary: long }))).some(m => m.includes('Résumé'))).toBe(true);
+    expect(onePageMsgs(onePage(resp({ summary: 'Analyste SOC, 7 ans.' }))).some(m => m.includes('Résumé'))).toBe(false);
+  });
+
+  it('expérience récente : 3 puces maximum ; plus ancienne : 2', () => {
+    const list = [exp('r', 'Poste récent', '2022-01', null, 4), exp('o', 'Poste ancien', '2005-01', '2008-01', 3), exp('ok', 'Poste ok', '2023-01', null, 3)];
+    const msgs = onePageMsgs(onePage(resp(), list));
+    expect(msgs.some(m => m.includes('Poste récent') && m.includes('3 maximum'))).toBe(true);
+    expect(msgs.some(m => m.includes('Poste ancien') && m.includes('2 maximum'))).toBe(true);
+    expect(msgs.some(m => m.includes('Poste ok'))).toBe(false);
+  });
+
+  it('expérience ancienne couvrant un indispensable : 3 puces autorisées', () => {
+    const list = [exp('o', 'Poste ancien', '2005-01', '2008-01', 3)];
+    const r = onePage(resp({ analyse: analyse({ indispensables: ['Action 1'], correspondances: [{ exigence: 'Action 1', entryId: 'o' }] }) }), list);
+    expect(onePageMsgs(r).some(m => m.includes('Poste ancien'))).toBe(false);
+  });
+
+  it('expérience ancienne en une ligne (sans description) : acceptée', () => {
+    const old = [makeEntry('o', 'experience', 'Poste ancien', { startDate: '2005-01', endDate: '2008-01', description: null })];
+    expect(codes(onePage(resp(), old))).not.toContain('empty-description');
+    // Une expérience récente sans description reste signalée.
+    const recent = [makeEntry('r', 'experience', 'Poste récent', { startDate: '2024-01', isCurrent: true, description: null })];
+    expect(codes(onePage(resp(), recent))).toContain('empty-description');
+  });
+
+  it('expérience sans lien avec l\'annonce : à masquer', () => {
+    const list = [exp('a', 'Vendeur', '2023-01', null, 2), exp('b', 'Analyste Splunk', '2021-01', '2022-12', 2)];
+    const r = onePage(resp({ analyse: analyse({ indispensables: ['Splunk'], importants: [] }) }), list);
+    const msgs = onePageMsgs(r);
+    expect(msgs.some(m => m.includes('Vendeur') && m.includes('aucun lien'))).toBe(true);
+    expect(msgs.some(m => m.includes('Analyste Splunk'))).toBe(false);
+  });
+
+  it('plus de 15 compétences : signalé ; 15 : accepté', () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => makeEntry(`k${i}`, 'skill', `Skill${i}`));
+    expect(onePageMsgs(onePage(resp(), many(16))).some(m => m.includes('16 compétences'))).toBe(true);
+    expect(onePageMsgs(onePage(resp(), many(15))).some(m => m.includes('compétences visibles'))).toBe(false);
+  });
+
+  it('regroupement des compétences ignoré (retiré des données nettoyées)', () => {
+    const r = onePage(resp({ skillGroups: [{ category: 'A', entryIds: ['s1', 's2'] }, { category: 'B', entryIds: ['s3', 's4'] }] }));
+    expect(r.data.skillGroups).toBeUndefined();
+    expect(onePageMsgs(r).some(m => m.includes('regroupement'))).toBe(true);
+    // 2 pages : conservé.
+    expect(guardAiCv(resp({ skillGroups: [{ category: 'A', entryIds: ['s1', 's2'] }, { category: 'B', entryIds: ['s3', 's4'] }] }), ctx({ pageBudget: 2 })).data.skillGroups).toHaveLength(2);
+  });
+
+  it('formations (> 2), certifications (> 3) et descriptions de formation signalées', () => {
+    const list = [
+      ...[1, 2, 3].map(i => makeEntry(`f${i}`, 'education', `Diplôme ${i}`, { endDate: `20${10 + i}` })),
+      ...[1, 2, 3, 4].map(i => makeEntry(`c${i}`, 'certification', `Certif ${i}`, { endDate: `20${20 + i}` })),
+      makeEntry('f9', 'education', 'Master', { description: '- Mémoire sur la détection' }),
+    ];
+    const msgs = onePageMsgs(onePage(resp(), list));
+    expect(msgs.some(m => m.includes('4 formations'))).toBe(true);
+    expect(msgs.some(m => m.includes('4 certifications'))).toBe(true);
+    expect(msgs.some(m => m.includes('Master') && m.includes('une ligne'))).toBe(true);
+  });
+
+  it('centres d\'intérêt et bénévolat visibles : signalés sauf lien avec l\'annonce', () => {
+    const list = [makeEntry('i1', 'interest', 'Escalade'), makeEntry('v1', 'volunteer', 'CTF étudiant')];
+    const r = onePage(resp({ analyse: analyse({ indispensables: ['CTF'] }) }), list);
+    const msgs = onePageMsgs(r);
+    expect(msgs.some(m => m.includes('Escalade'))).toBe(true);
+    expect(msgs.some(m => m.includes('CTF étudiant'))).toBe(false);
+  });
+
+  it('2 pages : aucune de ces règles n\'est appliquée', () => {
+    const list = [exp('r', 'Poste récent', '2022-01', null, 5), makeEntry('i1', 'interest', 'Escalade')];
+    expect(onePageMsgs(guardAiCv(resp(), ctx({ entries: list, pageBudget: 2 })))).toEqual([]);
+  });
+});
+
+describe('guardAiCv - dépassement : « dépasse probablement 1 page » et éléments à retirer', () => {
+  const heavy = (): ReturnType<typeof makeEntry>[] => [
+    ...Array.from({ length: 5 }, (_, i) => makeEntry(`e${i}`, 'experience', `Poste ${i}`, {
+      startDate: `20${10 + i}-01`, endDate: `20${11 + i}-01`,
+      description: Array.from({ length: 5 }, (_, k) => `- Action ${k} sur le périmètre ${i}`).join('\n'),
+    })),
+    makeEntry('hobby', 'interest', 'Escalade'),
+    makeEntry('vol', 'volunteer', 'Banque alimentaire', { description: '- Distribution' }),
+    ...Array.from({ length: 22 }, (_, i) => makeEntry(`k${i}`, 'skill', `Skill${i}`)),
+  ];
+
+  it('avertit « Dépasse probablement 1 page » avec la liste à retirer en priorité', () => {
+    const r = guardAiCv(resp(), ctx({ entries: heavy(), pageBudget: 1 }));
+    const w = r.report.warnings.find(x => x.code === 'volume');
+    expect(w?.message).toContain('Dépasse probablement 1 page');
+    expect(w?.message).toContain('À retirer en priorité');
+    expect(w?.message).toContain('Escalade');
+    expect(r.report.metrics.overflow.exceedsTarget).toBe(true);
+  });
+
+  it('candidats par priorité : intérêts et bénévolat d\'abord, puis compétences en trop, puis puces', () => {
+    const { removalCandidates } = guardAiCv(resp(), ctx({ entries: heavy(), pageBudget: 1 })).report.metrics.overflow;
+    const labels = removalCandidates.map(c => c.label);
+    expect(labels.slice(0, 2).sort()).toEqual(['Banque alimentaire', 'Escalade']);
+    const firstSkill = labels.findIndex(l => l.startsWith('Skill'));
+    const firstBullets = removalCandidates.findIndex(c => c.reason.startsWith('retirer'));
+    if (firstSkill !== -1 && firstBullets !== -1) expect(firstSkill).toBeLessThan(firstBullets);
+    expect(removalCandidates.every(c => c.savedLines > 0)).toBe(true);
+  });
+
+  it('la liste s\'arrête dès que les lignes gagnées couvrent le dépassement', () => {
+    const { removalCandidates, excessLines } = guardAiCv(resp(), ctx({ entries: heavy(), pageBudget: 1 })).report.metrics.overflow;
+    const total = removalCandidates.reduce((n, c) => n + c.savedLines, 0);
+    expect(total).toBeGreaterThanOrEqual(excessLines);
+    const withoutLast = total - removalCandidates[removalCandidates.length - 1].savedLines;
+    expect(withoutLast).toBeLessThan(excessLines);
+  });
+
+  it('pas de dépassement : aucun candidat', () => {
+    const o = guardAiCv(resp(), ctx()).report.metrics.overflow;
+    expect(o).toEqual({ exceedsTarget: false, excessLines: 0, removalCandidates: [] });
+  });
+
+  it('2 pages : le message cite 2 pages', () => {
+    const many = Array.from({ length: 30 }, (_, i) => makeEntry(`m${i}`, 'experience', `P${i}`, { startDate: '2010', endDate: '2012', description: '- a\n- b\n- c\n- d' }));
+    const w = guardAiCv(resp(), ctx({ entries: many, pageBudget: 2 })).report.warnings.find(x => x.code === 'volume');
+    expect(w?.message).toContain('Dépasse probablement 2 pages');
   });
 });

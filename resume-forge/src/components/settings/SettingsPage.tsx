@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor } from 'lucide-react';
+import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor, FileText } from 'lucide-react';
 import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
 import { GoogleDriveSync } from './GoogleDriveSync';
@@ -8,13 +8,17 @@ import { useTheme } from '@/hooks/useTheme';
 
 export function SettingsPage() {
   // ── AI Differentiator ───────────────────────────────────────────────────
-  const { differentiator, loadDifferentiator, saveDifferentiator, isLoaded } = usePromptStore();
+  const { differentiator, loadDifferentiator, saveDifferentiator, isLoaded, targetPages, loadTargetPages, saveTargetPages } = usePromptStore();
   const [localDifferentiator, setLocalDifferentiator] = useState('');
   const [diffSaved, setDiffSaved] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) loadDifferentiator();
   }, [isLoaded, loadDifferentiator]);
+
+  useEffect(() => {
+    loadTargetPages();
+  }, [loadTargetPages]);
 
   useEffect(() => {
     if (isLoaded) setLocalDifferentiator(differentiator);
@@ -171,6 +175,37 @@ export function SettingsPage() {
               'Enregistrer'
             )}
           </button>
+        </div>
+      </section>
+
+      {/* ── Pages cibles du CV généré par IA ── */}
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
+          <div className="flex items-center gap-2 mb-1">
+            <FileText size={18} className="text-indigo-500" />
+            <h2 className="text-base font-semibold dark:text-gray-100">Pages cibles</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Nombre de pages visé par le CV généré par IA. À 1 page (défaut), le prompt impose un résumé de 2 lignes,
+            3 puces maximum par expérience récente, 12 à 15 compétences sans catégories, et le contrôle signale tout dépassement probable.
+          </p>
+        </div>
+        <div className="p-6 flex gap-3" role="radiogroup" aria-label="Pages cibles">
+          {([1, 2] as const).map(n => (
+            <button
+              key={n}
+              role="radio"
+              aria-checked={targetPages === n}
+              onClick={() => saveTargetPages(n)}
+              className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                targetPages === n
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+            >
+              {n} page{n > 1 ? 's' : ''}
+            </button>
+          ))}
         </div>
       </section>
 

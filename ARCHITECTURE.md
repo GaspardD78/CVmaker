@@ -277,6 +277,7 @@ rendu : PrintableCV / export-docx (sections vides masquées, lib/cv-sections.ts)
 
 - **Non destructif** : `MasterEntry` jamais modifiée ; tout vit dans `cv_blocks` et `cv.settings.cvLanguage`.
 - **Garde-fou** (`lib/ai-cv-guard.ts`) : `errors` = chiffres absents de la source (profil maître, profil, contexte additionnel) ; `warnings` = IDs inconnus, termes non sourcés, suggestions rejetées, doublons, puces > 120 caractères ou > 5, formulations interdites, volume vs budget de pages, cohérence des temps. `metrics` = couverture des mots-clés `indispensables`, écarts, volume estimé.
+- **Pages cibles** : réglage `cv_target_pages` (1 par défaut, 2), lu par `promptStore.targetPages` et transmis au prompt (`options.pageBudget`) et au garde-fou (`ctx.pageBudget`). À 1 page : `ONE_PAGE_LIMITS` (lib/cv-prompt.ts) pilote le bloc « UNE PAGE » du prompt et les contrôles `one-page` du garde-fou ; `metrics.overflow` liste les éléments à retirer en priorité (intérêts/bénévolat sans lien, expériences sans lien, formations/certifications en trop, compétences au-delà de 15, puces en trop, résumé).
 - **Typographie** (`lib/cv-typography.ts`) appliquée par le garde-fou : le texte retourné par `guardAiCv` est celui qu'on applique.
 - Limites : détection de termes heuristique (sigles, CamelCase, noms propres en français), temps verbaux approximatifs, aucune évaluation sémantique, le LLM externe reste libre de désobéir (d'où le garde-fou).
 

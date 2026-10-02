@@ -24,6 +24,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     generatedPrompt, generatePrompt,
     loadDifferentiator,
     isLoaded,
+    targetPages, loadTargetPages,
   } = usePromptStore();
 
   const [selectedBlockId, setSelectedBlockId] = useState<string>('');
@@ -37,12 +38,13 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
 
   useEffect(() => {
     if (!isLoaded) loadDifferentiator();
-  }, [isLoaded, loadDifferentiator]);
+    loadTargetPages();
+  }, [isLoaded, loadDifferentiator, loadTargetPages]);
 
   // Parse + garde-fou du JSON collé (rapport affiché avant l'application).
   const analysis = useMemo(
-    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile }) : null),
-    [jsonInput, entries, profile],
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages }) : null),
+    [jsonInput, entries, profile, targetPages],
   );
   const hasBlockingIssues = analysis !== null && analysis.ok && analysis.report.errors.length > 0;
 
@@ -107,7 +109,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     if (!profile) return;
 
     try {
-      const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer, undefined, undefined, clarify);
+      const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer, undefined, undefined, clarify, { pageBudget: targetPages });
       await navigator.clipboard.writeText(prompt);
       setFullPromptCopied(true);
       toast.success("Prompt copié dans le presse-papier");
@@ -125,7 +127,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     }
     if (!currentCv) return;
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages });
     if (!result.ok) {
       toast.error("Erreur de parsing JSON. Vérifiez le format.");
       return;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { experienceMonths, experienceYears, suggestPageBudget } from './cv-experience';
+import { experienceMonths, experienceYears, normalizeTargetPages, DEFAULT_TARGET_PAGES } from './cv-experience';
 import { makeEntry } from './test-helpers/cv-fixtures';
 
 const NOW = new Date(Date.UTC(2026, 5, 15));
@@ -31,11 +31,17 @@ describe('experienceMonths', () => {
     expect(experienceMonths(e, NOW)).toBe(0);
   });
 
-  it('années complètes et budget de pages', () => {
+  it('réglage « Pages cibles » : défaut 1, seules les valeurs 1 et 2 sont acceptées', () => {
+    expect(DEFAULT_TARGET_PAGES).toBe(1);
+    expect(normalizeTargetPages(null)).toBe(1);
+    expect(normalizeTargetPages('2')).toBe(2);
+    expect(normalizeTargetPages(2)).toBe(2);
+    expect(normalizeTargetPages('3')).toBe(1);
+    expect(normalizeTargetPages('abc')).toBe(1);
+  });
+
+  it('années complètes', () => {
     const e = [makeEntry('a', 'experience', 'A', { startDate: '2011-01', isCurrent: true })];
     expect(experienceYears(e, NOW)).toBe(15);
-    expect(suggestPageBudget(15)).toBe(2);
-    expect(suggestPageBudget(3)).toBe(1);
-    expect(suggestPageBudget(8)).toBe(1);
   });
 });

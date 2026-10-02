@@ -17,8 +17,8 @@
  */
 import type { MasterEntry, Profile } from '@/types/profile';
 import type { AiCvEntry, AiCvResponse, AiCvSuggestedEntry } from './ai-cv-response';
-import { BULLETS_PER_PAGE, MAX_BULLET_CHARS, MAX_BULLETS_PER_EXPERIENCE } from './cv-prompt';
-import { experienceYears, suggestPageBudget } from './cv-experience';
+import { BULLETS_PER_PAGE, MAX_BULLET_CHARS, MAX_BULLETS_PER_EXPERIENCE, ONE_PAGE_LIMITS } from './cv-prompt';
+import { DEFAULT_TARGET_PAGES, experienceYears, nowMonthIndex, toMonthIndex } from './cv-experience';
 import { normalizeLanguageCode } from './cv-language';
 import { normalizeLabel } from './cv-sections';
 import { normalizeDescription, normalizeTypography } from './cv-typography';
@@ -26,7 +26,7 @@ import { normalizeDescription, normalizeTypography } from './cv-typography';
 export type GuardCode =
   | 'unknown-id' | 'invented-number' | 'unsourced-term' | 'unsupported-title' | 'suggestion-rejected'
   | 'duplicate-skill' | 'skill-in-several-groups' | 'long-bullet' | 'too-many-bullets' | 'empty-description'
-  | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume';
+  | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -43,6 +43,23 @@ export interface KeywordCoverage {
   missing: string[];
 }
 
+/** Élément à retirer en priorité pour ramener le CV dans le budget de pages. */
+export interface RemovalCandidate {
+  entryId?: string;
+  label: string;
+  reason: string;
+  /** Lignes gagnées (estimation). */
+  savedLines: number;
+}
+
+export interface OverflowReport {
+  /** « Dépasse probablement N page(s) » : même seuil que l'avertissement de volume. */
+  exceedsTarget: boolean;
+  excessLines: number;
+  /** Par ordre de priorité, jusqu'à couvrir `excessLines` (ou tous les candidats si insuffisant). */
+  removalCandidates: RemovalCandidate[];
+}
+
 export interface GuardMetrics {
   keywordCoverage: KeywordCoverage;
   /** Écarts signalés par l'IA (indispensables sans preuve dans le profil). */
@@ -52,6 +69,7 @@ export interface GuardMetrics {
   pageBudget: number;
   /** Capacité estimée du budget de pages, en lignes. */
   budgetLines: number;
+  overflow: OverflowReport;
 }
 
 export interface GuardReport {
@@ -69,7 +87,7 @@ export interface GuardContext {
   profile?: Pick<Profile, 'title' | 'summary'> | null;
   /** « Contexte additionnel » saisi par l'utilisateur : seule source des suggestions. */
   extraContext?: string;
-  /** Pages visées ; défaut : même règle que le prompt (`suggestPageBudget`). */
+  /** Pages cibles (réglage « Pages cibles ») ; défaut : 1, comme le prompt. */
   pageBudget?: number;
   now?: Date;
 }
@@ -138,6 +156,14 @@ export function extractTechnicalTerms(text: string, opts: { properNouns?: boolea
     }
   }
   return [...found];
+}
+
+/** Un mot-clé est présent sous sa forme exacte, ou sous son sigle / sa forme longue (« SIEM (Security … ») ». */
+function matchesKeyword(haystackNormalized: string, requirement: string): boolean {
+  const forms = [requirement, requirement.replace(/\(.*?\)/g, ''), ...(requirement.match(/\(([^)]+)\)/g) ?? []).map(p => p.slice(1, -1))]
+    .map(f => normalizeApostrophes(normalizeLabel(f)))
+    .filter(f => f.length >= 2);
+  return forms.some(f => containsWord(haystackNormalized, f));
 }
 
 // ── Puces ────────────────────────────────────────────────────────────────────
@@ -299,6 +325,13 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   if (data.entryOrder === undefined) delete data.entryOrder;
   if (data.skillGroups === undefined) delete data.skillGroups;
 
+  const pageBudget = ctx.pageBudget ?? DEFAULT_TARGET_PAGES;
+  const strict = pageBudget === 1;
+  if (strict && data.skillGroups) {
+    delete data.skillGroups;
+    warn({ code: 'one-page', message: 'Cible 1 page : le regroupement des compétences en catégories est ignoré.' });
+  }
+
   // ── Vue « CV final » : entrées visibles, texte effectif ──
   const aiById = new Map(entries.map(e => [e.id, e] as const));
   interface Effective { entry: MasterEntry; visible: boolean; title: string; subtitle: string; description: string }
@@ -313,6 +346,25 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     };
   });
   const visible = effective.filter(e => e.visible);
+
+  // ── Lien avec l'annonce (nécessite l'analyse de l'IA) ──
+  const required = input.analyse?.indispensables ?? [];
+  const wanted = [...required, ...(input.analyse?.importants ?? [])];
+  const matchedIds = new Set((input.analyse?.correspondances ?? []).map(c => c.entryId).filter((id): id is string => id !== null));
+  const textOf = (e: { title: string; subtitle: string; description: string }) =>
+    normalizeApostrophes(normalizeLabel(`${e.title}\n${e.subtitle}\n${e.description}`));
+  /** `true` si l'entrée étaye une exigence ; `undefined` quand l'analyse est absente (inconnu). */
+  const coversRequired = (e: Effective): boolean | undefined =>
+    required.length === 0 ? undefined : matchedIds.has(e.entry.id) || required.some(r => matchesKeyword(textOf(e), r));
+  const related = (e: Effective): boolean | undefined =>
+    wanted.length === 0 ? undefined : matchedIds.has(e.entry.id) || wanted.some(r => matchesKeyword(textOf(e), r));
+  const nowIdx = nowMonthIndex(ctx.now);
+  const isRecent = (e: Effective): boolean => {
+    if (e.entry.isCurrent || !e.entry.endDate) return true;
+    const end = toMonthIndex(e.entry.endDate);
+    return end !== null && end >= nowIdx - ONE_PAGE_LIMITS.recentYears * 12;
+  };
+  const costs = new Map<string, number>();
 
   // ── Anti-invention : chiffres (bloquant) et termes (avertissement) ──
   const years = experienceYears(ctx.entries, ctx.now);
@@ -370,6 +422,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     sectionsUsed.add(type);
     if (BADGE_TYPES.has(type)) {
       badgeCounts.set(type, (badgeCounts.get(type) ?? 0) + 1);
+      costs.set(e.entry.id, 1 / BADGES_PER_LINE);
       if (type === 'skill') {
         const key = normalizeLabel(e.title);
         if (skillTitles.has(key)) warn({ code: 'duplicate-skill', message: `Compétence en double : « ${e.title} ».`, entryId: e.entry.id });
@@ -379,16 +432,20 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
     const bullets = bulletsOf(e.description);
     visibleBullets += bullets.length;
-    lines += 1.5 + bullets.reduce((n, b) => n + Math.ceil(b.length / CHARS_PER_LINE), 0);
+    const entryLines = 1.5 + bullets.reduce((n, b) => n + Math.ceil(b.length / CHARS_PER_LINE), 0);
+    lines += entryLines;
+    costs.set(e.entry.id, entryLines);
+    // Cible 1 page : une expérience ancienne et sans lien peut tenir en une ligne, sans description.
+    const oneLineAllowed = strict && type === 'experience' && !isRecent(e) && coversRequired(e) !== true;
 
-    if ((type === 'experience' || type === 'project' || type === 'volunteer') && e.description.trim() === '') {
+    if ((type === 'experience' || type === 'project' || type === 'volunteer') && e.description.trim() === '' && !oneLineAllowed) {
       warn({ code: 'empty-description', message: `« ${e.title} » est visible sans description.`, entryId: e.entry.id });
     }
     const tooLong = bullets.filter(b => b.length > MAX_BULLET_CHARS);
     if (tooLong.length > 0) {
       warn({ code: 'long-bullet', message: `« ${e.title} » : ${tooLong.length} puce(s) de plus de ${MAX_BULLET_CHARS} caractères.`, entryId: e.entry.id });
     }
-    if (type === 'experience' && bullets.length > MAX_BULLETS_PER_EXPERIENCE) {
+    if (!strict && type === 'experience' && bullets.length > MAX_BULLETS_PER_EXPERIENCE) {
       warn({ code: 'too-many-bullets', message: `« ${e.title} » : ${bullets.length} puces (maximum ${MAX_BULLETS_PER_EXPERIENCE}).`, entryId: e.entry.id });
     }
     // Cohérence des temps (poste terminé = passé, poste actuel = présent).
@@ -411,12 +468,86 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   lines += sectionsUsed.size * 2;
   const estimatedLines = Math.round(lines);
 
-  const pageBudget = ctx.pageBudget ?? suggestPageBudget(years);
   const budgetLines = pageBudget * PAGE_LINES;
-  if (estimatedLines > budgetLines * 1.05 || visibleBullets > pageBudget * BULLETS_PER_PAGE * 1.25) {
+  const exceedsTarget = estimatedLines > budgetLines * 1.05 || visibleBullets > pageBudget * BULLETS_PER_PAGE * 1.25;
+
+  // ── Cible 1 page : limites par section (mêmes valeurs que le prompt) ──
+  const L = ONE_PAGE_LIMITS;
+  if (strict) {
+    const flag = (message: string, entryId?: string) => warn({ code: 'one-page', message, entryId });
+    if (summary && Math.ceil(summary.length / CHARS_PER_LINE) > L.summaryLines) {
+      flag(`Résumé trop long pour 1 page : ${L.summaryLines} lignes maximum (≈ ${L.summaryLines * CHARS_PER_LINE} caractères).`);
+    }
+    for (const e of visible) {
+      const type = e.entry.entryType;
+      if (type === 'experience') {
+        if (related(e) === false) flag(`« ${e.title} » n'a aucun lien avec l'annonce : à masquer (1 page).`, e.entry.id);
+        const max = isRecent(e) || coversRequired(e) === true ? L.recentBullets : L.olderBullets;
+        const n = bulletsOf(e.description).length;
+        if (n > max) flag(`« ${e.title} » : ${n} puces, ${max} maximum pour une expérience ${max === L.recentBullets ? 'récente ou pertinente' : 'plus ancienne'} (1 page).`, e.entry.id);
+      } else if (type === 'education' || type === 'certification') {
+        if (e.description.trim() !== '') flag(`« ${e.title} » : une ligne suffit (retirer la description, 1 page).`, e.entry.id);
+      } else if ((type === 'interest' || type === 'volunteer') && related(e) !== true) {
+        flag(`« ${e.title} » : ${type === 'interest' ? 'centre d\'intérêt' : 'bénévolat'} à masquer sauf s'il sert l'annonce (1 page).`, e.entry.id);
+      }
+    }
+    const skillCount = visible.filter(e => e.entry.entryType === 'skill').length;
+    if (skillCount > L.maxSkills) flag(`${skillCount} compétences visibles : ${L.minSkills} à ${L.maxSkills} maximum (1 page).`);
+    for (const [type, max, noun] of [['education', L.maxEducation, 'formations'], ['certification', L.maxCertifications, 'certifications']] as const) {
+      const n = visible.filter(e => e.entry.entryType === type).length;
+      if (n > max) flag(`${n} ${noun} visibles : ${max} maximum, les plus récentes ou pertinentes (1 page).`);
+    }
+  }
+
+  // ── Dépassement : éléments à retirer en priorité ──
+  const excessLines = Math.max(1, Math.ceil(estimatedLines - budgetLines));
+  const candidates: RemovalCandidate[] = [];
+  const byEnd = (a: Effective, b: Effective) => (toMonthIndex(a.entry.endDate) ?? 0) - (toMonthIndex(b.entry.endDate) ?? 0);
+  const cost = (e: Effective) => Math.round((costs.get(e.entry.id) ?? 0) * 10) / 10;
+  const push = (e: Effective, reason: string, saved = cost(e)) => {
+    if (saved > 0) candidates.push({ entryId: e.entry.id, label: e.title, reason, savedLines: Math.round(saved * 10) / 10 });
+  };
+  const ofType = (t: string) => visible.filter(e => e.entry.entryType === t);
+  // 1. centres d'intérêt et bénévolat sans lien, 2. expériences sans lien, 3. formations / certifications en trop (les plus anciennes),
+  // 4. compétences au-delà de la limite (en queue d'ordre), 5. puces en trop (anciennes d'abord), 6. résumé.
+  for (const e of [...ofType('interest'), ...ofType('volunteer')]) if (related(e) !== true) push(e, 'sans lien avec l\'annonce');
+  for (const e of ofType('experience')) if (related(e) === false) push(e, 'expérience sans lien avec l\'annonce');
+  for (const [type, max] of [['education', L.maxEducation], ['certification', L.maxCertifications]] as const) {
+    const list = ofType(type).sort(byEnd);
+    list.slice(0, Math.max(0, list.length - max)).forEach(e => push(e, `${type === 'education' ? 'formation' : 'certification'} ancienne en trop`));
+  }
+  const skills = ofType('skill');
+  if (skills.length > L.maxSkills) {
+    const rank = new Map((data.entryOrder ?? []).map((id, i) => [id, i] as const));
+    const ordered = skills.map((e, i) => ({ e, i })).sort((a, b) => (rank.get(a.e.entry.id) ?? 1e6) - (rank.get(b.e.entry.id) ?? 1e6) || a.i - b.i);
+    ordered.slice(L.maxSkills).forEach(({ e }) => push(e, `compétence au-delà de ${L.maxSkills}`));
+  }
+  for (const e of ofType('experience').sort(byEnd)) {
+    const bullets = bulletsOf(e.description);
+    const max = isRecent(e) || coversRequired(e) === true ? L.recentBullets : L.olderBullets;
+    if (bullets.length > max) {
+      const saved = bullets.slice(max).reduce((n, b) => n + Math.ceil(b.length / CHARS_PER_LINE), 0);
+      push(e, `retirer ${bullets.length - max} puce(s)`, saved);
+    }
+  }
+  if (summary && Math.ceil(summary.length / CHARS_PER_LINE) > L.summaryLines) {
+    candidates.push({ label: 'Résumé', reason: `raccourcir à ${L.summaryLines} lignes`, savedLines: Math.ceil(summary.length / CHARS_PER_LINE) - L.summaryLines });
+  }
+  const removalCandidates: RemovalCandidate[] = [];
+  if (exceedsTarget) {
+    let saved = 0;
+    for (const c of candidates) {
+      removalCandidates.push(c);
+      saved += c.savedLines;
+      if (saved >= excessLines) break;
+    }
+  }
+
+  if (exceedsTarget) {
+    const list = removalCandidates.slice(0, 6).map(c => `${c.label} (${c.reason})`).join(' ; ');
     warn({
       code: 'volume',
-      message: `Volume estimé : ${estimatedLines} lignes et ${visibleBullets} puces pour ${pageBudget} page(s) (capacité ≈ ${budgetLines} lignes). Masquer ou raccourcir des entrées.`,
+      message: `Dépasse probablement ${pageBudget} page${pageBudget > 1 ? 's' : ''} : ≈ ${estimatedLines} lignes et ${visibleBullets} puces (capacité ≈ ${budgetLines} lignes).${list ? ` À retirer en priorité : ${list}.` : ' Masquer ou raccourcir des entrées.'}`,
     });
   } else if (estimatedLines > PAGE_LINES && estimatedLines % PAGE_LINES < PAGE_LINES * 0.15) {
     warn({ code: 'volume', message: `La dernière page serait presque vide (≈ ${estimatedLines % PAGE_LINES} lignes) : resserrer pour tenir sur ${Math.floor(estimatedLines / PAGE_LINES)} page(s).` });
@@ -459,12 +590,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     title ?? '', summary ?? '',
     ...visible.flatMap(e => [e.title, e.subtitle, e.description]),
   ].join('\n')));
-  const required = input.analyse?.indispensables ?? [];
-  const missing = required.filter(req => {
-    const forms = [req, req.replace(/\(.*?\)/g, ''), ...(req.match(/\(([^)]+)\)/g) ?? []).map(p => p.slice(1, -1))]
-      .map(f => normalizeApostrophes(normalizeLabel(f))).filter(f => f.length >= 2);
-    return !forms.some(f => containsWord(haystack, f));
-  });
+  const missing = required.filter(req => !matchesKeyword(haystack, req));
   const keywordCoverage: KeywordCoverage = {
     total: required.length,
     found: required.length - missing.length,
@@ -485,6 +611,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
         estimatedLines,
         pageBudget,
         budgetLines,
+        overflow: { exceedsTarget, excessLines: exceedsTarget ? excessLines : 0, removalCandidates },
       },
     },
   };

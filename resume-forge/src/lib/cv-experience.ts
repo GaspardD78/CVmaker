@@ -6,7 +6,7 @@
 import type { MasterEntry } from '@/types/profile';
 
 /** Mois depuis l'an 0 d'une date `AAAA`, `AAAA-MM` ou `AAAA-MM-JJ` ; `null` si illisible. */
-function toMonthIndex(value: string | null | undefined): number | null {
+export function toMonthIndex(value: string | null | undefined): number | null {
   const m = /^\s*(\d{4})(?:-(\d{1,2}))?/.exec(value ?? '');
   if (!m) return null;
   const month = m[2] ? Math.min(12, Math.max(1, parseInt(m[2], 10))) : 1;
@@ -50,7 +50,16 @@ export function experienceYears(entries: readonly MasterEntry[], now: Date = new
   return Math.floor(experienceMonths(entries, now) / 12);
 }
 
-/** Pages visées : 1 jusqu'à 8 ans d'expérience, 2 au-delà (usage courant des CV IT / cyber). */
-export function suggestPageBudget(years: number): number {
-  return years > 8 ? 2 : 1;
+/** Pages cibles par défaut (réglage « Pages cibles »), quelle que soit l'ancienneté. */
+export const DEFAULT_TARGET_PAGES = 1;
+
+/** Valeur valide du réglage « Pages cibles » (1 ou 2) ; toute autre valeur retombe sur le défaut. */
+export function normalizeTargetPages(raw: unknown): 1 | 2 {
+  const n = typeof raw === 'string' ? parseInt(raw, 10) : raw;
+  return n === 2 ? 2 : 1;
+}
+
+/** Indice de mois de `now` (comparable à `toMonthIndex`). */
+export function nowMonthIndex(now: Date = new Date()): number {
+  return now.getUTCFullYear() * 12 + now.getUTCMonth();
 }

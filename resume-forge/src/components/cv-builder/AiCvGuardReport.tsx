@@ -14,7 +14,7 @@ interface AiCvGuardReportProps {
  */
 export function AiCvGuardReport({ report }: AiCvGuardReportProps) {
   const [open, setOpen] = useState(false);
-  const { keywordCoverage: cov, ecarts, estimatedLines, budgetLines, pageBudget, visibleBullets } = report.metrics;
+  const { keywordCoverage: cov, ecarts, estimatedLines, budgetLines, pageBudget, visibleBullets, overflow } = report.metrics;
   const hasErrors = report.errors.length > 0;
 
   return (
@@ -45,6 +45,25 @@ export function AiCvGuardReport({ report }: AiCvGuardReportProps) {
             <li key={i} className="flex gap-1.5"><OctagonAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />{e.message}</li>
           ))}
         </ul>
+      )}
+
+      {overflow.exceedsTarget && (
+        <div className="text-amber-800 dark:text-amber-200" data-testid="ai-cv-overflow">
+          <p className="font-semibold flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Dépasse probablement {pageBudget} page{pageBudget > 1 ? 's' : ''} (≈ {overflow.excessLines} ligne{overflow.excessLines > 1 ? 's' : ''} en trop)
+          </p>
+          {overflow.removalCandidates.length > 0 && (
+            <>
+              <p className="mt-0.5">À retirer en priorité :</p>
+              <ol className="list-decimal pl-5 space-y-0.5">
+                {overflow.removalCandidates.map((c, i) => (
+                  <li key={i}>{c.label} <span className="opacity-75">({c.reason}, ≈ {c.savedLines} l.)</span></li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
       )}
 
       {cov.missing.length > 0 && (

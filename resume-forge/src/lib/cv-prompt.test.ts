@@ -56,15 +56,38 @@ describe('blocs du prompt CV v2', () => {
   it('contexte : entreprise, pages, années calculées et annonce', () => {
     const ctx = buildContext(input(senior(), JOB_FR, { targetCompany: 'Umbrella' }));
     expect(ctx).toContain('Entreprise cible : Umbrella');
-    expect(ctx).toContain('Pages visées : 2');
+    expect(ctx).toContain('Pages cibles : 1');
     expect(ctx).toContain('15 ans');
     expect(ctx).toContain(JOB_FR);
   });
 
-  it('budget de pages : 1 page pour un junior, option explicite prioritaire', () => {
-    expect(buildContext(input(junior(), JOB_FR))).toContain('Pages visées : 1');
-    expect(buildContext(input(junior(), JOB_FR, { options: { now: NOW, pageBudget: 2 } }))).toContain('Pages visées : 2');
-    expect(buildRules(input(junior(), JOB_FR))).toContain('1 page maximum, soit environ 18 puces');
+  it('cible par défaut : 1 page, quelle que soit l\'ancienneté ; option 2 pages respectée', () => {
+    expect(buildContext(input(junior(), JOB_FR))).toContain('Pages cibles : 1');
+    expect(buildContext(input(senior(), JOB_FR))).toContain('Pages cibles : 1');
+    expect(buildContext(input(junior(), JOB_FR, { options: { now: NOW, pageBudget: 2 } }))).toContain('Pages cibles : 2');
+  });
+
+  it('1 page : impose résumé 2 lignes, 3 puces, masquage, 12 à 15 compétences sans groupes, formations, intérêts', () => {
+    const rules = buildRules(input(senior(), JOB_FR));
+    expect(rules).toContain('UNE PAGE');
+    expect(rules).toContain('RÉSUMÉ : 2 lignes maximum');
+    expect(rules).toContain('3 puces maximum chacune');
+    expect(rules).toContain('1 ligne (titre, employeur, dates');
+    expect(rules).toContain('Une expérience sans lien avec l\'annonce : `visible: false`');
+    expect(rules).toContain('12 à 15 maximum');
+    expect(rules).toContain('omets "skillGroups"');
+    expect(rules).toContain('FORMATIONS et CERTIFICATIONS');
+    expect(rules).toContain('CENTRES D\'INTÉRÊT et BÉNÉVOLAT');
+    expect(rules).not.toContain('Utilise "skillGroups" seulement');
+    expect(rules).not.toContain('soit environ');
+  });
+
+  it('2 pages : règles de volume et de regroupement habituelles, sans bloc UNE PAGE', () => {
+    const rules = buildRules(input(senior(), JOB_FR, { options: { now: NOW, pageBudget: 2 } }));
+    expect(rules).not.toContain('UNE PAGE');
+    expect(rules).toContain('2 pages maximum, soit environ 36 puces');
+    expect(rules).toContain('au moins 8 compétences visibles');
+    expect(rules).toContain('3 à 5 puces');
   });
 
   it('profil maître : IDs, dates, puces sources sur leurs propres lignes', () => {
@@ -92,7 +115,6 @@ describe('blocs du prompt CV v2', () => {
   it('exprime les règles clés du brief', () => {
     const rules = buildRules(input(confirmed(), JOB_EN));
     expect(rules).toContain('120 caractères maximum par puce');
-    expect(rules).toContain('au moins 8 compétences visibles');
     expect(rules).toContain('analyse.ecarts');
     expect(rules).toContain('question de quantification');
     expect(rules).toContain('Jamais un poste que le profil n\'a pas occupé');
@@ -121,6 +143,9 @@ describe('snapshots du prompt (junior, confirmé, senior 15 ans)', () => {
     ['confirmé x annonce EN', confirmed(), JOB_EN],
     ['senior 15 ans x annonce FR', senior(), JOB_FR],
   ];
+  it('senior 15 ans x annonce FR, cible 2 pages', () => {
+    expect(buildCvPrompt(input(senior(), JOB_FR, { options: { now: NOW, pageBudget: 2 } }))).toMatchSnapshot();
+  });
   for (const [name, entries, job] of cases) {
     it(name, () => {
       expect(buildCvPrompt(input(entries, job))).toMatchSnapshot();

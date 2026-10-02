@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sparkles, Copy, Check, FileText, Mail, ChevronRight, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { generateFullCVMatchPrompt, generateCoverLetterPrompt } from '@/lib/prompt-templates';
@@ -36,6 +37,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
 export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const { profile, entries } = useProfileStore();
   const { cvs, fetchCvs, duplicateCv } = useCvStore();
+  const { targetPages, loadTargetPages } = usePromptStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('master');
   const [selectedCvId, setSelectedCvId] = useState<string>('');
@@ -59,6 +61,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   useEffect(() => {
     if (open) {
       fetchCvs();
+      loadTargetPages();
       // Reset state on each new offer
       setActiveTab('master');
       setJsonInput('');
@@ -71,13 +74,13 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setPromptCopied(false);
       setCvPromptCopied(false);
     }
-  }, [open, offer?.id, fetchCvs]);
+  }, [open, offer?.id, fetchCvs, loadTargetPages]);
 
   // Parse + garde-fou du JSON collé : alimente le rapport, la revue des suggestions et le récapitulatif.
   // Les erreurs de format sont ignorées ici (signalées à l'application).
   const analysis = useMemo(
-    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext }) : null),
-    [jsonInput, entries, profile, extraContext],
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages }) : null),
+    [jsonInput, entries, profile, extraContext, targetPages],
   );
 
   useEffect(() => {
@@ -128,12 +131,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify);
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify);
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
   };
 
   // ── Suggested-entry helpers (off-profile, opt-in) ─────────────────────────
@@ -280,7 +283,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const handleApplyMasterJson = async () => {
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages });
     if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
@@ -340,7 +343,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!selectedCvId) { toast.error('Sélectionnez un CV à dupliquer'); return; }
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages });
     if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
