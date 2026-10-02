@@ -3,6 +3,46 @@ import { aiEntryToOverrideData, planCvBlockOrder } from './ai-cv-response';
 import { useCvStore } from '@/stores/cvStore';
 import type { CVBlock } from '@/types/cv';
 
+/** Sous-ensemble du store CV utilisé ici (injectable pour les tests, sans base de données). */
+export interface CvBlockPort {
+  currentCvBlocks: CVBlock[];
+  fetchCvBlocks: (cvId: string) => Promise<void>;
+  updateCvBlock: (id: string, updates: Partial<CVBlock>) => Promise<void>;
+  createCvBlock: (block: Omit<CVBlock, 'id' | 'createdAt'>) => Promise<void>;
+  deleteCvBlock: (id: string) => Promise<void>;
+  reorderCvBlocks: (cvId: string, blockIds: string[]) => Promise<void>;
+  /** Réglages (`cv.settings`) actuels du CV. */
+  getCvSettings: (cvId: string) => Record<string, unknown>;
+  /** Fusionne `patch` dans `cv.settings`. */
+  updateCvSettings: (cvId: string, patch: Record<string, unknown>) => Promise<void>;
+}
+
+/** Adaptateur du store Zustand réel (état relu à chaque appel, comme avant l'injection). */
+function realStorePort(): CvBlockPort {
+  const s = useCvStore.getState();
+  return {
+    currentCvBlocks: s.currentCvBlocks,
+    fetchCvBlocks: s.fetchCvBlocks,
+    updateCvBlock: s.updateCvBlock,
+    createCvBlock: s.createCvBlock,
+    deleteCvBlock: s.deleteCvBlock,
+    reorderCvBlocks: s.reorderCvBlocks,
+    getCvSettings: cvId => {
+      const cv = s.cvs.find(c => c.id === cvId) ?? (s.currentCv?.id === cvId ? s.currentCv : undefined);
+      return cv?.settings ?? {};
+    },
+    updateCvSettings: (cvId, patch) => {
+      const cv = s.cvs.find(c => c.id === cvId) ?? (s.currentCv?.id === cvId ? s.currentCv : undefined);
+      return s.updateCv(cvId, { settings: { ...(cv?.settings ?? {}), ...patch } });
+    },
+  };
+}
+
+export interface ApplyAiCvOptions {
+  /** Fournisseur du store ; défaut : le store Zustand réel. */
+  store?: () => CvBlockPort;
+}
+
 /**
  * Applies an AI-generated CV response to an existing CV's blocks — non
  * destructively. The master profile is never touched: selection, reformulation,
@@ -18,8 +58,12 @@ import type { CVBlock } from '@/types/cv';
  *
  * Assumes the CV already exists with its blocks (e.g. freshly created/duplicated).
  */
-export async function applyAiCvToBlocks(cvId: string, data: AiCvResponse): Promise<void> {
-  const store = () => useCvStore.getState();
+export async function applyAiCvToBlocks(
+  cvId: string,
+  data: AiCvResponse,
+  opts: ApplyAiCvOptions = {},
+): Promise<void> {
+  const store = opts.store ?? realStorePort;
 
   // 1. Entry overrides + visibility.
   await store().fetchCvBlocks(cvId);
