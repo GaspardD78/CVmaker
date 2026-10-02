@@ -7,11 +7,18 @@ import { buildContactItems } from './CVHeader';
 
 type DisplayFormat = 'badges' | 'comma' | 'list' | 'columns2' | 'columns3' | 'table';
 
+/** Badges d'une section sous un sous-en-tête de catégorie (`label` null : sans sous-en-tête). */
+export interface SidebarGroup {
+  label: string | null;
+  blocks: CVBlock[];
+}
+
 /** A badge-type section routed into the sidebar (skills, languages, interests…). */
 export interface SidebarSection {
   id: string;
   sectionName: string | null;
-  blocks: CVBlock[];
+  /** Groupes de badges dans l'ordre d'affichage ; un sous-en-tête de catégorie ouvre un groupe. */
+  groups: SidebarGroup[];
   format: DisplayFormat;
 }
 
@@ -86,12 +93,21 @@ export function CVSidebar({
       {sections.map((section) => (
         <div key={section.id} className="cv-sidebar-section mb-5">
           <h3 className="cv-sidebar-heading">{section.sectionName}</h3>
-          <CVBadgeGroup
-            blocks={section.blocks}
-            entries={entries}
-            template={template}
-            format={section.format}
-          />
+          {section.groups.map((group, gi) => (
+            <div key={gi} className={group.label ? 'cv-sidebar-group mt-2' : 'cv-sidebar-group'}>
+              {group.label && (
+                <h4 className="cv-subheading cv-sidebar-subheading text-[11.5px] font-semibold mb-1 print:break-after-avoid">
+                  {group.label}
+                </h4>
+              )}
+              <CVBadgeGroup
+                blocks={group.blocks}
+                entries={entries}
+                template={template}
+                format={section.format}
+              />
+            </div>
+          ))}
         </div>
       ))}
     </aside>

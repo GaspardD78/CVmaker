@@ -1,4 +1,6 @@
 import type { EntryType } from '@/types/profile';
+import { isSectionHeader, isSubHeader, normalizeLabel } from './cv-sections';
+import { normalizeLanguageCode } from './cv-language';
 
 /**
  * Shared types + validator for the JSON returned by the "CV ciblé" LLM prompt
@@ -80,7 +82,31 @@ export interface AiCvSuggestedEntry {
   reason?: string;
 }
 
+/** Correspondance exigence de l'annonce / entrée du profil qui l'étaye (`null` : aucune preuve). */
+export interface AiCvMatch {
+  exigence: string;
+  entryId: string | null;
+}
+
+/**
+ * Analyse préalable de l'annonce, rendue par l'IA avant `entries` (schéma v2).
+ * Sert au contrôle post-LLM (couverture, écarts) et à la langue du CV ; elle
+ * n'est jamais écrite dans le CV.
+ */
+export interface AiCvAnalyse {
+  /** Code ISO 639-1 de la langue de l'annonce (`fr`, `en`…), normalisé ; absent si illisible. */
+  langueAnnonce?: string;
+  indispensables: string[];
+  importants: string[];
+  correspondances: AiCvMatch[];
+  /** Exigences indispensables sans preuve dans le profil : signalées, jamais comblées. */
+  ecarts: string[];
+}
+
 export interface AiCvResponse {
+  /** Version du schéma (2 = analyse + sectionLabels + warnings). Absente pour l'ancien schéma. */
+  schemaVersion?: number;
+  analyse?: AiCvAnalyse;
   title?: string;
   summary?: string;
   entries: AiCvEntry[];
@@ -102,6 +128,14 @@ export interface AiCvResponse {
    * sub-section header followed by its skill badges.
    */
   skillGroups?: AiSkillGroup[];
+  /**
+   * Libellés de sections dans la langue cible, par identifiant de section
+   * (ex. `{ "Compétences": "Skills" }`). Appliqués via `sectionName` sur les
+   * en-têtes du CV ; les identifiants internes ne changent pas.
+   */
+  sectionLabels?: Record<string, string>;
+  /** Avertissements et questions de quantification de l'IA (affichés, jamais appliqués). */
+  warnings?: string[];
 }
 
 /** Returns a trimmed non-empty string, or `undefined`. */
@@ -202,9 +236,91 @@ function parseSkillGroups(raw: unknown): AiSkillGroup[] | undefined {
   return groups.length > 0 ? groups : undefined;
 }
 
+function parseAnalyse(raw: unknown): AiCvAnalyse | undefined {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const correspondances = Array.isArray(record.correspondances)
+    ? record.correspondances
+        .map((item): AiCvMatch | null => {
+          if (item === null || typeof item !== 'object') return null;
+          const r = item as Record<string, unknown>;
+          const exigence = cleanString(r.exigence);
+          if (!exigence) return null;
+          return { exigence, entryId: cleanString(r.entryId) ?? null };
+        })
+        .filter((m): m is AiCvMatch => m !== null)
+    : [];
+  const analyse: AiCvAnalyse = {
+    indispensables: parseStringList(record.indispensables) ?? [],
+    importants: parseStringList(record.importants) ?? [],
+    correspondances,
+    ecarts: parseStringList(record.ecarts) ?? [],
+  };
+  const lang = normalizeLanguageCode(record.langue_annonce ?? record.langueAnnonce);
+  if (lang) analyse.langueAnnonce = lang;
+  const hasContent =
+    analyse.langueAnnonce !== undefined || analyse.indispensables.length > 0 || analyse.importants.length > 0 ||
+    analyse.correspondances.length > 0 || analyse.ecarts.length > 0;
+  return hasContent ? analyse : undefined;
+}
+
+function parseSectionLabels(raw: unknown): Record<string, string> | undefined {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const label = cleanString(value);
+    if (key.trim() && label) out[key.trim()] = label;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /**
- * Parses and validates the raw LLM output. Strips markdown code fences.
- * @throws {SyntaxError} when the payload is not valid JSON or not a JSON object.
+ * Extrait le premier objet JSON équilibré d'un texte (la réponse d'un LLM peut
+ * contenir du texte avant/après, des fences markdown, des accolades parasites).
+ * Respecte les chaînes JSON (accolades et guillemets échappés). Retourne `null`
+ * si aucun objet valide n'est trouvé.
+ */
+export function extractJsonObject(text: string): string | null {
+  const MAX_STARTS = 25;
+  let attempts = 0;
+  for (let start = text.indexOf('{'); start !== -1 && attempts < MAX_STARTS; start = text.indexOf('{', start + 1)) {
+    attempts++;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          const candidate = text.slice(start, i + 1);
+          try {
+            const parsed: unknown = JSON.parse(candidate);
+            if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) return candidate;
+          } catch {
+            /* candidat invalide : on essaie l'accolade suivante */
+          }
+          break;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Parses and validates the raw LLM output. Tolerates markdown code fences and
+ * surrounding prose (the first balanced JSON object is extracted); unknown
+ * fields are ignored.
+ * @throws {SyntaxError} when no valid JSON object can be found.
  */
 export function parseAiCvResponse(raw: string): AiCvResponse {
   const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -213,7 +329,9 @@ export function parseAiCvResponse(raw: string): AiCvResponse {
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    throw new SyntaxError('JSON invalide');
+    const extracted = extractJsonObject(cleaned);
+    if (extracted === null) throw new SyntaxError('JSON invalide');
+    parsed = JSON.parse(extracted);
   }
 
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -239,6 +357,13 @@ export function parseAiCvResponse(raw: string): AiCvResponse {
     suggestedEntries,
   };
 
+  if (typeof obj.schemaVersion === 'number' && Number.isFinite(obj.schemaVersion)) {
+    response.schemaVersion = obj.schemaVersion;
+  }
+
+  const analyse = parseAnalyse(obj.analyse);
+  if (analyse) response.analyse = analyse;
+
   const entryOrder = parseStringList(obj.entryOrder);
   if (entryOrder) response.entryOrder = entryOrder;
 
@@ -247,6 +372,12 @@ export function parseAiCvResponse(raw: string): AiCvResponse {
 
   const skillGroups = parseSkillGroups(obj.skillGroups);
   if (skillGroups) response.skillGroups = skillGroups;
+
+  const sectionLabels = parseSectionLabels(obj.sectionLabels);
+  if (sectionLabels) response.sectionLabels = sectionLabels;
+
+  const warnings = parseStringList(obj.warnings);
+  if (warnings) response.warnings = warnings;
 
   return response;
 }
@@ -283,18 +414,16 @@ export interface OrderableBlock {
   blockType: 'section_header' | 'entry_ref' | 'custom_text';
   sectionName: string | null;
   entryId: string | null;
+  /** `level: 'sub'` marque un sous-en-tête ; `sectionKey` l'identifiant interne d'une section renommée. */
+  overrideData?: Record<string, unknown> | null;
 }
 
-/** A resolved skill group: the (already created) header block + its entry IDs. */
+/** A resolved skill group: its sub-header block (existing or just created) + its entry IDs. */
 export interface SkillGroupPlan {
-  /** ID of the section_header block acting as this group's sub-header. */
+  /** ID of the sub-header block (`level: 'sub'`) acting as this group's label. */
   headerBlockId: string;
   /** Ordered IDs of the skill master entries in this group. */
   entryIds: string[];
-}
-
-function normalizeLabel(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 /**
@@ -314,42 +443,63 @@ function stableRank<T>(arr: T[], rankOf: (x: T) => number | undefined): T[] {
     .map(o => o.x);
 }
 
+/** Names under which a section header can be referenced by `sectionOrder`. */
+function sectionAliases(header: OrderableBlock, labels: Record<string, string> | undefined): string[] {
+  const names = new Set<string>();
+  const add = (v: unknown) => { if (typeof v === 'string' && v.trim()) names.add(normalizeLabel(v)); };
+  add(header.sectionName);
+  add(header.overrideData?.sectionKey);
+  if (labels) {
+    const own = [header.sectionName, header.overrideData?.sectionKey].filter((v): v is string => typeof v === 'string');
+    for (const [from, to] of Object.entries(labels)) {
+      if (own.some(o => normalizeLabel(o) === normalizeLabel(from))) add(to);
+    }
+  }
+  return [...names];
+}
+
 /**
  * Computes a new flat ordering of cv_blocks IDs from the AI restructuration
  * directives. Pure and non-destructive: it only reshuffles existing block IDs
  * (consumed by `reorderCvBlocks`) — nothing is created or deleted here.
  *
  * Contract:
- * - `skillGroups[0].headerBlockId` MUST be the EXISTING skills section header
- *   (renamed to the first category by the caller). The remaining groups'
- *   `headerBlockId` are newly created sub-header blocks; they are pulled out of
- *   the section flow and re-embedded inside the skills section.
- * - Every input block ID is guaranteed to appear exactly once in the output.
+ * - Section headers are blocks that are NOT sub-headers; sub-headers
+ *   (`overrideData.level === 'sub'`) never start a section.
+ * - `skillsHeaderId` is the section header of the skills section, which keeps its
+ *   label. Every `skillGroups[i].headerBlockId` (a sub-header block) is pulled out
+ *   of wherever it sits and embedded under that section, followed by its skills.
+ *   Skills outside any group stay first (no label), stale sub-headers last.
+ * - Every input block ID appears exactly once in the output.
  */
 export function planCvBlockOrder(
   blocks: OrderableBlock[],
   opts: {
     entryOrder?: string[];
     sectionOrder?: string[];
+    /** Libellés cibles par identifiant de section : `sectionOrder` peut employer l'un ou l'autre. */
+    sectionLabels?: Record<string, string>;
+    skillsHeaderId?: string;
     skillGroups?: SkillGroupPlan[];
   },
 ): string[] {
   const groups = opts.skillGroups ?? [];
-  const subHeaderIds = new Set(groups.slice(1).map(g => g.headerBlockId));
-  const subHeaderById = new Map<string, OrderableBlock>();
+  const groupHeaderIds = new Set(groups.map(g => g.headerBlockId));
+  const pulledHeaders = new Map<string, OrderableBlock>();
 
   interface Section { header: OrderableBlock | null; items: OrderableBlock[]; }
   const preamble: OrderableBlock[] = [];
   let sections: Section[] = [];
   let current: Section | null = null;
 
-  // 1. Partition into sections, pulling category sub-headers aside.
+  // 1. Partition into sections (sub-headers do not start one); skill group
+  //    sub-headers are pulled aside, to be re-embedded under the skills section.
   for (const b of blocks) {
-    if (b.blockType === 'section_header' && subHeaderIds.has(b.id)) {
-      subHeaderById.set(b.id, b);
-      continue; // re-embedded by skill grouping, not a section boundary
+    if (b.blockType === 'section_header' && groupHeaderIds.has(b.id)) {
+      pulledHeaders.set(b.id, b);
+      continue;
     }
-    if (b.blockType === 'section_header') {
+    if (isSectionHeader(b)) {
       current = { header: b, items: [] };
       sections.push(current);
     } else if (current) {
@@ -359,47 +509,59 @@ export function planCvBlockOrder(
     }
   }
 
-  // 2. Re-order entries within each section.
+  // 2. Re-order entries within each section (and within each sub-header segment).
   if (opts.entryOrder?.length) {
     const rank = new Map(opts.entryOrder.map((id, i) => [id, i] as const));
+    const rankOf = (b: OrderableBlock) => (b.entryId != null ? rank.get(b.entryId) : undefined);
     for (const s of sections) {
-      s.items = stableRank(s.items, b => (b.entryId != null ? rank.get(b.entryId) : undefined));
+      const out: OrderableBlock[] = [];
+      let segment: OrderableBlock[] = [];
+      const flush = () => { out.push(...stableRank(segment, rankOf)); segment = []; };
+      for (const it of s.items) {
+        if (isSubHeader(it)) { flush(); out.push(it); } else segment.push(it);
+      }
+      flush();
+      s.items = out;
     }
   }
 
-  // 3. Regroup the skills section into thematic sub-sections.
-  if (groups.length) {
-    const skills = sections.find(s => s.header && s.header.id === groups[0].headerBlockId);
+  // 3. Regroup the skills section under its category sub-headers.
+  if (groups.length && opts.skillsHeaderId) {
+    const skills = sections.find(s => s.header && s.header.id === opts.skillsHeaderId);
     if (skills) {
       const byEntryId = new Map<string, OrderableBlock>();
-      for (const it of skills.items) if (it.entryId) byEntryId.set(it.entryId, it);
+      for (const it of skills.items) if (it.entryId && !byEntryId.has(it.entryId)) byEntryId.set(it.entryId, it);
       const used = new Set<string>();
-      const rebuilt: OrderableBlock[] = [];
-      groups.forEach((g, gi) => {
-        if (gi > 0) {
-          const hb = subHeaderById.get(g.headerBlockId);
-          if (hb) rebuilt.push(hb);
-        }
+      const grouped: OrderableBlock[] = [];
+      for (const g of groups) {
+        const hb = pulledHeaders.get(g.headerBlockId);
+        if (hb) grouped.push(hb);
         for (const eid of g.entryIds) {
           const it = byEntryId.get(eid);
           if (it && !used.has(it.id)) {
-            rebuilt.push(it);
+            grouped.push(it);
             used.add(it.id);
           }
         }
-      });
-      // Leftover skills (ungrouped) keep their original order at the end.
-      for (const it of skills.items) if (!used.has(it.id)) rebuilt.push(it);
-      skills.items = rebuilt;
+      }
+      const leftover = skills.items.filter(it => !used.has(it.id));
+      const stale = leftover.filter(isSubHeader);
+      const ungrouped = leftover.filter(it => !isSubHeader(it));
+      skills.items = [...ungrouped, ...grouped, ...stale];
+      for (const id of groupHeaderIds) pulledHeaders.delete(id);
     }
   }
 
   // 4. Re-order sections.
   if (opts.sectionOrder?.length) {
     const rank = new Map(opts.sectionOrder.map((name, i) => [normalizeLabel(name), i] as const));
-    sections = stableRank(sections, s =>
-      s.header?.sectionName != null ? rank.get(normalizeLabel(s.header.sectionName)) : undefined,
-    );
+    sections = stableRank(sections, s => {
+      if (!s.header) return undefined;
+      const ranks = sectionAliases(s.header, opts.sectionLabels)
+        .map(n => rank.get(n))
+        .filter((r): r is number => r !== undefined);
+      return ranks.length > 0 ? Math.min(...ranks) : undefined;
+    });
   }
 
   // 5. Flatten.
@@ -408,7 +570,7 @@ export function planCvBlockOrder(
     if (s.header) out.push(s.header.id);
     for (const it of s.items) out.push(it.id);
   }
-  // Safety net: never drop a block (e.g. an orphan sub-header).
+  // Safety net: never drop a block (e.g. a sub-header whose skills section is missing).
   const emitted = new Set(out);
   for (const b of blocks) if (!emitted.has(b.id)) out.push(b.id);
   return out;

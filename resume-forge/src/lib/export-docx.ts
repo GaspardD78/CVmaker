@@ -10,6 +10,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { isAndroid } from './platform';
 import { formatEntryDates, readDateSettings } from './entry-dates';
+import { isSubHeader, parentDisplayFormat, visibleHeaderMask, type SlotKind } from './cv-sections';
 import { shareBlob } from './share';
 
 
@@ -416,14 +417,9 @@ export async function generateDocxBlob(
   };
 
   // ── Helper: get display format from nearest preceding section_header ──
-  const getDisplayFormat = (blockIndex: number, sortedBlocks: CVBlock[]): DisplayFormat => {
-    for (let k = blockIndex - 1; k >= 0; k--) {
-      if (sortedBlocks[k].blockType === 'section_header') {
-        return (sortedBlocks[k].overrideData?.displayFormat as DisplayFormat) || 'badges';
-      }
-    }
-    return 'badges';
-  };
+  // Le format vient du titre de SECTION parent : un sous-en-tête de catégorie n'en change pas.
+  const getDisplayFormat = (blockIndex: number, sortedBlocks: CVBlock[]): DisplayFormat =>
+    (parentDisplayFormat(sortedBlocks, blockIndex) as DisplayFormat | undefined) || 'badges';
 
   // ── Helper: collect badge labels from a group of badge blocks ──
   const collectBadgeLabels = (badgeBlocks: CVBlock[]): string[] => {
@@ -580,13 +576,35 @@ export async function generateDocxBlob(
   // ── Process blocks ──
   const sortedBlocks = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
   const BADGE_TYPES: EntryType[] = ['skill', 'language', 'interest', 'certification'];
+
+  // Aucune section vide (même règle que le rendu écran/PDF, voir lib/cv-sections.ts).
+  const visibleBlocks = sortedBlocks.filter(b => b.isVisible);
+  const headerMask = visibleHeaderMask(visibleBlocks.map((b): SlotKind => {
+    if (b.blockType === 'section_header') return isSubHeader(b) ? 'sub' : 'section';
+    if (b.blockType === 'custom_text') return (b.customContent ?? '').trim() ? 'content' : 'skip';
+    if (b.blockType === 'entry_ref' && b.entryId && entries.some(e => e.id === b.entryId)) return 'content';
+    return 'skip';
+  }));
+  const hiddenHeaderIds = new Set(visibleBlocks.filter((_, idx) => !headerMask[idx]).map(b => b.id));
   let i = 0;
 
   while (i < sortedBlocks.length) {
     const block = sortedBlocks[i];
     if (!block.isVisible) { i++; continue; }
 
-    if (block.blockType === 'section_header' && block.sectionName) {
+    if (block.blockType === 'section_header' && hiddenHeaderIds.has(block.id)) {
+      i++;
+
+    } else if (isSubHeader(block) && block.sectionName) {
+      // Sous-en-tête de catégorie : simple paragraphe en gras (aucune structure spéciale pour un parseur ATS).
+      bodyChildren.push(new Paragraph({
+        children: [new TextRun({ text: block.sectionName, bold: true, size: B, font: F })],
+        spacing: { before: 80, after: 20 },
+        keepNext: true,
+      }));
+      i++;
+
+    } else if (block.blockType === 'section_header' && block.sectionName) {
       const sectionRun: any = {
         font: effectiveTemplate.docx.fonts.heading,
         size: effectiveTemplate.docx.headingSize,

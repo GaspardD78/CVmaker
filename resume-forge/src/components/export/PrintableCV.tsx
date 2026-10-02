@@ -7,9 +7,10 @@ import { CVSectionHeader } from './CVSectionHeader';
 import { CVEntryBlock } from './CVEntryBlock';
 import { CVBadgeGroup } from './CVBadgeGroup';
 import { CVCustomText } from './CVCustomText';
-import { CVSidebar, type SidebarSection } from './CVSidebar';
+import { CVSidebar, type SidebarGroup, type SidebarSection } from './CVSidebar';
 import { safeCssValue, type CssValueKind } from '../../lib/css-sanitize';
 import { readDateSettings } from '../../lib/entry-dates';
+import { isSubHeader, parentDisplayFormat, visibleHeaderMask, type SlotKind } from '../../lib/cv-sections';
 
 /** Relative luminance of a #rgb / #rrggbb color (0 = black, 1 = white). */
 function hexLuminance(hex: string): number {
@@ -299,6 +300,7 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       primaryColor       ? `#printable-cv .cv-badge { border-color: ${primaryColor}30; background-color: ${primaryColor}10; color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv { border-color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv .cv-subtitle { color: ${primaryColor} !important; }` : '',
+      primaryColor       ? `#printable-cv .cv-main-col .cv-subheading, #printable-cv > .cv-subheading { color: ${primaryColor}; }` : '',
       primaryColor       ? `#printable-cv .cv-job-title { color: ${primaryColor} !important; }` : '',
       primaryColor       ? `#printable-cv h3::after { background-color: ${primaryColor} !important; }` : '',
       primaryColor       ? `#printable-cv h3::before { color: ${primaryColor} !important; }` : '',
@@ -346,13 +348,9 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
             badgeGroup.push(next);
             j++;
           }
-          let format: DisplayFormat = 'badges';
-          for (let k = i - 1; k >= 0; k--) {
-            if (sortedBlocks[k].blockType === 'section_header') {
-              format = (sortedBlocks[k].overrideData?.displayFormat as DisplayFormat) || 'badges';
-              break;
-            }
-          }
+          // Format hérité du titre de SECTION parent : un sous-en-tête de catégorie
+          // ne change pas le format d'affichage.
+          const format = (parentDisplayFormat(sortedBlocks, i) as DisplayFormat | undefined) || 'badges';
           renderItems.push({ type: 'badge-group', blocks: badgeGroup, format });
           i = j;
           continue;
@@ -363,17 +361,30 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       i++;
     }
 
+    // Aucune section vide : un en-tête (section ou sous-en-tête) n'est rendu que si un
+    // contenu visible le suit avant le prochain en-tête (voir lib/cv-sections.ts).
+    const slotKind = (item: RenderItem): SlotKind => {
+      if (item.type === 'badge-group') return 'content';
+      const b = item.block;
+      if (b.blockType === 'section_header') return isSubHeader(b) ? 'sub' : 'section';
+      if (b.blockType === 'custom_text') return (b.customContent ?? '').trim() ? 'content' : 'skip';
+      if (b.blockType === 'entry_ref' && b.entryId && entries.some(e => e.id === b.entryId)) return 'content';
+      return 'skip';
+    };
+    const keepMask = visibleHeaderMask(renderItems.map(slotKind));
+    const visibleItems = renderItems.filter((_, idx) => keepMask[idx]);
+
     // For sidebar layouts, split sections: badge-only sections (skills, langues,
     // intérêts, certifications) go to the sidebar; everything else stays in the
     // main column. Sections are delimited by section_header blocks.
     const sidebarSections: SidebarSection[] = [];
-    const mainItems: RenderItem[] = isSidebar ? [] : renderItems;
+    const mainItems: RenderItem[] = isSidebar ? [] : visibleItems;
     if (isSidebar) {
       type Group = { header: CVBlock | null; items: RenderItem[] };
       const groups: Group[] = [];
       let current: Group | null = null;
-      for (const item of renderItems) {
-        if (item.type === 'block' && item.block.blockType === 'section_header') {
+      for (const item of visibleItems) {
+        if (item.type === 'block' && item.block.blockType === 'section_header' && !isSubHeader(item.block)) {
           current = { header: item.block, items: [] };
           groups.push(current);
         } else {
@@ -382,14 +393,27 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
         }
       }
       for (const g of groups) {
-        const badgeOnly = g.items.length > 0 && g.items.every(it => it.type === 'badge-group');
+        const isSubItem = (it: RenderItem) => it.type === 'block' && isSubHeader(it.block);
+        const badgeOnly = g.items.length > 0
+          && g.items.every(it => it.type === 'badge-group' || isSubItem(it))
+          && g.items.some(it => it.type === 'badge-group');
         if (badgeOnly && g.header) {
-          const blocks = g.items.flatMap(it => (it.type === 'badge-group' ? it.blocks : []));
+          // Un sous-en-tête de catégorie ouvre un groupe de badges ; les badges qui le
+          // précèdent forment un groupe sans libellé.
+          const groups: SidebarGroup[] = [];
+          for (const it of g.items) {
+            if (it.type === 'block') {
+              groups.push({ label: it.block.sectionName, blocks: [] });
+            } else {
+              if (groups.length === 0) groups.push({ label: null, blocks: [] });
+              groups[groups.length - 1].blocks.push(...it.blocks);
+            }
+          }
           const first = g.items.find(it => it.type === 'badge-group') as Extract<RenderItem, { type: 'badge-group' }>;
           sidebarSections.push({
             id: g.header.id,
             sectionName: g.header.sectionName,
-            blocks,
+            groups,
             format: sidebarFormat(first.format),
           });
         } else {
@@ -411,7 +435,14 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       const block = item.block;
 
       if (block.blockType === 'section_header') {
-        return <CVSectionHeader key={block.id} sectionName={block.sectionName} template={template} />;
+        return (
+          <CVSectionHeader
+            key={block.id}
+            sectionName={block.sectionName}
+            template={template}
+            variant={isSubHeader(block) ? 'sub' : 'section'}
+          />
+        );
       }
 
       if (block.blockType === 'custom_text') {
