@@ -173,12 +173,17 @@ tests en place. Chemins relatifs à `resume-forge/`.
     part (format de badge avec année).
 
 20. **Donnée personnelle réelle versionnée : `resume-forge/mesure.json` (constaté
-    au lot 4).** Le fichier, ajouté sur `main` par le commit `1ff5983`
-    (« Create mesure.json »), contient les lignes mesurées d'un CV avec un nom, une
-    adresse e-mail et un numéro de téléphone qui semblent réels. Contraire à la
-    règle « aucune donnée personnelle réelle versionnée ». **Non corrigé dans ce
-    lot** : à traiter par une intervention isolée sur `main` (suppression du
-    fichier, puis décision sur la purge de l'historique).
+    au lot 4, résolu).** Le fichier, ajouté sur `main` par le commit `1ff5983`
+    (« Create mesure.json »), contenait les lignes mesurées d'un CV avec un nom, une
+    adresse e-mail et un numéro de téléphone qui semblaient réels, contrairement à
+    la règle « aucune donnée personnelle réelle versionnée ». **Résolu** : le
+    fichier a été retiré de l'historique de `main` par `git filter-repo`
+    (réécriture limitée aux descendants de `1ff5983`) et `main` a été mis à jour de
+    force. Les commits antérieurs à `1ff5983` gardent leur hash ; les lots 4 et
+    suivants ont été réécrits. Le dépôt était public : la donnée reste à considérer
+    comme exposée (clones, forks, caches) ; les mesures de ce côté (coordonnées
+    concernées, demande de nettoyage des références de PR au support GitHub) sont
+    à la charge du propriétaire du dépôt.
 
 ## Lots à prévoir
 
