@@ -55,7 +55,13 @@ certification | language | interest | project | volunteer`. Champs rendus :
 Liste plate triée par `sortOrder`. `blockType` :
 - `section_header` : titre de section (`sectionName`). Son
   `overrideData.displayFormat` (`badges | comma | list | columns2 | columns3 | table`)
-  pilote le rendu des entrées « badge » qui le suivent.
+  pilote le rendu des entrées « badge » qui le suivent. Avec
+  `overrideData.level === 'sub'` c'est un **sous-en-tête** de catégorie (ex.
+  « Langages » sous « Compétences ») : rendu en petit libellé gras, il n'ouvre
+  pas de section et hérite du `displayFormat` du titre de section parent.
+  `overrideData.sectionKey` garde l'identifiant interne d'une section renommée
+  (traduction) ; `overrideData.aiManaged` marque les sous-en-têtes créés par
+  `applyAiCvToBlocks` (seuls ceux-là sont supprimés lors d'une réapplication).
 - `entry_ref` : référence une `MasterEntry` (`entryId`). `overrideData` est
   fusionné par-dessus l'entrée (`{...entry, ...overrideData}`) ;
   `overrideData.datesOverride` (chaîne) remplace le formatage des dates.
@@ -127,11 +133,19 @@ Tous dans `src/components/export/` sauf mention.
 
 1. Tri des blocs par `sortOrder`, suppression des invisibles.
 2. Regroupement des entrées badge consécutives → `badge-group` avec le
-   `displayFormat` du `section_header` précédent.
+   `displayFormat` du **titre de section** parent (les sous-en-têtes sont ignorés,
+   `parentDisplayFormat`).
+2 bis. **Aucune section vide** (`visibleHeaderMask`, `lib/cv-sections.ts`) : un
+   titre de section n'est rendu que si un contenu (entrée existante, groupe de
+   badges, texte libre non vide) le suit avant le prochain titre de section ;
+   un sous-en-tête, avant le prochain en-tête de n'importe quel niveau. Même
+   règle dans `export-docx.ts`. Les données ne sont pas modifiées : un en-tête
+   réapparaît dès qu'une entrée redevient visible.
 3. **Layout sidebar seulement** : découpage en sections (délimitées par les
    `section_header`). Une section dont **tous** les items sont des badge-groups
    part dans la sidebar (formats `columns2/columns3/table` dégradés en `list`) ;
-   le reste reste dans la colonne principale.
+   le reste reste dans la colonne principale. Les sous-en-têtes ouvrent des
+   groupes de badges dans la section (`SidebarSection.groups`).
 4. Rendu :
    - linéaire : `CVHeader` → `<hr>` (sauf bandeau) → résumé → blocs ;
    - sidebar : `CVSidebar` | colonne principale (nom, poste, résumé, blocs).
@@ -145,6 +159,8 @@ templates** : `cv-header-block`, `cv-name`, `cv-job-title`, `cv-contact-info`,
 `cv-desc`, `cv-badge`, `cv-badge-item`, `cv-sidebar`, `cv-main-col`,
 `cv-sidebar-heading`, `cv-sidebar-icon`, `cv-sidebar-photo-ring`, et le
 sélecteur `#printable-cv h3` (qui touche aussi les titres de la sidebar).
+Ajoutées par la spec 004 (sous-en-têtes, `<h4>` hors du sélecteur `h3`) :
+`cv-subheading`, `cv-sidebar-subheading`, `cv-sidebar-group`.
 
 ### 4.3 Réglages `cv.settings` interprétés
 
@@ -158,8 +174,16 @@ Couleur/style : `primaryColor`, `sectionBorderStyle`, `headerStyle`
 (`clean | accent-bar | accent-light | accent-banner | dark-banner | gradient-banner`).
 Photo : `photoShape`, `photoSize`, `photoBorder`.
 
+`cvLanguage` (code ISO 639-1, défaut `fr`) : langue des mois et de « Présent »
+(`readDateSettings` → `formatEntryDates`), posée par `applyAiCvToBlocks` d'après
+`analyse.langue_annonce`.
+
 Settings vides → rendu « par défaut » du template (c'est l'état de référence
-retenu pour les golden tests).
+retenu pour les golden tests). **État de référence spec 004** : pour un CV sans
+sous-en-tête et sans section vide, le HTML rendu par les 11 templates est
+identique octet pour octet à celui d'avant la spec (vérifié à la main contre le
+commit de base ; `PrintableCV.test.tsx` fige les invariants structurels des 11
+templates).
 
 ## 5. Pipeline d'export PDF
 
@@ -235,3 +259,25 @@ modification de rendu est transverse**. Par ordre de rayon d'impact :
 | `src/lib/css-sanitize.ts` | tous les réglages de design | Durcir une regex peut faire disparaître silencieusement un réglage |
 | Sélecteur global `#printable-cv h3` | titres de la colonne principale **et** de la sidebar | |
 | `src/templates/<id>.ts` | 1 template (PDF **et** DOCX) | Seule zone réellement isolée |
+
+## 7. Flux « CV ciblé par IA » (spec 004)
+
+```
+generateFullCVMatchPrompt (lib/cv-prompt.ts : blocs composables)
+   └─ prompt copié → LLM externe → JSON collé
+analyzeAiCvJson (lib/ai-cv-pipeline.ts)
+   ├─ parseAiCvResponse     parse tolérant (fences, texte parasite, champs inconnus ; schéma v1 et v2)
+   └─ guardAiCv             nettoyage + GuardReport { errors, warnings, aiWarnings, metrics }
+        └─ rapport affiché (AiCvGuardReport) ; « Appliquer quand même » si errors non vide
+applyAiCvToBlocks (lib/apply-ai-cv.ts, store injectable)
+   1. visibilité + surcharges    2. pertinence des Langues    3. sous-en-têtes de compétences
+   4. ordre (planCvBlockOrder)   5. libellés de sections + cvLanguage
+rendu : PrintableCV / export-docx (sections vides masquées, lib/cv-sections.ts)
+```
+
+- **Non destructif** : `MasterEntry` jamais modifiée ; tout vit dans `cv_blocks` et `cv.settings.cvLanguage`.
+- **Garde-fou** (`lib/ai-cv-guard.ts`) : `errors` = chiffres absents de la source (profil maître, profil, contexte additionnel) ; `warnings` = IDs inconnus, termes non sourcés, suggestions rejetées, doublons, puces > 120 caractères ou > 5, formulations interdites, volume vs budget de pages, cohérence des temps. `metrics` = couverture des mots-clés `indispensables`, écarts, volume estimé.
+- **Pages cibles** : réglage `cv_target_pages` (1 par défaut, 2), lu par `promptStore.targetPages` et transmis au prompt (`options.pageBudget`) et au garde-fou (`ctx.pageBudget`). À 1 page : `ONE_PAGE_LIMITS` (lib/cv-prompt.ts) pilote le bloc « UNE PAGE » du prompt et les contrôles `one-page` du garde-fou ; `metrics.overflow` liste les éléments à retirer en priorité (intérêts/bénévolat sans lien, expériences sans lien, formations/certifications en trop, compétences au-delà de 15, puces en trop, résumé).
+- **Typographie** (`lib/cv-typography.ts`) appliquée par le garde-fou : le texte retourné par `guardAiCv` est celui qu'on applique.
+- Limites : détection de termes heuristique (sigles, CamelCase, noms propres en français), temps verbaux approximatifs, aucune évaluation sémantique, le LLM externe reste libre de désobéir (d'où le garde-fou).
+

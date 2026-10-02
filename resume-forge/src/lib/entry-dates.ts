@@ -20,14 +20,18 @@
  * est affiché tel quel dans les deux modes, sauf formation masquée.
  */
 
+import { DEFAULT_CV_LANGUAGE, presentLabel, readCvLanguage, todayLabel } from './cv-language';
+
 export type DateFormat = 'month-year' | 'year';
 
 export interface DateSettings {
   dateFormat: DateFormat;
   showEducationYears: boolean;
+  /** Langue du CV (code ISO 639-1, `cv.settings.cvLanguage`) : mois et « Présent ». Absente : `fr`. */
+  language?: string;
 }
 
-export const DEFAULT_DATE_SETTINGS: DateSettings = { dateFormat: 'month-year', showEducationYears: true };
+export const DEFAULT_DATE_SETTINGS: DateSettings = { dateFormat: 'month-year', showEducationYears: true, language: DEFAULT_CV_LANGUAGE };
 
 /** Lit les réglages de dates d'un CV ; toute valeur inattendue (sauvegarde importée…) retombe sur le défaut. */
 export function readDateSettings(settings: Record<string, unknown> | null | undefined): DateSettings {
@@ -35,6 +39,7 @@ export function readDateSettings(settings: Record<string, unknown> | null | unde
   return {
     dateFormat: s.dateFormat === 'year' ? 'year' : 'month-year',
     showEducationYears: s.showEducationYears === false || s.showEducationYears === 'false' ? false : true,
+    language: readCvLanguage(s),
   };
 }
 
@@ -54,19 +59,22 @@ export interface FormatEntryDatesOptions {
   missingEnd?: 'omit' | 'today';
 }
 
-const CURRENT_LABEL = 'Présent';
-const TODAY_LABEL = "Aujourd'hui";
-
 const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
 /** `AAAA`, `AAAA-M`, `AAAA-MM`, `AAAA-MM-JJ`, avec heure facultative (lue telle quelle, sans conversion). */
 const ISO_DATE = /^\s*(\d{4})(?:-(\d{1,2})(?:-\d{1,2})?)?(?:[T ]\d{1,2}:\d{2}.*)?\s*$/;
 
+/** Nom du mois (1 à 12) dans `language` : table française historique, `Intl` pour les autres langues. */
+function monthName(month: number, language: string): string {
+  if (language === 'fr') return MONTHS_FR[month - 1];
+  return new Intl.DateTimeFormat(language, { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, month - 1, 1)));
+}
+
 /** Format « mois année » d'une chaîne qui n'est pas une date ISO : lecture via Date (heure locale). */
-function fallbackMonthYear(dateString: string): string {
+function fallbackMonthYear(dateString: string, language: string): string {
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric' }).format(date);
 }
 
 /**
@@ -74,13 +82,18 @@ function fallbackMonthYear(dateString: string): string {
  * Une année seule (`2020`) donne « janvier 2020 », comme avant ; un mois hors de
  * 1 à 12 ou un autre format suit la lecture via Date.
  */
-export function formatMonthYear(dateString: string): string {
+export function formatMonthYear(dateString: string, languageArg: string = DEFAULT_CV_LANGUAGE): string {
+  // `array.map(formatMonthYear)` passe l'index en 2e argument : toute valeur non textuelle retombe sur le français.
+  const language = typeof languageArg === 'string' ? languageArg : DEFAULT_CV_LANGUAGE;
   const m = ISO_DATE.exec(dateString);
   if (m) {
     const month = m[2] === undefined ? 1 : parseInt(m[2], 10);
-    if (month >= 1 && month <= 12) return `${MONTHS_FR[month - 1]} ${m[1]}`;
+    if (month >= 1 && month <= 12) {
+      const name = monthName(month, language);
+      return `${name} ${m[1]}`;
+    }
   }
-  return fallbackMonthYear(dateString);
+  return fallbackMonthYear(dateString, language);
 }
 
 /** Année seule d'une chaîne qui n'est pas lisible dans le texte : lecture via Date (heure locale). */
@@ -115,13 +128,13 @@ export function formatEntryDates(
   if (override) return override;
 
   const yearOnly = settings.dateFormat === 'year' || entry.entryType === 'education' || entry.entryType === 'certification';
-  const fmt = yearOnly ? yearOf : formatMonthYear;
+  const fmt = yearOnly ? yearOf : (d: string) => formatMonthYear(d, settings.language ?? DEFAULT_CV_LANGUAGE);
 
   const start = entry.startDate ? fmt(entry.startDate) : '';
   const end = entry.endDate ? fmt(entry.endDate) : '';
   const endText = entry.isCurrent
-    ? CURRENT_LABEL
-    : end || (start && options.missingEnd === 'today' ? TODAY_LABEL : '');
+    ? presentLabel(settings.language ?? DEFAULT_CV_LANGUAGE)
+    : end || (start && options.missingEnd === 'today' ? todayLabel(settings.language ?? DEFAULT_CV_LANGUAGE) : '');
 
   if (!start) return endText;
   if (!endText) return start;

@@ -142,3 +142,64 @@ describe('export DOCX, années de formation masquées', () => {
     expect(d.FormationSurcharge).toBe('2007 - 2010 (diplôme)');
   });
 });
+
+// ── Sections vides et sous-en-têtes (spec 004) ────────────────────────────────
+
+async function docxParagraphs(cv: CVDocument, blocks: CVBlock[], entries: MasterEntry[]): Promise<string[]> {
+  const blob = await generateDocxBlob(cv, profile, blocks, entries, getTemplate('ats-classic'));
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  const xml = await zip.file('word/document.xml')!.async('string');
+  return [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)].map(([p]) =>
+    [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => decode(m[1])).join(''),
+  );
+}
+
+describe('export DOCX, sections vides (même règle que le PDF)', () => {
+  const entry = (id: string, type: EntryType, title: string): MasterEntry => ({
+    id, profileId: 'p', entryType: type, title, subtitle: null, location: null, startDate: null, endDate: null,
+    isCurrent: false, description: null, metadata: {}, sortOrder: 0, tags: [], createdAt: TS, updatedAt: TS,
+  });
+  const header = (id: string, name: string, order: number, overrideData: Record<string, unknown> = {}): CVBlock => ({
+    id, cvId: 'c', entryId: null, blockType: 'section_header', sectionName: name, customContent: null,
+    sortOrder: order, isVisible: true, overrideData, createdAt: TS,
+  });
+  const ref = (id: string, entryId: string, order: number, isVisible = true): CVBlock => ({
+    id, cvId: 'c', entryId, blockType: 'entry_ref', sectionName: null, customContent: null,
+    sortOrder: order, isVisible, overrideData: {}, createdAt: TS,
+  });
+  const entries = [entry('e1', 'experience', 'Poste'), entry('e2', 'education', 'Diplome'), entry('s1', 'skill', 'Python'), entry('s2', 'skill', 'Go')];
+  const { cv } = build({});
+
+  test('masque la section dont toutes les entrées sont masquées et celle sans entrée', async () => {
+    const blocks = [
+      header('h1', 'Expériences', 0), ref('b1', 'e1', 1),
+      header('h2', 'Formations', 2), ref('b2', 'e2', 3, false),
+      header('h3', 'Langues', 4),
+    ];
+    const text = (await docxParagraphs(cv, blocks, entries)).join('\n');
+    expect(text).toContain('EXPÉRIENCES');
+    expect(text).not.toContain('FORMATIONS');
+    expect(text).not.toContain('LANGUES');
+  });
+
+  test('rend un sous-en-tête de catégorie en paragraphe simple et masque celui sans compétence', async () => {
+    const blocks = [
+      header('h1', 'Compétences', 0),
+      header('g1', 'Langages', 1, { level: 'sub' }), ref('b1', 's1', 2), ref('b2', 's2', 3),
+      header('g2', 'Vide', 4, { level: 'sub' }),
+    ];
+    const paragraphs = await docxParagraphs(cv, blocks, entries);
+    expect(paragraphs).toContain('COMPÉTENCES');
+    expect(paragraphs).toContain('Langages');
+    expect(paragraphs).not.toContain('Vide');
+    expect(paragraphs).not.toContain('LANGAGES');
+  });
+
+  test('« Present » quand le CV est en anglais', async () => {
+    const { cv: enCv, blocks, entries: e } = build({ cvLanguage: 'en' });
+    const blob = await generateDocxBlob(enCv, profile, blocks, e, getTemplate('ats-classic'));
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('September 2022 - Present');
+  });
+});

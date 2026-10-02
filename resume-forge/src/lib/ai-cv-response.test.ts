@@ -249,35 +249,192 @@ describe('planCvBlockOrder', () => {
     expect(order).toEqual(['h2', 's1', 'h1', 'e1', 'h3', 'l1']);
   });
 
-  it('regroups skills under category sub-headers (group 0 = existing header)', () => {
+  const sub = (id: string, name: string): OrderableBlock =>
+    block(id, 'section_header', { sectionName: name, overrideData: { level: 'sub' } });
+
+  it('regroups skills under sub-headers, keeping the skills header (all groups are sub-headers)', () => {
     const blocks: OrderableBlock[] = [
       block('skH', 'section_header', { sectionName: 'Compétences' }),
       block('a', 'entry_ref', { entryId: 's1' }),
       block('b', 'entry_ref', { entryId: 's2' }),
       block('c', 'entry_ref', { entryId: 's3' }),
-      // Newly created sub-header, appended at the tail before reordering:
-      block('grpH', 'section_header', { sectionName: 'Outils' }),
+      // Newly created sub-headers, appended at the tail before reordering:
+      sub('g1', 'Langages'),
+      sub('g2', 'Outils'),
     ];
     const order = planCvBlockOrder(blocks, {
+      skillsHeaderId: 'skH',
       skillGroups: [
-        { headerBlockId: 'skH', entryIds: ['s2'] },
-        { headerBlockId: 'grpH', entryIds: ['s3'] },
+        { headerBlockId: 'g1', entryIds: ['s2'] },
+        { headerBlockId: 'g2', entryIds: ['s3'] },
       ],
     });
-    // skH (=Langages/group0) → s2, then grpH (=Outils) → s3, leftover s1 at the end.
-    expect(order).toEqual(['skH', 'b', 'grpH', 'c', 'a']);
+    // Ungrouped s1 stays first (no label), then each group under its sub-header.
+    expect(order).toEqual(['skH', 'a', 'g1', 'b', 'g2', 'c']);
   });
 
-  it('never drops a block, even an orphan sub-header', () => {
+  it('pulls group sub-headers out of another section', () => {
     const blocks: OrderableBlock[] = [
       block('skH', 'section_header', { sectionName: 'Compétences' }),
       block('a', 'entry_ref', { entryId: 's1' }),
-      block('orphan', 'section_header', { sectionName: 'Inutilisé' }),
+      block('b', 'entry_ref', { entryId: 's2' }),
+      block('lH', 'section_header', { sectionName: 'Langues' }),
+      block('l', 'entry_ref', { entryId: 'l1' }),
+      sub('g1', 'A'),
+      sub('g2', 'B'),
     ];
     const order = planCvBlockOrder(blocks, {
-      skillGroups: [{ headerBlockId: 'skH', entryIds: ['s1'] }],
+      skillsHeaderId: 'skH',
+      skillGroups: [{ headerBlockId: 'g1', entryIds: ['s1'] }, { headerBlockId: 'g2', entryIds: ['s2'] }],
     });
-    expect(order.sort()).toEqual(['a', 'orphan', 'skH']);
-    expect(new Set(order).size).toBe(3);
+    expect(order).toEqual(['skH', 'g1', 'a', 'g2', 'b', 'lH', 'l']);
+  });
+
+  it('keeps entryOrder within each sub-header segment', () => {
+    const blocks: OrderableBlock[] = [
+      block('skH', 'section_header', { sectionName: 'Compétences' }),
+      sub('g1', 'A'),
+      block('a', 'entry_ref', { entryId: 's1' }),
+      block('b', 'entry_ref', { entryId: 's2' }),
+      sub('g2', 'B'),
+      block('c', 'entry_ref', { entryId: 's3' }),
+      block('d', 'entry_ref', { entryId: 's4' }),
+    ];
+    expect(planCvBlockOrder(blocks, { entryOrder: ['s2', 's4'] })).toEqual(['skH', 'g1', 'b', 'a', 'g2', 'd', 'c']);
+  });
+
+  it('matches sectionOrder on the target label and the internal key (accent-insensitive)', () => {
+    const blocks: OrderableBlock[] = [
+      block('h1', 'section_header', { sectionName: 'Expériences Professionnelles' }),
+      block('e1', 'entry_ref', { entryId: 'x' }),
+      block('h2', 'section_header', { sectionName: 'Skills', overrideData: { sectionKey: 'Compétences' } }),
+      block('s1', 'entry_ref', { entryId: 'sk' }),
+      block('h3', 'section_header', { sectionName: 'Langues' }),
+      block('l1', 'entry_ref', { entryId: 'la' }),
+    ];
+    // « competences » (clé interne, sans accent) et « Languages » (libellé cible).
+    const order = planCvBlockOrder(blocks, {
+      sectionOrder: ['Languages', 'competences'],
+      sectionLabels: { Langues: 'Languages' },
+    });
+    expect(order).toEqual(['h3', 'l1', 'h2', 's1', 'h1', 'e1']);
+  });
+
+  it('never drops a block, even a stale sub-header', () => {
+    const blocks: OrderableBlock[] = [
+      block('skH', 'section_header', { sectionName: 'Compétences' }),
+      block('a', 'entry_ref', { entryId: 's1' }),
+      sub('stale', 'Ancienne catégorie'),
+      sub('g1', 'Nouvelle'),
+    ];
+    const order = planCvBlockOrder(blocks, {
+      skillsHeaderId: 'skH',
+      skillGroups: [{ headerBlockId: 'g1', entryIds: ['s1'] }],
+    });
+    expect([...order].sort()).toEqual(['a', 'g1', 'skH', 'stale']);
+    expect(order).toEqual(['skH', 'g1', 'a', 'stale']);
+  });
+
+  it('property: every input ID appears exactly once on random layouts', () => {
+    let seed = 42;
+    const rand = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+    const pick = <T,>(arr: T[]): T => arr[Math.floor(rand() * arr.length)];
+    for (let round = 0; round < 200; round++) {
+      const blocks: OrderableBlock[] = [];
+      const entryIds: string[] = [];
+      const n = 1 + Math.floor(rand() * 25);
+      for (let i = 0; i < n; i++) {
+        const kind = rand();
+        if (kind < 0.2) blocks.push(block(`h${i}`, 'section_header', { sectionName: pick(['Compétences', 'Langues', 'Formations', 'Skills']) }));
+        else if (kind < 0.3) blocks.push(sub(`sub${i}`, `Cat ${i}`));
+        else if (kind < 0.35) blocks.push(block(`t${i}`, 'custom_text'));
+        else { blocks.push(block(`b${i}`, 'entry_ref', { entryId: `e${i}` })); entryIds.push(`e${i}`); }
+      }
+      const headers = blocks.filter(b => b.blockType === 'section_header');
+      const subs = blocks.filter(b => b.overrideData?.level === 'sub');
+      const skillsHeader = headers.find(h => h.overrideData?.level !== 'sub');
+      const order = planCvBlockOrder(blocks, {
+        entryOrder: rand() < 0.5 ? [...entryIds].sort(() => rand() - 0.5).slice(0, 5) : undefined,
+        sectionOrder: rand() < 0.5 ? ['Langues', 'compétences'] : undefined,
+        skillsHeaderId: skillsHeader?.id,
+        skillGroups: subs.slice(0, 3).map(s => ({ headerBlockId: s.id, entryIds: entryIds.slice(0, 2) })),
+      });
+      expect(order.length).toBe(blocks.length);
+      expect(new Set(order)).toEqual(new Set(blocks.map(b => b.id)));
+    }
+  });
+});
+
+describe('parseAiCvResponse - schéma v2', () => {
+  const v2 = {
+    schemaVersion: 2,
+    analyse: {
+      langue_annonce: 'EN',
+      indispensables: ['SIEM', 'Python', 'SIEM'],
+      importants: ['Docker'],
+      correspondances: [{ exigence: 'SIEM', entryId: 'x1' }, { exigence: 'Docker', entryId: null }, { nope: true }],
+      ecarts: ['Kubernetes'],
+    },
+    title: 'SOC Analyst',
+    entries: [{ id: 'a', visible: true }],
+    sectionLabels: { 'Compétences': 'Skills', vide: '  ', 42: 'x' },
+    warnings: ['Quantifier le périmètre ?'],
+    champInconnu: { a: 1 },
+  };
+
+  it('parse analyse, sectionLabels et warnings (déduplication, normalisation de la langue)', () => {
+    const r = parseAiCvResponse(JSON.stringify(v2));
+    expect(r.schemaVersion).toBe(2);
+    expect(r.analyse).toEqual({
+      langueAnnonce: 'en',
+      indispensables: ['SIEM', 'Python'],
+      importants: ['Docker'],
+      correspondances: [{ exigence: 'SIEM', entryId: 'x1' }, { exigence: 'Docker', entryId: null }],
+      ecarts: ['Kubernetes'],
+    });
+    expect(r.sectionLabels).toEqual({ 'Compétences': 'Skills', '42': 'x' });
+    expect(r.warnings).toEqual(['Quantifier le périmètre ?']);
+    expect((r as unknown as Record<string, unknown>).champInconnu).toBeUndefined();
+  });
+
+  it('accepte langue_annonce sous forme de nom (« anglais ») et ignore une valeur inconnue', () => {
+    expect(parseAiCvResponse('{"analyse":{"langue_annonce":"anglais"}}').analyse?.langueAnnonce).toBe('en');
+    expect(parseAiCvResponse('{"analyse":{"langue_annonce":"klingon","ecarts":["x"]}}').analyse?.langueAnnonce).toBeUndefined();
+  });
+
+  it('ignore une analyse vide ou mal formée', () => {
+    expect(parseAiCvResponse('{"analyse":{}}').analyse).toBeUndefined();
+    expect(parseAiCvResponse('{"analyse":"oups"}').analyse).toBeUndefined();
+  });
+
+  it('l\'ancien schéma n\'a aucun champ v2', () => {
+    const r = parseAiCvResponse('{"title":"t","entries":[]}');
+    expect(r.analyse).toBeUndefined();
+    expect(r.sectionLabels).toBeUndefined();
+    expect(r.warnings).toBeUndefined();
+    expect(r.schemaVersion).toBeUndefined();
+  });
+});
+
+describe('parseAiCvResponse - texte parasite', () => {
+  it('extrait l\'objet JSON entouré de prose et de fences', () => {
+    const raw = 'Voici votre CV :\n```json\n{"title":"Dev","entries":[{"id":"a"}]}\n```\nN\'hésitez pas à me dire si...';
+    const r = parseAiCvResponse(raw);
+    expect(r.title).toBe('Dev');
+    expect(r.entries).toHaveLength(1);
+  });
+
+  it('gère accolades et guillemets dans les chaînes, et une accolade parasite avant l\'objet', () => {
+    const raw = 'Note {importante} :\n{"summary":"Un } piège \\" { ici","entries":[]} fin';
+    expect(parseAiCvResponse(raw).summary).toBe('Un } piège " { ici');
+  });
+
+  it('retient le premier objet valide quand il y en a deux', () => {
+    expect(parseAiCvResponse('{"title":"A"} puis {"title":"B"}').title).toBe('A');
+  });
+
+  it('lève une erreur quand aucun objet n\'existe ou qu\'il est tronqué', () => {
+    expect(() => parseAiCvResponse('aucun json ici')).toThrow();
+    expect(() => parseAiCvResponse('{"title":"coupé"')).toThrow();
   });
 });

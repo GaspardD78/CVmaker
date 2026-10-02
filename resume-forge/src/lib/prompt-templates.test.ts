@@ -43,3 +43,25 @@ describe('generateFullCVMatchPrompt — clarify mode', () => {
     expect(prompt).toContain('Format de sortie OBLIGATOIRE');
   });
 });
+
+describe('generateFullCVMatchPrompt - C/E : langue et analyse préalable', () => {
+  const prompt = generateFullCVMatchPrompt(profile, entries, 'We are hiring a SOC analyst. Fluent English required.');
+
+  it('impose la langue de l\'annonce pour tout le contenu', () => {
+    expect(prompt).toContain('langue_annonce');
+    expect(prompt).toMatch(/Traduis « Présent »/);
+  });
+
+  it('impose une étape d\'analyse rendue dans le JSON avant les entrées', () => {
+    expect(prompt).toContain('"analyse"');
+    expect(prompt.indexOf('"analyse"')).toBeLessThan(prompt.indexOf('"entries"'));
+  });
+
+  it('interdit de renommer ou supprimer la section Compétences', () => {
+    expect(prompt).toMatch(/ne supprime, ne renomme et ne fusionne aucune section/i);
+  });
+
+  it('ne contient plus de consigne contradictoire « tenir sur une page » sans budget', () => {
+    expect(prompt).not.toContain('doit tenir sur une page');
+  });
+});

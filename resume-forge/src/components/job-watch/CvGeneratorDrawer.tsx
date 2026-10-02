@@ -1,11 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sparkles, Copy, Check, FileText, Mail, ChevronRight, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { useCvStore } from '@/stores/cvStore';
 import { generateFullCVMatchPrompt, generateCoverLetterPrompt } from '@/lib/prompt-templates';
-import { parseAiCvResponse, type AiCvSuggestedEntry } from '@/lib/ai-cv-response';
+import type { AiCvSuggestedEntry } from '@/lib/ai-cv-response';
+import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
+import { AiCvGuardReport } from '@/components/cv-builder/AiCvGuardReport';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import type { JobOffer } from '@/types/job-watch';
 
@@ -34,6 +37,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
 export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const { profile, entries } = useProfileStore();
   const { cvs, fetchCvs, duplicateCv } = useCvStore();
+  const { targetPages, loadTargetPages } = usePromptStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('master');
   const [selectedCvId, setSelectedCvId] = useState<string>('');
@@ -57,6 +61,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   useEffect(() => {
     if (open) {
       fetchCvs();
+      loadTargetPages();
       // Reset state on each new offer
       setActiveTab('master');
       setJsonInput('');
@@ -69,32 +74,32 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setPromptCopied(false);
       setCvPromptCopied(false);
     }
-  }, [open, offer?.id, fetchCvs]);
+  }, [open, offer?.id, fetchCvs, loadTargetPages]);
 
-  // Silently parse the pasted JSON to surface off-profile suggestions for review.
-  // Errors are ignored here — full validation happens on apply.
+  // Parse + garde-fou du JSON collé : alimente le rapport, la revue des suggestions et le récapitulatif.
+  // Les erreurs de format sont ignorées ici (signalées à l'application).
+  const analysis = useMemo(
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages }) : null),
+    [jsonInput, entries, profile, extraContext, targetPages],
+  );
+
   useEffect(() => {
-    if (!jsonInput.trim()) {
+    if (!analysis || !analysis.ok) {
       setSuggestions([]);
       setAcceptedSug(new Set());
       setRestructure({ reordered: 0, sections: 0, groups: 0 });
       return;
     }
-    try {
-      const parsed = parseAiCvResponse(jsonInput);
-      setSuggestions(parsed.suggestedEntries);
-      setRestructure({
-        reordered: parsed.entryOrder?.length ?? 0,
-        sections: parsed.sectionOrder?.length ?? 0,
-        groups: parsed.skillGroups?.length ?? 0,
-      });
-    } catch {
-      setSuggestions([]);
-      setRestructure({ reordered: 0, sections: 0, groups: 0 });
-    }
+    const parsed = analysis.data;
+    setSuggestions(parsed.suggestedEntries);
+    setRestructure({
+      reordered: parsed.entryOrder?.length ?? 0,
+      sections: parsed.sectionOrder?.length ?? 0,
+      groups: parsed.skillGroups?.length ?? 0,
+    });
     // Reset selection whenever the input changes.
     setAcceptedSug(new Set());
-  }, [jsonInput]);
+  }, [analysis]);
 
   // Escape key
   useEffect(() => {
@@ -126,12 +131,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify);
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify);
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
   };
 
   // ── Suggested-entry helpers (off-profile, opt-in) ─────────────────────────
@@ -188,6 +193,10 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       </span>
     </label>
   );
+
+  const renderGuardReport = () =>
+    analysis && analysis.ok ? <AiCvGuardReport report={analysis.report} /> : null;
+  const applyLabel = (base: string) => (analysis && analysis.ok && analysis.report.errors.length > 0 ? 'Appliquer quand même' : base);
 
   const renderRestructure = () => {
     const parts: string[] = [];
@@ -274,13 +283,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const handleApplyMasterJson = async () => {
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    let data;
-    try {
-      data = parseAiCvResponse(jsonInput);
-    } catch {
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages });
+    if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
     }
+    const data = result.data;
 
     setIsApplying(true);
     try {
@@ -335,13 +343,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!selectedCvId) { toast.error('Sélectionnez un CV à dupliquer'); return; }
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    let data;
-    try {
-      data = parseAiCvResponse(jsonInput);
-    } catch {
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages });
+    if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
     }
+    const data = result.data;
 
     setIsApplying(true);
     try {
@@ -565,6 +572,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               </div>
 
               {/* Restructuration recap + off-profile suggestions review (opt-in) */}
+              {renderGuardReport()}
               {renderRestructure()}
               {renderSuggestions()}
 
@@ -581,7 +589,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
-                  {isApplying ? 'Création en cours…' : 'Créer le CV ciblé'}
+                  {isApplying ? 'Création en cours…' : applyLabel('Créer le CV ciblé')}
                 </button>
               </div>
             </>
@@ -669,6 +677,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               </div>
 
               {/* Restructuration recap + off-profile suggestions review (opt-in) */}
+              {renderGuardReport()}
               {renderRestructure()}
               {renderSuggestions()}
 
@@ -685,7 +694,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
-                  {isApplying ? 'Création en cours…' : 'Dupliquer et appliquer'}
+                  {isApplying ? 'Création en cours…' : applyLabel('Dupliquer et appliquer')}
                 </button>
               </div>
             </>

@@ -5,6 +5,25 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [Non publié] - 2026-10-02
+
+### Pages cibles (spec 004)
+
+- **Changé** : la règle de budget de pages « 1 page jusqu'à 8 ans d'expérience, 2 au-delà » est remplacée par le réglage **Pages cibles** (Paramètres, clé `cv_target_pages`) : 1 page par défaut quelle que soit l'ancienneté, 2 en option.
+- **Ajout** : à 1 page, le prompt v2 impose résumé de 2 lignes, 3 puces maximum pour les expériences des 5 dernières années ou couvrant un indispensable (1 ligne ou 1 à 2 puces pour les plus anciennes), expériences sans lien masquées, 12 à 15 compétences sans catégories, formations et certifications d'une ligne, centres d'intérêt et bénévolat masqués. Le garde-fou contrôle les mêmes limites (`ONE_PAGE_LIMITS`), retire `skillGroups` des données nettoyées et affiche « Dépasse probablement 1 page » avec la liste des éléments à retirer en priorité.
+
+### Moteur de CV IA v2 (spec 004)
+
+- **Corrigé** : la section « Compétences » n'est plus renommée ni supprimée par `skillGroups` ; les catégories deviennent des **sous-en-têtes** (`section_header` avec `overrideData.level = 'sub'`, petit libellé gras). Regroupement appliqué seulement avec au moins 8 compétences visibles, 2 à 4 groupes, 2 compétences minimum par groupe (sinon ignoré avec avertissement), et **idempotent** (réappliquer le même JSON ne duplique rien).
+- **Corrigé** : plus aucune section ni sous-en-tête vide dans l'aperçu, le PDF (colonne principale **et** bande latérale) et le DOCX : un en-tête n'est rendu que si un contenu visible le suit. Règle appliquée au rendu (`lib/cv-sections.ts`), donc réversible.
+- **Corrigé** : la section « Langues » n'est visible que si l'annonce l'exige ou si une langue autre que celle du CV est renseignée avec un niveau ; la langue de l'annonce passe en premier.
+- **Ajout** : langue du CV (`cv.settings.cvLanguage`) : mois et « Present / Présent » des dates (aperçu, PDF, DOCX), libellés de sections traduits (`sectionLabels` et libellés anglais standard), noms de langues et niveaux traduits fr/en.
+- **Ajout** : prompt « CV ciblé » v2 en blocs composables (`lib/cv-prompt.ts`) : analyse préalable rendue dans le JSON, langue de l'annonce, stratégie de mots-clés ATS, budget de puces et de pages, gestion des écarts, règles de rédaction (`CV_WRITING_RULES`) et de forme (`JSON_RULES`) séparées de `SYSTEM_RULES` (désormais alias de `TEXT_RULES`, réservé aux prompts de texte libre).
+- **Ajout** : schéma JSON v2 additif (`schemaVersion`, `analyse`, `sectionLabels`, `warnings`) ; l'ancien schéma reste accepté. `parseAiCvResponse` extrait le premier objet JSON équilibré d'un texte parasite et ignore les champs inconnus.
+- **Ajout** : garde-fou post-LLM (`lib/ai-cv-guard.ts`) : IDs inconnus, chiffres absents de la source (bloquant, « Appliquer quand même »), termes techniques non sourcés, suggestions non étayées rejetées, doublons, puces trop longues ou trop nombreuses, formulations interdites, couverture des mots-clés, volume estimé, cohérence des temps. Rapport compact dans `CvGeneratorDrawer` et `AIPromptPanel`.
+- **Ajout** : normalisation typographique déterministe (`lib/cv-typography.ts`) : puces « • » ramenées à « - », point final retiré, tiret cadratin remplacé, espaces insécables et guillemets français.
+- **Changé** : `planCvBlockOrder` prend un `skillsHeaderId` explicite et garantit que chaque ID d'entrée apparaît une fois en sortie (test de propriété). `applyAiCvToBlocks` accepte un store injectable et retourne un rapport.
+
 ## [1.3.0] - 2026-07-02
 
 ### Rebranding ResumeForge
