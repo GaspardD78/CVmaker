@@ -132,6 +132,13 @@ tests en place. Chemins relatifs à `resume-forge/`.
     de `main`. Seuil non modifié. À traiter dans un lot dédié : chercher la
     cause (cache de polices à froid ? ordre des cas ?) avant de toucher au
     seuil ; sinon refaire la mesure du bruit (README, section Seuils).
+    **Résolu au lot 5.** Cause : la page pdfjs de rastérisation était réutilisée
+    par tous les cas ; le même PDF (identique octet pour octet) y donnait
+    plusieurs images différentes. `GoldenRenderer.rasterize` ouvre maintenant une
+    page neuve par PDF : 0 écart sur 100 rendus de `tight/elegant`, 3 passes
+    complètes à 65/65 avec 0 pixel d'écart, références inchangées, seuils non
+    modifiés (README, section « Une page de rastérisation neuve par PDF »).
+    Resserrer les seuils reste à faire dans un lot à part.
 
 16. **Dates coupées en deux lignes à l'export (lot 2).** Parce que la date d'une
     entrée peut rétrécir (`flex-shrink`), elle est repliée sur 2 lignes ou plus

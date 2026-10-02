@@ -655,6 +655,36 @@ au-dessus du bruit maximal observé (5 px). Un caractère déplacé ou une coule
 modifiée touchent des centaines de pixels. Si des échecs de 6 à 8 px
 apparaissent sans raison, relancer la mesure avant d'élargir le seuil.
 
+### Une page de rastérisation neuve par PDF (lot 5)
+
+Le bruit de la table ci-dessus (2 à 5 px) et celui de `tight/elegant` (7 à 21 px,
+un passage sur deux, voir NOTES.md point 15) avaient la même cause : la page pdfjs
+qui rastérise les PDF était réutilisée par tous les cas. Le PDF imprimé est
+identique octet pour octet d'une exécution à l'autre ; mais rastérisé dans une page
+qui a déjà rendu des PDF, il donnait jusqu'à 4 images différentes (quelques glyphes
+de la police serif, écart de composante 26 au plus), alors que dans une page neuve
+il en donne toujours une seule. Ce que Chromium garde d'un rendu à l'autre dans la
+page (très probablement son cache de glyphes) n'est pas prouvé ; le résultat l'est.
+
+Mesures (même PDF de `tight/elegant`, avec ou sans correctif) :
+
+| Rastérisation | Écarts à la référence |
+|---|---|
+| page partagée (avant) | 12 à 35 sur 30 à 60 rendus, 4 images distinctes |
+| page neuve par PDF (`GoldenRenderer.rasterize`) | 0 sur 100 rendus, 1 image |
+
+Sans effet sur le bruit (40 rendus chacun, page partagée) : attente de
+`document.fonts.ready`, `--disable-gpu`, `--disable-accelerated-2d-canvas`,
+`--disable-lcd-text`, `--font-render-hinting=none`,
+`--disable-font-subpixel-positioning`, canvas `willReadFrequently`, nettoyage de
+`document.fonts`, un worker pdfjs par document.
+
+Coût : environ 200 ms de plus par cas (banc complet : environ 1 min 50 s). Les
+références n'ont pas changé : elles avaient été enregistrées à froid. Trois passes
+complètes consécutives : 65/65, 0 pixel d'écart sur les 65 cas. Les seuils
+(`PIXEL_TOLERANCE = 0`, `MAX_DIFF_RATIO = 1e-5`) ne sont pas modifiés ; les resserrer
+(le bruit mesuré est maintenant nul) est un sujet à part.
+
 ## Validation croisée avec l'app réelle
 
 But : vérifier une fois, sur ton poste, que le banc reproduit bien l'export de
