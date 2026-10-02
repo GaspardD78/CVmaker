@@ -171,24 +171,24 @@ Ces deux champs ne contiennent aucune donnée personnelle. Les reporter dans
 `fixtures/my-settings.json` (`templates`, `settings`), puis :
 `bun run test:golden -- --update --only my-settings`.
 
-### Fuseau négatif : comportement connu figé
+### Fuseau horaire : dates indépendantes de la machine (lot 6)
 
-`src/components/export/CVEntryBlock.tsx` est **le seul** endroit du rendu PDF
-qui formate des dates. Tous les chemins sont couverts par `anonymized-real` :
-- `formatDate` (mois + année) : expériences, projets. Ex. `2020-03`, et
-  `2016-01` pour le passage d'année ;
-- `formatDateYear` (année seule) : formations. Ex. `2007-01` ;
-- `'Présent'` (littéral, `isCurrent`) et `overrideData.datesOverride`
-  (verbatim, alternance) : pas de conversion de date.
+`src/lib/entry-dates.ts` (appelé par `CVEntryBlock`, l'export DOCX et le résolveur de
+prompts) est **le seul** endroit qui formate les dates d'un CV. Tous les chemins sont
+couverts par `anonymized-real` : mois et année (expériences, projets, ex. `2020-03`
+et `2016-01` pour le passage d'année), année seule (formations, ex. `2007-01`),
+`'Présent'` et `datesOverride` (verbatim). Les certifications passent par
+`CVBadgeGroup`, qui n'affiche **aucune** date.
 
-Les certifications passent par `CVBadgeGroup`, qui n'affiche **aucune** date.
-
-En `America/New_York`, les dates `AAAA-MM` (lues en UTC) reculent d'un mois
-(NOTES.md §3). Le script vérifie explicitement ce comportement actuel :
-`mars 2020` → `février 2020`, `janvier 2016` → `décembre 2015`,
-`2007 -` → `2006 -`. **Quand le lot « dates » corrigera ce bug, ces
-assertions (`KNOWN_TZ_SHIFTS` dans `run.ts`) et les références `tz-new-york`
-devront être mises à jour.**
+Mois et année sont lus **dans la chaîne**, sans `Date` : `new Date('2020-03')` est lu en
+UTC puis affiché en heure locale, donc à `America/New_York` « mars 2020 » devenait
+« février 2020 » et `2007-01` devenait 2006 (NOTES.md §18). Le cas `tz-new-york`
+(`anonymized-real` rendu en `America/New_York`) sert de garde : son texte doit être
+**strictement identique** à celui rendu à `Europe/Paris` (assertion `tzProblems` de
+`run.ts`, bloquante) ; ses références (texte, PNG, balisage) sont identiques à celles
+d'`anonymized-real`. Avant le lot 6, l'assertion inverse figeait le décalage
+(`KNOWN_TZ_SHIFTS`). Côté unitaire, `entry-dates.test.ts` relance le calcul dans un
+processus par fuseau (9 fuseaux, positifs et négatifs).
 
 ## Dépassement de page
 
@@ -561,10 +561,8 @@ quand la date de fin est vide, absent du PDF).
 - **`datesOverride`** (texte libre, rempli par le générateur de CV par IA) est affiché tel
   quel dans les deux modes : `2011 – 2012 (alternance, 1 an)` reste ainsi en mode année.
   Il est masqué pour les formations quand leurs années le sont.
-- **Fuseau horaire** : en mode année, l'année est lue dans la chaîne (`AAAA-MM`), donc
-  indépendante du fuseau. Le mode mois et année garde son comportement historique, sensible
-  au fuseau (NOTES.md §3 : un début en janvier recule d'un an à New York). Les 6 tests
-  « mois et année » échouent sous `TZ=America/New_York` ; ceux du mode année passent.
+- **Fuseau horaire** : mois et année sont lus dans la chaîne dans les deux modes (lot 6),
+  donc indépendants du fuseau de la machine (voir la section Fuseau horaire).
 - **Certifications** : elles sont toujours rendues en badges (`BADGE_ENTRY_TYPES`, avec
   compétences, langues et centres d'intérêt), donc **sans date**, avant comme après. Le
   réglage ne les concerne pas ; leurs années n'apparaissent dans aucun template.
@@ -581,7 +579,7 @@ du module testé :
   tel quel quand il existe, et aucun nom de mois suivi d'une année n'apparaît ;
 - mode mois et année : `septembre 2022 - Présent` présent ;
 - formations masquées : aucune année sur les lignes des formations visibles.
-Unitaires : `src/lib/entry-dates.test.ts` (25 tests, dont fuseau négatif).
+Unitaires : `src/lib/entry-dates.test.ts` (31 tests, dont 9 fuseaux horaires).
 
 **Vérifié par défauts volontaires** (restaurés après chaque essai) :
 | Défaut | Résultat |
@@ -590,7 +588,7 @@ Unitaires : `src/lib/entry-dates.test.ts` (25 tests, dont fuseau négatif).
 | `showEducationYears` ignoré | les 6 cas « sans formation » échouent |
 | « Présent » supprimé en mode année | les cas « année » échouent (`2022 - Présent` absent) |
 | `PrintableCV` ne transmet plus les réglages | les 9 cas échouent |
-| année lue via `Date` (sensible au fuseau) | 5 tests unitaires échouent sous `TZ=America/New_York` |
+| année lue via `Date` (sensible au fuseau) | 5 tests unitaires échouent sous `TZ=America/New_York` (lot 3A ; depuis le lot 6, le test à 9 fuseaux l'attrape sous tout fuseau) |
 | fusion « même année » supprimée | 1 test unitaire échoue |
 | surcharge d'une formation masquée affichée | 1 test unitaire échoue |
 

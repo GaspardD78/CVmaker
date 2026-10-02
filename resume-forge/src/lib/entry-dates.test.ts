@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { DEFAULT_DATE_SETTINGS, formatEntryDates, readDateSettings, yearOf, type DateSettings } from './entry-dates';
+import { DEFAULT_DATE_SETTINGS, formatEntryDates, formatMonthYear, readDateSettings, yearOf, type DateSettings } from './entry-dates';
 
 const MONTH_YEAR = DEFAULT_DATE_SETTINGS;
 const YEAR: DateSettings = { dateFormat: 'year', showEducationYears: true };
@@ -50,8 +50,6 @@ describe('yearOf', () => {
   });
 });
 
-// Mois et année : la lecture historique passe par Date (NOTES.md §3), donc ces valeurs
-// supposent un fuseau sans décalage négatif (UTC, Europe/Paris).
 describe('formatEntryDates, mois et année (comportement historique)', () => {
   test('expérience : période, en cours, début seul, fin seule', () => {
     expect(formatEntryDates(exp('2020-03', '2022-08'), undefined, MONTH_YEAR)).toBe('mars 2020 - août 2022');
@@ -128,7 +126,7 @@ describe('formatEntryDates, mode année', () => {
     expect(formatEntryDates(exp(), undefined, YEAR)).toBe('');
   });
 
-  test("insensible au fuseau : « 2007-01 » reste 2007 (le mode mois et année garde l'écart historique)", () => {
+  test('insensible au fuseau : « 2007-01 » reste 2007', () => {
     expect(formatEntryDates(edu('2007-01', '2010-06'), undefined, YEAR)).toBe('2007 - 2010');
     expect(formatEntryDates(exp('2016-01', '2020-01'), undefined, YEAR)).toBe('2016 - 2020');
     expect(formatEntryDates(exp('2020', '2022'), undefined, YEAR)).toBe('2020 - 2022');
@@ -171,5 +169,75 @@ describe('formatEntryDates, datesOverride', () => {
 
   test('suffit à elle seule, sans aucune date', () => {
     expect(formatEntryDates(exp(), '2021 - 2023', MONTH_YEAR)).toBe('2021 - 2023');
+  });
+});
+
+describe('formatMonthYear', () => {
+  test('mois lu dans la chaîne', () => {
+    expect(formatMonthYear('2020-03')).toBe('mars 2020');
+    expect(formatMonthYear('2007-01')).toBe('janvier 2007');
+    expect(formatMonthYear('2015-12')).toBe('décembre 2015');
+    expect(formatMonthYear('2020-3')).toBe('mars 2020');
+    expect(formatMonthYear('2020-03-01')).toBe('mars 2020');
+    expect(formatMonthYear('2020-03-15')).toBe('mars 2020');
+    expect(formatMonthYear(' 2020-03 ')).toBe('mars 2020');
+  });
+
+  test('une année seule donne janvier, comme avant', () => {
+    expect(formatMonthYear('2020')).toBe('janvier 2020');
+  });
+
+  test("une heure éventuelle est lue telle quelle, sans conversion de fuseau", () => {
+    expect(formatMonthYear('2020-01-31T23:30:00+01:00')).toBe('janvier 2020');
+    expect(formatMonthYear('2020-03-01T00:00:00Z')).toBe('mars 2020');
+  });
+
+  test("les noms de mois sont ceux d'Intl fr-FR, pour les 12 mois", () => {
+    for (let month = 1; month <= 12; month++) {
+      const expected = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(2021, month - 1, 15)));
+      expect(formatMonthYear(`2021-${String(month).padStart(2, '0')}`)).toBe(expected);
+    }
+  });
+
+  test('un mois hors de 1 à 12 ou un autre format suit la lecture via Date', () => {
+    expect(formatMonthYear('2020-13')).toBe('2020-13');
+    expect(formatMonthYear('2020-00')).toBe('2020-00');
+    expect(formatMonthYear('date inconnue')).toBe('date inconnue');
+    expect(formatMonthYear('01/2020')).toBe('01/2020');
+  });
+});
+
+// Les dates sont lues dans la chaîne : même texte quel que soit le fuseau de la machine.
+// Chaque fuseau est évalué dans un processus Bun distinct (la variable TZ est lue au démarrage).
+describe('indépendance du fuseau horaire', () => {
+  const ZONES = ['Europe/Paris', 'UTC', 'America/New_York', 'America/Los_Angeles', 'Pacific/Honolulu', 'America/Sao_Paulo', 'Asia/Tokyo', 'Pacific/Auckland', 'Asia/Kolkata'];
+  const MODULE = import.meta.dir + '/entry-dates';
+  const SCRIPT = `
+    import { formatEntryDates, formatMonthYear, DEFAULT_DATE_SETTINGS } from ${JSON.stringify(MODULE)};
+    const year = { dateFormat: 'year', showEducationYears: true };
+    const e = (entryType, startDate, endDate) => ({ entryType, startDate, endDate, isCurrent: false });
+    console.log(JSON.stringify([
+      ['2007-01', '2020-03', '2020-01-01', '2020-12', '2020', '2020-01-31T23:30:00+01:00'].map(formatMonthYear),
+      formatEntryDates(e('experience', '2016-01', '2020-02'), undefined, DEFAULT_DATE_SETTINGS),
+      formatEntryDates(e('education', '2007-01', '2010-06'), undefined, DEFAULT_DATE_SETTINGS),
+      formatEntryDates(e('experience', '2016-01', '2020-02'), undefined, year),
+      formatEntryDates(e('education', '2007-01', '2010-06'), undefined, year),
+    ]));
+  `;
+  const run = (tz: string) => {
+    const r = Bun.spawnSync([process.execPath, '-e', SCRIPT], { env: { ...process.env, TZ: tz } });
+    if (r.exitCode !== 0) throw new Error(`${tz} : ${r.stderr.toString()}`);
+    return JSON.parse(r.stdout.toString());
+  };
+
+  test('même résultat dans 9 fuseaux, positifs et négatifs', () => {
+    const expected = [
+      ['janvier 2007', 'mars 2020', 'janvier 2020', 'décembre 2020', 'janvier 2020', 'janvier 2020'],
+      'janvier 2016 - février 2020',
+      '2007 - 2010',
+      '2016 - 2020',
+      '2007 - 2010',
+    ];
+    for (const tz of ZONES) expect(run(tz)).toEqual(expected);
   });
 });

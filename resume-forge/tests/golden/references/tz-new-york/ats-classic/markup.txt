@@ -46,7 +46,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | Nexora Solutions — Lyon"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "août 2022 - Présent"
+        "septembre 2022 - Présent"
     <div class="cv-desc leading-relaxed text-[12px] text-gray-800 whitespace-pre-line">
       <ul class="list-disc my-1 pl-5">
         <li>
@@ -66,7 +66,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | Altimeo Conseil — Lyon"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "février 2020 - juillet 2022"
+        "mars 2020 - août 2022"
     <div class="cv-desc leading-relaxed text-[12px] text-gray-800 whitespace-pre-line">
       <ul class="list-disc my-1 pl-5">
         <li>
@@ -85,7 +85,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | GITEC • MATELLI • MICROPOLE — Paris"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "décembre 2015 - janvier 2020"
+        "janvier 2016 - février 2020"
     <div class="cv-desc leading-relaxed text-[12px] text-gray-800 whitespace-pre-line">
       <ul class="list-disc my-1 pl-5">
         <li>
@@ -102,7 +102,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | Banque Régionale du Centre — Orléans"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "août 2014 - novembre 2015"
+        "septembre 2014 - décembre 2015"
     <div class="cv-desc leading-relaxed text-[12px] text-gray-800 whitespace-pre-line">
       <ul class="list-disc my-1 pl-5">
         <li>
@@ -117,7 +117,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | Institut Statistique Territorial — Tours"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "septembre 2013 - juillet 2014"
+        "octobre 2013 - août 2014"
     <div class="cv-desc leading-relaxed text-[12px] text-gray-800 whitespace-pre-line">
       <ul class="list-disc my-1 pl-5">
         <li>
@@ -132,7 +132,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | Cabinet Horizon Études — Tours"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "octobre 2012 - août 2013"
+        "novembre 2012 - septembre 2013"
     <div class="cv-desc leading-relaxed text-[12px] text-gray-800 whitespace-pre-line">
       <p>
         "Traitement d'enquêtes de satisfaction et restitution des résultats aux clients."
@@ -170,7 +170,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | Université d'Orléans — Orléans"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "2006 - 2010"
+        "2007 - 2010"
   <h3 class="border-b border-gray-800 font-bold mb-3 mt-6 pb-1.5 print:break-after-avoid text-[13px] text-gray-900 tracking-[0.14em] uppercase">
     "Certifications"
   <div class="cv-entry mb-3 print:break-inside-avoid">
@@ -189,7 +189,7 @@
         <span class="cv-subtitle text-[12.5px] text-gray-700">
           " | Projet personnel"
       <span class="cv-date mb-1 tabular-nums text-[11.5px] text-gray-600">
-        "avril 2021 - décembre 2021"
+        "mai 2021 - janvier 2022"
     <div class="cv-desc leading-relaxed text-[12px] text-gray-800 whitespace-pre-line">
       <p>
         "Bibliothèque Python de règles de validation déclaratives, 300 étoiles sur GitHub."

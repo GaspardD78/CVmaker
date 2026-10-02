@@ -8,10 +8,13 @@
  *   `education` (surcharge `datesOverride` comprise) ; toute autre valeur ou
  *   l'absence de la clé les affiche.
  *
- * Mode « mois et année » : comportement historique inchangé, y compris sa
- * lecture via `Date` (décalage d'un mois, ou d'une année en janvier, dans un
- * fuseau à décalage négatif : NOTES.md §3). Mode « année » : l'année est lue
- * dans la chaîne (`AAAA-MM`, `AAAA`…), donc indépendante du fuseau.
+ * Les dates d'un CV (`AAAA`, `AAAA-MM`, `AAAA-MM-JJ`) sont des jalons, pas des
+ * instants : mois et année sont lus dans la chaîne, jamais via `Date`, donc le
+ * résultat ne dépend ni du fuseau de la machine ni du moteur JavaScript (une
+ * date ISO sans heure est lue en UTC par `Date`, puis affichée en heure locale :
+ * elle reculait d'un mois, d'une année en janvier, dans un fuseau négatif ;
+ * NOTES.md §18). Une chaîne d'un autre format retombe sur la lecture via `Date`
+ * (heure locale, sans décalage).
  *
  * `datesOverride` (texte libre de l'utilisateur ou du générateur de CV par IA)
  * est affiché tel quel dans les deux modes, sauf formation masquée.
@@ -54,14 +57,33 @@ export interface FormatEntryDatesOptions {
 const CURRENT_LABEL = 'Présent';
 const TODAY_LABEL = "Aujourd'hui";
 
-/** Mois et année (historique) : lecture via Date, sensible au fuseau. */
-function monthYear(dateString: string): string {
+const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+/** `AAAA`, `AAAA-M`, `AAAA-MM`, `AAAA-MM-JJ`, avec heure facultative (lue telle quelle, sans conversion). */
+const ISO_DATE = /^\s*(\d{4})(?:-(\d{1,2})(?:-\d{1,2})?)?(?:[T ]\d{1,2}:\d{2}.*)?\s*$/;
+
+/** Format « mois année » d'une chaîne qui n'est pas une date ISO : lecture via Date (heure locale). */
+function fallbackMonthYear(dateString: string): string {
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return dateString;
   return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
 }
 
-/** Année seule (historique, formations et certifications) : lecture via Date, sensible au fuseau. */
+/**
+ * « mars 2020 » pour `2020-03` (mois lu dans la chaîne, indépendant du fuseau).
+ * Une année seule (`2020`) donne « janvier 2020 », comme avant ; un mois hors de
+ * 1 à 12 ou un autre format suit la lecture via Date.
+ */
+export function formatMonthYear(dateString: string): string {
+  const m = ISO_DATE.exec(dateString);
+  if (m) {
+    const month = m[2] === undefined ? 1 : parseInt(m[2], 10);
+    if (month >= 1 && month <= 12) return `${MONTHS_FR[month - 1]} ${m[1]}`;
+  }
+  return fallbackMonthYear(dateString);
+}
+
+/** Année seule d'une chaîne qui n'est pas lisible dans le texte : lecture via Date (heure locale). */
 function legacyYear(dateString: string): string {
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return dateString;
@@ -92,9 +114,8 @@ export function formatEntryDates(
   const override = typeof datesOverride === 'string' ? datesOverride.trim() : '';
   if (override) return override;
 
-  const yearMode = settings.dateFormat === 'year';
-  const yearOnly = entry.entryType === 'education' || entry.entryType === 'certification';
-  const fmt = yearMode ? yearOf : yearOnly ? legacyYear : monthYear;
+  const yearOnly = settings.dateFormat === 'year' || entry.entryType === 'education' || entry.entryType === 'certification';
+  const fmt = yearOnly ? yearOf : formatMonthYear;
 
   const start = entry.startDate ? fmt(entry.startDate) : '';
   const end = entry.endDate ? fmt(entry.endDate) : '';
@@ -105,6 +126,6 @@ export function formatEntryDates(
   if (!start) return endText;
   if (!endText) return start;
   // Période contenue dans une seule année : « 2023 », pas « 2023 - 2023 ».
-  if (yearMode && !entry.isCurrent && endText === start) return start;
+  if (settings.dateFormat === 'year' && !entry.isCurrent && endText === start) return start;
   return `${start} - ${endText}`;
 }

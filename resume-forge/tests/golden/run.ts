@@ -86,18 +86,6 @@ function buildCases(): GoldenCase[] {
   return cases;
 }
 
-/**
- * Comportement connu (NOTES.md §3) : une date « AAAA-MM » est lue en UTC puis
- * affichée en heure locale ; dans un fuseau négatif elle recule d'un mois
- * (et d'une année pour janvier en affichage année seule). Ces assertions
- * figent le bug ; elles devront être inversées par le lot « dates ».
- */
-const KNOWN_TZ_SHIFTS: { paris: string; newYork: string; what: string }[] = [
-  { what: 'expérience, mois (2020-03)', paris: 'mars 2020', newYork: 'février 2020' },
-  { what: 'expérience, janvier (2016-01)', paris: 'janvier 2016', newYork: 'décembre 2015' },
-  { what: 'formation, année seule (2007-01)', paris: '2007 -', newYork: '2006 -' },
-];
-
 // ── Dépassement de page (print-overflow.ts) ──────────────────────────────────
 
 /** Attente par fixture. undefined = pas d'attente fixée (référence seule). */
@@ -506,21 +494,23 @@ async function main() {
     await renderer.stop();
   }
 
-  // ── Comportement connu : décalage de date en fuseau négatif ──────────────
+  // ── Indépendance du fuseau : les dates d'un CV ne dépendent pas de la machine ──
+  // Les dates « AAAA-MM » sont lues dans la chaîne (entry-dates.ts, NOTES.md §18) :
+  // le même CV rendu en America/New_York doit donner exactement le même texte qu'en
+  // Europe/Paris. (Avant le lot 6, il reculait d'un mois, et d'une année en janvier.)
   const tzProblems: string[] = [];
   for (const template of TZ_TEMPLATES) {
     const ny = texts.get(`tz-new-york/${template}`);
     if (ny === undefined) continue;
     const parisPath = join(REF_DIR, 'anonymized-real', template, 'text.txt');
     const paris = texts.get(`anonymized-real/${template}`) ?? (existsSync(parisPath) ? readFileSync(parisPath, 'utf8') : undefined);
-    for (const s of KNOWN_TZ_SHIFTS) {
-      if (paris !== undefined && !paris.includes(s.paris)) tzProblems.push(`${template} / Paris : « ${s.paris} » attendu (${s.what})`);
-      if (!ny.includes(s.newYork)) tzProblems.push(`${template} / New York : « ${s.newYork} » attendu (${s.what})`);
-      if (ny.includes(s.paris)) tzProblems.push(`${template} / New York : « ${s.paris} » ne devrait pas apparaître (${s.what})`);
-    }
+    if (paris === undefined || ny === paris) continue;
+    const parisLines = paris.split('\n'), nyLines = ny.split('\n');
+    const diff = parisLines.map((line, k) => (line === nyLines[k] ? null : `« ${line.trim()} » (${BASE_TZ}) ≠ « ${(nyLines[k] ?? '').trim()} » (${NEGATIVE_TZ})`)).filter((d): d is string => d !== null);
+    tzProblems.push(`${template} : texte différent entre ${BASE_TZ} et ${NEGATIVE_TZ} (${diff.length} ligne(s)), p. ex. ${diff[0] ?? 'longueur différente'}`);
   }
   if (results.some((r) => r.id.startsWith('tz-new-york/'))) {
-    console.log(`\nDécalage de date connu en ${NEGATIVE_TZ} (NOTES.md §3) : ${tzProblems.length ? 'NON CONFORME' : 'reproduit comme attendu'}`);
+    console.log(`\nIndépendance du fuseau (${NEGATIVE_TZ} = ${BASE_TZ}) : ${tzProblems.length ? 'NON CONFORME' : 'conforme'}`);
     tzProblems.forEach((p) => console.log(`    - ${p}`));
   }
 

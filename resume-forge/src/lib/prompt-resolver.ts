@@ -1,6 +1,7 @@
 import { Profile, MasterEntry } from '@/types/profile';
 import { CVDocument, CVBlock } from '@/types/cv';
 import { getPromptTemplate, DEFAULT_DIFFERENTIATOR } from './prompt-templates';
+import { formatMonthYear } from './entry-dates';
 
 export interface ResolverContext {
   profile: Profile;
@@ -18,9 +19,7 @@ export interface ResolverContext {
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return 'Aujourd\'hui';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return dateString;
-  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
+  return formatMonthYear(dateString);
 }
 
 /**
