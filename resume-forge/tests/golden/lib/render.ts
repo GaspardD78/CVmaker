@@ -202,10 +202,29 @@ export class GoldenRenderer {
     }
   }
 
-  /** Rastérise chaque page du PDF en PNG (octets). */
+  /**
+   * Rastérise chaque page du PDF en PNG (octets).
+   *
+   * Une page pdfjs neuve par PDF, jamais réutilisée : dans une page qui a déjà
+   * rendu des PDF, le rendu d'un même PDF varie d'un passage à l'autre (quelques
+   * pixels de glyphes, 7 à 21 px sur `tight/elegant`, un passage sur deux), alors
+   * que le PDF est identique octet pour octet. Dans une page neuve il est
+   * reproductible (0 écart sur 100 rendus). Voir README, section Seuils.
+   */
   async rasterize(pdf: Uint8Array): Promise<Uint8Array[]> {
     const b64 = Buffer.from(pdf).toString('base64');
-    const dataUrls = await this.rasterPage.evaluate(async ({ b64, scale }) => {
+    const page = await this.rasterContext.newPage();
+    try {
+      await page.goto(`${this.baseUrl}/raster.html`);
+      await page.waitForFunction(() => (window as unknown as { __ready?: boolean }).__ready === true);
+      return await this.rasterizeIn(page, b64);
+    } finally {
+      await page.close();
+    }
+  }
+
+  private async rasterizeIn(page: Page, b64: string): Promise<Uint8Array[]> {
+    const dataUrls = await page.evaluate(async ({ b64, scale }) => {
       const pdfjs = (window as unknown as { pdfjs: typeof import('pdfjs-dist') }).pdfjs;
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       const doc = await pdfjs.getDocument({ data: bytes }).promise;
