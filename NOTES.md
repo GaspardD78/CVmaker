@@ -20,6 +20,7 @@ tests en place. Chemins relatifs à `resume-forge/`.
    fait `new Date('2020-03')`, interprété en UTC minuit, puis le formate en heure
    locale. Dans un fuseau à décalage négatif (Amériques), « mars 2020 » s'affiche
    « février 2020 ».
+   **Résolu au lot 6** (voir point 18).
 
 4. **Champs du profil non rendus** — `address`, `postalCode` et `country`
    existent dans `Profile` mais n'apparaissent dans aucun template.
@@ -160,15 +161,20 @@ tests en place. Chemins relatifs à `resume-forge/`.
       dans le DOCX, comme dans le PDF (le DOCX n'affichait rien).
     Le DOCX n'avait aucun test ; `src/lib/export-docx.test.ts` en ajoute 10.
 
-18. **Fuseau horaire : deux lectures des dates (lots 3A et 3B).** Le mode « année »
-    lit l'année dans la chaîne (`2007-01` donne 2007 partout). Le mode « mois et
-    année » garde la lecture historique via `Date` (point 3) : sous un fuseau à
-    décalage négatif, un début en janvier recule d'un an pour les formations (en
-    années seules) et d'un mois ailleurs. Incohérence provisoire : à New York,
-    une formation `2007-01` s'affiche 2007 en mode année et 2006 en mode mois et
-    année. À corriger dans le lot « dates » (lire aussi le mois dans la chaîne),
-    qui inversera les assertions figées de `tz-new-york`. Six tests unitaires du
-    mode mois et année échouent volontairement sous `TZ=America/New_York`.
+18. **Fuseau horaire : deux lectures des dates (lots 3A et 3B), résolu au lot 6.**
+    Le mode « année » lisait l'année dans la chaîne, le mode « mois et année » passait
+    par `Date` : `new Date('2007-01')` est lu en UTC puis affiché en heure locale, donc
+    dans un fuseau à décalage négatif (Amériques) un 1er du mois reculait d'un mois, et
+    d'une année pour janvier (New York : `2007-01` donnait 2006 en formation, « février
+    2020 » pour `2020-03`). Les formats non ISO (`Jan 2020`) étaient lus en heure
+    locale et ne bougeaient pas. Lot 6 : `formatMonthYear` (`entry-dates.ts`) lit le
+    mois et l'année dans la chaîne (`AAAA`, `AAAA-M`, `AAAA-MM`, `AAAA-MM-JJ`, heure
+    éventuelle lue telle quelle), avec une table de noms de mois ; un autre format suit
+    l'ancienne lecture via `Date`. Une année seule (`2020`) reste « janvier 2020 », comme
+    avant (anomalie conservée volontairement). Même correctif dans le résolveur de
+    prompts IA (`prompt-resolver.ts`, copie dupliquée du défaut). `tz-new-york` est
+    devenu une garde (texte identique à Paris) et `entry-dates.test.ts` teste 9 fuseaux
+    par sous-processus. Aucun autre cas du banc n'a changé.
 
 19. **Certifications : toujours des badges, jamais de date (lot 3A).** Les types
     rendus en badges (`BADGE_ENTRY_TYPES` : compétences, langues, centres d'intérêt
@@ -191,6 +197,15 @@ tests en place. Chemins relatifs à `resume-forge/`.
     comme exposée (clones, forks, caches) ; les mesures de ce côté (coordonnées
     concernées, demande de nettoyage des références de PR au support GitHub) sont
     à la charge du propriétaire du dépôt.
+
+21. **Dates sans heure du suivi de candidatures, même défaut (constaté au lot 6, non
+    corrigé).** `nextActionDate` (`AAAA-MM-JJ`) est lue par `new Date()` (UTC) puis
+    comparée à un « aujourd'hui » local : dans `KanbanCard.tsx` (`getUrgencyColor`,
+    lignes 29 à 30) la couleur d'urgence est décalée d'un jour dans un fuseau à décalage
+    négatif, et la date affichée (`toLocaleDateString`, ligne 132) est celle de la
+    veille. `export-applications.ts` (lignes 364 à 365) lit la borne de début en UTC et
+    la borne de fin (`T23:59:59`) en heure locale. Hors du rendu du CV : à traiter, si
+    voulu, avec la même approche (lire `AAAA-MM-JJ` dans la chaîne).
 
 ## Lots à prévoir
 
@@ -313,6 +328,11 @@ tests en place. Chemins relatifs à `resume-forge/`.
   espace rendu en fin de bloc d'intitulé dans le CSS de `PrintableCV`, contrôles
   bloquants (mot collé dans le texte pdfjs, écart minimal de 3 px) et fixture
   `entry-date-gap` (`tests/golden/README.md`, section Collision intitulé / date).
+- **Lot 6 : fuseau horaire des dates** (fait, points 3 et 18). `formatMonthYear` dans
+  `entry-dates.ts` : mois et année lus dans la chaîne, sans `Date`, pour le PDF, le DOCX
+  et le résolveur de prompts IA. `tz-new-york` : texte identique à Paris (assertion
+  bloquante) ; `entry-dates.test.ts` : 9 fuseaux en sous-processus. Défaut du suivi de
+  candidatures consigné au point 21.
 - **Lot 4 : dates indivisibles** (fait, point 16). Dans `PrintableCV` : intitulé
   `flex: 1 1 0; min-width: 0`, date `flex: 0 0 auto; max-width: 45 %`,
   `column-gap` de 8 px, espace `::after` du lot 2 conservé. Contrôle bloquant du
