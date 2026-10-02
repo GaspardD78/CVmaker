@@ -142,6 +142,8 @@ export interface LanguageEntryInfo {
   title: string;
   /** Niveau renseigné (« Courant - C1 »), `null` si absent. */
   level: string | null;
+  /** Entrée laissée visible par l'IA (défaut : oui). Seules les visibles comptent pour la règle (b). */
+  visible?: boolean;
 }
 
 export interface LanguageDecision {
@@ -165,7 +167,9 @@ const GENERIC_LANGUAGE_REQUIREMENT = /(^|[^a-z])(bilingue|bilingual|multilingue|
  * l'IA) : visible seulement si (a) l'annonce l'exige (une langue du profil ou
  * une exigence générique de type « bilingue » figure parmi les exigences), ou
  * (b) au moins une langue autre que celle du CV est renseignée avec un niveau.
- * La langue de l'annonce (= celle du CV) passe en premier.
+ * La langue de l'annonce (= celle du CV) passe en premier. L'exigence (a) porte
+ * sur toutes les langues du profil, même masquées par l'IA ; la règle (b) ne
+ * compte que celles qu'elle a laissées visibles.
  */
 export function decideLanguageSection(
   languages: readonly LanguageEntryInfo[],
@@ -177,7 +181,7 @@ export function decideLanguageSection(
 
   const required = withCode.filter(l => l.code !== undefined && mentionsLanguage(adText, l.code));
   const genericRequirement = GENERIC_LANGUAGE_REQUIREMENT.test(adText);
-  const otherWithLevel = withCode.some(l => l.code !== cvLanguage && Boolean(l.level?.trim()));
+  const otherWithLevel = withCode.some(l => l.visible !== false && l.code !== cvLanguage && Boolean(l.level?.trim()));
 
   const show = required.length > 0 || genericRequirement || otherWithLevel;
   const front = withCode.find(l => l.code === cvLanguage);

@@ -111,6 +111,21 @@ describe('applyAiCvToBlocks - D : pertinence de la section « Langues »', () =>
     expect(langBlocks(store).every(b => !b.isVisible)).toBe(true);
   });
 
+  it('rend visible une langue exigée par l\'annonce même si l\'IA l\'a masquée', async () => {
+    const store = makeFakeStore(makeBlocks(entries));
+    await applyAiCvToBlocks('cv1', response({
+      analyse: { langueAnnonce: 'fr', indispensables: ['Anglais courant'], importants: [], correspondances: [], ecarts: [] },
+      entries: [{ id: 'l2', visible: false }],
+    }), { store: () => store, entries });
+    expect(store.currentCvBlocks.find(b => b.entryId === 'l2')!.isVisible).toBe(true);
+  });
+
+  it('respecte le masquage de l\'IA quand l\'annonce n\'exige rien et que seule la langue du CV reste', async () => {
+    const store = makeFakeStore(makeBlocks(entries));
+    await applyAiCvToBlocks('cv1', response({ entries: [{ id: 'l2', visible: false }] }), { store: () => store, entries });
+    expect(langBlocks(store).every(b => !b.isVisible)).toBe(true);
+  });
+
   it('place la langue de l\'annonce en premier', async () => {
     const store = makeFakeStore(makeBlocks(entries));
     await applyAiCvToBlocks('cv1', response({ analyse: { langueAnnonce: 'en', indispensables: [], importants: [], correspondances: [], ecarts: [] } }), {
@@ -127,6 +142,23 @@ describe('applyAiCvToBlocks - D : pertinence de la section « Langues »', () =>
       store: () => store, entries: onlyFr,
     });
     expect(store.currentCvBlocks.find(b => b.entryId === 'l1')!.isVisible).toBe(true);
+  });
+});
+
+describe('applyAiCvToBlocks - rétrocompatibilité (ancien schéma, aucune langue explicite)', () => {
+  it('ne traduit pas les langues et ne touche pas aux libellés de sections', async () => {
+    const store = makeFakeStore(makeBlocks(entries));
+    await applyAiCvToBlocks('cv1', response({ entries: [{ id: 'x1', visible: true, description: '- Texte' }] }), { store: () => store, entries });
+    expect(store.currentCvBlocks.find(b => b.entryId === 'l2')!.overrideData.title).toBeUndefined();
+    expect(headerNames(store)).toContain('Compétences');
+    expect(store.settings.cvLanguage).toBeUndefined();
+    expect(store.currentCvBlocks.find(b => b.entryId === 'x1')!.overrideData.description).toBe('- Texte');
+  });
+
+  it('un CV déjà en anglais le reste quand le JSON n\'a pas d\'analyse', async () => {
+    const store = makeFakeStore(makeBlocks(entries), { cvLanguage: 'en' });
+    await applyAiCvToBlocks('cv1', response(), { store: () => store, entries });
+    expect(headerNames(store)).toContain('Skills');
   });
 });
 

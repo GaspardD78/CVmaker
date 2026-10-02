@@ -77,3 +77,14 @@ Analyse du prompt et du schéma, **pas d'exécution de LLM** (aucun accès dans 
 | P1 | Parse tolérant (texte parasite, champs inconnus) | S |
 | P1 | Typographie, homogénéité, normalisation des puces | M |
 | P2 | Tailles minimales, ATS (tables DOCX), ordre de lecture sidebar | M-L |
+
+## 6. Suivi (état final)
+
+| Item | Statut |
+|---|---|
+| A, B, D | corrigés (Phase 2), tests `apply-ai-cv.test.ts`, `PrintableCV.test.tsx`, `export-docx.test.ts`, `cv-sections.test.ts` |
+| C | corrigé : consigne de langue, `cvLanguage` (dates, « Present »), `sectionLabels` et libellés anglais standard, niveaux de langue fr/en. Langues autres que fr/en : mois via `Intl`, « Heute » etc. ; libellés de sections et niveaux à fournir par l'IA. |
+| E | prompt v2 (`cv-prompt.ts`), schéma v2, garde-fou (`ai-cv-guard.ts`) |
+| Phase 4 | sous-en-têtes `<h4>` avec `break-after-avoid`, DOCX `keepNext` sur titres et sous-en-têtes, sous-en-tête sidebar à 12 px (9 pt). HTML des 11 templates identique à avant pour un CV sans sous-en-tête ni section vide. Détection de dernière page quasi vide et de dépassement de budget dans le rapport (estimation, pas mesure). |
+| Non traité | corps à 11 px = 8,25 pt (transverse aux 11 templates et aux golden) ; tables du DOCX (en-tête, format `table`) ; ordre de lecture ATS d'une sidebar ; mesure réelle de pagination. |
+| Non vérifié | banc golden PDF (polices Carlito/Caladea absentes de cet environnement : `bun run test:golden` refuse de démarrer), PDF Android, DOCX ouvert dans Word, comportement réel d'un LLM sur le prompt v2. |

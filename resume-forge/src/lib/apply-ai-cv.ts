@@ -120,21 +120,24 @@ export async function applyAiCvToBlocks(
     }
   }
 
-  // 1b. Language names and levels follow the CV language when the AI left them as-is.
-  for (const block of store().currentCvBlocks) {
-    const entry = block.entryId ? entryById.get(block.entryId) : undefined;
-    if (!entry || entry.entryType !== 'language' || !block.isVisible) continue;
-    const patch: Record<string, unknown> = {};
-    if (block.overrideData.title === undefined) {
-      const title = translateLanguageLabel(entry.title, cvLanguage);
-      if (title) patch.title = title;
-    }
-    if (block.overrideData.subtitle === undefined && entry.subtitle) {
-      const level = translateLanguageLabel(entry.subtitle, cvLanguage);
-      if (level) patch.subtitle = level;
-    }
-    if (Object.keys(patch).length > 0) {
-      await store().updateCvBlock(block.id, { overrideData: { ...block.overrideData, ...patch } });
+  // 1b. Language names and levels follow the CV language when the AI stated it (the legacy
+  //     schema has no language) and left them as-is.
+  if (explicitLanguage) {
+    for (const block of store().currentCvBlocks) {
+      const entry = block.entryId ? entryById.get(block.entryId) : undefined;
+      if (!entry || entry.entryType !== 'language' || !block.isVisible) continue;
+      const patch: Record<string, unknown> = {};
+      if (block.overrideData.title === undefined) {
+        const title = translateLanguageLabel(entry.title, explicitLanguage);
+        if (title) patch.title = title;
+      }
+      if (block.overrideData.subtitle === undefined && entry.subtitle) {
+        const level = translateLanguageLabel(entry.subtitle, explicitLanguage);
+        if (level) patch.subtitle = level;
+      }
+      if (Object.keys(patch).length > 0) {
+        await store().updateCvBlock(block.id, { overrideData: { ...block.overrideData, ...patch } });
+      }
     }
   }
 
@@ -144,13 +147,11 @@ export async function applyAiCvToBlocks(
   {
     const languageBlocks = store().currentCvBlocks.filter(b => b.entryId && entryById.get(b.entryId)?.entryType === 'language');
     if (languageBlocks.length > 0) {
-      const infos = languageBlocks
-        .filter(b => b.isVisible)
-        .map(b => {
-          const e = entryById.get(b.entryId as string) as MasterEntry;
-          const level = (b.overrideData.subtitle as string | undefined) ?? e.subtitle;
-          return { id: e.id, title: e.title, level: level ?? null };
-        });
+      const infos = languageBlocks.map(b => {
+        const e = entryById.get(b.entryId as string) as MasterEntry;
+        const level = (b.overrideData.subtitle as string | undefined) ?? e.subtitle;
+        return { id: e.id, title: e.title, level: level ?? null, visible: b.isVisible };
+      });
       const decision = decideLanguageSection(
         infos,
         cvLanguage,

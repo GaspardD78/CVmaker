@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Profile } from '../../types/profile';
 import { CVBlock } from '../../types/cv';
 import { MasterEntry } from '../../types/profile';
@@ -93,21 +94,26 @@ export function CVSidebar({
       {sections.map((section) => (
         <div key={section.id} className="cv-sidebar-section mb-5">
           <h3 className="cv-sidebar-heading">{section.sectionName}</h3>
-          {section.groups.map((group, gi) => (
-            <div key={gi} className={group.label ? 'cv-sidebar-group mt-2' : 'cv-sidebar-group'}>
-              {group.label && (
-                <h4 className="cv-subheading cv-sidebar-subheading text-[11.5px] font-semibold mb-1 print:break-after-avoid">
-                  {group.label}
-                </h4>
-              )}
+          {section.groups.map((group, gi) => {
+            const badges = (
               <CVBadgeGroup
                 blocks={group.blocks}
                 entries={entries}
                 template={template}
                 format={section.format}
               />
-            </div>
-          ))}
+            );
+            // Sans sous-en-tête : même DOM qu'avant les catégories (golden inchangés).
+            if (!group.label) return <Fragment key={gi}>{badges}</Fragment>;
+            return (
+              <div key={gi} className="cv-sidebar-group mt-2">
+                <h4 className="cv-subheading cv-sidebar-subheading text-[12px] font-semibold mb-1 print:break-after-avoid">
+                  {group.label}
+                </h4>
+                {badges}
+              </div>
+            );
+          })}
         </div>
       ))}
     </aside>

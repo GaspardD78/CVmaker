@@ -241,3 +241,31 @@ describe('indépendance du fuseau horaire', () => {
     for (const tz of ZONES) expect(run(tz)).toEqual(expected);
   });
 });
+
+describe('langue du CV (cv.settings.cvLanguage)', () => {
+  const exp = (start: string, end: string | null, current = false) => ({ entryType: 'experience', startDate: start, endDate: end, isCurrent: current });
+
+  test('readDateSettings lit la langue, défaut français', () => {
+    expect(readDateSettings({}).language).toBe('fr');
+    expect(readDateSettings({ cvLanguage: 'en' }).language).toBe('en');
+    expect(readDateSettings({ cvLanguage: 'n/a' }).language).toBe('fr');
+  });
+
+  test('anglais : mois en anglais, « Present »', () => {
+    const s = readDateSettings({ cvLanguage: 'en' });
+    expect(formatEntryDates(exp('2021-01', null, true), undefined, s)).toBe('January 2021 - Present');
+    expect(formatEntryDates(exp('2018-09', '2020-12'), undefined, s)).toBe('September 2018 - December 2020');
+    expect(formatEntryDates(exp('2020-03', null), undefined, s, { missingEnd: 'today' })).toBe('March 2020 - Today');
+  });
+
+  test('allemand : mois via Intl, « Heute »', () => {
+    const s = readDateSettings({ cvLanguage: 'de' });
+    expect(formatEntryDates(exp('2021-03', null, true), undefined, s)).toBe('März 2021 - Heute');
+  });
+
+  test('mode année et surcharge inchangés quelle que soit la langue', () => {
+    const s = { ...readDateSettings({ cvLanguage: 'en', dateFormat: 'year' }) };
+    expect(formatEntryDates(exp('2021-01', '2022-05'), undefined, s)).toBe('2021 - 2022');
+    expect(formatEntryDates(exp('2021-01', null, true), '2021 - now', s)).toBe('2021 - now');
+  });
+});

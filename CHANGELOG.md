@@ -5,6 +5,20 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [Non publié] - 2026-10-02
+
+### Moteur de CV IA v2 (spec 004)
+
+- **Corrigé** : la section « Compétences » n'est plus renommée ni supprimée par `skillGroups` ; les catégories deviennent des **sous-en-têtes** (`section_header` avec `overrideData.level = 'sub'`, petit libellé gras). Regroupement appliqué seulement avec au moins 8 compétences visibles, 2 à 4 groupes, 2 compétences minimum par groupe (sinon ignoré avec avertissement), et **idempotent** (réappliquer le même JSON ne duplique rien).
+- **Corrigé** : plus aucune section ni sous-en-tête vide dans l'aperçu, le PDF (colonne principale **et** bande latérale) et le DOCX : un en-tête n'est rendu que si un contenu visible le suit. Règle appliquée au rendu (`lib/cv-sections.ts`), donc réversible.
+- **Corrigé** : la section « Langues » n'est visible que si l'annonce l'exige ou si une langue autre que celle du CV est renseignée avec un niveau ; la langue de l'annonce passe en premier.
+- **Ajout** : langue du CV (`cv.settings.cvLanguage`) : mois et « Present / Présent » des dates (aperçu, PDF, DOCX), libellés de sections traduits (`sectionLabels` et libellés anglais standard), noms de langues et niveaux traduits fr/en.
+- **Ajout** : prompt « CV ciblé » v2 en blocs composables (`lib/cv-prompt.ts`) : analyse préalable rendue dans le JSON, langue de l'annonce, stratégie de mots-clés ATS, budget de puces et de pages, gestion des écarts, règles de rédaction (`CV_WRITING_RULES`) et de forme (`JSON_RULES`) séparées de `SYSTEM_RULES` (désormais alias de `TEXT_RULES`, réservé aux prompts de texte libre).
+- **Ajout** : schéma JSON v2 additif (`schemaVersion`, `analyse`, `sectionLabels`, `warnings`) ; l'ancien schéma reste accepté. `parseAiCvResponse` extrait le premier objet JSON équilibré d'un texte parasite et ignore les champs inconnus.
+- **Ajout** : garde-fou post-LLM (`lib/ai-cv-guard.ts`) : IDs inconnus, chiffres absents de la source (bloquant, « Appliquer quand même »), termes techniques non sourcés, suggestions non étayées rejetées, doublons, puces trop longues ou trop nombreuses, formulations interdites, couverture des mots-clés, volume estimé, cohérence des temps. Rapport compact dans `CvGeneratorDrawer` et `AIPromptPanel`.
+- **Ajout** : normalisation typographique déterministe (`lib/cv-typography.ts`) : puces « • » ramenées à « - », point final retiré, tiret cadratin remplacé, espaces insécables et guillemets français.
+- **Changé** : `planCvBlockOrder` prend un `skillsHeaderId` explicite et garantit que chaque ID d'entrée apparaît une fois en sortie (test de propriété). `applyAiCvToBlocks` accepte un store injectable et retourne un rapport.
+
 ## [1.3.0] - 2026-07-02
 
 ### Rebranding ResumeForge

@@ -615,6 +615,7 @@ export async function generateDocxBlob(
       bodyChildren.push(new Paragraph({
         children: [new TextRun({ ...sectionRun, text: (block.sectionName || '').toUpperCase() })],
         spacing: { before: sectionSpacing, after: 60 },
+        keepNext: true, // pas de titre de section orphelin en bas de page
         border: {
           bottom: { color: accentHex || 'auto', space: 1, style: BorderStyle.SINGLE, size: 6 },
         },

@@ -31,6 +31,7 @@ La CI (`.github/workflows/ci.yml`) exécute ces commandes sur chaque PR. Plan d'
 TypeScript strict ≥ 5.x (frontend) + Rust edition 2021 (Tauri 2 backend): Follow standard conventions
 
 ## Recent Changes
+- 004-cv-engine-optimization: moteur de CV IA v2 : prompt composable (`lib/cv-prompt.ts`), schéma JSON v2 additif, garde-fou post-LLM (`lib/ai-cv-guard.ts`), compétences en sous-en-têtes, sections vides masquées au rendu (`lib/cv-sections.ts`), langue du CV (`cv.settings.cvLanguage`). Voir `specs/004-cv-engine-optimization/`.
 - 002-job-watch-reliability: Added TypeScript strict ≥ 5.x (frontend) + Rust edition 2021 (Tauri 2 backend) + React 19, Zustand 5, Tailwind CSS 4, shadcn/ui + Radix UI, tauri-plugin-sql (SQLite), Bun (test runner)
 
 - main: Added TypeScript strict ≥ 5.x (frontend) + Rust edition 2021 (Tauri 2 backend) + React 19, Vite 7, Zustand 5, Tailwind CSS 4, shadcn/ui + Radix UI, `react-markdown` ^9.x (new), `remark-gfm` ^4.x (new), `tauri-plugin-sql` (SQLite), `headless_chrome` (Rust — existing)

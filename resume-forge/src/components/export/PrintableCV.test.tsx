@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PrintableCV } from './PrintableCV';
-import { getTemplate } from '../../templates';
+import { getTemplate, templates } from '../../templates';
 import type { CVBlock, CVDocument } from '../../types/cv';
 import { TEST_PROFILE, makeBlocks, makeEntries } from '../../lib/test-helpers/cv-fixtures';
 
@@ -105,4 +105,35 @@ describe('PrintableCV - C : langue du CV', () => {
   it('reste en français par défaut', () => {
     expect(render(makeBlocks(entries))).toContain('Présent');
   });
+});
+
+describe('PrintableCV - les 11 templates (états de référence, ARCHITECTURE.md §4.1)', () => {
+  const templateIds = Object.keys(templates);
+
+  function structured(): CVBlock[] {
+    const base = hide(makeBlocks(entries), ['f1']); // « Formations » entièrement masquée
+    const first = base.find(b => b.entryId === 's1')!.sortOrder;
+    const mid = base.find(b => b.entryId === 's6')!.sortOrder;
+    const sub = (id: string, name: string, order: number): CVBlock => ({
+      id, cvId: 'cv1', entryId: null, blockType: 'section_header', sectionName: name, customContent: null,
+      sortOrder: order, isVisible: true, overrideData: { level: 'sub' }, createdAt: '',
+    });
+    return [...base, sub('sa', 'Outils SOC', first - 0.5), sub('sb', 'Systèmes', mid - 0.5), sub('sc', 'Catégorie vide', 99999)];
+  }
+
+  it('couvre bien les 11 templates', () => {
+    expect(templateIds).toHaveLength(11);
+  });
+
+  for (const id of templateIds) {
+    it(`${id} : section vide masquée, sous-en-têtes rendus, « Compétences » unique`, () => {
+      const html = render(structured(), id);
+      expect(html).not.toContain('Formations');
+      expect(html).not.toContain('Catégorie vide');
+      expect(html).toContain('Outils SOC');
+      expect(html).toContain('Systèmes');
+      expect(html.match(/Compétences/g)).toHaveLength(1);
+      expect(html).toContain('Expériences Professionnelles');
+    });
+  }
 });
