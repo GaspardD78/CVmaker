@@ -229,3 +229,15 @@ describe('buildPersonalRules', () => {
     expect(PERSONAL_RULES_TEMPLATE).not.toMatch(/—/);
   });
 });
+
+describe('alertes_cap (critères de recherche)', () => {
+  it('avec règles personnelles : demandées dans l\'analyse et le schéma', () => {
+    const prompt = buildCvPrompt(input(confirmed(), JOB_FR, { options: { now: NOW, personalRules: 'Critères de recherche fictifs' } }));
+    expect(prompt).toContain('- alertes_cap : les critères de recherche des règles personnelles que l\'annonce contredit');
+    expect(prompt).toContain('"alertes_cap": [');
+  });
+  it('sans règles personnelles : absentes', () => {
+    const prompt = buildCvPrompt(input(confirmed(), JOB_FR));
+    expect(prompt).not.toContain('alertes_cap');
+  });
+});

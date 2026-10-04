@@ -448,3 +448,12 @@ describe('parseAiCvResponse - analyse.angle (champ additif)', () => {
     expect(parseAiCvResponse(JSON.stringify(base)).analyse?.angle).toBeUndefined();
   });
 });
+
+describe('parseAiCvResponse - analyse.alertes_cap (champ additif)', () => {
+  it('liste de chaînes dédoublonnée ; absente : undefined ; schéma v2 conservé', () => {
+    const r = parseAiCvResponse(JSON.stringify({ schemaVersion: 2, entries: [], analyse: { alertes_cap: ['Trajet trop long', 'Trajet trop long', ''] } }));
+    expect(r.analyse?.alertesCap).toEqual(['Trajet trop long']);
+    expect(r.schemaVersion).toBe(2);
+    expect(parseAiCvResponse(JSON.stringify({ entries: [], analyse: { ecarts: ['X'] } })).analyse?.alertesCap).toBeUndefined();
+  });
+});

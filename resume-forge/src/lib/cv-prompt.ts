@@ -254,14 +254,18 @@ export function buildExtraContext(extraContext?: string): string {
 ${trimmed || '(aucun - donc "suggestedEntries" DOIT être un tableau vide)'}`;
 }
 
-export function buildAnalysisStep(): string {
+/**
+ * Étape d'analyse. `alertesCap` : demande aussi les critères de recherche du
+ * candidat (règles personnelles) contredits par l'annonce.
+ */
+export function buildAnalysisStep(opts: { alertesCap?: boolean } = {}): string {
   return `## Étape 0 - Analyse (remplis "analyse" EN PREMIER dans le JSON)
 - langue_annonce : code ISO 639-1 de la langue de l'annonce (fr, en, de...).
 - indispensables : 5 à 8 exigences, formulation EXACTE de l'annonce (mots-clés tels qu'écrits).
 - importants : 3 à 5 exigences secondaires.
 - correspondances : pour chaque indispensable, l'ID de l'entrée du profil qui l'étaye, ou null s'il n'y en a pas.
 - ecarts : les indispensables sans preuve dans le profil. À signaler, JAMAIS à combler : ne les reformule pas pour qu'ils paraissent couverts.
-Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette analyse.`;
+${opts.alertesCap ? "- alertes_cap : les critères de recherche des règles personnelles que l'annonce contredit (télétravail, trajet, rémunération, langues, horaires…), une phrase chacun ; omis s'il n'y en a pas. Ils ne changent pas le CV.\n" : ''}Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette analyse.`;
 }
 
 /** Règles de contenu imposées pour une cible d'une page (remplacent PUCES, VOLUME et COMPÉTENCES). */
@@ -333,9 +337,14 @@ export function buildClarify(clarify: boolean | undefined): string {
 export interface OutputSchemaOptions {
   /** Ajoute analyse.angle (choix de l'angle laissé à l'IA). */
   angleChoice?: boolean;
+  /** Ajoute analyse.alertes_cap (règles personnelles renseignées). */
+  alertesCap?: boolean;
 }
 
 export function buildOutputSchema(opts: OutputSchemaOptions = {}): string {
+  const alertesField = opts.alertesCap
+    ? ',\n    "alertes_cap": ["(optionnel) critère de recherche contredit par l\'annonce"]'
+    : '';
   const angleField = opts.angleChoice
     ? ',\n    "angle": { "slug": "(slug de l\'angle choisi dans la bibliothèque)", "raison": "(une phrase, liée à des indispensables)" }'
     : '';
@@ -351,7 +360,7 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
     "indispensables": ["(exigence, formulation exacte de l'annonce)"],
     "importants": ["(exigence secondaire)"],
     "correspondances": [{ "exigence": "(un indispensable)", "entryId": "(ID de l'entrée qui l'étaye, ou null)" }],
-    "ecarts": ["(indispensable sans preuve dans le profil)"]${angleField}
+    "ecarts": ["(indispensable sans preuve dans le profil)"]${alertesField}${angleField}
   },
   "title": "(intitulé réel, avec le mot-clé de l'annonce si cohérent)",
   "summary": "(accroche de 2 à 3 phrases)",
@@ -385,6 +394,8 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
 }`;
 }
 
+const hasPersonalRules = (input: CvPromptInput): boolean => Boolean(input.options?.personalRules?.trim());
+
 /** Bloc d'angle : imposé, à choisir dans la bibliothèque, ou rien. */
 export function buildAngleBlock(input: CvPromptInput): string {
   const { angle, angleChoices } = input.options ?? {};
@@ -401,11 +412,14 @@ export function buildCvPrompt(input: CvPromptInput): string {
     buildContext(input),
     buildMasterProfile(input.entries, input.profile),
     buildExtraContext(input.extraContext),
-    buildAnalysisStep(),
+    buildAnalysisStep({ alertesCap: hasPersonalRules(input) }),
     buildAngleBlock(input),
     buildRules(input),
     buildClarify(input.clarify),
-    buildOutputSchema({ angleChoice: !input.options?.angle && (input.options?.angleChoices?.length ?? 0) > 0 }),
+    buildOutputSchema({
+      angleChoice: !input.options?.angle && (input.options?.angleChoices?.length ?? 0) > 0,
+      alertesCap: hasPersonalRules(input),
+    }),
   ].filter(Boolean).join('\n\n');
 }
 

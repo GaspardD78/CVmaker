@@ -67,6 +67,8 @@ export interface GuardMetrics {
   keywordCoverage: KeywordCoverage;
   /** Écarts signalés par l'IA (indispensables sans preuve dans le profil). */
   ecarts: string[];
+  /** Critères de recherche du candidat contredits par l'annonce (analyse.alertes_cap) : informatif, non bloquant. */
+  alertesCap: string[];
   visibleBullets: number;
   estimatedLines: number;
   pageBudget: number;
@@ -719,6 +721,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       metrics: {
         keywordCoverage,
         ecarts: input.analyse?.ecarts ?? [],
+        alertesCap: input.analyse?.alertesCap ?? [],
         visibleBullets,
         estimatedLines,
         pageBudget,

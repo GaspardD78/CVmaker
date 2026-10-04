@@ -43,7 +43,7 @@ describe('tags angle: / hide:', () => {
     const tags = ['UX/UI', 'angle:autre', 'hide:angle-x'];
     expect(withAffinity(tags, 'angle-x', 'lead')).toEqual(['UX/UI', 'angle:autre', 'angle:angle-x']);
     expect(withAffinity(tags, 'angle-x', 'neutral')).toEqual(['UX/UI', 'angle:autre']);
-    expect(withoutAngleTags(['Luxe', 'angle:angle-x', 'hide:angle-x'], 'angle-x')).toEqual(['Luxe']);
+    expect(withoutAngleTags(['Étiquette libre', 'angle:angle-x', 'hide:angle-x'], 'angle-x')).toEqual(['Étiquette libre']);
   });
 
   it('cycle de la matrice : neutre, en tête, masquée, neutre', () => {
@@ -106,7 +106,7 @@ describe('fichier d\'affinités', () => {
 
   it('lecture : seuls les tags angle:/hide: sont retenus, lignes invalides signalées', () => {
     const { rows, errors } = parseAffinityFile(JSON.stringify([
-      { entryType: 'experience', title: 'Analyste (Acme)', tags: ['angle:angle-x', 'Luxe', 'hide:autre'] },
+      { entryType: 'experience', title: 'Analyste (Acme)', tags: ['angle:angle-x', 'Étiquette libre', 'hide:autre'] },
       { entryType: 'inconnu', title: 'X', tags: [] },
     ]));
     expect(rows).toEqual([{ entryType: 'experience', title: 'Analyste (Acme)', tags: ['angle:angle-x', 'hide:autre'] }]);
