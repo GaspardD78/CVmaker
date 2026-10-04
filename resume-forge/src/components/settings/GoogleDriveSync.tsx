@@ -10,7 +10,8 @@ import {
   isConnected, clearTokens, listDriveBackups, uploadToDrive, downloadFromDrive,
   type DriveFile,
 } from '@/lib/gdrive';
-import { buildBackupData, importBackup, MODULES, type BackupData, type ImportPlan } from '@/lib/backup';
+import { buildBackupData, importBackup, MODULES, BackupProfileChoiceRequired, type BackupData, type ImportPlan } from '@/lib/backup';
+import { ImportConflictModal } from './ImportConflictModal';
 import { useAuthStore } from '@/stores/authStore';
 
 export function GoogleDriveSync() {
@@ -21,6 +22,8 @@ export function GoogleDriveSync() {
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [working, setWorking] = useState<'connect' | 'upload' | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  // Sauvegarde à plusieurs profils sans correspondance : choix du profil dans l'écran d'import.
+  const [pendingBackup, setPendingBackup] = useState<BackupData | null>(null);
 
   const checkConnection = useCallback(async () => {
     setConnected(await isConnected(profileId));
@@ -104,14 +107,20 @@ export function GoogleDriveSync() {
     if (!confirmed) return;
 
     setDownloadingId(file.id);
+    let backup: BackupData | null = null;
     try {
       const raw = await downloadFromDrive(file.id, profileId);
-      const backup = JSON.parse(raw) as BackupData;
+      backup = JSON.parse(raw) as BackupData;
       if (!backup.__cvmaker_backup) throw new Error('Fichier invalide.');
       const plan: ImportPlan = Object.fromEntries(MODULES.map(m => [m.id, 'merge'])) as ImportPlan;
       await importBackup(backup, plan);
       toast.success(`Données restaurées depuis "${file.name}"`);
     } catch (e) {
+      if (e instanceof BackupProfileChoiceRequired && backup) {
+        toast.info(e.message);
+        setPendingBackup(backup);
+        return;
+      }
       toast.error(e instanceof Error ? e.message : 'Échec de la restauration.');
     } finally {
       setDownloadingId(null);
@@ -235,6 +244,13 @@ export function GoogleDriveSync() {
           </div>
         )}
       </div>
+      {pendingBackup && (
+        <ImportConflictModal
+          backup={pendingBackup}
+          onClose={() => setPendingBackup(null)}
+          onDone={() => setPendingBackup(null)}
+        />
+      )}
     </section>
   );
 }

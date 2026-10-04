@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { X, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import {
   BackupData,
@@ -9,7 +9,11 @@ import {
   detectModules,
   countRows,
   importBackup,
+  listBackupProfiles,
+  defaultSourceProfileId,
+  type BackupProfile,
 } from '@/lib/backup';
+import { useAuthStore } from '@/stores/authStore';
 
 interface Props {
   backup: BackupData;
@@ -29,8 +33,47 @@ const STRATEGY_HINTS: Record<ImportStrategy, string> = {
   ignore: 'Importe uniquement les entrées dont l\'identifiant n\'existe pas encore. Rien n\'est écrasé.',
 };
 
+/**
+ * Choix du profil à restaurer quand la sauvegarde en contient plusieurs. Seul
+ * ce profil est importé, dans le profil actif ; aucun n'est présélectionné si
+ * aucun ne correspond à l'utilisateur actif.
+ */
+export function BackupProfilePicker({ profiles, currentUserId, value, onChange }: {
+  profiles: BackupProfile[];
+  currentUserId: string | null;
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  if (profiles.length < 2) return null;
+  return (
+    <div className="mb-4 p-4 border border-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg" data-testid="backup-profile-picker">
+      <label className="block text-sm font-medium text-gray-800 dark:text-gray-100 mb-1" htmlFor="backup-profile">
+        Profil à restaurer
+      </label>
+      <p className="text-xs text-gray-600 dark:text-gray-300 mb-2">
+        La sauvegarde contient {profiles.length} profils. Seules les données du profil choisi sont importées, dans votre profil actif.
+      </p>
+      <select
+        id="backup-profile"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md"
+      >
+        <option value="">(choisir un profil)</option>
+        {profiles.map(p => (
+          <option key={p.id} value={p.id}>{p.label}{p.id === currentUserId ? ' (profil actif)' : ''}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function ImportConflictModal({ backup, onClose, onDone }: Props) {
   const presentModules = detectModules(backup);
+  const currentUserId = useAuthStore(s => s.currentUserId);
+  const backupProfiles = useMemo(() => listBackupProfiles(backup), [backup]);
+  const [sourceProfileId, setSourceProfileId] = useState(() => defaultSourceProfileId(backupProfiles, currentUserId));
+  const needsProfileChoice = backupProfiles.length > 1 && !sourceProfileId;
 
   const [plan, setPlan] = useState<ImportPlan>(() =>
     Object.fromEntries(presentModules.map(id => [id, 'merge' as ImportStrategy])) as ImportPlan
@@ -49,7 +92,7 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
     setIsImporting(true);
     setError(null);
     try {
-      await importBackup(backup, plan);
+      await importBackup(backup, plan, { sourceProfileId: sourceProfileId || undefined });
 
       // Refresh stores so the UI reflects imported data immediately
       const { useProfileStore } = await import('@/stores/profileStore');
@@ -119,6 +162,13 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             Pour chaque module présent dans la sauvegarde, choisissez comment gérer les conflits avec vos données actuelles.
           </p>
+
+          <BackupProfilePicker
+            profiles={backupProfiles}
+            currentUserId={currentUserId}
+            value={sourceProfileId}
+            onChange={setSourceProfileId}
+          />
 
           <div className="space-y-3">
             {presentModules.map(moduleId => {
@@ -193,7 +243,8 @@ export function ImportConflictModal({ backup, onClose, onDone }: Props) {
           </button>
           <button
             onClick={handleImport}
-            disabled={isImporting || presentModules.length === 0}
+            disabled={isImporting || presentModules.length === 0 || needsProfileChoice}
+            title={needsProfileChoice ? 'Choisissez d\'abord le profil à restaurer' : undefined}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isImporting ? 'Import en cours…' : 'Importer'}

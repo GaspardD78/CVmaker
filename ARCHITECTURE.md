@@ -308,5 +308,5 @@ cv.settings.cvAngle = instantané (lib/cv-angle-selection.ts) : liste des CV, fi
 
 - Un angle ne contient aucun fait de CV : la mise en tête et le masquage passent uniquement par les tags des entrées (écran « Angles de CV », matrice d'affinité, import d'un fichier local jamais versionné).
 - Garde-fou : une entrée `hide:` visible sans correspondance pour un indispensable est masquée (`angle-hidden-entry-visible`) ; une entrée en tête qui étaye un indispensable n'est pas masquée (`angle-lead-entry-hidden`) ; le titre suit `title_rule` (`angle-title-corrected`).
-- Sauvegarde : `cv_angles` appartient au module « Entrées CV » (`DELETE_ORDER`, `INSERT_ORDER`, `TABLES_WITH_PROFILE_ID`, `remapBackupProfileId`).
+- Sauvegarde : `cv_angles` appartient au module « Entrées CV » (`DELETE_ORDER`, `INSERT_ORDER`, `TABLES_WITH_PROFILE_ID`). Restauration : `resolveSourceProfileId` choisit le profil de la sauvegarde (choix de l'utilisateur, sinon profil actif, sinon profil unique ; plusieurs profils sans correspondance : `BackupProfileChoiceRequired`, jamais le premier par défaut) et `selectBackupProfile` ne garde que ses données (tables filles filtrées par leur parent, réglages `cv_personal_rules:<id>`) avant de les remapper sur le profil actif.
 

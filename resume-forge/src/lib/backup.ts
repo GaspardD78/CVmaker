@@ -271,33 +271,147 @@ export const INSERT_ORDER: string[] = [
   'job_watch_fetch_log',
 ];
 
-/**
- * Remappe le profil de la sauvegarde sur le profil courant (en place) : la
- * sauvegarde peut venir d'un autre profil (autre id). Les données importées
- * rejoignent ainsi le profil actif au lieu d'en créer un nouveau.
- */
-export function remapBackupProfileId(backup: BackupData, currentUserId: string | null | undefined): void {
-  const backupProfiles = backup.modules['profiles'];
-  if (!currentUserId || !backupProfiles || backupProfiles.length === 0) return;
-  const backupProfileId = backupProfiles[0].id as string;
-  if (backupProfileId === currentUserId) return;
-  for (const row of backupProfiles) {
-    if (row.id === backupProfileId) row.id = currentUserId;
-  }
-  for (const table of TABLES_WITH_PROFILE_ID) {
-    for (const row of backup.modules[table] ?? []) {
-      if (row.profile_id === backupProfileId) row.profile_id = currentUserId;
-    }
+/** Un profil présent dans une sauvegarde (choix du profil à restaurer). */
+export interface BackupProfile {
+  id: string;
+  /** Prénom et nom, ou l'identifiant si le profil n'a pas de ligne `profiles`. */
+  label: string;
+}
+
+/** La sauvegarde contient plusieurs profils et aucun n'est celui de l'utilisateur actif : il faut choisir. */
+export class BackupProfileChoiceRequired extends Error {
+  constructor(public readonly profiles: BackupProfile[]) {
+    super(`La sauvegarde contient ${profiles.length} profils : choisissez celui à restaurer.`);
+    this.name = 'BackupProfileChoiceRequired';
   }
 }
 
-export async function importBackup(backup: BackupData, plan: ImportPlan): Promise<void> {
+const isScopedId = (v: unknown): v is string => typeof v === 'string' && v !== '';
+
+/**
+ * Profils présents dans la sauvegarde : lignes `profiles`, plus tout
+ * `profile_id` non vide des autres tables (un export partiel sans le module
+ * Profil peut contenir les données de plusieurs profils).
+ */
+export function listBackupProfiles(backup: BackupData): BackupProfile[] {
+  const out = new Map<string, BackupProfile>();
+  for (const row of backup.modules['profiles'] ?? []) {
+    if (!isScopedId(row.id)) continue;
+    const name = [row.first_name, row.last_name].filter(v => typeof v === 'string' && v.trim()).join(' ');
+    out.set(row.id, { id: row.id, label: name || row.id });
+  }
+  for (const table of TABLES_WITH_PROFILE_ID) {
+    for (const row of backup.modules[table] ?? []) {
+      if (isScopedId(row.profile_id) && !out.has(row.profile_id)) out.set(row.profile_id, { id: row.profile_id, label: row.profile_id });
+    }
+  }
+  return [...out.values()];
+}
+
+/**
+ * Profil de la sauvegarde à restaurer : celui choisi par l'utilisateur, sinon
+ * celui de l'utilisateur actif, sinon l'unique profil présent. Jamais « le
+ * premier » par défaut : plusieurs profils sans correspondance lèvent
+ * `BackupProfileChoiceRequired`. `null` quand la sauvegarde ne porte aucun profil.
+ */
+export function resolveSourceProfileId(
+  backup: BackupData,
+  currentUserId: string | null | undefined,
+  chosen?: string | null,
+): string | null {
+  const profiles = listBackupProfiles(backup);
+  if (chosen) {
+    if (!profiles.some(p => p.id === chosen)) throw new Error('Profil choisi absent de la sauvegarde.');
+    return chosen;
+  }
+  if (profiles.length === 0) return null;
+  if (currentUserId && profiles.some(p => p.id === currentUserId)) return currentUserId;
+  if (profiles.length === 1) return profiles[0].id;
+  throw new BackupProfileChoiceRequired(profiles);
+}
+
+/**
+ * Présélection du profil à restaurer dans l'écran d'import : celui de
+ * l'utilisateur actif, sinon l'unique profil ; chaîne vide quand il faut
+ * choisir (jamais le premier par défaut).
+ */
+export function defaultSourceProfileId(profiles: readonly BackupProfile[], currentUserId: string | null | undefined): string {
+  if (currentUserId && profiles.some(p => p.id === currentUserId)) return currentUserId;
+  return profiles.length === 1 ? profiles[0].id : '';
+}
+
+/** Préfixe des réglages propres à un profil dans la table globale `settings` (clé `<préfixe><profileId>`). */
+const PROFILE_SETTING_PREFIXES = ['cv_personal_rules:'];
+
+/**
+ * Sauvegarde réduite au profil `sourceId`, remappé sur `targetId` (copie, la
+ * sauvegarde d'origine n'est pas modifiée) :
+ * - `profiles` et tables à `profile_id` : lignes du profil source seulement
+ *   (les lignes globales, `profile_id` vide ou absent, sont conservées) ;
+ * - tables filles filtrées par leur parent (blocs par CV, événements et
+ *   pièces jointes par candidature, retours par offre) ;
+ * - réglages par profil (`cv_personal_rules:<id>`) : ceux du profil source,
+ *   renommés pour le profil cible ; ceux des autres profils sont écartés.
+ */
+export function selectBackupProfile(backup: BackupData, sourceId: string, targetId: string): BackupData {
+  const modules: BackupData['modules'] = {};
+  const copy = (rows: Record<string, unknown>[] | undefined) => rows?.map(r => ({ ...r }));
+  for (const [table, rows] of Object.entries(backup.modules)) modules[table] = copy(rows);
+
+  const ownedBySource = (row: Record<string, unknown>) => !isScopedId(row.profile_id) || row.profile_id === sourceId;
+  if (modules['profiles']) modules['profiles'] = modules['profiles'].filter(r => r.id === sourceId);
+  for (const table of TABLES_WITH_PROFILE_ID) {
+    if (modules[table]) modules[table] = modules[table]!.filter(ownedBySource);
+  }
+
+  const ids = (table: string) => new Set((modules[table] ?? []).map(r => r.id));
+  const keepChildren = (table: string, parentTable: string, fk: string) => {
+    if (!modules[table] || !modules[parentTable]) return;
+    const parents = ids(parentTable);
+    modules[table] = modules[table]!.filter(r => parents.has(r[fk]));
+  };
+  keepChildren('cv_blocks', 'cv_documents', 'cv_id');
+  keepChildren('application_events', 'applications', 'application_id');
+  keepChildren('application_attachments', 'applications', 'application_id');
+  keepChildren('job_offer_feedback', 'job_offers', 'offer_id');
+
+  if (modules['settings']) {
+    modules['settings'] = modules['settings'].flatMap(row => {
+      const key = typeof row.key === 'string' ? row.key : '';
+      const prefix = PROFILE_SETTING_PREFIXES.find(p => key.startsWith(p));
+      if (!prefix) return [row];
+      if (key !== `${prefix}${sourceId}`) return [];
+      return [{ ...row, key: `${prefix}${targetId}` }];
+    });
+  }
+
+  if (sourceId !== targetId) {
+    for (const row of modules['profiles'] ?? []) row.id = targetId;
+    for (const table of TABLES_WITH_PROFILE_ID) {
+      for (const row of modules[table] ?? []) if (row.profile_id === sourceId) row.profile_id = targetId;
+    }
+  }
+  return { ...backup, modules };
+}
+
+export interface ImportOptions {
+  /** Profil de la sauvegarde à restaurer, quand elle en contient plusieurs (choix de l'utilisateur). */
+  sourceProfileId?: string | null;
+}
+
+export async function importBackup(backup: BackupData, plan: ImportPlan, opts: ImportOptions = {}): Promise<void> {
   const db = await getDb();
 
-  // ── Profile ID remapping ───────────────────────────────────────────────
+  // ── Profil à restaurer ─────────────────────────────────────────────────
+  // La sauvegarde peut venir d'un autre profil, ou d'une base multi-profils :
+  // on ne garde que le profil voulu (jamais « le premier » par défaut) et on
+  // le remappe sur le profil actif.
   const { useAuthStore } = await import('@/stores/authStore');
   const currentUserId = useAuthStore.getState().currentUserId;
-  remapBackupProfileId(backup, currentUserId);
+  if (currentUserId) {
+    const sourceId = resolveSourceProfileId(backup, currentUserId, opts.sourceProfileId);
+    if (sourceId) backup = selectBackupProfile(backup, sourceId, currentUserId);
+  }
 
   // Build list of (table, strategy) to process, in safe insert order
   const insertOrder: string[] = INSERT_ORDER;

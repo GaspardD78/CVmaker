@@ -26,7 +26,10 @@ mock.module('./validation', () => ({
 }));
 
 // Now import applyRows
-import { applyRows, buildBackupData, importBackup, remapBackupProfileId, DELETE_ORDER, INSERT_ORDER, MODULES, TABLES_WITH_PROFILE_ID, type BackupData } from './backup';
+import {
+  applyRows, buildBackupData, importBackup, listBackupProfiles, resolveSourceProfileId, selectBackupProfile,
+  BackupProfileChoiceRequired, DELETE_ORDER, INSERT_ORDER, MODULES, TABLES_WITH_PROFILE_ID, type BackupData,
+} from './backup';
 
 describe('applyRows logic', () => {
   it('should construct correct multi-value INSERT queries with chunking', async () => {
@@ -102,9 +105,10 @@ describe('sauvegarde des angles de CV (cv_angles)', () => {
     const backup = { __cvmaker_backup: true, version: '1.0', exportDate: '', counts: {}, modules: {
       profiles: [{ id: 'old' }], cv_angles: [{ ...angleRow }], master_entries: [{ ...entryRow }],
     } } as BackupData;
-    remapBackupProfileId(backup, 'new');
-    expect(backup.modules.cv_angles![0].profile_id).toBe('new');
-    expect(backup.modules.master_entries![0].profile_id).toBe('new');
+    const out = selectBackupProfile(backup, resolveSourceProfileId(backup, 'new')!, 'new');
+    expect(out.modules.cv_angles![0].profile_id).toBe('new');
+    expect(out.modules.master_entries![0].profile_id).toBe('new');
+    expect(backup.modules.cv_angles![0].profile_id).toBe('old'); // copie : l'original n'est pas modifié
   });
 
   it('export puis restauration : les angles sont conservés, sur le profil courant', async () => {
@@ -131,6 +135,126 @@ describe('sauvegarde des angles de CV (cv_angles)', () => {
     expect(insert!.values).not.toContain('old');
     const order = executed.map(e => e.query).filter(q => q.startsWith('INSERT'));
     expect(order.findIndex(q => q.includes('cv_angles'))).toBeGreaterThan(order.findIndex(q => q.includes('master_entries')));
+    fakeDb = {};
+    currentUserId = null;
+  });
+});
+
+describe('sauvegarde à plusieurs profils', () => {
+  // Deux profils fictifs ; « p-autre » est volontairement le PREMIER de la sauvegarde.
+  const twoProfiles = (): BackupData => ({
+    __cvmaker_backup: true, version: '1.0', exportDate: '', counts: {},
+    modules: {
+      profiles: [
+        { id: 'p-autre', first_name: 'Alex', last_name: 'Fictif' },
+        { id: 'p-actif', first_name: 'Sam', last_name: 'Exemple' },
+      ],
+      master_entries: [
+        { id: 'e-autre', profile_id: 'p-autre', entry_type: 'skill', title: 'Compétence A' },
+        { id: 'e-actif', profile_id: 'p-actif', entry_type: 'skill', title: 'Compétence B' },
+      ],
+      cv_angles: [
+        { id: 'a-autre', profile_id: 'p-autre', slug: 'x', label: 'Angle A' },
+        { id: 'a-actif', profile_id: 'p-actif', slug: 'y', label: 'Angle B' },
+      ],
+      cv_documents: [
+        { id: 'cv-autre', profile_id: 'p-autre', name: 'CV A' },
+        { id: 'cv-actif', profile_id: 'p-actif', name: 'CV B' },
+      ],
+      cv_blocks: [
+        { id: 'b-autre', cv_id: 'cv-autre', block_type: 'entry_ref', entry_id: 'e-autre' },
+        { id: 'b-actif', cv_id: 'cv-actif', block_type: 'entry_ref', entry_id: 'e-actif' },
+      ],
+      applications: [{ id: 'app-autre', profile_id: 'p-autre', company_name: 'Société A' }],
+      application_events: [{ id: 'ev-autre', application_id: 'app-autre', event_type: 'note' }],
+      job_watch_settings: [
+        { key: 'cle_globale', profile_id: '', value: '1' },
+        { key: 'cle_profil', profile_id: 'p-autre', value: '2' },
+      ],
+      settings: [
+        { key: 'theme', value: 'dark' },
+        { key: 'cv_personal_rules:p-autre', value: 'Règles A' },
+        { key: 'cv_personal_rules:p-actif', value: 'Règles B' },
+      ],
+    },
+  });
+
+  it('liste les profils de la sauvegarde', () => {
+    expect(listBackupProfiles(twoProfiles())).toEqual([
+      { id: 'p-autre', label: 'Alex Fictif' },
+      { id: 'p-actif', label: 'Sam Exemple' },
+    ]);
+  });
+
+  it('profil actif présent : c\'est lui qui est restauré, jamais le premier', () => {
+    expect(resolveSourceProfileId(twoProfiles(), 'p-actif')).toBe('p-actif');
+    const out = selectBackupProfile(twoProfiles(), 'p-actif', 'p-actif');
+    expect(out.modules.profiles!.map(r => r.id)).toEqual(['p-actif']);
+    expect(out.modules.master_entries!.map(r => r.id)).toEqual(['e-actif']);
+    expect(out.modules.cv_angles!.map(r => r.id)).toEqual(['a-actif']);
+    expect(out.modules.cv_documents!.map(r => r.id)).toEqual(['cv-actif']);
+    expect(out.modules.cv_blocks!.map(r => r.id)).toEqual(['b-actif']);
+    expect(out.modules.applications).toEqual([]);
+    expect(out.modules.application_events).toEqual([]);
+    // Réglages globaux conservés ; réglages par profil : seulement ceux du profil restauré.
+    expect(out.modules.job_watch_settings!.map(r => r.key)).toEqual(['cle_globale']);
+    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-actif']);
+  });
+
+  it('aucun profil ne correspond à l\'utilisateur actif : choix obligatoire', () => {
+    let err: unknown;
+    try { resolveSourceProfileId(twoProfiles(), 'p-inconnu'); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(BackupProfileChoiceRequired);
+    expect((err as BackupProfileChoiceRequired).profiles.map(p => p.id)).toEqual(['p-autre', 'p-actif']);
+  });
+
+  it('profil choisi par l\'utilisateur : restauré et remappé sur le profil actif', () => {
+    const backup = twoProfiles();
+    const source = resolveSourceProfileId(backup, 'p-nouveau', 'p-autre');
+    expect(source).toBe('p-autre');
+    const out = selectBackupProfile(backup, source!, 'p-nouveau');
+    expect(out.modules.profiles).toEqual([{ id: 'p-nouveau', first_name: 'Alex', last_name: 'Fictif' }]);
+    expect(out.modules.master_entries).toEqual([{ id: 'e-autre', profile_id: 'p-nouveau', entry_type: 'skill', title: 'Compétence A' }]);
+    expect(out.modules.application_events!.map(r => r.id)).toEqual(['ev-autre']);
+    expect(out.modules.job_watch_settings!.map(r => [r.key, r.profile_id])).toEqual([['cle_globale', ''], ['cle_profil', 'p-nouveau']]);
+    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-nouveau']);
+    expect(() => resolveSourceProfileId(backup, 'p-nouveau', 'absent')).toThrow('absent de la sauvegarde');
+  });
+
+  it('un seul profil : restauré même si son id diffère', () => {
+    const backup = twoProfiles();
+    backup.modules.profiles = [backup.modules.profiles![0]];
+    backup.modules.master_entries = [backup.modules.master_entries![0]];
+    for (const t of ['cv_angles', 'cv_documents', 'applications', 'job_watch_settings']) {
+      backup.modules[t] = backup.modules[t]!.filter(r => r.profile_id !== 'p-actif');
+    }
+    expect(resolveSourceProfileId(backup, 'p-nouveau')).toBe('p-autre');
+  });
+
+  it('importBackup : n\'insère que le profil de l\'utilisateur actif', async () => {
+    const executed: { query: string; values: unknown[] }[] = [];
+    fakeDb = { execute: async (query: string, values: unknown[] = []) => { executed.push({ query, values }); } };
+    currentUserId = 'p-actif';
+    await importBackup(twoProfiles(), { profile: 'merge', masterEntries: 'merge', cvDocuments: 'merge', applications: 'merge', settings: 'merge', jobWatch: 'merge' });
+    const values = executed.flatMap(e => e.values);
+    expect(values).toContain('e-actif');
+    expect(values).not.toContain('e-autre');
+    expect(values).not.toContain('p-autre');
+    expect(values).not.toContain('Règles A');
+    expect(executed.some(e => e.query.includes('INTO applications'))).toBe(false);
+
+    // Sans correspondance ni choix : rien n'est écrit.
+    executed.length = 0;
+    currentUserId = 'p-inconnu';
+    await expect(importBackup(twoProfiles(), { masterEntries: 'merge' })).rejects.toBeInstanceOf(BackupProfileChoiceRequired);
+    expect(executed).toHaveLength(0);
+
+    // Avec un choix explicite : importé et remappé.
+    await importBackup(twoProfiles(), { masterEntries: 'merge' }, { sourceProfileId: 'p-autre' });
+    const insert = executed.find(e => e.query.includes('INTO master_entries'))!;
+    expect(insert.values).toContain('e-autre');
+    expect(insert.values).toContain('p-inconnu');
+    expect(insert.values).not.toContain('e-actif');
     fakeDb = {};
     currentUserId = null;
   });
