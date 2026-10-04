@@ -32,7 +32,7 @@ export function CVEntryBlock({ block, entry, template, dateSettings = DEFAULT_DA
             <span className={`cv-subtitle ${template.preview.subtitleClass}`}>
               {' '}
               | {entryData.subtitle}
-              {entryData.subtitle && entryData.location ? ` — ${entryData.location}` : entryData.location || ''}
+              {entryData.subtitle && entryData.location ? ` - ${entryData.location}` : entryData.location || ''}
             </span>
           )}
         </div>

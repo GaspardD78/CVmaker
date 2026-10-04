@@ -103,9 +103,9 @@ export function buildBadgeRows(blocks: readonly BadgeBlockLike[], entries: reado
   return rows;
 }
 
-/** Libellé affiché d'un élément libre hors format tableau (« titre — niveau »). */
+/** Libellé affiché d'un élément libre hors format tableau (« titre - niveau »). */
 export function itemLabel(item: BadgeItem): string {
-  return item.level ? `${item.name} — ${item.level}` : item.name;
+  return item.level ? `${item.name} - ${item.level}` : item.name;
 }
 
 /** `true` quand au moins une ligne porte un libellé de catégorie. */

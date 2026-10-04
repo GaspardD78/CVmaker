@@ -654,7 +654,7 @@ export async function generateDocxBlob(
         const titleText = (entryData.title as string) || '';
         let subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
         if (entryData.location) {
-          subtitleText += subtitleText ? ` — ${entryData.location}` : ` | ${entryData.location}`;
+          subtitleText += subtitleText ? ` - ${entryData.location}` : ` | ${entryData.location}`;
         }
 
         const textRuns: TextRun[] = [];
