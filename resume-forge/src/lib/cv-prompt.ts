@@ -181,24 +181,34 @@ export function buildContext(input: CvPromptInput): string {
   return lines.filter(Boolean).join('\n');
 }
 
-export function buildMasterProfile(entries: MasterEntry[], profile?: Profile): string {
+export interface MasterProfileOptions {
+  /** Affiche les tags d'angle (`angle:<slug>`, `hide:<slug>`) de chaque entrée (prompt d'angles). */
+  angleTags?: boolean;
+}
+
+export function buildMasterProfile(entries: MasterEntry[], profile?: Profile, opts: MasterProfileOptions = {}): string {
+  const tg = (e: MasterEntry): string => {
+    if (!opts.angleTags) return '';
+    const tags = (Array.isArray(e.tags) ? e.tags : []).filter(t => /^(angle|hide):/.test(t));
+    return tags.length > 0 ? ` | Tags: ${tags.join(', ')}` : '';
+  };
   const experiences = section(entries, 'experience',
-    e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Entreprise: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}${describeBody(e)}`, '(aucune)');
+    e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Entreprise: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}${tg(e)}${describeBody(e)}`, '(aucune)');
   // Catégorie (compétence à puces) : le LLM voit ses éléments ; compétence isolée : son titre.
   const skills = section(entries, 'skill', e => (isSkillCategory(e)
-    ? `- ID: ${q(e.id)} | Catégorie: ${q(e.title)} | Éléments: ${bulletItems(e.description).join(' ; ')}`
-    : `- ID: ${q(e.id)} | Titre: ${q(e.title)}`), '(aucune)');
+    ? `- ID: ${q(e.id)} | Catégorie: ${q(e.title)} | Éléments: ${bulletItems(e.description).join(' ; ')}${tg(e)}`
+    : `- ID: ${q(e.id)} | Titre: ${q(e.title)}${tg(e)}`), '(aucune)');
   const education = section(entries, 'education',
-    e => `- ID: ${q(e.id)} | Diplôme: ${t(e)} | École: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}`, '(aucune)');
+    e => `- ID: ${q(e.id)} | Diplôme: ${t(e)} | École: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}${tg(e)}`, '(aucune)');
   const certifications = section(entries, 'certification',
-    e => `- ID: ${q(e.id)} | Titre: ${q(e.title)} | Émetteur: ${q(e.subtitle)}`, '(aucune)');
+    e => `- ID: ${q(e.id)} | Titre: ${q(e.title)} | Émetteur: ${q(e.subtitle)}${tg(e)}`, '(aucune)');
   const languages = section(entries, 'language',
-    e => `- ID: ${q(e.id)} | Langue: ${q(e.title)} | Niveau: ${q(e.subtitle || '(non renseigné)')}`, '(aucune)');
+    e => `- ID: ${q(e.id)} | Langue: ${q(e.title)} | Niveau: ${q(e.subtitle || '(non renseigné)')}${tg(e)}`, '(aucune)');
   const projects = section(entries, 'project',
-    e => `- ID: ${q(e.id)} | Titre: ${t(e)}${describeBody(e, 'Détail')}`, '(aucun)');
-  const interests = section(entries, 'interest', e => `- ID: ${q(e.id)} | Titre: ${q(e.title)}`, '(aucun)');
+    e => `- ID: ${q(e.id)} | Titre: ${t(e)}${tg(e)}${describeBody(e, 'Détail')}`, '(aucun)');
+  const interests = section(entries, 'interest', e => `- ID: ${q(e.id)} | Titre: ${q(e.title)}${tg(e)}`, '(aucun)');
   const volunteer = section(entries, 'volunteer',
-    e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Organisation: ${q(e.subtitle)}`, '(aucun)');
+    e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Organisation: ${q(e.subtitle)}${tg(e)}`, '(aucun)');
 
   return `## Profil maître (données sources)
 ${buildTrajectory(profile)}### Expériences

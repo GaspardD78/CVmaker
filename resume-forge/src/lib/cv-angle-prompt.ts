@@ -56,9 +56,9 @@ export function buildAngle(angle: AngleSpec, entries: readonly MasterEntry[], pr
   return lines.filter(Boolean).join('\n');
 }
 
-/** Bloc « choisis l'angle dans ma bibliothèque » (mode 1, choix laissé à l'IA). */
-export function buildAngleChoice(angles: readonly AngleSpec[], entries: readonly MasterEntry[], profile?: Pick<Profile, 'title'> | null): string {
-  const cards = angles.filter(a => a.slug).map(a => {
+/** Fiches résumées des angles de la bibliothèque (choix par l'IA, références du prompt d'angles). */
+export function angleCards(angles: readonly AngleSpec[], entries: readonly MasterEntry[], profile?: Pick<Profile, 'title'> | null): string[] {
+  return angles.filter(a => a.slug).map(a => {
     const categories = existingCategoryOrder(a.skillCategoryOrder, entries);
     return [
       `### Angle "${a.slug}" : ${a.label}`,
@@ -71,6 +71,11 @@ export function buildAngleChoice(angles: readonly AngleSpec[], entries: readonly
       `- Anciennes expériences : ${olderPolicyRule(a.olderPolicy)}`,
     ].filter(Boolean).join('\n');
   });
+}
+
+/** Bloc « choisis l'angle dans ma bibliothèque » (mode 1, choix laissé à l'IA). */
+export function buildAngleChoice(angles: readonly AngleSpec[], entries: readonly MasterEntry[], profile?: Pick<Profile, 'title'> | null): string {
+  const cards = angleCards(angles, entries, profile);
   return `## Angle à choisir dans ma bibliothèque
 Choisis l'angle le plus adapté à l'annonce (d'après analyse.indispensables), indique-le dans analyse.angle ({ "slug", "raison" en une phrase liée aux indispensables}), puis applique-le : titre, accroche, entrées en tête (\`visible: true\`, en premier dans "entryOrder"), entrées masquées par défaut (\`visible: false\` sauf si elles étayent un indispensable cité dans analyse.correspondances), ordre des catégories, vocabulaire, anciennes expériences. Un angle choisit et ordonne, il n'ajoute aucun fait.
 

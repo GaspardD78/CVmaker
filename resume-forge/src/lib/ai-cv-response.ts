@@ -103,6 +103,8 @@ export interface AiCvAnalyse {
   ecarts: string[];
   /** Angle choisi par l'IA dans la bibliothèque (champ additif, mode « laisser l'IA choisir »). */
   angle?: AiCvAngleChoice;
+  /** Critères éliminatoires du candidat contredits par l'annonce (champ additif, non bloquant). */
+  alertesCap?: string[];
 }
 
 export interface AiCvAngleChoice {
@@ -254,7 +256,8 @@ function parseAngleChoice(raw: unknown): AiCvAngleChoice | undefined {
   return raison ? { slug, raison } : { slug };
 }
 
-function parseAnalyse(raw: unknown): AiCvAnalyse | undefined {
+/** Lit le bloc `analyse` (partagé avec la réponse d'angles, lib/ai-angle-response.ts). */
+export function parseAnalyse(raw: unknown): AiCvAnalyse | undefined {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const record = raw as Record<string, unknown>;
   const correspondances = Array.isArray(record.correspondances)
@@ -278,9 +281,12 @@ function parseAnalyse(raw: unknown): AiCvAnalyse | undefined {
   if (lang) analyse.langueAnnonce = lang;
   const angle = parseAngleChoice(record.angle);
   if (angle) analyse.angle = angle;
+  const alertesCap = parseStringList(record.alertes_cap ?? record.alertesCap);
+  if (alertesCap) analyse.alertesCap = alertesCap;
   const hasContent =
     analyse.langueAnnonce !== undefined || analyse.indispensables.length > 0 || analyse.importants.length > 0 ||
-    analyse.correspondances.length > 0 || analyse.ecarts.length > 0 || analyse.angle !== undefined;
+    analyse.correspondances.length > 0 || analyse.ecarts.length > 0 || analyse.angle !== undefined ||
+    analyse.alertesCap !== undefined;
   return hasContent ? analyse : undefined;
 }
 
