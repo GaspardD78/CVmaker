@@ -101,6 +101,13 @@ export interface AiCvAnalyse {
   correspondances: AiCvMatch[];
   /** Exigences indispensables sans preuve dans le profil : signalées, jamais comblées. */
   ecarts: string[];
+  /** Angle choisi par l'IA dans la bibliothèque (champ additif, mode « laisser l'IA choisir »). */
+  angle?: AiCvAngleChoice;
+}
+
+export interface AiCvAngleChoice {
+  slug: string;
+  raison?: string;
 }
 
 export interface AiCvResponse {
@@ -236,6 +243,17 @@ function parseSkillGroups(raw: unknown): AiSkillGroup[] | undefined {
   return groups.length > 0 ? groups : undefined;
 }
 
+/** `analyse.angle` : objet { slug, raison } ou slug seul. */
+function parseAngleChoice(raw: unknown): AiCvAngleChoice | undefined {
+  if (typeof raw === 'string') return raw.trim() ? { slug: raw.trim() } : undefined;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const r = raw as Record<string, unknown>;
+  const slug = cleanString(r.slug);
+  if (!slug) return undefined;
+  const raison = cleanString(r.raison ?? r.reason);
+  return raison ? { slug, raison } : { slug };
+}
+
 function parseAnalyse(raw: unknown): AiCvAnalyse | undefined {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const record = raw as Record<string, unknown>;
@@ -258,9 +276,11 @@ function parseAnalyse(raw: unknown): AiCvAnalyse | undefined {
   };
   const lang = normalizeLanguageCode(record.langue_annonce ?? record.langueAnnonce);
   if (lang) analyse.langueAnnonce = lang;
+  const angle = parseAngleChoice(record.angle);
+  if (angle) analyse.angle = angle;
   const hasContent =
     analyse.langueAnnonce !== undefined || analyse.indispensables.length > 0 || analyse.importants.length > 0 ||
-    analyse.correspondances.length > 0 || analyse.ecarts.length > 0;
+    analyse.correspondances.length > 0 || analyse.ecarts.length > 0 || analyse.angle !== undefined;
   return hasContent ? analyse : undefined;
 }
 

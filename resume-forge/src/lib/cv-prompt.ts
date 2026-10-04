@@ -15,6 +15,8 @@ import type { MasterEntry, Profile } from '@/types/profile';
 import { DEFAULT_TARGET_PAGES, experienceYears } from './cv-experience';
 import { displayTitle } from './entry-display';
 import { bulletItems, isSkillCategory } from './skill-lines';
+import { buildAngle, buildAngleChoice } from './cv-angle-prompt';
+import type { AngleSpec } from './cv-angles';
 
 /** Nombre de puces d'un CV d'une page (base du budget de volume du prompt et du garde-fou). */
 export const BULLETS_PER_PAGE = 18;
@@ -59,6 +61,10 @@ export interface CvPromptOptions {
   now?: Date;
   /** Règles personnelles du candidat (réglage par profil) ; bloc omis si vide. */
   personalRules?: string;
+  /** Angle imposé (bibliothèque ou proposition retenue). Prime sur `angleChoices`. */
+  angle?: AngleSpec;
+  /** Bibliothèque d'angles : le LLM choisit et l'indique dans analyse.angle. */
+  angleChoices?: AngleSpec[];
 }
 
 export interface CvPromptInput {
@@ -265,8 +271,11 @@ export function buildOnePageRules(): string {
  * autorisé tel quel, ou suivi d'un mot-clé de l'annonce. Les intitulés des
  * expériences ne changent jamais. Sans titre de profil : règle historique.
  */
-export function buildTitleRule(profile?: Pick<Profile, 'title'> | null): string {
+export function buildTitleRule(profile?: Pick<Profile, 'title'> | null, angle?: Pick<AngleSpec, 'titleRule'>): string {
   const own = profile?.title?.trim();
+  if (own && angle?.titleRule === 'profile') {
+    return `- TITRE ("title") : « ${own} » tel quel (positionnement choisi par le candidat, règle de l'angle). Aucun autre intitulé. Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.`;
+  }
   if (own) {
     return `- TITRE ("title") : « ${own} » tel quel (positionnement choisi par le candidat), ou « ${own} - {mot-clé de l'annonce} ». Aucun autre intitulé. Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.`;
   }
@@ -289,7 +298,7 @@ export function buildRules(input: CvPromptInput): string {
 - Langues : garde visibles uniquement les langues utiles, c'est-à-dire exigées par l'annonce ou, à défaut, les langues autres que celle du CV dont un niveau est renseigné. La langue de l'annonce passe en premier. Ne relève jamais un niveau (pas de « C1 » si la source dit « Courant »).
 
 ### Contenu
-${buildTitleRule(input.profile)}
+${buildTitleRule(input.profile, input.options?.angle)}
 - ACCROCHE ("summary", ${onePage ? `${ONE_PAGE_LIMITS.summaryLines} lignes maximum` : '2 à 3 phrases'}) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
 - PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : ${onePage ? '' : `${MAX_BULLETS_PER_EXPERIENCE - 2} à ${MAX_BULLETS_PER_EXPERIENCE} puces pour une expérience récente ou pertinente, 2 à 3 pour une plus ancienne, `}${MAX_BULLET_CHARS} caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun.${onePage ? ' Les nombres de puces sont fixés par la règle UNE PAGE ci-dessous.' : ''}
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
@@ -311,7 +320,15 @@ export function buildClarify(clarify: boolean | undefined): string {
   return clarify ? CLARIFY_PROTOCOL : '';
 }
 
-export function buildOutputSchema(): string {
+export interface OutputSchemaOptions {
+  /** Ajoute analyse.angle (choix de l'angle laissé à l'IA). */
+  angleChoice?: boolean;
+}
+
+export function buildOutputSchema(opts: OutputSchemaOptions = {}): string {
+  const angleField = opts.angleChoice
+    ? ',\n    "angle": { "slug": "(slug de l\'angle choisi dans la bibliothèque)", "raison": "(une phrase, liée à des indispensables)" }'
+    : '';
   return `## Format de sortie OBLIGATOIRE
 ${JSON_RULES}
 
@@ -324,7 +341,7 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
     "indispensables": ["(exigence, formulation exacte de l'annonce)"],
     "importants": ["(exigence secondaire)"],
     "correspondances": [{ "exigence": "(un indispensable)", "entryId": "(ID de l'entrée qui l'étaye, ou null)" }],
-    "ecarts": ["(indispensable sans preuve dans le profil)"]
+    "ecarts": ["(indispensable sans preuve dans le profil)"]${angleField}
   },
   "title": "(intitulé réel, avec le mot-clé de l'annonce si cohérent)",
   "summary": "(accroche de 2 à 3 phrases)",
@@ -358,6 +375,14 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
 }`;
 }
 
+/** Bloc d'angle : imposé, à choisir dans la bibliothèque, ou rien. */
+export function buildAngleBlock(input: CvPromptInput): string {
+  const { angle, angleChoices } = input.options ?? {};
+  if (angle) return buildAngle(angle, input.entries, input.profile);
+  if (angleChoices && angleChoices.length > 0) return buildAngleChoice(angleChoices, input.entries, input.profile);
+  return '';
+}
+
 /** Assemble le prompt « CV ciblé » v2. */
 export function buildCvPrompt(input: CvPromptInput): string {
   return [
@@ -367,9 +392,10 @@ export function buildCvPrompt(input: CvPromptInput): string {
     buildMasterProfile(input.entries, input.profile),
     buildExtraContext(input.extraContext),
     buildAnalysisStep(),
+    buildAngleBlock(input),
     buildRules(input),
     buildClarify(input.clarify),
-    buildOutputSchema(),
+    buildOutputSchema({ angleChoice: !input.options?.angle && (input.options?.angleChoices?.length ?? 0) > 0 }),
   ].filter(Boolean).join('\n\n');
 }
 

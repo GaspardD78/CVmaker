@@ -23,12 +23,13 @@ import { normalizeLanguageCode } from './cv-language';
 import { normalizeLabel } from './cv-sections';
 import { normalizeDescription, normalizeTypography } from './cv-typography';
 import { bulletItems, isSkillCategory } from './skill-lines';
+import type { AngleSpec, TitleRule } from './cv-angles';
 
 export type GuardCode =
   | 'unknown-id' | 'invented-number' | 'unsourced-term' | 'unsupported-title' | 'suggestion-rejected'
   | 'duplicate-skill' | 'skill-in-several-groups' | 'long-bullet' | 'too-many-bullets' | 'empty-description'
   | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume'
-  | 'skill-item-invented';
+  | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -80,6 +81,8 @@ export interface GuardReport {
   warnings: GuardIssue[];
   /** Questions de quantification et remarques de l'IA (champ `warnings` du JSON). */
   aiWarnings: string[];
+  /** Angle appliqué (imposé, ou choisi par l'IA dans la bibliothèque) ; absent sans angle. */
+  angle?: AngleSpec;
   metrics: GuardMetrics;
 }
 
@@ -92,6 +95,10 @@ export interface GuardContext {
   /** Pages cibles (réglage « Pages cibles ») ; défaut : 1, comme le prompt. */
   pageBudget?: number;
   now?: Date;
+  /** Angle imposé (mode 1 ou proposition retenue du mode 2). */
+  angle?: AngleSpec;
+  /** Bibliothèque proposée au LLM : l'angle est celui de `analyse.angle.slug`. */
+  angleChoices?: AngleSpec[];
 }
 
 /** Lignes par page A4 à 11 px (titres de section et espacements compris), approximation prudente. */
@@ -264,6 +271,23 @@ interface TextField {
   text: string;
 }
 
+/**
+ * Titre conforme à la règle d'un angle. `profile` : le titre du profil tel
+ * quel ; `profile+keyword` : « {titre du profil} - {mot-clé} », le mot-clé
+ * étant repris après le premier « - » du titre proposé (sinon le titre du
+ * profil seul). Sans titre de profil, le titre proposé est rendu tel quel.
+ */
+export function titleForRule(title: string, rule: TitleRule, profileTitle?: string | null): string {
+  const own = profileTitle?.trim();
+  if (!own) return title;
+  if (rule === 'profile') return normalizeLabel(title) === normalizeLabel(own) ? title : own;
+  if (normalizeLabel(title) === normalizeLabel(own)) return title;
+  const sep = /\s[-–|:]\s/.exec(title);
+  const keyword = sep ? title.slice(sep.index + sep[0].length).trim() : '';
+  if (sep && normalizeLabel(title.slice(0, sep.index)) === normalizeLabel(own) && keyword) return `${own} - ${keyword}`;
+  return keyword ? `${own} - ${keyword}` : own;
+}
+
 export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvResponse; report: GuardReport } {
   const errors: GuardIssue[] = [];
   const warnings: GuardIssue[] = [];
@@ -354,7 +378,36 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
   }
 
-  const title = input.title !== undefined ? normalizeTypography(input.title, language) : undefined;
+  let title = input.title !== undefined ? normalizeTypography(input.title, language) : undefined;
+
+  // ── Angle : entrées masquées, entrées en tête, règle de titre ──
+  const angle = ctx.angle ?? ctx.angleChoices?.find(a => a.slug !== null && a.slug === input.analyse?.angle?.slug);
+  if (angle) {
+    const cited = new Set((input.analyse?.correspondances ?? []).map(c => c.entryId).filter((id): id is string => id !== null));
+    const aiEntry = (id: string): AiCvEntry => {
+      let e = entries.find(x => x.id === id);
+      if (!e) { e = { id, visible: true }; entries.push(e); } // absente du JSON : affichée telle quelle
+      return e;
+    };
+    for (const id of angle.hideEntryIds) {
+      if (!entryById.has(id) || cited.has(id)) continue;
+      const e = aiEntry(id);
+      if (!e.visible) continue;
+      e.visible = false;
+      warn({ code: 'angle-hidden-entry-visible', message: `« ${label(id)} » est masquée par l'angle « ${angle.label} » et n'étaye aucun indispensable : masquée.`, entryId: id });
+    }
+    for (const id of angle.leadEntryIds) {
+      const e = entries.find(x => x.id === id);
+      if (!e || e.visible || !cited.has(id)) continue;
+      e.visible = true;
+      warn({ code: 'angle-lead-entry-hidden', message: `« ${label(id)} » est en tête de l'angle « ${angle.label} » et étaye un indispensable : réaffichée.`, entryId: id });
+    }
+    const fixed = title !== undefined ? titleForRule(title, angle.titleRule, ctx.profile?.title) : undefined;
+    if (fixed !== undefined && fixed !== title) {
+      warn({ code: 'angle-title-corrected', message: `Titre « ${title} » hors de la règle de l'angle : remplacé par « ${fixed} ».` });
+      title = fixed;
+    }
+  }
   const summary = input.summary !== undefined ? normalizeTypography(input.summary, language) : undefined;
 
   const data: AiCvResponse = {
@@ -659,6 +712,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   return {
     data,
     report: {
+      ...(angle ? { angle } : {}),
       errors,
       warnings,
       aiWarnings: input.warnings ?? [],

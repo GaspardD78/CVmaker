@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { bulletTense, extractNumbers, extractTechnicalTerms, guardAiCv, type GuardContext } from './ai-cv-guard';
+import { bulletTense, extractNumbers, extractTechnicalTerms, guardAiCv, titleForRule, type GuardContext } from './ai-cv-guard';
+import { SOC_ANGLE, makeAngleEntries } from './test-helpers/angle-fixtures';
 import type { AiCvResponse } from './ai-cv-response';
 import { TEST_PROFILE, makeEntries, makeEntry } from './test-helpers/cv-fixtures';
 import { makeCategoryEntries } from './test-helpers/skill-fixtures';
@@ -408,5 +409,71 @@ describe('guardAiCv - éléments des catégories de compétences', () => {
     const r = guardAiCv(resp({ skillGroups: [{ category: 'X', entryIds: ['k1', 'k5'] }] }), catCtx());
     expect(r.data.skillGroups).toEqual([{ category: 'X', entryIds: ['k5'] }]);
     expect(r.report.warnings.some(x => x.code === 'unknown-id')).toBe(false);
+  });
+});
+
+describe('guardAiCv - angle', () => {
+  const angleEntries = makeAngleEntries();
+  const actx = (extra: Partial<GuardContext> = {}): GuardContext => ({ entries: angleEntries, profile: TEST_PROFILE, now: NOW, pageBudget: 2, angle: SOC_ANGLE, ...extra });
+
+  it('hide: visible sans correspondance : avertissement et masquage', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'x2', visible: true }] }), actx());
+    expect(r.report.warnings.some(w => w.code === 'angle-hidden-entry-visible' && w.entryId === 'x2')).toBe(true);
+    expect(r.data.entries.find(e => e.id === 'x2')!.visible).toBe(false);
+    // Absente du JSON (donc affichée telle quelle) : masquée aussi.
+    expect(r.data.entries.find(e => e.id === 'x3')!.visible).toBe(false);
+  });
+
+  it('hide: visible avec correspondance pour un indispensable : conservée', () => {
+    const r = guardAiCv(resp({
+      entries: [{ id: 'x2', visible: true }],
+      analyse: { indispensables: ['Support'], importants: [], ecarts: [], correspondances: [{ exigence: 'Support', entryId: 'x2' }] },
+    }), actx());
+    expect(r.data.entries.find(e => e.id === 'x2')!.visible).toBe(true);
+    expect(r.report.warnings.some(w => w.code === 'angle-hidden-entry-visible' && w.entryId === 'x2')).toBe(false);
+  });
+
+  it('entrée en tête masquée alors qu\'elle étaye un indispensable : réaffichée', () => {
+    const r = guardAiCv(resp({
+      entries: [{ id: 'x1', visible: false }],
+      analyse: { indispensables: ['Splunk'], importants: [], ecarts: [], correspondances: [{ exigence: 'Splunk', entryId: 'x1' }] },
+    }), actx());
+    expect(r.data.entries.find(e => e.id === 'x1')!.visible).toBe(true);
+    expect(r.report.warnings.some(w => w.code === 'angle-lead-entry-hidden')).toBe(true);
+  });
+
+  it('titre hors règle : corrigé', () => {
+    const r = guardAiCv(resp({ title: 'Ingénieur détection' }), actx());
+    expect(r.data.title).toBe('Analyste SOC');
+    expect(r.report.warnings.some(w => w.code === 'angle-title-corrected')).toBe(true);
+    const ok = guardAiCv(resp({ title: 'Analyste SOC' }), actx());
+    expect(ok.report.warnings.some(w => w.code === 'angle-title-corrected')).toBe(false);
+  });
+
+  it('choix de l\'IA dans la bibliothèque : angle appliqué d\'après analyse.angle.slug', () => {
+    const r = guardAiCv(resp({
+      entries: [{ id: 'x2', visible: true }],
+      analyse: { indispensables: [], importants: [], ecarts: [], correspondances: [], angle: { slug: 'soc' } },
+    }), actx({ angle: undefined, angleChoices: [SOC_ANGLE] }));
+    expect(r.report.angle?.slug).toBe('soc');
+    expect(r.data.entries.find(e => e.id === 'x2')!.visible).toBe(false);
+    // Slug inconnu : aucun angle.
+    const none = guardAiCv(resp({ analyse: { indispensables: [], importants: [], ecarts: [], correspondances: [], angle: { slug: 'x' } } }), actx({ angle: undefined, angleChoices: [SOC_ANGLE] }));
+    expect(none.report.angle).toBeUndefined();
+  });
+});
+
+describe('titleForRule', () => {
+  it('profile : titre du profil tel quel', () => {
+    expect(titleForRule('Autre chose', 'profile', 'Analyste SOC')).toBe('Analyste SOC');
+    expect(titleForRule('analyste soc', 'profile', 'Analyste SOC')).toBe('analyste soc');
+  });
+  it('profile+keyword : « titre - mot-clé »', () => {
+    expect(titleForRule('Analyste SOC - Cloud', 'profile+keyword', 'Analyste SOC')).toBe('Analyste SOC - Cloud');
+    expect(titleForRule('Ingénieur - Cloud', 'profile+keyword', 'Analyste SOC')).toBe('Analyste SOC - Cloud');
+    expect(titleForRule('Ingénieur', 'profile+keyword', 'Analyste SOC')).toBe('Analyste SOC');
+  });
+  it('sans titre de profil : inchangé', () => {
+    expect(titleForRule('Ingénieur', 'profile', null)).toBe('Ingénieur');
   });
 });

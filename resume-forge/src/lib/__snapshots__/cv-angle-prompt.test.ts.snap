@@ -1,0 +1,59 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`buildAngle snapshot 1`] = `
+"## Angle imposé : Analyste SOC
+Cet angle choisit et ordonne le contenu ; il n'ajoute aucun fait. Il prime sur les règles générales de sélection et d'ordre, pas sur l'anti-invention.
+- TITRE : « Analyste SOC » tel quel. Aucun autre intitulé.
+- ACCROCHE, gabarit à créneaux : « {intitulé} depuis {année}, {outils de détection}, {preuve chiffrée} ». Remplis chaque créneau avec un fait de la source (profil maître, trajectoire du profil). Un créneau sans fait correspondant est omis, jamais inventé.
+- EN TÊTE (\`visible: true\`, en premier dans "entryOrder", dans cet ordre) :
+  - ID: "x1" | Titre: "Analyste SOC"
+  - ID: "k1" | Titre: "Outils SOC"
+- MASQUÉES PAR DÉFAUT (\`visible: false\`). Exception : une entrée qui étaye un indispensable reste visible, et tu la cites alors dans analyse.correspondances.
+  - ID: "x2" | Titre: "Technicien support"
+  - ID: "x3" | Titre: "Animateur"
+  - ID: "i1" | Titre: "Astronomie"
+- CATÉGORIES DE COMPÉTENCES, dans cet ordre : Outils SOC, Langages. Les autres catégories viennent après ou sont masquées selon le budget.
+- VOCABULAIRE : Vocabulaire de la détection. Aucun sigle non défini.
+- ANCIENNES EXPÉRIENCES : terminées depuis plus de 5 ans et sans lien avec un indispensable : une ligne (titre, employeur, dates), sans description."
+`;
+
+exports[`buildAngleChoice liste les angles de la bibliothèque et demande analyse.angle 1`] = `
+"## Angle à choisir dans ma bibliothèque
+Choisis l'angle le plus adapté à l'annonce (d'après analyse.indispensables), indique-le dans analyse.angle ({ "slug", "raison" en une phrase liée aux indispensables}), puis applique-le : titre, accroche, entrées en tête (\`visible: true\`, en premier dans "entryOrder"), entrées masquées par défaut (\`visible: false\` sauf si elles étayent un indispensable cité dans analyse.correspondances), ordre des catégories, vocabulaire, anciennes expériences. Un angle choisit et ordonne, il n'ajoute aucun fait.
+
+### Angle "soc" : Analyste SOC
+- Titre : « Analyste SOC » tel quel. Aucun autre intitulé.
+- Accroche (gabarit à créneaux) : « {intitulé} depuis {année}, {outils de détection}, {preuve chiffrée} »
+- En tête : "x1", "k1"
+- Masquées par défaut : "x2", "x3", "i1"
+- Catégories de compétences : Outils SOC, Langages
+- Vocabulaire : Vocabulaire de la détection. Aucun sigle non défini.
+- Anciennes expériences : terminées depuis plus de 5 ans et sans lien avec un indispensable : une ligne (titre, employeur, dates), sans description.
+
+### Angle "partner-it-cyber" : Partenaire IT et cyber
+- Titre : « Analyste SOC » tel quel. Aucun autre intitulé.
+- Accroche (gabarit à créneaux) : « {intitulé} depuis {année}, {spécialités}, {rôle de conseil auprès de la direction et des hiring managers}, {formation des équipes à l'entretien} »
+- En tête : (aucune)
+- Masquées par défaut : (aucune)
+- Catégories de compétences : (ordre libre)
+- Vocabulaire : Vocabulaire du recrutement IT et de la cybersécurité. Aucun volume annuel de recrutement.
+- Anciennes expériences : terminées depuis plus de 5 ans et sans lien avec un indispensable : une ligne (titre, employeur, dates), sans description.
+
+### Angle "evaluation-formation" : Évaluation et formation
+- Titre : « Analyste SOC » tel quel. Aucun autre intitulé.
+- Accroche (gabarit à créneaux) : « {intitulé} depuis {année}, {évaluation des candidats}, {formation des managers à l'entretien}, {preuve de formation}, {formation académique} »
+- En tête : (aucune)
+- Masquées par défaut : (aucune)
+- Catégories de compétences : (ordre libre)
+- Vocabulaire : Vocabulaire neutre : « profils techniques » au lieu des sigles de métier.
+- Anciennes expériences : terminées depuis plus de 5 ans et sans lien avec un indispensable : une ligne (titre, employeur, dates), sans description.
+
+### Angle "projets-rh" : Projets RH
+- Titre : « Analyste SOC » tel quel. Aucun autre intitulé.
+- Accroche (gabarit à créneaux) : « {intitulé} depuis {année}, {conception de dispositifs RH}, {outillage}, {marque employeur} »
+- En tête : (aucune)
+- Masquées par défaut : (aucune)
+- Catégories de compétences : (ordre libre)
+- Vocabulaire : Ne jamais présenter ces missions comme un poste de chef de projet.
+- Anciennes expériences : terminées depuis plus de 5 ans et sans lien avec un indispensable : une ligne (titre, employeur, dates), sans description."
+`;
