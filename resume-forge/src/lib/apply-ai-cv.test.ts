@@ -194,3 +194,16 @@ describe('applyAiCvToBlocks - C : langue du CV et libellés de sections', () => 
     expect(l2.overrideData.subtitle).toBe('Fluent - C1');
   });
 });
+
+describe('applyAiCvToBlocks - catégories de compétences (lib/skill-lines.ts)', () => {
+  it('une entrée catégorie (compétence à puces) n\'est rangée sous aucun sous-en-tête', async () => {
+    const withCategory = entries.map(e => (e.id === 's1' ? { ...e, description: '- a\n- b' } : e));
+    const store = makeFakeStore(makeBlocks(withCategory));
+    await applyAiCvToBlocks('cv1', response({ skillGroups }), { store: () => store, entries: withCategory });
+    const sorted = store.sorted();
+    const firstSub = sorted.findIndex(b => b.overrideData.level === 'sub');
+    const s1 = sorted.findIndex(b => b.entryId === 's1');
+    expect(firstSub).toBeGreaterThan(-1); // les autres groupes sont appliqués
+    expect(s1).toBeLessThan(firstSub); // s1 reste parmi les compétences sans sous-en-tête
+  });
+});

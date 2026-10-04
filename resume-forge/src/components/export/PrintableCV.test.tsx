@@ -4,6 +4,7 @@ import { PrintableCV } from './PrintableCV';
 import { getTemplate, templates } from '../../templates';
 import type { CVBlock, CVDocument } from '../../types/cv';
 import { TEST_PROFILE, makeBlocks, makeEntries } from '../../lib/test-helpers/cv-fixtures';
+import { makeCategoryBlocks, makeCategoryEntries } from '../../lib/test-helpers/skill-fixtures';
 
 const entries = makeEntries();
 
@@ -136,4 +137,33 @@ describe('PrintableCV - les 11 templates (états de référence, ARCHITECTURE.md
       expect(html).toContain('Expériences Professionnelles');
     });
   }
+});
+
+describe('PrintableCV - catégories de compétences (lib/skill-lines.ts)', () => {
+  const catEntries = makeCategoryEntries();
+  const renderCat = (blocks: CVBlock[], templateId = 'ats-classic') => renderToStaticMarkup(
+    <PrintableCV cv={cv} profile={TEST_PROFILE} blocks={blocks} entries={catEntries} template={getTemplate(templateId)} />,
+  );
+  const text = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#x27;/g, "'");
+
+  it('une ligne par catégorie, libellé en gras, dans l\'ordre des blocs', () => {
+    const html = renderCat(makeCategoryBlocks());
+    expect(html).toMatch(/<strong[^>]*>Langages<\/strong> : Python · SQL · Bash/);
+    const t = text(html);
+    const order = ['Langages', 'Outils SOC', 'Méthodes', 'Cloud', 'Git'].map(l => t.indexOf(l));
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('catégorie vidée par surcharge absente ; centre d\'intérêt avec son titre', () => {
+    const t = text(renderCat(makeCategoryBlocks('badges', { k3: { description: '' } })));
+    expect(t).not.toContain('Méthodes');
+    expect(t).toContain('Astronomie');
+    expect(t).not.toContain('Observation du ciel');
+  });
+
+  it('bande latérale : libellé puis éléments en liste', () => {
+    const html = renderCat(makeCategoryBlocks('columns2'), 'sidebar-tech');
+    expect(html).toMatch(/<strong[^>]*>Cloud<\/strong>/);
+    expect(html).toMatch(/<li[^>]*>Azure<\/li>/);
+  });
 });

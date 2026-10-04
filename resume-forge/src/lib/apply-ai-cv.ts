@@ -1,6 +1,7 @@
 import type { AiCvResponse, SkillGroupPlan } from './ai-cv-response';
 import { aiEntryToOverrideData, planCvBlockOrder } from './ai-cv-response';
 import { isSectionHeader, isSubHeader, normalizeLabel } from './cv-sections';
+import { isSkillCategory } from './skill-lines';
 import {
   decideLanguageSection,
   defaultSectionLabel,
@@ -173,7 +174,11 @@ export async function applyAiCvToBlocks(
   const groupPlans: SkillGroupPlan[] = [];
   let skillsHeaderId: string | undefined;
   let skillGrouping: ApplyReport['skillGrouping'] = 'none';
-  const requestedGroups = (data.skillGroups ?? []).filter(g => g.entryIds.length > 0);
+  // Une entrée catégorie (compétence à puces, lib/skill-lines.ts) porte déjà son libellé :
+  // pas de sous-en-tête pour elle (sinon le libellé apparaîtrait deux fois).
+  const requestedGroups = (data.skillGroups ?? [])
+    .map(g => ({ ...g, entryIds: g.entryIds.filter(id => { const e = entryById.get(id); return !e || !isSkillCategory(e); }) }))
+    .filter(g => g.entryIds.length > 0);
   if (requestedGroups.length > 0) {
     const plan = await applySkillGroups(cvId, requestedGroups, store, warnings);
     if (plan) {

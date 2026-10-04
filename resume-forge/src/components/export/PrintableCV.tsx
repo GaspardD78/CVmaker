@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import { CVDocument, CVBlock } from '../../types/cv';
-import { MasterEntry, Profile, EntryType } from '../../types/profile';
+import { MasterEntry, Profile } from '../../types/profile';
 import { CVTemplate } from '../../types/template';
 import { CVHeader } from './CVHeader';
 import { CVSectionHeader } from './CVSectionHeader';
@@ -11,6 +11,7 @@ import { CVSidebar, type SidebarGroup, type SidebarSection } from './CVSidebar';
 import { safeCssValue, type CssValueKind } from '../../lib/css-sanitize';
 import { readDateSettings } from '../../lib/entry-dates';
 import { isSubHeader, parentDisplayFormat, visibleHeaderMask, type SlotKind } from '../../lib/cv-sections';
+import { BADGE_ENTRY_TYPES } from '../../lib/skill-lines';
 
 /** Relative luminance of a #rgb / #rrggbb color (0 = black, 1 = white). */
 function hexLuminance(hex: string): number {
@@ -86,8 +87,6 @@ function letterSpacingCap(selector: string, classes: string | undefined): string
   return `${selector} { letter-spacing: ${MAX_LETTER_SPACING_EM}em;${words} }`;
 }
 
-/** Entry types rendered as inline badges instead of full entry blocks */
-const BADGE_ENTRY_TYPES: EntryType[] = ['skill', 'language', 'interest', 'certification'];
 
 type DisplayFormat = 'badges' | 'comma' | 'list' | 'columns2' | 'columns3' | 'table';
 
