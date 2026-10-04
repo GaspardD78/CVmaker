@@ -232,17 +232,24 @@ describe('guardAiCv - cible 1 page', () => {
     guardAiCv(data, ctx({ entries: entriesList, pageBudget: 1, ...extra }));
   const onePageMsgs = (r: ReturnType<typeof guardAiCv>) => r.report.warnings.filter(w => w.code === 'one-page').map(w => w.message);
 
-  it('résumé de plus de 2 lignes signalé', () => {
-    const long = 'Analyste SOC. '.repeat(20);
+  it('résumé de plus de 3 lignes (≈ 330 caractères) signalé', () => {
+    const long = 'Analyste SOC. '.repeat(25);
+    expect(long.length).toBeGreaterThan(330);
+    // 3 lignes (≈ 300 caractères) acceptées.
+    expect(onePageMsgs(onePage(resp({ summary: 'Analyste SOC. '.repeat(21) }))).some(m => m.includes('Résumé'))).toBe(false);
     expect(onePageMsgs(onePage(resp({ summary: long }))).some(m => m.includes('Résumé'))).toBe(true);
     expect(onePageMsgs(onePage(resp({ summary: 'Analyste SOC, 7 ans.' }))).some(m => m.includes('Résumé'))).toBe(false);
   });
 
-  it('expérience récente : 3 puces maximum ; plus ancienne : 2', () => {
-    const list = [exp('r', 'Poste récent', '2022-01', null, 4), exp('o', 'Poste ancien', '2005-01', '2008-01', 3), exp('ok', 'Poste ok', '2023-01', null, 3)];
+  it('moins de 5 ans : 3 puces ; 5 à 10 ans : 2 ; plus ancienne : une ligne', () => {
+    const list = [
+      exp('r', 'Poste récent', '2022-01', null, 4), exp('m', 'Poste moyen', '2014-01', '2018-01', 3),
+      exp('o', 'Poste ancien', '2005-01', '2008-01', 1), exp('ok', 'Poste ok', '2023-01', null, 3),
+    ];
     const msgs = onePageMsgs(onePage(resp(), list));
     expect(msgs.some(m => m.includes('Poste récent') && m.includes('3 maximum'))).toBe(true);
-    expect(msgs.some(m => m.includes('Poste ancien') && m.includes('2 maximum'))).toBe(true);
+    expect(msgs.some(m => m.includes('Poste moyen') && m.includes('2 maximum'))).toBe(true);
+    expect(msgs.some(m => m.includes('Poste ancien') && m.includes('0 maximum') && m.includes('une ligne'))).toBe(true);
     expect(msgs.some(m => m.includes('Poste ok'))).toBe(false);
   });
 

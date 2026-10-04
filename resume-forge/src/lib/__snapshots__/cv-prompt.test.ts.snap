@@ -76,7 +76,7 @@ Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette ana
 - Langues : garde visibles uniquement les langues utiles, c'est-à-dire exigées par l'annonce ou, à défaut, les langues autres que celle du CV dont un niveau est renseigné. La langue de l'annonce passe en premier. Ne relève jamais un niveau (pas de « C1 » si la source dit « Courant »).
 
 ### Contenu
-- TITRE ("title") : l'intitulé de l'annonce seulement s'il est cohérent avec les postes réellement tenus ; sinon « {intitulé réellement tenu} - {mot-clé de l'annonce} ». Jamais un poste que le profil n'a pas occupé.
+- TITRE ("title") : « Analyste SOC » tel quel (positionnement choisi par le candidat), ou « Analyste SOC - {mot-clé de l'annonce} ». Aucun autre intitulé. Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.
 - ACCROCHE ("summary", 2 à 3 phrases) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
 - PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : 3 à 5 puces pour une expérience récente ou pertinente, 2 à 3 pour une plus ancienne, 120 caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun.
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
@@ -219,13 +219,13 @@ Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette ana
 - Langues : garde visibles uniquement les langues utiles, c'est-à-dire exigées par l'annonce ou, à défaut, les langues autres que celle du CV dont un niveau est renseigné. La langue de l'annonce passe en premier. Ne relève jamais un niveau (pas de « C1 » si la source dit « Courant »).
 
 ### Contenu
-- TITRE ("title") : l'intitulé de l'annonce seulement s'il est cohérent avec les postes réellement tenus ; sinon « {intitulé réellement tenu} - {mot-clé de l'annonce} ». Jamais un poste que le profil n'a pas occupé.
-- ACCROCHE ("summary", 2 lignes maximum) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
+- TITRE ("title") : « Analyste SOC » tel quel (positionnement choisi par le candidat), ou « Analyste SOC - {mot-clé de l'annonce} ». Aucun autre intitulé. Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.
+- ACCROCHE ("summary", 3 lignes maximum) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
 - PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : 120 caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun. Les nombres de puces sont fixés par la règle UNE PAGE ci-dessous.
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
 - UNE PAGE (contrainte stricte, prioritaire sur toute autre consigne de volume) :
-  - RÉSUMÉ : 2 lignes maximum (environ 200 caractères).
-  - EXPÉRIENCES des 5 dernières années ou couvrant un indispensable de l'annonce : 3 puces maximum chacune. Expériences plus anciennes : 1 ligne (titre, employeur, dates : omets "description") ou 1 à 2 puces selon leur utilité pour l'annonce. Une expérience sans lien avec l'annonce : \`visible: false\`.
+  - RÉSUMÉ : 3 lignes maximum (environ 330 caractères).
+  - EXPÉRIENCES des 5 dernières années ou couvrant un indispensable de l'annonce : 3 puces maximum chacune. Expériences terminées depuis 5 à 10 ans : 2 puces maximum. Plus anciennes : 1 ligne (titre, employeur, dates : omets "description"). Une expérience sans lien avec l'annonce : \`visible: false\`.
   - COMPÉTENCES : 3 à 5 catégories visibles et 12 à 15 éléments au total (compte les éléments, pas les entrées : une compétence isolée compte pour 1), les plus pertinents d'abord (entryOrder), les autres \`visible: false\`.
   - FORMATIONS et CERTIFICATIONS : uniquement les plus récentes ou les plus pertinentes, une ligne chacune (aucune description). Les autres \`visible: false\`.
   - CENTRES D'INTÉRÊT et BÉNÉVOLAT : \`visible: false\`, sauf s'ils servent directement l'annonce.
@@ -379,13 +379,13 @@ Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette ana
 - Langues : garde visibles uniquement les langues utiles, c'est-à-dire exigées par l'annonce ou, à défaut, les langues autres que celle du CV dont un niveau est renseigné. La langue de l'annonce passe en premier. Ne relève jamais un niveau (pas de « C1 » si la source dit « Courant »).
 
 ### Contenu
-- TITRE ("title") : l'intitulé de l'annonce seulement s'il est cohérent avec les postes réellement tenus ; sinon « {intitulé réellement tenu} - {mot-clé de l'annonce} ». Jamais un poste que le profil n'a pas occupé.
-- ACCROCHE ("summary", 2 lignes maximum) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
+- TITRE ("title") : « Analyste SOC » tel quel (positionnement choisi par le candidat), ou « Analyste SOC - {mot-clé de l'annonce} ». Aucun autre intitulé. Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.
+- ACCROCHE ("summary", 3 lignes maximum) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
 - PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : 120 caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun. Les nombres de puces sont fixés par la règle UNE PAGE ci-dessous.
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
 - UNE PAGE (contrainte stricte, prioritaire sur toute autre consigne de volume) :
-  - RÉSUMÉ : 2 lignes maximum (environ 200 caractères).
-  - EXPÉRIENCES des 5 dernières années ou couvrant un indispensable de l'annonce : 3 puces maximum chacune. Expériences plus anciennes : 1 ligne (titre, employeur, dates : omets "description") ou 1 à 2 puces selon leur utilité pour l'annonce. Une expérience sans lien avec l'annonce : \`visible: false\`.
+  - RÉSUMÉ : 3 lignes maximum (environ 330 caractères).
+  - EXPÉRIENCES des 5 dernières années ou couvrant un indispensable de l'annonce : 3 puces maximum chacune. Expériences terminées depuis 5 à 10 ans : 2 puces maximum. Plus anciennes : 1 ligne (titre, employeur, dates : omets "description"). Une expérience sans lien avec l'annonce : \`visible: false\`.
   - COMPÉTENCES : 3 à 5 catégories visibles et 12 à 15 éléments au total (compte les éléments, pas les entrées : une compétence isolée compte pour 1), les plus pertinents d'abord (entryOrder), les autres \`visible: false\`.
   - FORMATIONS et CERTIFICATIONS : uniquement les plus récentes ou les plus pertinentes, une ligne chacune (aucune description). Les autres \`visible: false\`.
   - CENTRES D'INTÉRÊT et BÉNÉVOLAT : \`visible: false\`, sauf s'ils servent directement l'annonce.
@@ -532,13 +532,13 @@ Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette ana
 - Langues : garde visibles uniquement les langues utiles, c'est-à-dire exigées par l'annonce ou, à défaut, les langues autres que celle du CV dont un niveau est renseigné. La langue de l'annonce passe en premier. Ne relève jamais un niveau (pas de « C1 » si la source dit « Courant »).
 
 ### Contenu
-- TITRE ("title") : l'intitulé de l'annonce seulement s'il est cohérent avec les postes réellement tenus ; sinon « {intitulé réellement tenu} - {mot-clé de l'annonce} ». Jamais un poste que le profil n'a pas occupé.
-- ACCROCHE ("summary", 2 lignes maximum) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
+- TITRE ("title") : « Analyste SOC » tel quel (positionnement choisi par le candidat), ou « Analyste SOC - {mot-clé de l'annonce} ». Aucun autre intitulé. Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.
+- ACCROCHE ("summary", 3 lignes maximum) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
 - PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : 120 caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun. Les nombres de puces sont fixés par la règle UNE PAGE ci-dessous.
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
 - UNE PAGE (contrainte stricte, prioritaire sur toute autre consigne de volume) :
-  - RÉSUMÉ : 2 lignes maximum (environ 200 caractères).
-  - EXPÉRIENCES des 5 dernières années ou couvrant un indispensable de l'annonce : 3 puces maximum chacune. Expériences plus anciennes : 1 ligne (titre, employeur, dates : omets "description") ou 1 à 2 puces selon leur utilité pour l'annonce. Une expérience sans lien avec l'annonce : \`visible: false\`.
+  - RÉSUMÉ : 3 lignes maximum (environ 330 caractères).
+  - EXPÉRIENCES des 5 dernières années ou couvrant un indispensable de l'annonce : 3 puces maximum chacune. Expériences terminées depuis 5 à 10 ans : 2 puces maximum. Plus anciennes : 1 ligne (titre, employeur, dates : omets "description"). Une expérience sans lien avec l'annonce : \`visible: false\`.
   - COMPÉTENCES : 3 à 5 catégories visibles et 12 à 15 éléments au total (compte les éléments, pas les entrées : une compétence isolée compte pour 1), les plus pertinents d'abord (entryOrder), les autres \`visible: false\`.
   - FORMATIONS et CERTIFICATIONS : uniquement les plus récentes ou les plus pertinentes, une ligne chacune (aucune description). Les autres \`visible: false\`.
   - CENTRES D'INTÉRÊT et BÉNÉVOLAT : \`visible: false\`, sauf s'ils servent directement l'annonce.

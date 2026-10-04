@@ -399,11 +399,23 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   const related = (e: Effective): boolean | undefined =>
     wanted.length === 0 ? undefined : matchedIds.has(e.entry.id) || wanted.some(r => matchesKeyword(textOf(e), r));
   const nowIdx = nowMonthIndex(ctx.now);
-  const isRecent = (e: Effective): boolean => {
+  const endedWithin = (e: Effective, years: number): boolean => {
     if (e.entry.isCurrent || !e.entry.endDate) return true;
     const end = toMonthIndex(e.entry.endDate);
-    return end !== null && end >= nowIdx - ONE_PAGE_LIMITS.recentYears * 12;
+    return end !== null && end >= nowIdx - years * 12;
   };
+  const isRecent = (e: Effective): boolean => endedWithin(e, ONE_PAGE_LIMITS.recentYears);
+  /** Puces autorisées à 1 page : récente ou pertinente, 5 à 10 ans, plus ancienne (une ligne). */
+  const bulletBudget = (e: Effective): number => {
+    const L = ONE_PAGE_LIMITS;
+    if (isRecent(e) || coversRequired(e) === true) return L.recentBullets;
+    return endedWithin(e, L.midYears) ? L.midBullets : L.olderBullets;
+  };
+  const budgetLabel = (max: number): string =>
+    max === ONE_PAGE_LIMITS.recentBullets ? 'récente ou pertinente'
+      : max === ONE_PAGE_LIMITS.midBullets ? `terminée depuis ${ONE_PAGE_LIMITS.recentYears} à ${ONE_PAGE_LIMITS.midYears} ans`
+        : `de plus de ${ONE_PAGE_LIMITS.midYears} ans, une ligne sans description`;
+  const summaryTooLong = (s: string): boolean => s.length > ONE_PAGE_LIMITS.summaryChars;
   const costs = new Map<string, number>();
 
   // ── Anti-invention : chiffres (bloquant) et termes (avertissement) ──
@@ -515,16 +527,16 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   const L = ONE_PAGE_LIMITS;
   if (strict) {
     const flag = (message: string, entryId?: string) => warn({ code: 'one-page', message, entryId });
-    if (summary && Math.ceil(summary.length / CHARS_PER_LINE) > L.summaryLines) {
-      flag(`Résumé trop long pour 1 page : ${L.summaryLines} lignes maximum (≈ ${L.summaryLines * CHARS_PER_LINE} caractères).`);
+    if (summary && summaryTooLong(summary)) {
+      flag(`Résumé trop long pour 1 page : ${L.summaryLines} lignes maximum (≈ ${L.summaryChars} caractères).`);
     }
     for (const e of visible) {
       const type = e.entry.entryType;
       if (type === 'experience') {
         if (related(e) === false) flag(`« ${e.title} » n'a aucun lien avec l'annonce : à masquer (1 page).`, e.entry.id);
-        const max = isRecent(e) || coversRequired(e) === true ? L.recentBullets : L.olderBullets;
+        const max = bulletBudget(e);
         const n = bulletsOf(e.description).length;
-        if (n > max) flag(`« ${e.title} » : ${n} puces, ${max} maximum pour une expérience ${max === L.recentBullets ? 'récente ou pertinente' : 'plus ancienne'} (1 page).`, e.entry.id);
+        if (n > max) flag(`« ${e.title} » : ${n} puces, ${max} maximum pour une expérience ${budgetLabel(max)} (1 page).`, e.entry.id);
       } else if (type === 'education' || type === 'certification') {
         if (e.description.trim() !== '') flag(`« ${e.title} » : une ligne suffit (retirer la description, 1 page).`, e.entry.id);
       } else if ((type === 'interest' || type === 'volunteer') && related(e) !== true) {
@@ -570,14 +582,14 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   }
   for (const e of ofType('experience').sort(byEnd)) {
     const bullets = bulletsOf(e.description);
-    const max = isRecent(e) || coversRequired(e) === true ? L.recentBullets : L.olderBullets;
+    const max = bulletBudget(e);
     if (bullets.length > max) {
       const saved = bullets.slice(max).reduce((n, b) => n + Math.ceil(b.length / CHARS_PER_LINE), 0);
       push(e, `retirer ${bullets.length - max} puce(s)`, saved);
     }
   }
-  if (summary && Math.ceil(summary.length / CHARS_PER_LINE) > L.summaryLines) {
-    candidates.push({ label: 'Résumé', reason: `raccourcir à ${L.summaryLines} lignes`, savedLines: Math.ceil(summary.length / CHARS_PER_LINE) - L.summaryLines });
+  if (summary && summaryTooLong(summary)) {
+    candidates.push({ label: 'Résumé', reason: `raccourcir à ${L.summaryLines} lignes`, savedLines: Math.ceil((summary.length - L.summaryChars) / CHARS_PER_LINE) });
   }
   const removalCandidates: RemovalCandidate[] = [];
   if (exceedsTarget) {

@@ -20,12 +20,17 @@ import { bulletItems, isSkillCategory } from './skill-lines';
 export const BULLETS_PER_PAGE = 18;
 /** Limites imposées quand la cible est 1 page (prompt et garde-fou partagent ces valeurs). */
 export const ONE_PAGE_LIMITS = {
-  summaryLines: 2,
-  /** Expériences récentes ou couvrant un indispensable. */
+  /** Accroche : 3 lignes, soit environ 330 caractères. */
+  summaryLines: 3,
+  summaryChars: 330,
+  /** Expériences des `recentYears` dernières années ou couvrant un indispensable. */
   recentBullets: 3,
-  /** Expériences plus anciennes : 1 ligne (aucune puce) ou 1 à 2 puces. */
-  olderBullets: 2,
   recentYears: 5,
+  /** Expériences terminées depuis `recentYears` à `midYears` ans. */
+  midBullets: 2,
+  midYears: 10,
+  /** Plus anciennes : une ligne (titre, employeur, dates), aucune description. */
+  olderBullets: 0,
   /** Catégories de compétences visibles (entrées \`skill\` à puces, lib/skill-lines.ts). */
   minSkillCategories: 3,
   maxSkillCategories: 5,
@@ -214,12 +219,25 @@ Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette ana
 export function buildOnePageRules(): string {
   const L = ONE_PAGE_LIMITS;
   return `- UNE PAGE (contrainte stricte, prioritaire sur toute autre consigne de volume) :
-  - RÉSUMÉ : ${L.summaryLines} lignes maximum (environ 200 caractères).
-  - EXPÉRIENCES des ${L.recentYears} dernières années ou couvrant un indispensable de l'annonce : ${L.recentBullets} puces maximum chacune. Expériences plus anciennes : 1 ligne (titre, employeur, dates : omets "description") ou 1 à ${L.olderBullets} puces selon leur utilité pour l'annonce. Une expérience sans lien avec l'annonce : \`visible: false\`.
+  - RÉSUMÉ : ${L.summaryLines} lignes maximum (environ ${L.summaryChars} caractères).
+  - EXPÉRIENCES des ${L.recentYears} dernières années ou couvrant un indispensable de l'annonce : ${L.recentBullets} puces maximum chacune. Expériences terminées depuis ${L.recentYears} à ${L.midYears} ans : ${L.midBullets} puces maximum. Plus anciennes : 1 ligne (titre, employeur, dates : omets "description"). Une expérience sans lien avec l'annonce : \`visible: false\`.
   - COMPÉTENCES : ${L.minSkillCategories} à ${L.maxSkillCategories} catégories visibles et ${L.minSkillItems} à ${L.maxSkillItems} éléments au total (compte les éléments, pas les entrées : une compétence isolée compte pour 1), les plus pertinents d'abord (entryOrder), les autres \`visible: false\`.
   - FORMATIONS et CERTIFICATIONS : uniquement les plus récentes ou les plus pertinentes, une ligne chacune (aucune description). Les autres \`visible: false\`.
   - CENTRES D'INTÉRÊT et BÉNÉVOLAT : \`visible: false\`, sauf s'ils servent directement l'annonce.
   - Si le tout dépasse encore 1 page, masque d'abord ce qui est le moins lié à l'annonce.`;
+}
+
+/**
+ * Règle TITRE. Le titre du profil est un positionnement choisi par le candidat :
+ * autorisé tel quel, ou suivi d'un mot-clé de l'annonce. Les intitulés des
+ * expériences ne changent jamais. Sans titre de profil : règle historique.
+ */
+export function buildTitleRule(profile?: Pick<Profile, 'title'> | null): string {
+  const own = profile?.title?.trim();
+  if (own) {
+    return `- TITRE ("title") : « ${own} » tel quel (positionnement choisi par le candidat), ou « ${own} - {mot-clé de l'annonce} ». Aucun autre intitulé. Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.`;
+  }
+  return `- TITRE ("title") : l'intitulé de l'annonce seulement s'il est cohérent avec les postes réellement tenus ; sinon « {intitulé réellement tenu} - {mot-clé de l'annonce} ». Jamais un poste que le profil n'a pas occupé.`;
 }
 
 export function buildRules(input: CvPromptInput): string {
@@ -238,8 +256,8 @@ export function buildRules(input: CvPromptInput): string {
 - Langues : garde visibles uniquement les langues utiles, c'est-à-dire exigées par l'annonce ou, à défaut, les langues autres que celle du CV dont un niveau est renseigné. La langue de l'annonce passe en premier. Ne relève jamais un niveau (pas de « C1 » si la source dit « Courant »).
 
 ### Contenu
-- TITRE ("title") : l'intitulé de l'annonce seulement s'il est cohérent avec les postes réellement tenus ; sinon « {intitulé réellement tenu} - {mot-clé de l'annonce} ». Jamais un poste que le profil n'a pas occupé.
-- ACCROCHE ("summary", ${onePage ? '2 lignes maximum' : '2 à 3 phrases'}) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
+${buildTitleRule(input.profile)}
+- ACCROCHE ("summary", ${onePage ? `${ONE_PAGE_LIMITS.summaryLines} lignes maximum` : '2 à 3 phrases'}) : intitulé + nombre d'années d'expérience (valeur calculée ci-dessus) + domaine ; 2 preuves reliées aux indispensables ; 3 à 4 mots-clés exacts de l'annonce. Profil senior : périmètre, pilotage, résultats. Profil junior : projets, certifications, stack.
 - PUCES (champ "description" : une puce par ligne, préfixée par « - », séparées par \\n) : ${onePage ? '' : `${MAX_BULLETS_PER_EXPERIENCE - 2} à ${MAX_BULLETS_PER_EXPERIENCE} puces pour une expérience récente ou pertinente, 2 à 3 pour une plus ancienne, `}${MAX_BULLET_CHARS} caractères maximum par puce, la plus pertinente en premier. Conserve tous les chiffres de la source, n'en ajoute aucun.${onePage ? ' Les nombres de puces sont fixés par la règle UNE PAGE ci-dessous.' : ''}
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
 ${onePage ? buildOnePageRules() : `- VOLUME : ${pages} pages maximum, soit environ ${pages * BULLETS_PER_PAGE} puces au total. Priorité aux 5 dernières années et aux expériences qui couvrent un indispensable ; masque ou raccourcis le reste.

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import {
   buildAnalysisStep, buildClarify, buildContext, buildCvPrompt, buildExtraContext, buildMasterProfile,
-  buildObjective, buildOutputSchema, buildRole, buildRules, CV_WRITING_RULES, JSON_RULES,
+  buildObjective, buildOutputSchema, buildRole, buildRules, buildTitleRule, CV_WRITING_RULES, JSON_RULES,
   generateFullCVMatchPrompt, type CvPromptInput,
 } from './cv-prompt';
 import { SYSTEM_RULES, TEXT_RULES } from './prompt-templates';
@@ -68,10 +68,12 @@ describe('blocs du prompt CV v2', () => {
     expect(buildContext(input(junior(), JOB_FR, { options: { now: NOW, pageBudget: 2 } }))).toContain('Pages cibles : 2');
   });
 
-  it('1 page : impose résumé 2 lignes, 3 puces, masquage, 3 à 5 catégories et 12 à 15 éléments de compétences, formations, intérêts', () => {
+  it('1 page : impose résumé 3 lignes, 3 puces, masquage, 3 à 5 catégories et 12 à 15 éléments de compétences, formations, intérêts', () => {
     const rules = buildRules(input(senior(), JOB_FR));
     expect(rules).toContain('UNE PAGE');
-    expect(rules).toContain('RÉSUMÉ : 2 lignes maximum');
+    expect(rules).toContain('RÉSUMÉ : 3 lignes maximum (environ 330 caractères)');
+    expect(rules).toContain('5 à 10 ans : 2 puces maximum');
+    expect(rules).toContain('Plus anciennes : 1 ligne');
     expect(rules).toContain('3 puces maximum chacune');
     expect(rules).toContain('1 ligne (titre, employeur, dates');
     expect(rules).toContain('Une expérience sans lien avec l\'annonce : `visible: false`');
@@ -121,7 +123,10 @@ describe('blocs du prompt CV v2', () => {
     expect(rules).toContain('120 caractères maximum par puce');
     expect(rules).toContain('analyse.ecarts');
     expect(rules).toContain('question de quantification');
-    expect(rules).toContain('Jamais un poste que le profil n\'a pas occupé');
+    // Titre du profil = positionnement choisi : tel quel ou suivi d'un mot-clé (C5).
+    expect(rules).toContain('« Analyste SOC » tel quel');
+    expect(rules).toContain('« Analyste SOC - {mot-clé de l\'annonce} »');
+    expect(rules).toContain('Ne modifie jamais l\'intitulé d\'une expérience');
     expect(rules).toContain('Ne relève jamais un niveau');
   });
 
@@ -179,5 +184,12 @@ describe('buildMasterProfile - catégories de compétences', () => {
     expect(rules).toContain('CATÉGORIES DE COMPÉTENCES');
     expect(rules).toContain('uniquement des éléments existants de la source');
     expect(rules).toContain('Aucun ajout');
+  });
+});
+
+describe('buildTitleRule', () => {
+  it('sans titre de profil : règle historique (intitulé réellement tenu)', () => {
+    expect(buildTitleRule({ title: null })).toContain('Jamais un poste que le profil n\'a pas occupé');
+    expect(buildTitleRule(null)).toContain('{intitulé réellement tenu}');
   });
 });
