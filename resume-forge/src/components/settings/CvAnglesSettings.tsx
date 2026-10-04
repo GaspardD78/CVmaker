@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Compass, Pencil, Trash2, Plus, FileUp } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, confirm } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { toast } from 'sonner';
 import { useAngleStore } from '@/stores/angleStore';
@@ -110,9 +110,12 @@ export function CvAnglesSettings() {
     setEditing(null);
   }, 'Angle enregistré');
 
-  const remove = (a: CvAngle) => {
-    if (!window.confirm(`Supprimer l'angle « ${a.label} » ? Ses tags « angle:${a.slug} » et « hide:${a.slug} » seront retirés des entrées (les autres étiquettes restent).`)) return;
-    run(() => deleteAngle(a.id), 'Angle supprimé');
+  const remove = async (a: CvAngle) => {
+    const ok = await confirm(
+      `Supprimer l'angle « ${a.label} » ? Ses tags « angle:${a.slug} » et « hide:${a.slug} » seront retirés des entrées (les autres étiquettes restent).`,
+      { title: 'Supprimer l\'angle', kind: 'warning' },
+    );
+    if (ok) await run(() => deleteAngle(a.id), 'Angle supprimé');
   };
 
   const pickAffinityFile = () => run(async () => {

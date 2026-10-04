@@ -9,6 +9,7 @@ import { getTemplate } from '@/templates';
 import { getDb } from '@/lib/db';
 import { keysToCamelCase } from '@/lib/mapping';
 import { CVBlock, CVDocument } from '@/types/cv';
+import { readAngleSnapshot } from '@/lib/cv-angles';
 
 const TEMPLATE_ACCENTS: Record<string, string> = {
   'ats-classic':   '#6366f1',
@@ -95,6 +96,14 @@ function CVCard({ cv, onDelete, onDuplicate, onExportDocx, onExportPdf }: {
             borderRadius: 99, fontSize: 10, fontWeight: 600,
             padding: '2px 8px', fontFamily: 'var(--font-body)',
           }}>{cv.templateId}</span>
+          {readAngleSnapshot(cv.settings) && (
+            <span title="Angle de génération du CV" style={{
+              background: 'rgba(16,185,129,.15)', color: '#10b981',
+              borderRadius: 99, fontSize: 10, fontWeight: 600,
+              padding: '2px 8px', fontFamily: 'var(--font-body)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140,
+            }}>{readAngleSnapshot(cv.settings)!.label}</span>
+          )}
           <span style={{ flex: 1 }} />
 
           {/* Actions */}

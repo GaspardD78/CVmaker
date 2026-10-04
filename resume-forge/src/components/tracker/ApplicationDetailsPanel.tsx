@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { readAngleSnapshot } from '@/lib/cv-angles';
 import { useApplicationStore } from '@/stores/applicationStore';
 import { useCvStore } from '@/stores/cvStore';
 import { X, ExternalLink, Calendar, Trash2, FileText, MapPin, DollarSign, Users, Briefcase, Pencil, CalendarPlus } from 'lucide-react';
@@ -159,6 +160,11 @@ export function ApplicationDetailsPanel({ applicationId, onClose, onEdit }: Appl
              <Link to={`/cv/${linkedCv.id}`} className="flex items-center gap-2 p-3 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors">
                <FileText size={18} />
                <span className="text-sm font-medium truncate">{linkedCv.name}</span>
+               {readAngleSnapshot(linkedCv.settings) && (
+                 <span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap" title="Angle de génération du CV">
+                   Angle : {readAngleSnapshot(linkedCv.settings)!.label}
+                 </span>
+               )}
              </Link>
           )}
         </div>
