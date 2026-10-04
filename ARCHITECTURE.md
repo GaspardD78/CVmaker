@@ -70,9 +70,15 @@ Liste plate triée par `sortOrder`. `blockType` :
 
 **Regroupement « badges »** : les `entry_ref` consécutifs dont l'entrée est de
 type `skill | language | interest | certification` sont fusionnés en un seul
-`CVBadgeGroup`. Chaque description est découpée en libellés (une puce `- x` =
-un badge ; sinon la description entière = un badge ; sans description :
-`title — subtitle`).
+`CVBadgeGroup`. Les lignes sont calculées par `lib/skill-lines.ts`
+(`buildBadgeRows`, partagé avec l'export DOCX) : une entrée `skill` dont la
+description contient des puces est une **catégorie** (libellé = `title`,
+éléments = puces, surcharge `description` du bloc respectée) rendue sur une
+ligne `**Catégorie** : a · b · c` (format liste : libellé puis puces ;
+colonnes : une cellule par catégorie ; tableau : libellé | éléments). Les
+autres entrées sont des éléments libres, sur une dernière ligne sans libellé :
+compétence isolée (description sans puces, sinon titre), langue, centre
+d'intérêt, certification (`title`, plus `subtitle` en niveau).
 
 ## 3. Templates
 

@@ -4,6 +4,7 @@ import { generateDocxBlob } from './export-docx';
 import { getTemplate } from '../templates';
 import type { CVBlock, CVDocument } from '../types/cv';
 import type { EntryType, MasterEntry, Profile } from '../types/profile';
+import { makeCategoryBlocks, makeCategoryEntries } from './test-helpers/skill-fixtures';
 
 const TS = '2026-01-01T00:00:00.000Z';
 
@@ -201,5 +202,72 @@ describe('export DOCX, sections vides (même règle que le PDF)', () => {
     const zip = await JSZip.loadAsync(await blob.arrayBuffer());
     const xml = await zip.file('word/document.xml')!.async('string');
     expect(xml).toContain('September 2022 - Present');
+  });
+});
+
+// ── Catégories de compétences (lib/skill-lines.ts) ──
+
+
+/** Texte de chaque paragraphe du DOCX (runs concaténés), paragraphes vides exclus. */
+async function docxLines(blocks: CVBlock[], entries: MasterEntry[]): Promise<string[]> {
+  const { cv } = build({});
+  const blob = await generateDocxBlob(cv, profile, blocks, entries, getTemplate('ats-classic'));
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  const xml = await zip.file('word/document.xml')!.async('string');
+  return [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)]
+    .map(([p]) => [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => decode(m[1])).join(''))
+    .filter(Boolean);
+}
+
+describe('export DOCX, catégories de compétences', () => {
+  const entries = makeCategoryEntries();
+
+  test('4 catégories visibles : 4 lignes « Catégorie : a · b », dans l\'ordre des blocs', async () => {
+    const blocks = makeCategoryBlocks().map(b => (b.entryId === 'k5' ? { ...b, isVisible: false } : b));
+    const text = await docxLines(blocks, entries);
+    const start = text.indexOf('COMPÉTENCES');
+    expect(text.slice(start + 1, start + 5)).toEqual([
+      'Langages : Python · SQL · Bash',
+      'Outils SOC : Splunk · Elastic · Wireshark',
+      'Méthodes : MITRE ATT&CK · Analyse de logs',
+      'Cloud : Azure · Docker',
+    ]);
+  });
+
+  test('libellé de catégorie en gras', async () => {
+    const { cv } = build({});
+    const blob = await generateDocxBlob(cv, profile, makeCategoryBlocks(), entries, getTemplate('ats-classic'));
+    const xml = await (await JSZip.loadAsync(await blob.arrayBuffer())).file('word/document.xml')!.async('string');
+    expect(xml).toMatch(/<w:rPr>(?:(?!<\/w:rPr>).)*<w:b\/>(?:(?!<\/w:rPr>).)*<\/w:rPr><w:t[^>]*>Langages<\/w:t>/);
+  });
+
+  test('catégorie vidée par surcharge absente, compétence isolée sur une dernière ligne', async () => {
+    const text = await docxLines(makeCategoryBlocks('badges', { k2: { description: '' } }), entries);
+    expect(text.some(t => t.startsWith('Outils SOC'))).toBe(false);
+    const start = text.indexOf('COMPÉTENCES');
+    expect(text[start + 4]).toBe('Git');
+  });
+
+  test('« Astronomie » (centre d\'intérêt) s\'affiche avec son titre', async () => {
+    const text = await docxLines(makeCategoryBlocks(), entries);
+    expect(text).toContain('Astronomie');
+    expect(text.join('\n')).not.toContain('Observation du ciel');
+  });
+
+  test('format liste : libellé puis une puce par élément', async () => {
+    const text = await docxLines(makeCategoryBlocks('list'), entries);
+    const i = text.indexOf('Langages');
+    expect(text.slice(i, i + 4)).toEqual(['Langages', 'Python', 'SQL', 'Bash']);
+  });
+
+  test('format tableau : une ligne par catégorie (libellé | éléments)', async () => {
+    const text = await docxLines(makeCategoryBlocks('table'), entries);
+    const i = text.indexOf('Cloud');
+    expect(text[i + 1]).toBe('Azure · Docker');
+  });
+
+  test('format colonnes : une cellule par catégorie', async () => {
+    const text = await docxLines(makeCategoryBlocks('columns2'), entries);
+    expect(text).toContain('Méthodes : MITRE ATT&CK · Analyse de logs');
   });
 });

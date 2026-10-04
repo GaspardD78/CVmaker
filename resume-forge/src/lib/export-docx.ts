@@ -4,7 +4,7 @@ import {
   ShadingType, VerticalAlign, ImageRun, ExternalHyperlink,
 } from 'docx';
 import { CVDocument, CVBlock } from '../types/cv';
-import { MasterEntry, Profile, EntryType } from '../types/profile';
+import { MasterEntry, Profile } from '../types/profile';
 import { CVTemplate } from '../types/template';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
@@ -12,6 +12,7 @@ import { isAndroid } from './platform';
 import { formatEntryDates, readDateSettings } from './entry-dates';
 import { isSubHeader, parentDisplayFormat, visibleHeaderMask, type SlotKind } from './cv-sections';
 import { shareBlob } from './share';
+import { BADGE_ENTRY_TYPES, buildBadgeRows, itemLabel, SKILL_ITEM_SEPARATOR, type BadgeItem, type BadgeRow } from './skill-lines';
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -421,66 +422,84 @@ export async function generateDocxBlob(
   const getDisplayFormat = (blockIndex: number, sortedBlocks: CVBlock[]): DisplayFormat =>
     (parentDisplayFormat(sortedBlocks, blockIndex) as DisplayFormat | undefined) || 'badges';
 
-  // ── Helper: collect badge labels from a group of badge blocks ──
-  const collectBadgeLabels = (badgeBlocks: CVBlock[]): string[] => {
-    const labels: string[] = [];
-    badgeBlocks.forEach(block => {
-      const entry = entries.find(e => e.id === block.entryId);
-      if (!entry) return;
-      const entryData = { ...entry, ...(block.overrideData || {}) };
-      const description = entryData.description as string | null;
-      if (description) {
-        const lines = description.split('\n').map(l => l.trim()).filter(Boolean);
-        const bulletLines = lines.filter(l => /^[-*]\s/.test(l));
-        if (bulletLines.length > 0) {
-          bulletLines.forEach(l => labels.push(l.replace(/^[-*]\s+/, '')));
-        } else {
-          labels.push(description.trim());
-        }
-      } else {
-        labels.push(
-          entryData.subtitle
-            ? `${entryData.title} — ${entryData.subtitle}`
-            : (entryData.title as string)
-        );
-      }
-    });
-    return labels;
-  };
-
-  // ── Helper: collect badge rows (name + optional level) for table format ──
-  const collectBadgeRows = (badgeBlocks: CVBlock[]): { name: string; level?: string }[] => {
-    const rows: { name: string; level?: string }[] = [];
-    badgeBlocks.forEach(block => {
-      const entry = entries.find(e => e.id === block.entryId);
-      if (!entry) return;
-      const entryData = { ...entry, ...(block.overrideData || {}) };
-      const description = entryData.description as string | null;
-      if (description) {
-        const lines = description.split('\n').map(l => l.trim()).filter(Boolean);
-        const bulletLines = lines.filter(l => /^[-*]\s/.test(l));
-        if (bulletLines.length > 0) {
-          bulletLines.forEach(l => rows.push({ name: l.replace(/^[-*]\s+/, '') }));
-        } else {
-          rows.push({ name: description.trim() });
-        }
-      } else {
-        rows.push({
-          name: entryData.title as string,
-          level: (entryData.subtitle as string) || undefined,
-        });
-      }
-    });
-    return rows;
-  };
+  // ── Badge groups (lignes partagées avec le rendu écran, voir lib/skill-lines.ts) ──
+  const cell = (children: Paragraph[], widthPct: number) => new TableCell({
+    children,
+    width: { size: widthPct, type: WidthType.PERCENTAGE },
+    margins: { top: 20, bottom: 20, left: 40, right: 40 },
+  });
+  const borderlessTable = (rows: TableRow[]): Table[] => rows.length > 0
+    ? [new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE }, borders: NO_TABLE_BORDERS })]
+    : [];
+  /** `**Catégorie** : a · b · c` (libellé en gras, texte brut sans tableau). */
+  const categoryRuns = (row: BadgeRow): TextRun[] => [
+    new TextRun({ text: row.category ?? '', bold: true, size: B, font: F }),
+    new TextRun({ text: ` : ${row.items.map(it => it.name).join(SKILL_ITEM_SEPARATOR)}`, size: B, font: F }),
+  ];
 
   // ── Render badge group according to display format ──
   const renderBadgeGroup = (badgeBlocks: CVBlock[], format: DisplayFormat): (Paragraph | Table)[] => {
     const result: (Paragraph | Table)[] = [];
+    const rows = buildBadgeRows(badgeBlocks, entries);
+    const categories = rows.filter(r => r.category !== null);
+    const loose: BadgeItem[] = rows.find(r => r.category === null)?.items ?? [];
+    const labels = loose.map(itemLabel);
+
+    // 1. Catégories de compétences : une ligne (ou une cellule) par catégorie.
+    if (format === 'list') {
+      categories.forEach(row => {
+        result.push(new Paragraph({
+          children: [new TextRun({ text: row.category ?? '', bold: true, size: B, font: F })],
+          spacing: { before: 40, after: 20, line: lineSpacing },
+          keepNext: true,
+        }));
+        row.items.forEach(item => result.push(new Paragraph({
+          children: parseMarkdownText(item.name),
+          spacing: { after: 30, line: lineSpacing },
+          numbering: { reference: 'default-bullet', level: 0 },
+        })));
+      });
+    } else if (format === 'columns2' || format === 'columns3') {
+      const numCols = format === 'columns2' ? 2 : 3;
+      const colWidth = Math.floor(100 / numCols);
+      const tableRows: TableRow[] = [];
+      for (let k = 0; k < categories.length; k += numCols) {
+        const cells: TableCell[] = [];
+        for (let c = 0; c < numCols; c++) {
+          const row = categories[k + c];
+          cells.push(cell([new Paragraph({
+            children: row ? categoryRuns(row) : [new TextRun({ text: '' })],
+            spacing: { after: 20 },
+          })], colWidth));
+        }
+        tableRows.push(new TableRow({ children: cells }));
+      }
+      result.push(...borderlessTable(tableRows));
+    } else if (format === 'table') {
+      result.push(...borderlessTable(categories.map(row => new TableRow({
+        children: [
+          cell([new Paragraph({
+            children: [new TextRun({ text: row.category ?? '', bold: true, size: B, font: F })],
+            spacing: { after: 20 },
+          })], 30),
+          cell([new Paragraph({
+            children: [new TextRun({ text: row.items.map(it => it.name).join(SKILL_ITEM_SEPARATOR), size: B, font: F })],
+            spacing: { after: 20 },
+          })], 70),
+        ],
+      }))));
+    } else {
+      categories.forEach(row => result.push(new Paragraph({
+        children: categoryRuns(row),
+        spacing: { after: 40, line: lineSpacing },
+      })));
+    }
+
+    // 2. Éléments libres (compétences isolées, langues, centres d'intérêt…) : rendu d'origine.
+    if (loose.length === 0) return result;
 
     if (format === 'comma' || format === 'badges') {
       // Inline text separated by " · "
-      const labels = collectBadgeLabels(badgeBlocks);
       result.push(new Paragraph({
         children: [new TextRun({ text: labels.join(' · '), size: B, font: F })],
         spacing: { after: 60, line: lineSpacing },
@@ -488,7 +507,6 @@ export async function generateDocxBlob(
 
     } else if (format === 'list') {
       // Bulleted list
-      const labels = collectBadgeLabels(badgeBlocks);
       labels.forEach(label => {
         result.push(new Paragraph({
           children: parseMarkdownText(label),
@@ -499,75 +517,41 @@ export async function generateDocxBlob(
 
     } else if (format === 'columns2' || format === 'columns3') {
       // Table-based columns (2 or 3 columns)
-      const labels = collectBadgeLabels(badgeBlocks);
       const numCols = format === 'columns2' ? 2 : 3;
       const colWidth = Math.floor(100 / numCols);
-
-      // Build rows of N columns
       const tableRows: TableRow[] = [];
-      for (let i = 0; i < labels.length; i += numCols) {
+      for (let k = 0; k < labels.length; k += numCols) {
         const cells: TableCell[] = [];
         for (let c = 0; c < numCols; c++) {
-          const label = labels[i + c] || '';
-          cells.push(new TableCell({
-            children: [new Paragraph({
-              children: label
-                ? [new TextRun({ text: `• ${label}`, size: B, font: F })]
-                : [new TextRun({ text: '' })],
-              spacing: { after: 20 },
-            })],
-            width: { size: colWidth, type: WidthType.PERCENTAGE },
-            margins: { top: 20, bottom: 20, left: 40, right: 40 },
-          }));
+          const label = labels[k + c] || '';
+          cells.push(cell([new Paragraph({
+            children: label
+              ? [new TextRun({ text: `• ${label}`, size: B, font: F })]
+              : [new TextRun({ text: '' })],
+            spacing: { after: 20 },
+          })], colWidth));
         }
         tableRows.push(new TableRow({ children: cells }));
       }
-      if (tableRows.length > 0) {
-        result.push(new Table({
-          rows: tableRows,
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          borders: NO_TABLE_BORDERS,
-        }));
-      }
+      result.push(...borderlessTable(tableRows));
 
     } else if (format === 'table') {
       // Two-column table: name | level
-      const rows = collectBadgeRows(badgeBlocks);
-      const tableRows: TableRow[] = rows.map(({ name, level }) =>
+      result.push(...borderlessTable(loose.map(({ name, level }) =>
         new TableRow({
           children: [
-            new TableCell({
-              children: [new Paragraph({
-                children: [new TextRun({ text: name, size: B, font: F })],
-                spacing: { after: 20 },
-              })],
-              width: { size: 60, type: WidthType.PERCENTAGE },
-              margins: { top: 20, bottom: 20, left: 40, right: 40 },
-            }),
-            new TableCell({
-              children: [new Paragraph({
-                children: [new TextRun({
-                  text: level || '',
-                  size: B, font: F,
-                  italics: true,
-                  color: '666666',
-                })],
-                spacing: { after: 20 },
-                alignment: AlignmentType.RIGHT,
-              })],
-              width: { size: 40, type: WidthType.PERCENTAGE },
-              margins: { top: 20, bottom: 20, left: 40, right: 40 },
-            }),
+            cell([new Paragraph({
+              children: [new TextRun({ text: name, size: B, font: F })],
+              spacing: { after: 20 },
+            })], 60),
+            cell([new Paragraph({
+              children: [new TextRun({ text: level || '', size: B, font: F, italics: true, color: '666666' })],
+              spacing: { after: 20 },
+              alignment: AlignmentType.RIGHT,
+            })], 40),
           ],
         })
-      );
-      if (tableRows.length > 0) {
-        result.push(new Table({
-          rows: tableRows,
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          borders: NO_TABLE_BORDERS,
-        }));
-      }
+      )));
     }
 
     return result;
@@ -575,7 +559,6 @@ export async function generateDocxBlob(
 
   // ── Process blocks ──
   const sortedBlocks = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
-  const BADGE_TYPES: EntryType[] = ['skill', 'language', 'interest', 'certification'];
 
   // Aucune section vide (même règle que le rendu écran/PDF, voir lib/cv-sections.ts).
   const visibleBlocks = sortedBlocks.filter(b => b.isVisible);
@@ -638,7 +621,7 @@ export async function generateDocxBlob(
       const entry = entries.find(e => e.id === block.entryId);
       if (!entry) { i++; continue; }
 
-      if (BADGE_TYPES.includes(entry.entryType)) {
+      if (BADGE_ENTRY_TYPES.includes(entry.entryType)) {
         // Collect consecutive badge entries
         const badgeGroup: CVBlock[] = [block];
         let j = i + 1;
@@ -647,7 +630,7 @@ export async function generateDocxBlob(
           if (!next.isVisible) { j++; continue; }
           if (next.blockType !== 'entry_ref' || !next.entryId) break;
           const nextEntry = entries.find(e => e.id === next.entryId);
-          if (!nextEntry || !BADGE_TYPES.includes(nextEntry.entryType)) break;
+          if (!nextEntry || !BADGE_ENTRY_TYPES.includes(nextEntry.entryType)) break;
           badgeGroup.push(next);
           j++;
         }
