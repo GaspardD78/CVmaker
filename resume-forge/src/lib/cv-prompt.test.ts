@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'bun:test';
 import {
   buildAnalysisStep, buildClarify, buildContext, buildCvPrompt, buildExtraContext, buildMasterProfile,
-  buildObjective, buildOutputSchema, buildRole, buildRules, buildTitleRule, CV_WRITING_RULES, JSON_RULES,
+  buildObjective, buildOutputSchema, buildPersonalRules, buildRole, buildRules, buildTitleRule, CV_WRITING_RULES, JSON_RULES,
+  PERSONAL_RULES_HEADING, PERSONAL_RULES_TEMPLATE, personalRulesKey,
   generateFullCVMatchPrompt, type CvPromptInput,
 } from './cv-prompt';
 import { SYSTEM_RULES, TEXT_RULES } from './prompt-templates';
@@ -191,5 +192,40 @@ describe('buildTitleRule', () => {
   it('sans titre de profil : règle historique (intitulé réellement tenu)', () => {
     expect(buildTitleRule({ title: null })).toContain('Jamais un poste que le profil n\'a pas occupé');
     expect(buildTitleRule(null)).toContain('{intitulé réellement tenu}');
+  });
+});
+
+describe('buildPersonalRules', () => {
+  it('sans texte : bloc omis', () => {
+    expect(buildPersonalRules('')).toBe('');
+    expect(buildPersonalRules('   \n ')).toBe('');
+    expect(buildPersonalRules(undefined)).toBe('');
+    expect(buildCvPrompt(input(confirmed(), JOB_FR))).not.toContain(PERSONAL_RULES_HEADING);
+  });
+
+  it('avec texte : intitulé de priorité puis le texte, tel quel', () => {
+    expect(buildPersonalRules('1. Jamais de chiffre de volume.\n')).toBe(`### ${PERSONAL_RULES_HEADING}\n1. Jamais de chiffre de volume.`);
+    expect(PERSONAL_RULES_HEADING).toBe("Règles personnelles du candidat : priorité absolue, elles priment sur l'annonce");
+  });
+
+  it('injecté dans le prompt juste avant les règles de rédaction', () => {
+    const prompt = buildCvPrompt(input(confirmed(), JOB_FR, { options: { now: NOW, personalRules: 'Règle fictive A' } }));
+    const rules = prompt.indexOf('Règle fictive A');
+    const heading = prompt.indexOf(PERSONAL_RULES_HEADING);
+    const writing = prompt.indexOf(CV_WRITING_RULES);
+    expect(heading).toBeGreaterThan(-1);
+    expect(heading).toBeLessThan(rules);
+    expect(rules).toBeLessThan(writing);
+  });
+
+  it('clé de réglage par profil', () => {
+    expect(personalRulesKey('p1')).toBe('cv_personal_rules:p1');
+    expect(personalRulesKey('p2')).not.toBe(personalRulesKey('p1'));
+  });
+
+  it('le modèle proposé ne contient que des intitulés de rubrique', () => {
+    expect(PERSONAL_RULES_TEMPLATE).toContain('Faits à respecter');
+    expect(PERSONAL_RULES_TEMPLATE).toContain('Critères de recherche');
+    expect(PERSONAL_RULES_TEMPLATE).not.toMatch(/—/);
   });
 });

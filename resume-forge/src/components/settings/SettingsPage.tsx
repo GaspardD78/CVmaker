@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor, FileText } from 'lucide-react';
+import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Moon, Monitor, FileText, ClipboardList } from 'lucide-react';
 import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
 import { GoogleDriveSync } from './GoogleDriveSync';
 import { usePromptStore } from '@/stores/promptStore';
+import { useProfileStore } from '@/stores/profileStore';
+import { PERSONAL_RULES_TEMPLATE } from '@/lib/cv-prompt';
 import { useTheme } from '@/hooks/useTheme';
 
 export function SettingsPage() {
@@ -28,6 +30,27 @@ export function SettingsPage() {
     await saveDifferentiator(localDifferentiator);
     setDiffSaved(true);
     setTimeout(() => setDiffSaved(false), 2000);
+  };
+
+  // ── Règles personnelles (par profil) ──────────────────────────────────────
+  const { profile } = useProfileStore();
+  const { personalRules, personalRulesProfileId, loadPersonalRules, savePersonalRules } = usePromptStore();
+  const [localRules, setLocalRules] = useState('');
+  const [rulesSaved, setRulesSaved] = useState(false);
+
+  useEffect(() => {
+    if (profile) loadPersonalRules(profile.id);
+  }, [profile?.id, loadPersonalRules]);
+
+  useEffect(() => {
+    if (profile && personalRulesProfileId === profile.id) setLocalRules(personalRules);
+  }, [profile?.id, personalRules, personalRulesProfileId]);
+
+  const handleSaveRules = async () => {
+    if (!profile) return;
+    await savePersonalRules(profile.id, localRules);
+    setRulesSaved(true);
+    setTimeout(() => setRulesSaved(false), 2000);
   };
 
   // ── Theme ───────────────────────────────────────────────────────────────
@@ -186,8 +209,9 @@ export function SettingsPage() {
             <h2 className="text-base font-semibold dark:text-gray-100">Pages cibles</h2>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Nombre de pages visé par le CV généré par IA. À 1 page (défaut), le prompt impose un résumé de 2 lignes,
-            3 puces maximum par expérience récente, 12 à 15 compétences sans catégories, et le contrôle signale tout dépassement probable.
+            Nombre de pages visé par le CV généré par IA. À 1 page (défaut), le prompt impose une accroche de 3 lignes,
+            3 puces pour les expériences des 5 dernières années, 2 de 5 à 10 ans, une ligne au-delà, 3 à 5 catégories
+            et 12 à 15 éléments de compétences, et le contrôle signale tout dépassement probable.
           </p>
         </div>
         <div className="p-6 flex gap-3" role="radiogroup" aria-label="Pages cibles">
@@ -206,6 +230,51 @@ export function SettingsPage() {
               {n} page{n > 1 ? 's' : ''}
             </button>
           ))}
+        </div>
+      </section>
+
+      {/* ── Règles personnelles du candidat (prompt « CV ciblé ») ── */}
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
+          <div className="flex items-center gap-2 mb-1">
+            <ClipboardList size={18} className="text-indigo-500" />
+            <h2 className="text-base font-semibold dark:text-gray-100">Règles personnelles</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Propres au profil {profile ? `« ${profile.firstName} ${profile.lastName} »` : 'actif'}. Injectées dans le prompt du CV ciblé
+            avant les règles de rédaction, en priorité absolue sur l'annonce : faits à respecter, style, critères de recherche.
+            Laisser vide pour ne rien ajouter.
+          </p>
+        </div>
+        <div className="p-6 space-y-3">
+          <textarea
+            value={localRules}
+            onChange={e => setLocalRules(e.target.value)}
+            disabled={!profile}
+            aria-label="Règles personnelles"
+            placeholder="Faits à respecter, style, critères de recherche…"
+            className="w-full p-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm font-mono resize-y h-56 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveRules}
+              disabled={!profile}
+              className={`flex items-center gap-2 px-4 py-2 text-sm rounded-md transition-colors disabled:opacity-50 ${
+                rulesSaved ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              }`}
+            >
+              {rulesSaved ? <><CheckCircle2 size={15} /> Enregistré</> : 'Enregistrer'}
+            </button>
+            {!localRules.trim() && (
+              <button
+                onClick={() => setLocalRules(PERSONAL_RULES_TEMPLATE)}
+                disabled={!profile}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Insérer un modèle
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

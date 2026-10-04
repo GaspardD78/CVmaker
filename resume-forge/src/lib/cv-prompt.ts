@@ -57,6 +57,8 @@ export interface CvPromptOptions {
   pageBudget?: number;
   /** Date de référence du calcul d'expérience (tests déterministes) ; défaut : maintenant. */
   now?: Date;
+  /** Règles personnelles du candidat (réglage par profil) ; bloc omis si vide. */
+  personalRules?: string;
 }
 
 export interface CvPromptInput {
@@ -86,6 +88,37 @@ export const CV_WRITING_RULES = `### Style et rédaction
 - Gras (**) autorisé uniquement sur des technologies ou des résultats chiffrés présents dans la source, 2 par puce au maximum. Aucun autre markdown que les puces « - ».
 - Homogénéité : même casse pour tous les intitulés, même ponctuation de fin de puce (aucun point final), pas de datesOverride sauf nécessité (le format des dates est géré par l'application).
 - Typographie. Français : espace insécable avant « : ; ? ! », guillemets « ». Anglais : virgule d'Oxford systématique, mois abrégés au format « Mon YYYY » si tu dois écrire une date.`;
+
+/** Intitulé du bloc des règles personnelles (placé avant `CV_WRITING_RULES`). */
+export const PERSONAL_RULES_HEADING = "Règles personnelles du candidat : priorité absolue, elles priment sur l'annonce";
+
+/** Clé du réglage « Règles personnelles » d'un profil (table `settings`, clé/valeur globale). */
+export function personalRulesKey(profileId: string): string {
+  return `cv_personal_rules:${profileId}`;
+}
+
+/**
+ * Modèle vide proposé dans les Paramètres (aucune donnée : le candidat le remplit).
+ * Les critères de recherche servent aussi aux alertes \`analyse.alertes_cap\`.
+ */
+export const PERSONAL_RULES_TEMPLATE = `Faits à respecter
+1. (ce qui ne doit jamais être affirmé, chiffres exacts à reprendre tels quels)
+
+Style
+(longueur des phrases, mots à éviter, usage du gras)
+
+Critères de recherche
+(télétravail, temps de trajet, rémunération minimale, langues exigées, horaires)`;
+
+/**
+ * Bloc des règles personnelles, saisies par le candidat (faits à respecter,
+ * style, critères de recherche). Chaîne vide quand le texte est vide : le bloc
+ * est alors omis du prompt.
+ */
+export function buildPersonalRules(text?: string | null): string {
+  const trimmed = text?.trim();
+  return trimmed ? `### ${PERSONAL_RULES_HEADING}\n${trimmed}` : '';
+}
 
 /** Règles de forme de la sortie JSON. */
 export const JSON_RULES = `### Forme de la réponse
@@ -271,7 +304,7 @@ ${onePage ? buildOnePageRules() : `- VOLUME : ${pages} pages maximum, soit envir
 - Si une puce manque de résultat chiffré, ne l'invente pas : ajoute dans "warnings" une question de quantification à mon intention (ex. « Poste X : combien d'utilisateurs ou d'alertes par jour ? »).
 - "suggestedEntries" ne peut contenir QUE des éléments directement et explicitement étayés par le contexte additionnel, absents du profil maître, jamais déduits de l'annonce. Contexte additionnel vide ou sans élément pertinent : "suggestedEntries": [].
 
-${CV_WRITING_RULES}`;
+${[buildPersonalRules(input.options?.personalRules), CV_WRITING_RULES].filter(Boolean).join('\n\n')}`;
 }
 
 export function buildClarify(clarify: boolean | undefined): string {

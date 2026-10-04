@@ -3,6 +3,7 @@ import { getSetting, setSetting } from '@/lib/db';
 import { resolvePrompt, ResolverContext } from '@/lib/prompt-resolver';
 import { PROMPT_TEMPLATES } from '@/lib/prompt-templates';
 import { DEFAULT_TARGET_PAGES, normalizeTargetPages } from '@/lib/cv-experience';
+import { personalRulesKey } from '@/lib/cv-prompt';
 
 interface PromptState {
   jobOffer: string;
@@ -19,6 +20,12 @@ interface PromptState {
   saveDifferentiator: (value: string) => Promise<void>;
   loadTargetPages: () => Promise<void>;
   saveTargetPages: (value: 1 | 2) => Promise<void>;
+  /** Règles personnelles du profil chargé (injectées dans le prompt « CV ciblé »). */
+  personalRules: string;
+  /** Profil auquel appartient `personalRules` (null : rien de chargé). */
+  personalRulesProfileId: string | null;
+  loadPersonalRules: (profileId: string) => Promise<void>;
+  savePersonalRules: (profileId: string, value: string) => Promise<void>;
 }
 
 export const usePromptStore = create<PromptState>((set, get) => ({
@@ -28,6 +35,8 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   differentiator: '',
   isLoaded: false,
   targetPages: DEFAULT_TARGET_PAGES,
+  personalRules: '',
+  personalRulesProfileId: null,
 
   setJobOffer: (value) => set({ jobOffer: value }),
 
@@ -63,6 +72,19 @@ export const usePromptStore = create<PromptState>((set, get) => ({
     } catch {
       /* défaut : 1 page */
     }
+  },
+
+  loadPersonalRules: async (profileId) => {
+    try {
+      set({ personalRules: (await getSetting(personalRulesKey(profileId))) ?? '', personalRulesProfileId: profileId });
+    } catch {
+      set({ personalRules: '', personalRulesProfileId: profileId });
+    }
+  },
+
+  savePersonalRules: async (profileId, value) => {
+    await setSetting(personalRulesKey(profileId), value);
+    set({ personalRules: value, personalRulesProfileId: profileId });
   },
 
   saveTargetPages: async (value) => {

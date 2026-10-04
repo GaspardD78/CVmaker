@@ -37,7 +37,9 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
 export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const { profile, entries } = useProfileStore();
   const { cvs, fetchCvs, duplicateCv } = useCvStore();
-  const { targetPages, loadTargetPages } = usePromptStore();
+  const { targetPages, loadTargetPages, personalRules, personalRulesProfileId, loadPersonalRules } = usePromptStore();
+  // Règles personnelles du profil courant (jamais celles d'un autre profil).
+  const ownRules = profile && personalRulesProfileId === profile.id ? personalRules : '';
 
   const [activeTab, setActiveTab] = useState<Tab>('master');
   const [selectedCvId, setSelectedCvId] = useState<string>('');
@@ -62,6 +64,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (open) {
       fetchCvs();
       loadTargetPages();
+      if (profile) loadPersonalRules(profile.id);
       // Reset state on each new offer
       setActiveTab('master');
       setJsonInput('');
@@ -74,7 +77,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setPromptCopied(false);
       setCvPromptCopied(false);
     }
-  }, [open, offer?.id, fetchCvs, loadTargetPages]);
+  }, [open, offer?.id, fetchCvs, loadTargetPages, loadPersonalRules, profile?.id]);
 
   // Parse + garde-fou du JSON collé : alimente le rapport, la revue des suggestions et le récapitulatif.
   // Les erreurs de format sont ignorées ici (signalées à l'application).
@@ -131,12 +134,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules });
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules });
   };
 
   // ── Suggested-entry helpers (off-profile, opt-in) ─────────────────────────
