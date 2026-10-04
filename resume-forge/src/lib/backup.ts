@@ -38,8 +38,8 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'masterEntries',
     label: 'Entrées CV',
-    description: 'Expériences, formations, compétences, langues, projets…',
-    tables: ['master_entries'],
+    description: 'Expériences, formations, compétences, langues, projets, angles de CV…',
+    tables: ['master_entries', 'cv_angles'],
   },
   {
     id: 'cvDocuments',
@@ -225,7 +225,7 @@ export async function applyRows(
  * Deletion order respects FK constraints (leaves first).
  * Only deletes from tables included in the module.
  */
-const DELETE_ORDER: string[] = [
+export const DELETE_ORDER: string[] = [
   'job_offer_feedback',
   'application_attachments',
   'application_events',
@@ -233,6 +233,7 @@ const DELETE_ORDER: string[] = [
   'cv_blocks',
   'applications',
   'cv_documents',
+  'cv_angles',
   'master_entries',
   'job_watch_config',
   'job_watch_fetch_log',
@@ -241,63 +242,65 @@ const DELETE_ORDER: string[] = [
   'settings',
 ];
 
+/** Tables portant un `profile_id` (remappage du profil, suppression limitée au profil courant). */
+export const TABLES_WITH_PROFILE_ID: string[] = [
+  'master_entries',
+  'cv_angles',
+  'cv_documents',
+  'applications',
+  'job_watch_config',
+  'job_offers',
+  'job_watch_settings',
+];
+
+/** Ordre d'insertion compatible avec les clés étrangères. */
+export const INSERT_ORDER: string[] = [
+  'profiles',
+  'settings',
+  'job_watch_settings',
+  'job_watch_config',
+  'master_entries',
+  'cv_angles',
+  'cv_documents',
+  'cv_blocks',
+  'applications',
+  'application_events',
+  'application_attachments',
+  'job_offers',
+  'job_offer_feedback',
+  'job_watch_fetch_log',
+];
+
+/**
+ * Remappe le profil de la sauvegarde sur le profil courant (en place) : la
+ * sauvegarde peut venir d'un autre profil (autre id). Les données importées
+ * rejoignent ainsi le profil actif au lieu d'en créer un nouveau.
+ */
+export function remapBackupProfileId(backup: BackupData, currentUserId: string | null | undefined): void {
+  const backupProfiles = backup.modules['profiles'];
+  if (!currentUserId || !backupProfiles || backupProfiles.length === 0) return;
+  const backupProfileId = backupProfiles[0].id as string;
+  if (backupProfileId === currentUserId) return;
+  for (const row of backupProfiles) {
+    if (row.id === backupProfileId) row.id = currentUserId;
+  }
+  for (const table of TABLES_WITH_PROFILE_ID) {
+    for (const row of backup.modules[table] ?? []) {
+      if (row.profile_id === backupProfileId) row.profile_id = currentUserId;
+    }
+  }
+}
+
 export async function importBackup(backup: BackupData, plan: ImportPlan): Promise<void> {
   const db = await getDb();
 
   // ── Profile ID remapping ───────────────────────────────────────────────
-  // The backup may come from a different profile (different id).
-  // Remap the backup's profile ID → current user's profile ID so that
-  // imported data merges into the active profile instead of creating a new one.
   const { useAuthStore } = await import('@/stores/authStore');
   const currentUserId = useAuthStore.getState().currentUserId;
-  const backupProfiles = backup.modules['profiles'];
-
-  if (currentUserId && backupProfiles && backupProfiles.length > 0) {
-    const backupProfileId = backupProfiles[0].id as string;
-    if (backupProfileId !== currentUserId) {
-      // Remap profile ID in profiles table
-      for (const row of backupProfiles) {
-        if (row.id === backupProfileId) {
-          row.id = currentUserId;
-        }
-      }
-      // Remap profile_id in FK-linked tables
-      const tablesWithProfileId = [
-        'master_entries',
-        'cv_documents',
-        'applications',
-        'job_watch_config',
-        'job_offers',
-        'job_watch_settings'
-      ];
-      for (const table of tablesWithProfileId) {
-        const rows = backup.modules[table];
-        if (!rows) continue;
-        for (const row of rows) {
-          if (row.profile_id === backupProfileId) {
-            row.profile_id = currentUserId;
-          }
-        }
-      }
-    }
-  }
+  remapBackupProfileId(backup, currentUserId);
 
   // Build list of (table, strategy) to process, in safe insert order
-  const insertOrder: string[] = [
-    'profiles',
-    'settings',
-    'job_watch_settings',
-    'job_watch_config',
-    'master_entries',
-    'cv_documents',
-    'cv_blocks',
-    'applications',
-    'application_events',
-    'application_attachments',
-    'job_offers',
-    'job_offer_feedback',
-    'job_watch_fetch_log',
-  ];
+  const insertOrder: string[] = INSERT_ORDER;
 
   // Collect which tables need DELETE (replace strategy)
   const tablesToDelete = new Set<string>();
@@ -314,14 +317,7 @@ export async function importBackup(backup: BackupData, plan: ImportPlan): Promis
 
       if (currentUserId && table === 'profiles') {
         await db.execute('DELETE FROM profiles WHERE id = ?1', [currentUserId]);
-      } else if (currentUserId && [
-        'master_entries',
-        'cv_documents',
-        'applications',
-        'job_watch_config',
-        'job_offers',
-        'job_watch_settings'
-      ].includes(table)) {
+      } else if (currentUserId && TABLES_WITH_PROFILE_ID.includes(table)) {
         await db.execute(`DELETE FROM ${table} WHERE profile_id = ?1`, [currentUserId]);
       } else {
         await db.execute(`DELETE FROM ${table}`);

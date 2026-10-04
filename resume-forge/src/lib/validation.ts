@@ -203,6 +203,20 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'key',
     'value',
   ],
+  cv_angles: [
+    'id',
+    'profile_id',
+    'slug',
+    'label',
+    'title_rule',
+    'summary_structure',
+    'skill_category_order',
+    'vocabulary',
+    'older_policy',
+    'sort_order',
+    'created_at',
+    'updated_at',
+  ],
 };
 
 /**

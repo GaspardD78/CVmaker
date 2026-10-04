@@ -238,6 +238,26 @@ export async function getDb(): Promise<Database> {
       )
     `).catch(() => {/* already exists */});
 
+    // Fallback: ensure migration 020 table exists (bibliothèque d'angles de CV, par profil).
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS cv_angles (
+        id                    TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        profile_id            TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        slug                  TEXT NOT NULL,
+        label                 TEXT NOT NULL,
+        title_rule            TEXT NOT NULL DEFAULT 'profile',
+        summary_structure     TEXT NOT NULL DEFAULT '',
+        skill_category_order  TEXT NOT NULL DEFAULT '[]',
+        vocabulary            TEXT NOT NULL DEFAULT '',
+        older_policy          TEXT NOT NULL DEFAULT 'one-line',
+        sort_order            INTEGER NOT NULL DEFAULT 0,
+        created_at            TEXT DEFAULT (datetime('now')),
+        updated_at            TEXT DEFAULT (datetime('now')),
+        UNIQUE (profile_id, slug)
+      )
+    `).catch(() => {/* already exists */});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_cv_angles_profile ON cv_angles(profile_id)`).catch(() => {/* already exists */});
+
     // Fallback: ensure migration 019 schema exists (portefeuille multi-alertes).
     // Une alerte porte un profil de recherche complet et autonome ; la table de
     // liaison porte la multiplicité et le score par piste.
