@@ -6,6 +6,7 @@ import {
 } from './cv-prompt';
 import { SYSTEM_RULES, TEXT_RULES } from './prompt-templates';
 import { TEST_PROFILE, makeEntries, makeEntry } from './test-helpers/cv-fixtures';
+import { makeCategoryEntries } from './test-helpers/skill-fixtures';
 import type { MasterEntry } from '@/types/profile';
 
 const NOW = new Date(Date.UTC(2026, 5, 15));
@@ -67,15 +68,16 @@ describe('blocs du prompt CV v2', () => {
     expect(buildContext(input(junior(), JOB_FR, { options: { now: NOW, pageBudget: 2 } }))).toContain('Pages cibles : 2');
   });
 
-  it('1 page : impose résumé 2 lignes, 3 puces, masquage, 12 à 15 compétences sans groupes, formations, intérêts', () => {
+  it('1 page : impose résumé 2 lignes, 3 puces, masquage, 3 à 5 catégories et 12 à 15 éléments de compétences, formations, intérêts', () => {
     const rules = buildRules(input(senior(), JOB_FR));
     expect(rules).toContain('UNE PAGE');
     expect(rules).toContain('RÉSUMÉ : 2 lignes maximum');
     expect(rules).toContain('3 puces maximum chacune');
     expect(rules).toContain('1 ligne (titre, employeur, dates');
     expect(rules).toContain('Une expérience sans lien avec l\'annonce : `visible: false`');
-    expect(rules).toContain('12 à 15 maximum');
-    expect(rules).toContain('omets "skillGroups"');
+    expect(rules).toContain('3 à 5 catégories visibles et 12 à 15 éléments au total');
+    // Plus de « Pas de regroupement » : skillGroups reste possible pour les compétences isolées.
+    expect(rules).not.toContain('Pas de regroupement');
     expect(rules).toContain('FORMATIONS et CERTIFICATIONS');
     expect(rules).toContain('CENTRES D\'INTÉRÊT et BÉNÉVOLAT');
     expect(rules).not.toContain('Utilise "skillGroups" seulement');
@@ -95,7 +97,9 @@ describe('blocs du prompt CV v2', () => {
     expect(block).toContain('ID: "x1"');
     expect(block).toContain('Dates: "2021-01 - Présent"');
     expect(block).toContain('    - Supervision de 12 sources de logs avec Splunk');
-    expect(block).toContain('Résumé actuel du profil : Analyste cybersécurité.');
+    expect(block).toContain('### Trajectoire du profil');
+    expect(block).toContain('- Titre du profil : Analyste SOC');
+    expect(block).toContain('- Résumé du profil : Analyste cybersécurité.');
   });
 
   it('contexte additionnel vide : suggestedEntries doit être vide', () => {
@@ -159,5 +163,21 @@ describe('buildMasterProfile - titre propre (lib/entry-display.ts)', () => {
     const out = buildMasterProfile([e]);
     expect(out).toContain('- ID: "xp-acme" | Titre: "Analyste SOC" | Entreprise: "Acme"');
     expect(out).not.toContain('Analyste SOC (Acme)');
+  });
+});
+
+describe('buildMasterProfile - catégories de compétences', () => {
+  it('liste les éléments de chaque catégorie, le titre seul pour une compétence isolée', () => {
+    const out = buildMasterProfile(makeCategoryEntries());
+    expect(out).toContain('- ID: "k1" | Catégorie: "Langages" | Éléments: Python ; SQL ; Bash');
+    expect(out).toContain('- ID: "k2" | Catégorie: "Outils SOC" | Éléments: Splunk ; Elastic ; Wireshark');
+    expect(out).toContain('- ID: "k5" | Titre: "Git"');
+  });
+
+  it('règle de sélection des éléments : uniquement des éléments existants, aucun ajout', () => {
+    const rules = buildRules(input(makeCategoryEntries(), JOB_FR));
+    expect(rules).toContain('CATÉGORIES DE COMPÉTENCES');
+    expect(rules).toContain('uniquement des éléments existants de la source');
+    expect(rules).toContain('Aucun ajout');
   });
 });

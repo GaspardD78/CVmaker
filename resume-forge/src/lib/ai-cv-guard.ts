@@ -22,11 +22,13 @@ import { DEFAULT_TARGET_PAGES, experienceYears, nowMonthIndex, toMonthIndex } fr
 import { normalizeLanguageCode } from './cv-language';
 import { normalizeLabel } from './cv-sections';
 import { normalizeDescription, normalizeTypography } from './cv-typography';
+import { bulletItems, isSkillCategory } from './skill-lines';
 
 export type GuardCode =
   | 'unknown-id' | 'invented-number' | 'unsourced-term' | 'unsupported-title' | 'suggestion-rejected'
   | 'duplicate-skill' | 'skill-in-several-groups' | 'long-bullet' | 'too-many-bullets' | 'empty-description'
-  | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume';
+  | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume'
+  | 'skill-item-invented';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -226,6 +228,32 @@ function normalizeApostrophes(s: string): string {
   return s.replace(/[’‘]/g, "'");
 }
 
+/**
+ * Éléments d'une compétence proposés par l'IA (puces de \`description\`), ramenés
+ * à ceux de la source : un élément absent de la source (comparaison
+ * \`normalizeLabel\`) est retiré, les autres reprennent le libellé exact de la
+ * source, sans doublon, dans l'ordre choisi par l'IA.
+ */
+export function checkSkillItems(description: string, source: MasterEntry): { description: string; kept: number; invented: string[] } {
+  const key = (s: string) => normalizeApostrophes(normalizeLabel(s));
+  const sourceItems = new Map(bulletItems(source.description).map(item => [key(item), item] as const));
+  const kept: string[] = [];
+  const invented: string[] = [];
+  const seen = new Set<string>();
+  for (const item of bulletItems(description)) {
+    const k = key(item);
+    const original = sourceItems.get(k);
+    if (original === undefined) invented.push(item);
+    else if (!seen.has(k)) { seen.add(k); kept.push(original); }
+  }
+  return { description: kept.map(item => `- ${item}`).join('\n'), kept: kept.length, invented };
+}
+
+/** Nombre d'éléments de compétences d'une entrée visible : puces d'une catégorie, 1 pour une compétence isolée. */
+export function skillItemCount(entry: MasterEntry, description: string): number {
+  return isSkillCategory(entry) ? bulletItems(description).length : 1;
+}
+
 // ── Garde-fou ────────────────────────────────────────────────────────────────
 
 interface TextField {
@@ -256,6 +284,21 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     seenIds.add(e.id);
     const cleaned: AiCvEntry = { ...e };
     if (cleaned.description !== undefined) cleaned.description = normalizeDescription(cleaned.description, language);
+    // Compétences : uniquement des éléments existants de la source (sélection et ordre, aucun ajout).
+    const sourceEntry = entryById.get(e.id) as MasterEntry;
+    if (sourceEntry.entryType === 'skill' && cleaned.description !== undefined && bulletItems(cleaned.description).length > 0) {
+      const checked = checkSkillItems(cleaned.description, sourceEntry);
+      if (checked.invented.length > 0) {
+        warn({
+          code: 'skill-item-invented',
+          message: `« ${sourceEntry.title} » : élément(s) absent(s) de la source retiré(s) : ${checked.invented.join(', ')}.`,
+          entryId: e.id,
+        });
+      }
+      // Aucun élément valide : la description de la source est conservée.
+      if (checked.kept > 0) cleaned.description = checked.description;
+      else delete cleaned.description;
+    }
     for (const key of ['titleOverride', 'companyOverride', 'subtitleOverride'] as const) {
       const v = cleaned[key];
       if (v !== undefined) cleaned[key] = normalizeTypography(v, language);
@@ -277,6 +320,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       for (const id of g.entryIds) {
         const e = entryById.get(id);
         if (!e || e.entryType !== 'skill') { unknownIds.add(id); continue; }
+        if (isSkillCategory(e)) continue; // une catégorie porte déjà son libellé (lib/skill-lines.ts)
         const previous = owner.get(id);
         if (previous !== undefined) {
           warn({ code: 'skill-in-several-groups', message: `« ${e.title} » est dans plusieurs groupes (« ${previous} » et « ${g.category} ») : seule la première est conservée.`, entryId: id });
@@ -327,10 +371,6 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
 
   const pageBudget = ctx.pageBudget ?? DEFAULT_TARGET_PAGES;
   const strict = pageBudget === 1;
-  if (strict && data.skillGroups) {
-    delete data.skillGroups;
-    warn({ code: 'one-page', message: 'Cible 1 page : le regroupement des compétences en catégories est ignoré.' });
-  }
 
   // ── Vue « CV final » : entrées visibles, texte effectif ──
   const aiById = new Map(entries.map(e => [e.id, e] as const));
@@ -491,8 +531,11 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
         flag(`« ${e.title} » : ${type === 'interest' ? 'centre d\'intérêt' : 'bénévolat'} à masquer sauf s'il sert l'annonce (1 page).`, e.entry.id);
       }
     }
-    const skillCount = visible.filter(e => e.entry.entryType === 'skill').length;
-    if (skillCount > L.maxSkills) flag(`${skillCount} compétences visibles : ${L.minSkills} à ${L.maxSkills} maximum (1 page).`);
+    const visibleSkills = visible.filter(e => e.entry.entryType === 'skill');
+    const itemCount = visibleSkills.reduce((n, e) => n + skillItemCount(e.entry, e.description), 0);
+    const categoryCount = visibleSkills.filter(e => isSkillCategory(e.entry) && bulletItems(e.description).length > 0).length;
+    if (itemCount > L.maxSkillItems) flag(`${itemCount} éléments de compétences visibles : ${L.minSkillItems} à ${L.maxSkillItems} maximum (1 page).`);
+    if (categoryCount > L.maxSkillCategories) flag(`${categoryCount} catégories de compétences visibles : ${L.minSkillCategories} à ${L.maxSkillCategories} maximum (1 page).`);
     for (const [type, max, noun] of [['education', L.maxEducation, 'formations'], ['certification', L.maxCertifications, 'certifications']] as const) {
       const n = visible.filter(e => e.entry.entryType === type).length;
       if (n > max) flag(`${n} ${noun} visibles : ${max} maximum, les plus récentes ou pertinentes (1 page).`);
@@ -516,11 +559,14 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     const list = ofType(type).sort(byEnd);
     list.slice(0, Math.max(0, list.length - max)).forEach(e => push(e, `${type === 'education' ? 'formation' : 'certification'} ancienne en trop`));
   }
+  // Compétences au-delà du budget d'éléments : les entrées en queue d'ordre d'abord.
   const skills = ofType('skill');
-  if (skills.length > L.maxSkills) {
-    const rank = new Map((data.entryOrder ?? []).map((id, i) => [id, i] as const));
-    const ordered = skills.map((e, i) => ({ e, i })).sort((a, b) => (rank.get(a.e.entry.id) ?? 1e6) - (rank.get(b.e.entry.id) ?? 1e6) || a.i - b.i);
-    ordered.slice(L.maxSkills).forEach(({ e }) => push(e, `compétence au-delà de ${L.maxSkills}`));
+  const rank = new Map((data.entryOrder ?? []).map((id, i) => [id, i] as const));
+  const ordered = skills.map((e, i) => ({ e, i })).sort((a, b) => (rank.get(a.e.entry.id) ?? 1e6) - (rank.get(b.e.entry.id) ?? 1e6) || a.i - b.i);
+  let items = 0;
+  for (const { e } of ordered) {
+    items += skillItemCount(e.entry, e.description);
+    if (items > L.maxSkillItems) push(e, `éléments de compétences au-delà de ${L.maxSkillItems}`);
   }
   for (const e of ofType('experience').sort(byEnd)) {
     const bullets = bulletsOf(e.description);

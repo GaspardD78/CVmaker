@@ -14,6 +14,7 @@
 import type { MasterEntry, Profile } from '@/types/profile';
 import { DEFAULT_TARGET_PAGES, experienceYears } from './cv-experience';
 import { displayTitle } from './entry-display';
+import { bulletItems, isSkillCategory } from './skill-lines';
 
 /** Nombre de puces d'un CV d'une page (base du budget de volume du prompt et du garde-fou). */
 export const BULLETS_PER_PAGE = 18;
@@ -25,8 +26,12 @@ export const ONE_PAGE_LIMITS = {
   /** Expériences plus anciennes : 1 ligne (aucune puce) ou 1 à 2 puces. */
   olderBullets: 2,
   recentYears: 5,
-  maxSkills: 15,
-  minSkills: 12,
+  /** Catégories de compétences visibles (entrées \`skill\` à puces, lib/skill-lines.ts). */
+  minSkillCategories: 3,
+  maxSkillCategories: 5,
+  /** Éléments de compétences visibles au total : puces des catégories + compétences isolées. */
+  minSkillItems: 12,
+  maxSkillItems: 15,
   maxEducation: 2,
   maxCertifications: 3,
 } as const;
@@ -119,7 +124,7 @@ Produire UN objet JSON (schéma en fin de prompt) qui sélectionne, ordonne et r
 }
 
 export function buildContext(input: CvPromptInput): string {
-  const { profile, entries, jobOfferText, targetCompany, options } = input;
+  const { entries, jobOfferText, targetCompany, options } = input;
   const years = experienceYears(entries, options?.now);
   const pages = options?.pageBudget ?? DEFAULT_TARGET_PAGES;
   const lines = [
@@ -127,7 +132,6 @@ export function buildContext(input: CvPromptInput): string {
     targetCompany ? `Entreprise cible : ${targetCompany}` : '',
     `Pages cibles : ${pages}`,
     `Durée d'expérience professionnelle calculée depuis les dates du profil : ${years === 0 ? "moins d'un an" : `${years} an${years > 1 ? 's' : ''}`} (valeur à utiliser dans l'accroche, sans l'arrondir à la hausse)`,
-    profile.title ? `Titre actuel du profil : ${profile.title}` : '',
     `Annonce :\n<<<\n${jobOfferText.trim()}\n>>>`,
   ];
   return lines.filter(Boolean).join('\n');
@@ -136,7 +140,10 @@ export function buildContext(input: CvPromptInput): string {
 export function buildMasterProfile(entries: MasterEntry[], profile?: Profile): string {
   const experiences = section(entries, 'experience',
     e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Entreprise: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}${describeBody(e)}`, '(aucune)');
-  const skills = section(entries, 'skill', e => `- ID: ${q(e.id)} | Titre: ${q(e.title)}`, '(aucune)');
+  // Catégorie (compétence à puces) : le LLM voit ses éléments ; compétence isolée : son titre.
+  const skills = section(entries, 'skill', e => (isSkillCategory(e)
+    ? `- ID: ${q(e.id)} | Catégorie: ${q(e.title)} | Éléments: ${bulletItems(e.description).join(' ; ')}`
+    : `- ID: ${q(e.id)} | Titre: ${q(e.title)}`), '(aucune)');
   const education = section(entries, 'education',
     e => `- ID: ${q(e.id)} | Diplôme: ${t(e)} | École: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}`, '(aucune)');
   const certifications = section(entries, 'certification',
@@ -150,7 +157,7 @@ export function buildMasterProfile(entries: MasterEntry[], profile?: Profile): s
     e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Organisation: ${q(e.subtitle)}`, '(aucun)');
 
   return `## Profil maître (données sources)
-${profile?.summary ? `Résumé actuel du profil : ${profile.summary.replace(/\n/g, ' ')}\n\n` : ''}### Expériences
+${buildTrajectory(profile)}### Expériences
 ${experiences}
 
 ### Compétences
@@ -175,6 +182,18 @@ ${interests}
 ${volunteer}`;
 }
 
+/**
+ * Trajectoire du profil (titre et résumé choisis par le candidat) : source du
+ * ton de l'accroche. Vide quand le profil n'a ni titre ni résumé.
+ */
+function buildTrajectory(profile?: Profile): string {
+  const lines = [
+    profile?.title ? `- Titre du profil : ${profile.title}` : '',
+    profile?.summary ? `- Résumé du profil : ${profile.summary.replace(/\n/g, ' ')}` : '',
+  ].filter(Boolean);
+  return lines.length > 0 ? `### Trajectoire du profil (source du ton de l'accroche)\n${lines.join('\n')}\n\n` : '';
+}
+
 export function buildExtraContext(extraContext?: string): string {
   const trimmed = extraContext?.trim();
   return `## Contexte additionnel (source UNIQUE des entrées suggérées)
@@ -197,7 +216,7 @@ export function buildOnePageRules(): string {
   return `- UNE PAGE (contrainte stricte, prioritaire sur toute autre consigne de volume) :
   - RÉSUMÉ : ${L.summaryLines} lignes maximum (environ 200 caractères).
   - EXPÉRIENCES des ${L.recentYears} dernières années ou couvrant un indispensable de l'annonce : ${L.recentBullets} puces maximum chacune. Expériences plus anciennes : 1 ligne (titre, employeur, dates : omets "description") ou 1 à ${L.olderBullets} puces selon leur utilité pour l'annonce. Une expérience sans lien avec l'annonce : \`visible: false\`.
-  - COMPÉTENCES : ${L.minSkills} à ${L.maxSkills} maximum, les plus pertinentes d'abord (entryOrder), les autres \`visible: false\`. Pas de regroupement : omets "skillGroups".
+  - COMPÉTENCES : ${L.minSkillCategories} à ${L.maxSkillCategories} catégories visibles et ${L.minSkillItems} à ${L.maxSkillItems} éléments au total (compte les éléments, pas les entrées : une compétence isolée compte pour 1), les plus pertinents d'abord (entryOrder), les autres \`visible: false\`.
   - FORMATIONS et CERTIFICATIONS : uniquement les plus récentes ou les plus pertinentes, une ligne chacune (aucune description). Les autres \`visible: false\`.
   - CENTRES D'INTÉRÊT et BÉNÉVOLAT : \`visible: false\`, sauf s'ils servent directement l'annonce.
   - Si le tout dépasse encore 1 page, masque d'abord ce qui est le moins lié à l'annonce.`;
@@ -225,6 +244,7 @@ export function buildRules(input: CvPromptInput): string {
 - MOTS-CLÉS ATS : chaque indispensable étayé apparaît au moins une fois sous sa forme exacte (titre, accroche, compétences ou puces). Si l'annonce emploie un sigle et sa forme longue, écris les deux une fois (« SIEM (Security Information and Event Management) »).
 ${onePage ? buildOnePageRules() : `- VOLUME : ${pages} pages maximum, soit environ ${pages * BULLETS_PER_PAGE} puces au total. Priorité aux 5 dernières années et aux expériences qui couvrent un indispensable ; masque ou raccourcis le reste.
 - COMPÉTENCES : masque les non pertinentes, ordonne par pertinence. Utilise "skillGroups" seulement s'il y a au moins 8 compétences visibles : 2 à 4 groupes, au moins 2 compétences par groupe, libellés dans la langue de l'annonce, chaque compétence visible dans un seul groupe. Sinon omets "skillGroups".`}
+- CATÉGORIES DE COMPÉTENCES (entrées listées avec « Catégorie » et « Éléments ») : la catégorie garde son titre. Tu peux réduire et réordonner ses éléments dans "description" (une puce « - » par élément, le plus pertinent d'abord), en recopiant uniquement des éléments existants de la source, mot pour mot. Aucun ajout, aucune reformulation. "skillGroups" ne concerne que les compétences isolées (listées avec « Titre »), jamais une catégorie.
 - ORDRE : le plus pertinent d'abord, entre les sections ("sectionOrder", avec les libellés standard ci-dessus) et à l'intérieur de chaque section ("entryOrder").
 - SURCHARGES D'AFFICHAGE (optionnelles) : "titleOverride" (libellé principal), "subtitleOverride" (libellé secondaire : entreprise, école, niveau de langue traduit, émetteur). Uniquement si l'annonce justifie un affichage différent de la source ; elles ne modifient jamais le profil.
 
