@@ -3,6 +3,7 @@ import { MasterEntry } from '../../types/profile';
 import { CVTemplate } from '../../types/template';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { DEFAULT_DATE_SETTINGS, formatEntryDates, type DateSettings } from '../../lib/entry-dates';
+import { entryDisplayTitle } from '../../lib/entry-display';
 
 interface CVEntryBlockProps {
   block: CVBlock;
@@ -27,7 +28,7 @@ export function CVEntryBlock({ block, entry, template, dateSettings = DEFAULT_DA
     <div className={`cv-entry ${template.preview.entryClass} print:break-inside-avoid`}>
       <div className="cv-title-row flex justify-between items-baseline mb-1">
         <div>
-          <span className={`cv-title ${template.preview.titleClass}`}>{entryData.title}</span>
+          <span className={`cv-title ${template.preview.titleClass}`}>{entryDisplayTitle(entry, block.overrideData)}</span>
           {(entryData.subtitle || entryData.location) && (
             <span className={`cv-subtitle ${template.preview.subtitleClass}`}>
               {' '}

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { PrintableCV } from './PrintableCV';
 import { getTemplate, templates } from '../../templates';
 import type { CVBlock, CVDocument } from '../../types/cv';
-import { TEST_PROFILE, makeBlocks, makeEntries } from '../../lib/test-helpers/cv-fixtures';
+import { TEST_PROFILE, makeBlocks, makeEntries, makeEntry } from '../../lib/test-helpers/cv-fixtures';
 import { makeCategoryBlocks, makeCategoryEntries } from '../../lib/test-helpers/skill-fixtures';
 
 const entries = makeEntries();
@@ -165,5 +165,15 @@ describe('PrintableCV - catégories de compétences (lib/skill-lines.ts)', () =>
     const html = renderCat(makeCategoryBlocks('columns2'), 'sidebar-tech');
     expect(html).toMatch(/<strong[^>]*>Cloud<\/strong>/);
     expect(html).toMatch(/<li[^>]*>Azure<\/li>/);
+  });
+});
+
+describe('PrintableCV - titre sans employeur en double (lib/entry-display.ts)', () => {
+  it('retire « (Acme) » sous l\'employeur Acme, garde une surcharge de titre', () => {
+    const own = [makeEntry('x', 'experience', 'Analyste SOC (Acme)', { subtitle: 'Acme' })];
+    const block: CVBlock = { id: 'b', cvId: 'cv1', entryId: 'x', blockType: 'entry_ref', sectionName: null, customContent: null, sortOrder: 0, isVisible: true, overrideData: {}, createdAt: '' };
+    const html = (b: CVBlock) => renderToStaticMarkup(<PrintableCV cv={cv} profile={TEST_PROFILE} blocks={[b]} entries={own} template={getTemplate('ats-classic')} />);
+    expect(html(block)).toMatch(/cv-title[^>]*>Analyste SOC<\/span>/);
+    expect(html({ ...block, overrideData: { title: 'Lead (Acme)' } })).toMatch(/cv-title[^>]*>Lead \(Acme\)<\/span>/);
   });
 });

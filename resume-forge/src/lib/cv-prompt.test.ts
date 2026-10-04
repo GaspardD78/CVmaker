@@ -152,3 +152,12 @@ describe('snapshots du prompt (junior, confirmé, senior 15 ans)', () => {
     });
   }
 });
+
+describe('buildMasterProfile - titre propre (lib/entry-display.ts)', () => {
+  it('affiche le titre sans l\'employeur en double et garde l\'ID', () => {
+    const e = makeEntry('xp-acme', 'experience', 'Analyste SOC (Acme)', { subtitle: 'Acme', startDate: '2020-01', endDate: '2022-01' });
+    const out = buildMasterProfile([e]);
+    expect(out).toContain('- ID: "xp-acme" | Titre: "Analyste SOC" | Entreprise: "Acme"');
+    expect(out).not.toContain('Analyste SOC (Acme)');
+  });
+});

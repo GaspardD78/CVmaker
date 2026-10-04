@@ -12,6 +12,7 @@ import { isAndroid } from './platform';
 import { formatEntryDates, readDateSettings } from './entry-dates';
 import { isSubHeader, parentDisplayFormat, visibleHeaderMask, type SlotKind } from './cv-sections';
 import { shareBlob } from './share';
+import { entryDisplayTitle } from './entry-display';
 import { BADGE_ENTRY_TYPES, buildBadgeRows, itemLabel, SKILL_ITEM_SEPARATOR, type BadgeItem, type BadgeRow } from './skill-lines';
 
 
@@ -651,7 +652,8 @@ export async function generateDocxBlob(
           { missingEnd: 'today' },
         );
 
-        const titleText = (entryData.title as string) || '';
+        // Sans l'employeur en double (lib/entry-display.ts) ; une surcharge de titre prime.
+        const titleText = entryDisplayTitle(entry, block.overrideData);
         let subtitleText = entryData.subtitle ? ` | ${entryData.subtitle}` : '';
         if (entryData.location) {
           subtitleText += subtitleText ? ` - ${entryData.location}` : ` | ${entryData.location}`;

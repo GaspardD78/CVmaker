@@ -271,3 +271,21 @@ describe('export DOCX, catégories de compétences', () => {
     expect(text).toContain('Méthodes : MITRE ATT&CK · Analyse de logs');
   });
 });
+
+describe('export DOCX, titre sans employeur en double', () => {
+  test('« Analyste SOC (Acme) » chez Acme s\'affiche « Analyste SOC | Acme »', async () => {
+    const entries: MasterEntry[] = [{
+      id: 'x', profileId: 'p', entryType: 'experience', title: 'Analyste SOC (Acme)', subtitle: 'Acme', location: null,
+      startDate: null, endDate: null, isCurrent: false, description: null, metadata: {}, sortOrder: 0, tags: [], createdAt: TS, updatedAt: TS,
+    }];
+    const blocks: CVBlock[] = [{
+      id: 'b', cvId: 'c', entryId: 'x', blockType: 'entry_ref', sectionName: null, customContent: null,
+      sortOrder: 0, isVisible: true, overrideData: {}, createdAt: TS,
+    }];
+    const text = await docxLines(blocks, entries);
+    expect(text).toContain('Analyste SOC | Acme');
+    // Surcharge de titre du bloc : affichée telle quelle.
+    const over = await docxLines([{ ...blocks[0], overrideData: { title: 'SOC Analyst (Acme)' } }], entries);
+    expect(over).toContain('SOC Analyst (Acme) | Acme');
+  });
+});

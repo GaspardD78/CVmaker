@@ -13,6 +13,7 @@
  */
 import type { MasterEntry, Profile } from '@/types/profile';
 import { DEFAULT_TARGET_PAGES, experienceYears } from './cv-experience';
+import { displayTitle } from './entry-display';
 
 /** Nombre de puces d'un CV d'une page (base du budget de volume du prompt et du garde-fou). */
 export const BULLETS_PER_PAGE = 18;
@@ -86,6 +87,8 @@ export const JSON_RULES = `### Forme de la réponse
 // ── Blocs de données ─────────────────────────────────────────────────────────
 
 const q = (value: string | null | undefined): string => `"${(value ?? '').replace(/"/g, "'")}"`;
+/** Titre propre (sans l'employeur en double, lib/entry-display.ts) ; l'ID reste la clé. */
+const t = (e: MasterEntry): string => q(displayTitle(e.title, e.subtitle));
 
 function describeDates(e: MasterEntry): string {
   if (!e.startDate && !e.endDate && !e.isCurrent) return 'Non précisée';
@@ -132,19 +135,19 @@ export function buildContext(input: CvPromptInput): string {
 
 export function buildMasterProfile(entries: MasterEntry[], profile?: Profile): string {
   const experiences = section(entries, 'experience',
-    e => `- ID: ${q(e.id)} | Titre: ${q(e.title)} | Entreprise: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}${describeBody(e)}`, '(aucune)');
+    e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Entreprise: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}${describeBody(e)}`, '(aucune)');
   const skills = section(entries, 'skill', e => `- ID: ${q(e.id)} | Titre: ${q(e.title)}`, '(aucune)');
   const education = section(entries, 'education',
-    e => `- ID: ${q(e.id)} | Diplôme: ${q(e.title)} | École: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}`, '(aucune)');
+    e => `- ID: ${q(e.id)} | Diplôme: ${t(e)} | École: ${q(e.subtitle)} | Dates: ${q(describeDates(e))}`, '(aucune)');
   const certifications = section(entries, 'certification',
     e => `- ID: ${q(e.id)} | Titre: ${q(e.title)} | Émetteur: ${q(e.subtitle)}`, '(aucune)');
   const languages = section(entries, 'language',
     e => `- ID: ${q(e.id)} | Langue: ${q(e.title)} | Niveau: ${q(e.subtitle || '(non renseigné)')}`, '(aucune)');
   const projects = section(entries, 'project',
-    e => `- ID: ${q(e.id)} | Titre: ${q(e.title)}${describeBody(e, 'Détail')}`, '(aucun)');
+    e => `- ID: ${q(e.id)} | Titre: ${t(e)}${describeBody(e, 'Détail')}`, '(aucun)');
   const interests = section(entries, 'interest', e => `- ID: ${q(e.id)} | Titre: ${q(e.title)}`, '(aucun)');
   const volunteer = section(entries, 'volunteer',
-    e => `- ID: ${q(e.id)} | Titre: ${q(e.title)} | Organisation: ${q(e.subtitle)}`, '(aucun)');
+    e => `- ID: ${q(e.id)} | Titre: ${t(e)} | Organisation: ${q(e.subtitle)}`, '(aucun)');
 
   return `## Profil maître (données sources)
 ${profile?.summary ? `Résumé actuel du profil : ${profile.summary.replace(/\n/g, ' ')}\n\n` : ''}### Expériences
