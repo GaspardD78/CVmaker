@@ -3,6 +3,7 @@ import { Download, Upload, AlertCircle, CheckCircle2, Loader2, Sparkles, Sun, Mo
 import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
 import { GoogleDriveSync } from './GoogleDriveSync';
+import { CvAnglesSettings } from './CvAnglesSettings';
 import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { PERSONAL_RULES_TEMPLATE } from '@/lib/cv-prompt';
@@ -277,6 +278,9 @@ export function SettingsPage() {
           </div>
         </div>
       </section>
+
+      {/* ── Angles de CV (bibliothèque + matrice d'affinité) ── */}
+      <CvAnglesSettings />
 
       {/* ── Google Drive Sync ── */}
       <GoogleDriveSync />
