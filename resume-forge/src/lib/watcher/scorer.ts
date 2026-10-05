@@ -91,7 +91,7 @@ function wordBoundaryRegex(term: string): RegExp {
 }
 
 /** Returns true if `term` is found in `text` with word boundaries. */
-function hasWordMatch(term: string, text: string): boolean {
+export function hasWordMatch(term: string, text: string): boolean {
   if (!term.trim()) return false;
   return wordBoundaryRegex(term).test(text);
 }
@@ -140,6 +140,8 @@ export interface LearnedSignals {
   companyReputation?: Record<string, number>;
   /** Optional AI filter rule applied as Couche 0.5 of the scoring pipeline. */
   aiFilterRule?: AIFilterRule | null;
+  /** Date d'évaluation (ancienneté). Défaut : maintenant. Sert aux tests et à la simulation. */
+  now?: Date;
 }
 
 // ── Main scorer ──────────────────────────────────────────────────────────────
@@ -350,7 +352,7 @@ export function computeScoreWithBreakdown(
   // Time-decay
   let decayPenalty = 0;
   if (offer.publishedAt) {
-    const ageMs   = Date.now() - new Date(offer.publishedAt).getTime();
+    const ageMs   = (learned?.now?.getTime() ?? Date.now()) - new Date(offer.publishedAt).getTime();
     const ageDays = Math.floor(ageMs / (1_000 * 60 * 60 * 24));
     decayPenalty  = -Math.min(SCORING_WEIGHTS.decayCap, ageDays * SCORING_WEIGHTS.decayPerDay);
   }

@@ -16,8 +16,11 @@ export interface BreakdownPart {
   points: number;
 }
 
-/** Composantes non nulles (le titre, les mots-clés et le domaine sont toujours listés). */
-export function breakdownParts(b: ScoreBreakdown): BreakdownPart[] {
+/**
+ * Composantes du score. Par défaut, seules les non nulles sont listées (hors
+ * titre, mots-clés et domaine) ; `includeZero` renvoie toutes les composantes.
+ */
+export function breakdownParts(b: ScoreBreakdown, includeZero = false): BreakdownPart[] {
   const all: BreakdownPart[] = [
     { key: 'title',    label: 'Titre',          points: b.titleMatchScore },
     { key: 'skills',   label: 'Mots-clés',      points: b.skillsScore },
@@ -28,7 +31,7 @@ export function breakdownParts(b: ScoreBreakdown): BreakdownPart[] {
     { key: 'learned',  label: 'Appris',         points: Math.round(b.learnedScore) },
   ];
   const always = new Set(['title', 'skills', 'domain']);
-  return all.filter(p => always.has(p.key) || p.points !== 0);
+  return includeZero ? all : all.filter(p => always.has(p.key) || p.points !== 0);
 }
 
 /** « Titre +40, Mots-clés +6, Domaine +0, Salaire -30, Ancienneté -8 » */
