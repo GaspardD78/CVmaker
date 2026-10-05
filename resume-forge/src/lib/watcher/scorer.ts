@@ -5,7 +5,8 @@
  *
  * Couche 0 – Hard disqualifiers (score → 0) :
  *   - Entreprise blacklistée
- *   - Terme exclu trouvé dans le titre OU la description (veto absolu, sans distinction)
+ *   - Terme exclu : veto absolu selon sa portée (`title` : titre seul ; `anywhere` : titre OU
+ *     description). Défaut : excludeTitles → title, excludeDomains → anywhere (cf. exclusions.ts)
  *   - Mauvais type de contrat (mode strict uniquement)
  *
  * Couche 1 – Title match (signal le plus fort) :
@@ -24,6 +25,7 @@
  *   - Skill trouvé dans titre       → +6 par match, plafonné +24
  *   - Skill trouvé en description   → +3 par match, plafonné +12
  *   - Domain trouvé                 → +3 par match, plafonné +10
+ *   - requiredDomains non vide, aucun trouvé → plafond 25 (balanced/loose) ou score 0 (strict)
  *
  * Couche 4 – Signaux secondaires :
  *   - Salaire : +20 si ≥ target, -30 si < min
@@ -42,7 +44,36 @@
 import type { RawJobOffer, SearchProfile } from '@/types/job-watch';
 import type { LearnedDictionary } from './learning-engine';
 import type { Profile, MasterEntry } from '@/types/profile';
+import { resolveExclusions } from './exclusions';
 import { applyAIFilter, type AIFilterRule, type AIFilterMatch } from './ai-filter';
+
+// ── Poids du moteur (source unique, lue aussi par le prompt d'analyse) ───────
+
+export const SCORING_WEIGHTS = {
+  titleHigh: 40,
+  titleOther: 30,
+  titleInDescription: 15,
+  contractMatch: 10,
+  contractMismatch: -15,
+  skillInTitle: 6,
+  skillInTitleCap: 24,
+  skillInDescription: 3,
+  skillInDescriptionCap: 12,
+  domainMatch: 3,
+  domainCap: 10,
+  salaryAboveTarget: 20,
+  salaryAboveTargetRatio: 1.10,
+  salaryNearTarget: 10,
+  salaryNearTargetRatio: 0.95,
+  salaryBelowMin: -30,
+  decayPerDay: 2,
+  decayCap: 20,
+  learnedPerTermCap: 3,
+  learnedTotalCap: 15,
+  companyReputation: 5,
+  balancedCap: 25,
+  baseWithoutTitles: 50,
+} as const;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,12 +81,18 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Bornes de mot Unicode. `\b` ne reconnaît pas les lettres accentuées comme
+ * « mot » : « cybersécurité » ne matchait jamais, le `é` final étant suivi d'une
+ * frontière non reconnue. Bornes sur \p{L}\p{N} corrigent cela. Pas de lookbehind
+ * (absent des WebViews anciennes) : le caractère précédent est consommé par `(^|[^…])`.
+ */
 function wordBoundaryRegex(term: string): RegExp {
-  return new RegExp('\\b' + escapeRegex(term.trim()) + '\\b', 'i');
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegex(term.trim())}(?![\\p{L}\\p{N}])`, 'iu');
 }
 
 /** Returns true if `term` is found in `text` with word boundaries. */
-function hasWordMatch(term: string, text: string): boolean {
+export function hasWordMatch(term: string, text: string): boolean {
   if (!term.trim()) return false;
   return wordBoundaryRegex(term).test(text);
 }
@@ -104,6 +141,8 @@ export interface LearnedSignals {
   companyReputation?: Record<string, number>;
   /** Optional AI filter rule applied as Couche 0.5 of the scoring pipeline. */
   aiFilterRule?: AIFilterRule | null;
+  /** Date d'évaluation (ancienneté). Défaut : maintenant. Sert aux tests et à la simulation. */
+  now?: Date;
 }
 
 // ── Main scorer ──────────────────────────────────────────────────────────────
@@ -136,6 +175,10 @@ export interface ScoreBreakdown {
   decayPenalty: number;       // 0..-20
   /** Diagnostic: base score used (0 or 50) */
   baseScore?: number;
+  /** Le plafond (titre absent en balanced, ou domaine obligatoire absent) a été appliqué. */
+  capApplied?: boolean;
+  /** `requiredDomains` est non vide et aucun terme n'a été trouvé. */
+  requiredDomainMissing?: boolean;
   /** Net delta contributed by the AI filter rule (bounded). */
   aiFilterDelta?: number;
   /** Matching AI filter patterns, for UI transparency. */
@@ -170,11 +213,13 @@ export function computeScoreWithBreakdown(
     return zero('Entreprise blacklistée');
   }
 
-  // Excluded terms — veto absolu : titre OU description (sans distinction de position)
-  const excludedTerms = [...profile.excludeTitles, ...profile.excludeDomains];
-  const excludedMatch = findMatch(excludedTerms, fullText);
-  if (excludedMatch) {
-    return zero(`Terme exclu: "${excludedMatch}"`);
+  // Excluded terms — veto absolu sur la portée du terme
+  // La portée dépend du terme : `title` ne regarde que le titre.
+  for (const exclusion of resolveExclusions(profile)) {
+    const haystack = exclusion.scope === 'title' ? title : fullText;
+    if (hasWordMatch(exclusion.term, haystack)) {
+      return zero(`Terme exclu: "${exclusion.term}"`);
+    }
   }
 
   // ── Couche 0.5 : AI filter rule (optional) ─────────────────────────────────
@@ -204,7 +249,7 @@ export function computeScoreWithBreakdown(
 
   // ── Base dynamique ─────────────────────────────────────────────────────────
 
-  const base = profile.jobTitles.length > 0 ? 0 : 50;
+  const base = profile.jobTitles.length > 0 ? 0 : SCORING_WEIGHTS.baseWithoutTitles;
 
   // ── Couche 1 : Title match ─────────────────────────────────────────────────
 
@@ -215,12 +260,12 @@ export function computeScoreWithBreakdown(
     const matchInTitle = findMatch(profile.jobTitles, title);
     if (matchInTitle) {
       const conf = offer.extraction.titleConfidence;
-      titleMatchScore = conf === 'high' ? 40 : 30;
+      titleMatchScore = conf === 'high' ? SCORING_WEIGHTS.titleHigh : SCORING_WEIGHTS.titleOther;
       titleMatchedTerm = matchInTitle;
     } else {
       const matchInSnippet = findMatch(profile.jobTitles, snippet);
       if (matchInSnippet) {
-        titleMatchScore = 15;
+        titleMatchScore = SCORING_WEIGHTS.titleInDescription;
         titleMatchedTerm = matchInSnippet;
       }
     }
@@ -243,9 +288,9 @@ export function computeScoreWithBreakdown(
   let contractMatchScore = 0;
   if (wantsContracts) {
     if (contractMatches) {
-      contractMatchScore = 10;
+      contractMatchScore = SCORING_WEIGHTS.contractMatch;
     } else if (offer.extraction.contractConfidence !== 'none') {
-      contractMatchScore = -15;
+      contractMatchScore = SCORING_WEIGHTS.contractMismatch;
     }
   }
 
@@ -256,18 +301,28 @@ export function computeScoreWithBreakdown(
   let skillsSnippetRaw = 0;
   for (const skill of profile.skills) {
     if (!skill.trim()) continue;
-    if (hasWordMatch(skill, title))        skillsTitleRaw   += 6;
-    else if (hasWordMatch(skill, snippet)) skillsSnippetRaw += 3;
+    if (hasWordMatch(skill, title))        skillsTitleRaw   += SCORING_WEIGHTS.skillInTitle;
+    else if (hasWordMatch(skill, snippet)) skillsSnippetRaw += SCORING_WEIGHTS.skillInDescription;
   }
-  const skillsScore = Math.min(24, skillsTitleRaw) + Math.min(12, skillsSnippetRaw);
+  const skillsScore =
+    Math.min(SCORING_WEIGHTS.skillInTitleCap, skillsTitleRaw) +
+    Math.min(SCORING_WEIGHTS.skillInDescriptionCap, skillsSnippetRaw);
 
   // Domain signals (soft bonus)
   let domainRaw = 0;
   for (const domain of profile.domains) {
     if (!domain.trim()) continue;
-    if (hasWordMatch(domain, fullText)) domainRaw += 3;
+    if (hasWordMatch(domain, fullText)) domainRaw += SCORING_WEIGHTS.domainMatch;
   }
-  const domainScore = Math.min(10, domainRaw);
+  const domainScore = Math.min(SCORING_WEIGHTS.domainCap, domainRaw);
+
+  // Domaines obligatoires (optionnel) : au moins un dans le titre ou la description.
+  const required = (profile.requiredDomains ?? []).filter(d => d.trim());
+  const requiredDomainMissing =
+    required.length > 0 && !required.some(d => hasWordMatch(d, fullText));
+  if (requiredDomainMissing && profile.scoring.mode === 'strict') {
+    return zero('Aucun domaine obligatoire présent en mode strict');
+  }
 
   // ── Couche 4 : Secondary signals ──────────────────────────────────────────
 
@@ -279,11 +334,11 @@ export function computeScoreWithBreakdown(
   if (offer.salaryMin != null) {
     if (salaryTarget != null) {
       const ratio = offer.salaryMin / salaryTarget;
-      if (ratio >= 1.10)      salaryScore = 20;
-      else if (ratio >= 0.95) salaryScore = 10;
+      if (ratio >= SCORING_WEIGHTS.salaryAboveTargetRatio)     salaryScore = SCORING_WEIGHTS.salaryAboveTarget;
+      else if (ratio >= SCORING_WEIGHTS.salaryNearTargetRatio) salaryScore = SCORING_WEIGHTS.salaryNearTarget;
     }
     if (salaryMin != null && offer.salaryMin < salaryMin) {
-      salaryScore = -30;
+      salaryScore = SCORING_WEIGHTS.salaryBelowMin;
     }
   }
 
@@ -298,9 +353,9 @@ export function computeScoreWithBreakdown(
   // Time-decay
   let decayPenalty = 0;
   if (offer.publishedAt) {
-    const ageMs   = Date.now() - new Date(offer.publishedAt).getTime();
+    const ageMs   = (learned?.now?.getTime() ?? Date.now()) - new Date(offer.publishedAt).getTime();
     const ageDays = Math.floor(ageMs / (1_000 * 60 * 60 * 24));
-    decayPenalty  = -Math.min(20, ageDays * 2);
+    decayPenalty  = -Math.min(SCORING_WEIGHTS.decayCap, ageDays * SCORING_WEIGHTS.decayPerDay);
   }
 
   // Learned signals
@@ -311,15 +366,17 @@ export function computeScoreWithBreakdown(
     let learnedPenalty = 0;
     for (const [term, rawScore] of Object.entries(learned.learnedDict.positive)) {
       if (term.length >= 3 && textLower.includes(term)) {
-        learnedBonus += Math.min(3, rawScore * 0.5);
+        learnedBonus += Math.min(SCORING_WEIGHTS.learnedPerTermCap, rawScore * 0.5);
       }
     }
     for (const [term, rawScore] of Object.entries(learned.learnedDict.negative)) {
       if (term.length >= 3 && textLower.includes(term)) {
-        learnedPenalty += Math.min(3, rawScore * 0.5);
+        learnedPenalty += Math.min(SCORING_WEIGHTS.learnedPerTermCap, rawScore * 0.5);
       }
     }
-    learnedScore = Math.min(15, learnedBonus) - Math.min(15, learnedPenalty);
+    learnedScore =
+      Math.min(SCORING_WEIGHTS.learnedTotalCap, learnedBonus) -
+      Math.min(SCORING_WEIGHTS.learnedTotalCap, learnedPenalty);
   }
 
   // Company reputation
@@ -327,8 +384,8 @@ export function computeScoreWithBreakdown(
   if (learned?.companyReputation && companyLower) {
     const rep = learned.companyReputation[companyLower];
     if (rep !== undefined) {
-      if (rep > 3)  repScore =  5;
-      else if (rep < -3) repScore = -5;
+      if (rep > 3)  repScore =  SCORING_WEIGHTS.companyReputation;
+      else if (rep < -3) repScore = -SCORING_WEIGHTS.companyReputation;
     }
   }
 
@@ -347,8 +404,9 @@ export function computeScoreWithBreakdown(
     repScore +
     aiResult.delta;
 
-  // Mode balanced, no title match → cap at 25
-  const capped = applyBalancedCap ? Math.min(25, raw) : raw;
+  // Mode balanced, no title match → cap at 25 ; domaine obligatoire absent → même plafond
+  const capApplied = applyBalancedCap || requiredDomainMissing;
+  const capped = capApplied ? Math.min(SCORING_WEIGHTS.balancedCap, raw) : raw;
   const total  = Math.max(0, Math.min(100, capped));
 
   return {
@@ -363,6 +421,8 @@ export function computeScoreWithBreakdown(
     learnedScore,
     decayPenalty,
     baseScore: base,
+    capApplied,
+    requiredDomainMissing,
     aiFilterDelta: aiResult.delta,
     aiFilterMatches: aiResult.matches.length > 0 ? aiResult.matches : undefined,
   };
