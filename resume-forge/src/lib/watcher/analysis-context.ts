@@ -9,9 +9,9 @@
  */
 
 import type { AlertKind, JobSource, SearchProfile } from '@/types/job-watch';
-import { DEFAULT_EXTRACTION } from '@/types/job-watch';
 import type { MasterEntry, Profile } from '@/types/profile';
-import { computeScoreWithBreakdown, hasWordMatch, type LearnedSignals } from './scorer';
+import { hasWordMatch, type LearnedSignals } from './scorer';
+import { replayScore } from './score-replay';
 import { resolveExclusions, type ExclusionScope } from './exclusions';
 import { dedupeOffers, offerDedupKey } from './deduplicator';
 import {
@@ -270,14 +270,14 @@ function explainBreakdown(b: ScoreBreakdown): Array<{ label: string; points: num
 }
 
 const isTreated = (o: WatchAnalysisOfferInput): boolean => o.kanban || o.actions.length > 0;
-const isPositive = (o: WatchAnalysisOfferInput): boolean =>
+export const isPositive = (o: WatchAnalysisOfferInput): boolean =>
   o.kanban || o.actions.includes('kanban_import') || o.actions.includes('thumbs_up') || o.storedScore >= GOOD_SCORE;
 
 /**
  * Dédoublonne en fusionnant les signaux : si l'un des doublons a été trié, la
  * fiche conservée le reflète (sinon un doublon « sans action » fausserait les métriques).
  */
-function mergeDuplicates(rows: WatchAnalysisOfferInput[]): WatchAnalysisOfferInput[] {
+export function mergeOfferDuplicates(rows: WatchAnalysisOfferInput[]): WatchAnalysisOfferInput[] {
   const byId = new Map<string, WatchAnalysisOfferInput>();
   for (const row of rows) {
     const prev = byId.get(row.id);
@@ -392,7 +392,7 @@ export function buildWatchAnalysisContext(input: WatchAnalysisInput): WatchAnaly
   const cutoff = new Date(now.getTime() - days * DAY_MS);
 
   const inPeriod = input.offers.filter(o => new Date(o.fetchedAt).getTime() >= cutoff.getTime());
-  const offers = mergeDuplicates(inPeriod);
+  const offers = mergeOfferDuplicates(inPeriod);
 
   const signals = listLearnedSignals(input.alert.learnedDict, sp, { minCount: 3, limit: 8 });
 
@@ -404,11 +404,7 @@ export function buildWatchAnalysisContext(input: WatchAnalysisInput): WatchAnaly
     now,
   };
   const scored = offers.map(o => {
-    const b = computeScoreWithBreakdown({
-      title: o.title, descriptionSnippet: o.snippet, publishedAt: o.publishedAt, company: o.company,
-      salaryMin: o.salaryMin, salaryMax: o.salaryMax, contractType: o.contractType,
-      extraction: DEFAULT_EXTRACTION,
-    }, sp, signalsForScorer);
+    const b = replayScore(o, sp, signalsForScorer);
     return { offer: o, breakdown: b, score: Math.round(b.total) };
   });
 

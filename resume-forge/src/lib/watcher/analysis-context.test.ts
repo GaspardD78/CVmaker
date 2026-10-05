@@ -101,8 +101,8 @@ describe('décomposition du score (défaut 3)', () => {
     expect(labels).toEqual(['Titre', 'Mots-clés', 'Domaine', 'Salaire', 'Ancienneté']);
     expect(item.breakdown.find(b => b.label === 'Salaire')!.points).toBe(-30);
     expect(item.breakdown.find(b => b.label === 'Ancienneté')!.points).toBe(-8);
-    expect(item.breakdown[0]).toEqual({ label: 'Titre', points: 30 }); // confiance de titre non persistée : 30
-    expect(item.score).toBe(0); // 30 + 6 - 30 - 8 = -2, ramené à 0
+    expect(item.breakdown[0]).toEqual({ label: 'Titre', points: 40 }); // titre « high » rejoué
+    expect(item.score).toBe(8); // 40 + 6 - 30 - 8
     expect(item.storedScore).toBe(46);
   });
   test('offre écartée par une exclusion : raison indiquée', () => {

@@ -5,9 +5,9 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import type { JobOffer, JobOfferWithAlerts, JobSource } from '@/types/job-watch';
-import { computeLightProfileMatch, computeScoreWithBreakdown } from '@/lib/watcher/scorer';
+import { computeLightProfileMatch } from '@/lib/watcher/scorer';
+import { replayScore } from '@/lib/watcher/score-replay';
 import { formatBreakdown, formatScore } from '@/lib/watcher/score-display';
-import { DEFAULT_EXTRACTION } from '@/types/job-watch';
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
 
 
@@ -148,8 +148,8 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, onGener
   const scoreDetail = useMemo(() => {
     if (!scoreAlert) return null;
     try {
-      return formatBreakdown(computeScoreWithBreakdown(
-        { ...offer, extraction: DEFAULT_EXTRACTION },
+      return formatBreakdown(replayScore(
+        { ...offer, snippet: offer.descriptionSnippet },
         scoreAlert.searchProfile,
         { learnedDict: scoreAlert.learnedDict, companyReputation: scoreAlert.companyReputation, aiFilterRule: scoreAlert.aiFilterRule },
       ));
