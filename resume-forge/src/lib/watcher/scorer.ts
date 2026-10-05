@@ -84,10 +84,11 @@ function escapeRegex(s: string): string {
 /**
  * Bornes de mot Unicode. `\b` ne reconnaît pas les lettres accentuées comme
  * « mot » : « cybersécurité » ne matchait jamais, le `é` final étant suivi d'une
- * frontière non reconnue. Lookarounds sur \p{L}\p{N} corrigent cela.
+ * frontière non reconnue. Bornes sur \p{L}\p{N} corrigent cela. Pas de lookbehind
+ * (absent des WebViews anciennes) : le caractère précédent est consommé par `(^|[^…])`.
  */
 function wordBoundaryRegex(term: string): RegExp {
-  return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(term.trim())}(?![\\p{L}\\p{N}])`, 'iu');
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegex(term.trim())}(?![\\p{L}\\p{N}])`, 'iu');
 }
 
 /** Returns true if `term` is found in `text` with word boundaries. */

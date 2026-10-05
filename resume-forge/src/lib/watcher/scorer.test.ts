@@ -363,3 +363,37 @@ describe('bornes de mot Unicode', () => {
     expect(r.titleMatchScore).toBe(0);
   });
 });
+
+describe('migration de la portée des exclusions (spec 005)', () => {
+  // Référence : l'ancien comportement (veto sur titre + description pour les deux listes).
+  const legacyVetoes = (terms: string[], offer: ReturnType<typeof makeOffer>): boolean => {
+    const text = `${offer.title} ${offer.descriptionSnippet ?? ''}`.toLowerCase();
+    return terms.some(t => new RegExp(`(?<![\\p{L}\\p{N}])${t.toLowerCase()}(?![\\p{L}\\p{N}])`, 'u').test(text));
+  };
+  const offers = [
+    makeOffer({ title: 'Recruteur BTP' }),
+    makeOffer({ title: 'Recruteur', descriptionSnippet: 'Au sein du BTP et de la restauration.' }),
+    makeOffer({ title: 'Recruteur IT', descriptionSnippet: 'Équipe tech.' }),
+    makeOffer({ title: 'Recruteur Restauration' }),
+  ];
+
+  test('excludeDomains : le score est inchangé (veto titre OU description conservé)', () => {
+    const profile = makeProfile({ jobTitles: ['Recruteur'], excludeDomains: ['BTP', 'Restauration'] });
+    for (const offer of offers) {
+      const vetoed = legacyVetoes(['BTP', 'Restauration'], offer);
+      expect(computeScore(offer, profile) === 0).toBe(vetoed);
+    }
+  });
+
+  test('excludeTitles : seule la portée change (la description ne veto plus, le titre oui)', () => {
+    const profile = makeProfile({ jobTitles: ['Recruteur'], excludeTitles: ['BTP'] });
+    expect(computeScore(offers[0], profile)).toBe(0);
+    expect(computeScore(offers[1], profile)).toBeGreaterThan(0);
+  });
+
+  test('un profil déjà stocké (sans excludeScopes ni requiredDomains) se lit sans erreur', () => {
+    const stored = JSON.parse(JSON.stringify(makeProfile({ jobTitles: ['Recruteur'], excludeTitles: ['stage'] })));
+    expect(stored.excludeScopes).toBeUndefined();
+    expect(computeScore(makeOffer({ title: 'Recruteur' }), stored)).toBeGreaterThan(0);
+  });
+});

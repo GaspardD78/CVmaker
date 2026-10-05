@@ -24,3 +24,8 @@ Tous les défauts ont été reconfirmés dans le code. Les tests de reproduction
 - `extraction.titleConfidence` n'est pas persisté : un score recalculé a un titre à 30 au lieu de 40 pour une offre `high`.
 - Aucun champ télétravail sur les offres : indice déduit du texte (regex), signalé comme tel.
 - `SearchProfile` est stocké en JSON fusionné avec `DEFAULT_SEARCH_PROFILE` (`alerts.ts`) : ajouter des champs optionnels ne demande aucune migration SQL.
+
+## Défaut supplémentaire découvert en cours de route
+| # | Défaut | Cause | Correction | Test |
+|---|---|---|---|---|
+| 14 | Un terme finissant par une lettre accentuée (« cybersécurité ») ne correspondait jamais | `\b` JavaScript ne traite pas `é` comme un caractère de mot | bornes `(?<![\p{L}\p{N}])…(?![\p{L}\p{N}])` (flag `u`) | `scorer.test.ts` « bornes de mot Unicode » |

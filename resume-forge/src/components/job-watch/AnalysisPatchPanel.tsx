@@ -25,7 +25,6 @@ const storage = (): SnapshotStorage | null => {
  */
 export function AnalysisPatchPanel({ alert }: { alert: JobWatchAlert }) {
   const { alerts, updateAlert } = useJobWatchStore();
-  const { currentUserId } = useAuthStore();
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -54,7 +53,7 @@ export function AnalysisPatchPanel({ alert }: { alert: JobWatchAlert }) {
     if (!result.ok) { setError(result.error); return; }
     setBusy(true);
     try {
-      const loaded = await loadAlertOffers(alert.id, currentUserId ?? null);
+      const loaded = await loadAlertOffers(alert.id, useAuthStore.getState().currentUserId ?? null);
       const others = alerts.filter(a => a.id !== alert.id).map(a => ({ name: a.name, jobTitles: a.searchProfile.jobTitles }));
       const judged = evaluateChanges(result.value.changes, {
         searchProfile: alert.searchProfile, learnedDict: alert.learnedDict, otherTracks: others, offers: loaded,

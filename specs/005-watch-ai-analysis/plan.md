@@ -11,7 +11,15 @@
 - **Dédoublonnage de repli** (offres sans entreprise) : clé `titre normalisé | lieu | source` pour la liste
   d'analyse ; entre sources, titre normalisé identique + lieu identique non vide.
 - **Score de l'analyse** : recalculé avec la configuration actuelle (décomposition cohérente) ; le score
-  enregistré n'est cité que s'il diffère de plus de 4 points (l'extraction `titleConfidence` n'est pas persistée).
+  enregistré n'est cité que s'il diffère de plus de 4 points. `extraction` n'étant pas persistée, le rejeu
+  suppose un titre `high` (cas de presque tous les parseurs) et un contrat `high` s'il est renseigné (`score-replay.ts`).
+- **Bandeau « sans action »** : plus de 80 % des offres récentes ET au moins 3 offres (évite le bruit sur 1 ou 2 offres).
+- **Garde-fou d'exclusion** : bloquant si le terme figure dans le titre OU la description d'une offre importée ou aimée
+  (conservateur, comme demandé, même si la portée par défaut « titre » est moins dangereuse) ; forçable.
+- **Intitulé couvert ailleurs** : bloqué par défaut mais forçable ; retirer le dernier intitulé : refusé, non forçable.
+- **`salary: {min: null, target: null}`** du JSON signifie « inchangé » ; le patch ne peut pas effacer un salaire.
+- **`apecSalaires.set: []`** signifie « ne rien changer », jamais « tout effacer ».
+- **`requiredDomains` absent** : plafond 25 en balanced et loose, score 0 en strict.
 - **Patch** : JSON `watch-analysis/v1`, validation par champ, garde-fous, simulation sur 30 jours, snapshot de la piste.
 
 ## Phases
