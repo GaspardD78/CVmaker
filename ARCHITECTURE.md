@@ -310,3 +310,12 @@ cv.settings.cvAngle = instantané (lib/cv-angle-selection.ts) : liste des CV, fi
 - Garde-fou : une entrée `hide:` visible sans correspondance pour un indispensable est masquée (`angle-hidden-entry-visible`) ; une entrée en tête qui étaye un indispensable n'est pas masquée (`angle-lead-entry-hidden`) ; le titre suit `title_rule` (`angle-title-corrected`).
 - Sauvegarde : `cv_angles` appartient au module « Entrées CV » (`DELETE_ORDER`, `INSERT_ORDER`, `TABLES_WITH_PROFILE_ID`). Restauration : `resolveSourceProfileId` choisit le profil de la sauvegarde (choix de l'utilisateur, sinon profil actif, sinon profil unique ; plusieurs profils sans correspondance : `BackupProfileChoiceRequired`, jamais le premier par défaut) et `selectBackupProfile` ne garde que ses données (tables filles filtrées par leur parent, réglages `cv_personal_rules:<id>`) avant de les remapper sur le profil actif.
 
+
+## Veille Emploi : fiabilité des sources (spec 006)
+
+- **Collecte** (`lib/watcher/fetcher.ts`) : par groupe de requête, la source est ignorée si elle est en pause (`source-cooldown.ts`) ; sinon le parser s'exécute. Un échec est typé (`SourceError` ou classification du message) et devient le statut détaillé du couple (piste, source), persisté dans `job_watch_fetch_log.source_status`. Un refus (403, 429, pare-feu) d'APEC ou d'Emploi Territorial déclenche une pause de 24 h.
+- **Requêtes** : `profile-to-query.ts` n'envoie que les intitulés français (`french-titles.ts`) à France Travail et Emploi Territorial ; l'empreinte de requête (`query-key.ts`) suit la même règle.
+- **Doublons** : `offer-dedup.ts` (clé source + entreprise + intitulé + lieu normalisés) sert la collecte, le store (`filteredOffers`, compteurs, actions de groupe), les métriques et l'échantillon du diagnostic. Rien n'est supprimé en base.
+- **Scoring** : `SCORER_VERSION` (scorer.ts) est stocké par offre et par rattachement ; `score-recalc.ts` recalcule par lots les offres des 60 derniers jours. Les comparaisons (seuil, métriques, prompts) ignorent les versions antérieures.
+- **Apprentissage** : `companyTitleExclusions` (profil de piste) exclut un type de poste chez une entreprise ; l'apprentissage négatif protège les termes des intitulés, skills et domaines de la piste.
+- **Prompts** : `source-coverage.ts` ajoute statut, part de l'échantillon, avertissement de biais (> 70 %) et consigne de ne pas régler une source défaillante.
