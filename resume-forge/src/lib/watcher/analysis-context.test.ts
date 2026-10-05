@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  apecSalaryBand, buildCandidateInput, buildWatchAnalysisContext, computeExperienceYears,
+  countUntreated, apecSalaryBand, buildCandidateInput, buildWatchAnalysisContext, computeExperienceYears,
   type WatchAnalysisInput, type WatchAnalysisOfferInput,
 } from './analysis-context';
 import { DEFAULT_SEARCH_PROFILE, type SearchProfile } from '@/types/job-watch';
@@ -239,5 +239,20 @@ describe('tranches APEC', () => {
     expect(apecSalaryBand('40-50k€')).toEqual({ min: 40000, max: 50000 });
     expect(apecSalaryBand('70k€ et plus')).toEqual({ min: 70000, max: Infinity });
     expect(apecSalaryBand('inconnu')).toBeNull();
+  });
+});
+
+describe('bandeau « offres sans action » (phase 6)', () => {
+  test('plus de 80 % sans action sur au moins 3 offres : bandeau', () => {
+    const rows = [...Array.from({ length: 9 }, () => offer()), offer({ actions: ['thumbs_up'] })];
+    expect(countUntreated(rows, 30, NOW)).toEqual({ total: 10, untreated: 9, showBanner: true });
+  });
+  test('exactement 80 % : pas de bandeau', () => {
+    const rows = [...Array.from({ length: 8 }, () => offer()), offer({ kanban: true }), offer({ actions: ['thumbs_down'] })];
+    expect(countUntreated(rows, 30, NOW).showBanner).toBe(false);
+  });
+  test('trop peu d\'offres ou hors période : pas de bandeau', () => {
+    expect(countUntreated([offer(), offer()], 30, NOW).showBanner).toBe(false);
+    expect(countUntreated([offer({ fetchedAt: daysAgo(90) })], 30, NOW).total).toBe(0);
   });
 });

@@ -269,7 +269,7 @@ function explainBreakdown(b: ScoreBreakdown): Array<{ label: string; points: num
   return parts.map(p => ({ label: p.label, points: p.points }));
 }
 
-const isTreated = (o: WatchAnalysisOfferInput): boolean => o.kanban || o.actions.length > 0;
+export const isTreated = (o: WatchAnalysisOfferInput): boolean => o.kanban || o.actions.length > 0;
 export const isPositive = (o: WatchAnalysisOfferInput): boolean =>
   o.kanban || o.actions.includes('kanban_import') || o.actions.includes('thumbs_up') || o.storedScore >= GOOD_SCORE;
 
@@ -481,5 +481,25 @@ export function buildWatchAnalysisContext(input: WatchAnalysisInput): WatchAnaly
     },
     learned: { fromTitlesOnly: true, signals },
     offers: { total, shown: items.length, items },
+  };
+}
+
+/** Seuil du bandeau « offres sans action » : part des offres récentes sans aucun tri. */
+export const UNTREATED_BANNER_SHARE = 0.8;
+/** Nombre minimal d'offres pour afficher le bandeau (évite le bruit sur 1 ou 2 offres). */
+export const UNTREATED_BANNER_MIN_OFFERS = 3;
+
+/** Offres récentes dédoublonnées et part sans aucun tri, pour le bandeau du tableau de bord. */
+export function countUntreated(
+  offers: WatchAnalysisOfferInput[],
+  periodDays = DEFAULT_PERIOD_DAYS,
+  now: Date = new Date(),
+): { total: number; untreated: number; showBanner: boolean } {
+  const cutoff = now.getTime() - periodDays * DAY_MS;
+  const unique = mergeOfferDuplicates(offers.filter(o => new Date(o.fetchedAt).getTime() >= cutoff));
+  const untreated = unique.filter(o => !isTreated(o)).length;
+  return {
+    total: unique.length, untreated,
+    showBanner: unique.length >= UNTREATED_BANNER_MIN_OFFERS && untreated / unique.length > UNTREATED_BANNER_SHARE,
   };
 }
