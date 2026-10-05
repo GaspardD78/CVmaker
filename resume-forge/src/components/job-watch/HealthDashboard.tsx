@@ -10,6 +10,7 @@ import { analyzeFeedback, getBlacklistSuggestions, getKeywordSuggestions, Learni
 import { generatePerformanceOptimizationPrompt, generateDiagnosticPrompt } from '@/lib/prompt-templates';
 import { getDb } from '@/lib/db';
 import { dedupeOffers } from '@/lib/watcher/offer-dedup';
+import { useScoreRecalcStore } from '@/stores/scoreRecalcStore';
 import { findNearDuplicateAlert } from '@/lib/watcher/alert-similarity';
 import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import { PortfolioReviewPanel } from './PortfolioReviewPanel';
@@ -194,9 +195,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   const [companySuggestions, setCompanySuggestions] = useState<string[]>([]);
   const [expandedSource, setExpandedSource] = useState<JobSource | null>(null);
   const [debugSource, setDebugSource] = useState<JobSource | null>(null);
-  const [scoringInfoDismissed, setScoringInfoDismissed] = useState(
-    () => localStorage.getItem('scoring_info_dismissed') === '1'
-  );
+  const recalc = useScoreRecalcStore();
   /** Vue portefeuille : compare les pistes entre elles au lieu d'en analyser une. */
   const [portfolioMode, setPortfolioMode] = useState(false);
 
@@ -403,11 +402,6 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     dismiss(`bl:${company}`);
   };
 
-  const handleDismissScoringInfo = () => {
-    localStorage.setItem('scoring_info_dismissed', '1');
-    setScoringInfoDismissed(true);
-  };
-
   const handlePerformancePrompt = async () => {
     // Le dictionnaire appris appartient à la piste analysée.
     const suggestions = getKeywordSuggestions(
@@ -558,20 +552,44 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
             </div>
           )}
 
-          {/* Scoring update info banner */}
-          {!portfolioMode && !scoringInfoDismissed && (
-            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300">
-              <div className="flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                <span>Le scoring a été mis à jour. Les offres précédentes conservent leur score d'origine.</span>
+          {/* Version du scoring : recalcul en cours, ou bilan du dernier recalcul */}
+          {!portfolioMode && (recalc.running || (recalc.recalculatedCount !== null && !recalc.bannerDismissed) || recalc.error) && (
+            <div className="px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>
+                    {recalc.running
+                      ? `Scoring mis à jour : recalcul en cours (${recalc.done} / ${recalc.total} offres)`
+                      : recalc.error
+                        ? `Recalcul des scores interrompu : ${recalc.error}`
+                        : `Scoring mis à jour : ${recalc.recalculatedCount} offre${(recalc.recalculatedCount ?? 0) > 1 ? 's' : ''} recalculée${(recalc.recalculatedCount ?? 0) > 1 ? 's' : ''}`}
+                  </span>
+                </div>
+                {!recalc.running && (
+                  <button
+                    onClick={recalc.dismissBanner}
+                    aria-label="Fermer"
+                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-              <button
-                onClick={handleDismissScoringInfo}
-                aria-label="Fermer"
-                className="flex-shrink-0 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {recalc.running && (
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={recalc.total}
+                  aria-valuenow={recalc.done}
+                  className="h-1.5 rounded bg-blue-100 dark:bg-blue-900/40 overflow-hidden"
+                >
+                  <div
+                    className="h-full bg-blue-500 transition-all"
+                    style={{ width: `${recalc.total > 0 ? Math.round((recalc.done / recalc.total) * 100) : 0}%` }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -772,6 +790,15 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
             >
               <Bot className="w-3 h-3" />
               Optimiser ma recherche (prompt IA)
+            </button>
+            <button
+              onClick={() => void recalc.run({ force: true })}
+              disabled={recalc.running}
+              title="Recalcule les scores des offres des 60 derniers jours avec le scorer actuel"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 transition-colors"
+            >
+              <Wrench className="w-3 h-3" />
+              Recalculer les scores
             </button>
             {(volumeAlert || conversionAlert) && (
               <button
