@@ -52,6 +52,25 @@ export function extractSignificantTerms(text: string, includeBigrams = false): s
 }
 
 /**
+ * Mots significatifs des intitulés, skills et domaines d'une piste : ce que la
+ * piste cherche, donc ce que ses rejets ne doivent jamais apprendre à fuir.
+ */
+export function protectedTokensOf(profile: {
+  jobTitles: string[]; skills: string[]; domains: string[];
+}): Set<string> {
+  const tokens = new Set<string>();
+  for (const text of [...profile.jobTitles, ...profile.skills, ...profile.domains]) {
+    for (const token of extractSignificantTerms(text)) tokens.add(token);
+  }
+  return tokens;
+}
+
+/** Un terme (mot ou bigramme) est protégé dès que l'un de ses mots l'est. */
+export function isProtectedTerm(term: string, protectedTokens: ReadonlySet<string>): boolean {
+  return term.split(' ').some(word => protectedTokens.has(word));
+}
+
+/**
  * Updates the learned dictionary based on an action performed on an offer title.
  *
  * Weights:
@@ -64,8 +83,19 @@ export function processFeedback(
   offerTitle: string,
   action: string,
   currentDict: LearnedDictionary,
+  protectedTokens?: ReadonlySet<string>,
 ): LearnedDictionary {
-  const terms = extractSignificantTerms(offerTitle, true); // include bigrams
+  const allTerms = extractSignificantTerms(offerTitle, true); // include bigrams
+  if (allTerms.length === 0) return currentDict;
+
+  // Pas d'apprentissage NÉGATIF sur un terme des intitulés, skills ou domaines
+  // de la piste : rejeter un poste technique chez une société de la cible ne
+  // doit pas pénaliser « recrutement » ou « sécurité ». Le rejet apprend le
+  // type de poste (« développeur »), pas le domaine visé.
+  const isNegative = action === 'thumbs_down' || action === 'quick_archive';
+  const terms = isNegative && protectedTokens && protectedTokens.size > 0
+    ? allTerms.filter(term => !isProtectedTerm(term, protectedTokens))
+    : allTerms;
   if (terms.length === 0) return currentDict;
 
   const positive = { ...currentDict.positive };

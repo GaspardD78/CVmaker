@@ -6,11 +6,13 @@ import {
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { analyzeFeedback, getBlacklistSuggestions, getKeywordSuggestions, LearningResult } from '@/lib/watcher/learning-engine';
+import { analyzeFeedback, getKeywordSuggestions, isProtectedTerm, protectedTokensOf, LearningResult } from '@/lib/watcher/learning-engine';
 import { generatePerformanceOptimizationPrompt, generateDiagnosticPrompt } from '@/lib/prompt-templates';
 import { getDb } from '@/lib/db';
 import { dedupeOffers } from '@/lib/watcher/offer-dedup';
 import { useScoreRecalcStore } from '@/stores/scoreRecalcStore';
+import { ThresholdPanel } from './ThresholdPanel';
+import { BlacklistSuggestions } from './BlacklistSuggestions';
 import { findNearDuplicateAlert } from '@/lib/watcher/alert-similarity';
 import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import { PortfolioReviewPanel } from './PortfolioReviewPanel';
@@ -180,7 +182,7 @@ function formatRelativeTime(isoDate: string): string {
 
 export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: boolean }) {
   const { offers, configs, fetchLogs, loadFetchLogs, selectorDebugInfo, selectorOverrides,
-          alerts, activeAlert, setActiveAlert, activeSearchProfile, updateSearchProfile, updateAlert } = useJobWatchStore();
+          alerts, activeAlert, setActiveAlert, activeSearchProfile, updateSearchProfile } = useJobWatchStore();
 
   // Piste analysée : celle sélectionnée, à défaut la première du portefeuille.
   const currentAlert = activeAlert() ?? alerts[0] ?? null;
@@ -192,7 +194,6 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   const [analysis, setAnalysis]   = useState<LearningResult | null>(null);
   const [expanded, setExpanded]   = useState(alwaysExpanded);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [companySuggestions, setCompanySuggestions] = useState<string[]>([]);
   const [expandedSource, setExpandedSource] = useState<JobSource | null>(null);
   const [debugSource, setDebugSource] = useState<JobSource | null>(null);
   const recalc = useScoreRecalcStore();
@@ -207,10 +208,6 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       .catch(() => setAnalysis(null));
 
     loadFetchLogs();
-
-    setCompanySuggestions(
-      currentAlert ? getBlacklistSuggestions(currentAlert.companyReputation) : [],
-    );
   }, [currentAlert, loadFetchLogs]);
 
   // ── Metrics ───────────────────────────────────────────────────────────────────
@@ -316,8 +313,10 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       ...searchProfile.excludeTitles.map(k => k.toLowerCase()),
       ...searchProfile.excludeDomains.map(k => k.toLowerCase()),
     ]);
+    // Pas de suggestion d'exclure un terme des intitulés, skills ou domaines de la piste.
+    const protectedTokens = protectedTokensOf(searchProfile);
     return analysis.suggestedExclusions
-      .filter(t => !already.has(t) && !dismissed.has(`excl:${t}`))
+      .filter(t => !already.has(t) && !dismissed.has(`excl:${t}`) && !isProtectedTerm(t, protectedTokens))
       .slice(0, 5);
   }, [analysis, searchProfile, dismissed]);
 
@@ -332,13 +331,8 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       .slice(0, 5);
   }, [analysis, searchProfile, dismissed]);
 
-  const suggestBlacklist = useMemo(() => {
-    const already = new Set(searchProfile.blacklistedCompanies.map(c => c.toLowerCase()));
-    return companySuggestions.filter(c => !already.has(c) && !dismissed.has(`bl:${c}`));
-  }, [companySuggestions, searchProfile.blacklistedCompanies, dismissed]);
-
   const hasAlerts =
-    volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0;
+    volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0;
 
   const noJobTitles = searchProfile.jobTitles.length === 0;
   const nearDuplicate = currentAlert ? findNearDuplicateAlert(currentAlert, alerts) : null;
@@ -378,28 +372,6 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       domains: [...searchProfile.domains, term],
     });
     dismiss(`bonus:${term}`);
-  };
-
-  /**
-   * Ajoute une entreprise à la blacklist.
-   *
-   * La portée est explicite : écarter un employeur sur la piste cœur de cible
-   * ne veut pas dire l'écarter d'une exploration, et l'inverse est vrai aussi.
-   */
-  const handleBlacklistCompany = async (company: string, scope: 'alert' | 'all') => {
-    const targets = scope === 'all' ? alerts : (currentAlert ? [currentAlert] : []);
-    for (const target of targets) {
-      const already = target.searchProfile.blacklistedCompanies
-        .some(c => c.trim().toLowerCase() === company.trim().toLowerCase());
-      if (already) continue;
-      await updateAlert(target.id, {
-        searchProfile: {
-          ...target.searchProfile,
-          blacklistedCompanies: [...target.searchProfile.blacklistedCompanies, company],
-        },
-      });
-    }
-    dismiss(`bl:${company}`);
   };
 
   const handlePerformancePrompt = async () => {
@@ -621,6 +593,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
           </div>
           )}
 
+          {/* Seuil de score : visible quand la conversion est faible ou des offres sont masquées */}
+          {!portfolioMode && conversionAlert && <ThresholdPanel offers={scopedOffers} />}
+
           {/* Dernières collectes table */}
           <div className="pt-1 border-t border-gray-100 dark:border-gray-700">
             <p className="text-[10px] uppercase tracking-wide font-medium text-gray-400 dark:text-gray-500 mb-1.5">
@@ -813,7 +788,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
           )}
 
           {/* Actionable learning suggestions */}
-          {!portfolioMode && (suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0) && (
+          {!portfolioMode && (suggestExclude.length > 0 || suggestBonus.length > 0) && (
             <div className="space-y-1.5 pt-1 border-t border-gray-100 dark:border-gray-700">
               {suggestExclude.map(term => (
                 <SuggestionAlert
@@ -835,19 +810,12 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                   onDismiss={() => dismiss(`bonus:${term}`)}
                 />
               ))}
-              {suggestBlacklist.map(company => (
-                <SuggestionAlert
-                  key={`bl:${company}`}
-                  type="negative"
-                  message={`Vous rejetez souvent les offres de "${company}".`}
-                  actionLabel={alerts.length > 1 ? 'Cette piste' : 'Blacklister'}
-                  onAction={() => handleBlacklistCompany(company, 'alert')}
-                  secondaryActionLabel={alerts.length > 1 ? 'Toutes les pistes' : undefined}
-                  onSecondaryAction={() => handleBlacklistCompany(company, 'all')}
-                  onDismiss={() => dismiss(`bl:${company}`)}
-                />
-              ))}
             </div>
+          )}
+
+          {/* Suggestions de blacklist : titres rejetés visibles, portée entreprise ou type de poste */}
+          {!portfolioMode && currentAlert && (
+            <BlacklistSuggestions alert={currentAlert} offers={offers} />
           )}
         </div>
       )}

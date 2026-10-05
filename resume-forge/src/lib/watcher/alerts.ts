@@ -45,12 +45,14 @@ export interface AlertRow {
   learned_decayed_at: string | null;
   last_fetched_at: string | null;
   created_at: string;
+  /** Dernière modification des intitulés visés (migration 021). */
+  titles_updated_at?: string | null;
 }
 
 const ALERT_COLUMNS =
   'id, profile_id, name, color, kind, position, enabled, search_profile, ' +
   'ai_filter_rule, learned_dict, company_reputation, learned_decayed_at, ' +
-  'last_fetched_at, created_at';
+  'last_fetched_at, created_at, titles_updated_at';
 
 // ── Fonctions pures ──────────────────────────────────────────────────────────
 
@@ -94,6 +96,7 @@ export function mapAlertRow(row: AlertRow, sources: JobSource[] = []): JobWatchA
     learnedDecayedAt:  row.learned_decayed_at,
     lastFetchedAt:     row.last_fetched_at,
     createdAt:         row.created_at,
+    titlesUpdatedAt:   row.titles_updated_at ?? null,
     sources,
   };
 }
@@ -356,19 +359,36 @@ const PATCH_COLUMNS: Record<keyof AlertPatch, { column: string; serialize: (v: u
   lastFetchedAt:     { column: 'last_fetched_at',    serialize: v => v },
 };
 
-export async function updateAlert(id: string, patch: AlertPatch): Promise<void> {
-  const entries = (Object.keys(patch) as Array<keyof AlertPatch>)
-    .filter(key => patch[key] !== undefined && key in PATCH_COLUMNS)
-    .map(key => ({ ...PATCH_COLUMNS[key], value: patch[key] }));
-  if (entries.length === 0) return;
+/** Vrai si les intitulés visés diffèrent (ordre, casse et espaces ignorés). */
+export function jobTitlesChanged(previous: string[], next: string[]): boolean {
+  const norm = (titles: string[]) => titles.map(t => t.trim().toLowerCase()).filter(Boolean).sort().join('\u0000');
+  return norm(previous) !== norm(next);
+}
 
-  const assignments = entries.map((e, i) => `${e.column} = ?${i + 1}`).join(', ');
-  const values = entries.map(e => e.serialize(e.value));
+export async function updateAlert(id: string, patch: AlertPatch): Promise<void> {
+  const assignments: Array<{ column: string; value: unknown }> = (Object.keys(patch) as Array<keyof AlertPatch>)
+    .filter(key => patch[key] !== undefined && key in PATCH_COLUMNS)
+    .map(key => ({ column: PATCH_COLUMNS[key].column, value: PATCH_COLUMNS[key].serialize(patch[key]) }));
+  if (assignments.length === 0) return;
 
   const db = await getDb();
+
+  // Les rejets antérieurs à une modification des intitulés visés ne comptent plus
+  // dans les suggestions de blacklist : on date la modification.
+  if (patch.searchProfile) {
+    const rows = await db.select<Array<{ search_profile: string }>>(
+      `SELECT search_profile FROM job_watch_alerts WHERE id = ?1`, [id],
+    );
+    const previous = parseJson<Partial<SearchProfile>>(rows[0]?.search_profile, {});
+    if (jobTitlesChanged(previous.jobTitles ?? [], patch.searchProfile.jobTitles ?? [])) {
+      assignments.push({ column: 'titles_updated_at', value: new Date().toISOString() });
+    }
+  }
+
+  const setClause = assignments.map((e, i) => `${e.column} = ?${i + 1}`).join(', ');
   await db.execute(
-    `UPDATE job_watch_alerts SET ${assignments} WHERE id = ?${entries.length + 1}`,
-    [...values, id],
+    `UPDATE job_watch_alerts SET ${setClause} WHERE id = ?${assignments.length + 1}`,
+    [...assignments.map(e => e.value), id],
   );
 }
 

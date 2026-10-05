@@ -16,8 +16,9 @@ import {
   DEFAULT_EXPIRED_MAX_AGE_DAYS,
   JobSource,
 } from '@/types/job-watch';
-import { processFeedback, processCompanyReputation } from '@/lib/watcher/learning-engine';
+import { processFeedback, processCompanyReputation, protectedTokensOf } from '@/lib/watcher/learning-engine';
 import { dedupeOffers } from '@/lib/watcher/offer-dedup';
+import { isTitleExcluded } from '@/lib/watcher/title-exclusion';
 import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import {
   resolveFeedbackAlert,
@@ -694,7 +695,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       (async () => {
         try {
           await get().updateAlert(target.id, {
-            learnedDict:       processFeedback(offer.title, action, target.learnedDict),
+            learnedDict:       processFeedback(offer.title, action, target.learnedDict, protectedTokensOf(target.searchProfile)),
             companyReputation: processCompanyReputation(offer.company, action, target.companyReputation),
           });
         } catch { /* silent */ }
@@ -938,6 +939,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const blacklist = new Set(
       scopedAlerts.flatMap(a => a.searchProfile.blacklistedCompanies.map(c => c.trim().toLowerCase())),
     );
+    // « Ignorer ce type de poste chez elle » : même portée que la blacklist, mais
+    // limitée aux titres contenant le terme.
+    const titleExclusions = scopedAlerts.flatMap(a => a.searchProfile.companyTitleExclusions ?? []);
 
     const matching = offers.filter(o => {
       if (filters.alertId === 'unlinked') {
@@ -968,6 +972,10 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       if (filters.dateTo   && o.fetchedAt > filters.dateTo)   return false;
 
       if (blacklist.size > 0 && o.company && blacklist.has(o.company.trim().toLowerCase())) {
+        return false;
+      }
+
+      if (titleExclusions.length > 0 && o.company && isTitleExcluded(o.title, o.company, titleExclusions)) {
         return false;
       }
 

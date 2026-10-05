@@ -118,6 +118,12 @@ export interface SearchProfile {
   /** Companies to always exclude from results (score → 0). */
   blacklistedCompanies: string[];
 
+  /**
+   * « Ignorer ce type de poste chez elle » : exclut un terme de titre pour une
+   * entreprise précise, sans blacklister l'entreprise (portée titre uniquement).
+   */
+  companyTitleExclusions?: Array<{ company: string; term: string }>;
+
   // ── APEC-specific ─────────────────────────────────────────────────────────
   /**
    * Libellés de fonctions APEC sélectionnés (ex. ["Chargé de recrutement", "Développement RH"]).
@@ -312,6 +318,8 @@ export interface JobWatchAlert {
   learnedDecayedAt: string | null;
   lastFetchedAt: string | null;
   createdAt: string;
+  /** Dernière modification des intitulés visés (null = jamais modifiés depuis la migration 021). */
+  titlesUpdatedAt?: string | null;
   /** Sources actives de la piste, dérivées des `JobWatchConfig` rattachées. */
   sources: JobSource[];
 }

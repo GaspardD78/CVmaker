@@ -39,6 +39,7 @@
  * Résultat clampé entre 0 et 100.
  */
 
+import { isTitleExcluded } from './title-exclusion';
 import type { RawJobOffer, SearchProfile } from '@/types/job-watch';
 import type { LearnedDictionary } from './learning-engine';
 import type { Profile, MasterEntry } from '@/types/profile';
@@ -179,6 +180,12 @@ export function computeScoreWithBreakdown(
     profile.blacklistedCompanies.some(c => c.trim().toLowerCase() === companyLower)
   ) {
     return zero('Entreprise blacklistée');
+  }
+
+  // « Ignorer ce type de poste chez elle » : terme de titre exclu pour cette
+  // entreprise seulement, sans blacklister l'entreprise. Portée titre uniquement.
+  if (isTitleExcluded(title, offer.company ?? null, profile.companyTitleExclusions ?? [])) {
+    return zero('Type de poste ignoré chez cette entreprise');
   }
 
   // Excluded terms — veto absolu : titre OU description (sans distinction de position)
