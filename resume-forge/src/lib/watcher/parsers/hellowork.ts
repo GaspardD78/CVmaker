@@ -16,6 +16,7 @@
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile } from '@/types/job-watch';
 import { scrapeWithSession } from '../session-manager';
 import { isExcludedByProfile } from '../profile-to-query';
+import { assertNotChallengePage } from '../source-status';
 import { normalizeLocation } from './common/location';
 import { normalizeContractType, extractContractFromText } from './common/contract-type';
 import { extractSalaryFromText } from './common/salary';
@@ -38,6 +39,9 @@ export async function parseHellowork(
     waitSelector: '[data-cy="serpCard"], ul[data-cy="serpList"] li, .tw-relative article',
     timeoutSecs:  25,
   }, profileId);
+
+  // Contrôle anti-robot : on s'arrête et on le dit, sans tenter de le franchir.
+  assertNotChallengePage(html, { url });
 
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const cards = Array.from(

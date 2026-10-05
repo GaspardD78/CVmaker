@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  SourceError, adviceFor, assertExpectedBody, classifyFailureMessage, deriveSourceStatus,
+  SourceError, adviceFor, assertExpectedBody, assertNotChallengePage, classifyFailureMessage, deriveSourceStatus,
   failureOf, legacyToSourceStatus, looksLikeBlockPage, looksLikeHtml, sanitizeUrl,
 } from './source-status';
 
@@ -97,5 +97,18 @@ describe('sanitizeUrl', () => {
 
   it('retire les identifiants embarqués', () => {
     expect(sanitizeUrl('https://user:pw@example.com/a')).not.toContain('pw');
+  });
+});
+
+describe('contrôle anti-robot des sources scrapées', () => {
+  it('une page de challenge arrête la collecte en bloquee', () => {
+    const html = '<html><head><title>Just a moment...</title></head><body>Verify you are human</body></html>';
+    expect(() => assertNotChallengePage(html, { url: 'https://fr.indeed.com/emplois' })).toThrow(SourceError);
+    try { assertNotChallengePage(html, { url: 'https://fr.indeed.com/emplois' }); }
+    catch (e) { expect(failureOf(e).kind).toBe('bloquee'); }
+  });
+
+  it('une vraie page de résultats passe', () => {
+    expect(() => assertNotChallengePage('<html><body><div data-testid="jobListing"></div></body></html>', { url: 'u' })).not.toThrow();
   });
 });

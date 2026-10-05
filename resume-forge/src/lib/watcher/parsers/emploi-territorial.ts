@@ -28,7 +28,9 @@
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile, ExtractionMetadata } from '@/types/job-watch';
 import { fetchRssFeed, stripHtml, parseDate } from './rss-utils';
-import { isExcludedByProfile } from '../profile-to-query';
+import { buildEmploiTerritorialQuery, isExcludedByProfile, type EmploiTerritorialQueryParams } from '../profile-to-query';
+import { NO_FRENCH_TITLE_MESSAGE } from '../french-titles';
+import { failureOf, SourceError } from '../source-status';
 
 const ET_RSS_BASE = 'https://www.emploi-territorial.fr/rss/offres-emploi.rss';
 
@@ -81,31 +83,16 @@ function extractLocationFromText(text: string): string | null {
 }
 
 /** Build the RSS URL with optional keyword/location params */
-function buildRssUrl(config: JobWatchConfig, profile: SearchProfile): string {
+function buildRssUrl(config: JobWatchConfig, query: EmploiTerritorialQueryParams): string {
   // L'utilisateur a fourni une URL complète custom : on la respecte telle quelle.
   if (config.rssUrl) return config.rssUrl;
 
-  const params  = new URLSearchParams();
-
-  // Mots-clés : on n'envoie QUE les jobTitles, joints avec `or` (minuscule, le
-  // moteur emploi-territorial.fr ne reconnaît pas `OU` ni `OR`). Ajouter les
-  // skills comme dans la version précédente intersectait à zéro pour la plupart
-  // des profils tech (skills ATS / SaaS / Recruiter rares en territorial).
-  const titles = profile.jobTitles.map(t => t.trim()).filter(Boolean);
-  if (titles.length > 0) {
-    // FAQ ET : phrase exacte via `"..."` ; `or` (lowercase) pour alternatives.
-    const expr = titles.length === 1
-      ? `"${titles[0]}"`
-      : titles.map(t => `"${t}"`).join(' or ');
-    params.set('q', expr);
-  }
-
+  const params = new URLSearchParams();
+  if (query.q) params.set('q', query.q);
   // Localisation : on préfère le code département (2 chiffres) — plus stable
-  // que le nom de ville pour le filtre serveur. Repli sur la ville si pas de
-  // département. Le post-filter client repassera dessus de toute façon.
-  const dept = profile.location.departmentCodes[0];
-  if (dept) params.set('lieu', dept);
-  else if (profile.location.city) params.set('lieu', profile.location.city);
+  // que le nom de ville pour le filtre serveur. Le post-filter client repassera
+  // dessus de toute façon.
+  if (query.lieu) params.set('lieu', query.lieu);
 
   const queryString = params.toString();
   return queryString ? `${ET_RSS_BASE}?${queryString}` : ET_RSS_BASE;
@@ -160,22 +147,35 @@ export async function parseEmploiTerritorial(
   _settings: JobWatchSettings,
   profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
-  const rssUrl = buildRssUrl(config, profile);
+  const query = buildEmploiTerritorialQuery(profile);
+
+  // Aucun intitulé français : on n'envoie pas « Talent Acquisition » à un index
+  // francophone (réponse vide trompeuse). Une URL de flux personnalisée garde la main.
+  if (!config.rssUrl && query.titles.length === 0) {
+    throw new SourceError('intitules_inadaptes', NO_FRENCH_TITLE_MESSAGE);
+  }
+
+  const rssUrl = buildRssUrl(config, query);
 
   // Les paramètres `q`/`lieu` du flux ne sont pas documentés officiellement et
-  // le serveur les rejette parfois (HTTP 4xx/5xx selon l'expression). Comme le
-  // post-filter client assure de toute façon la précision, on retombe sur le
-  // flux global plutôt que de laisser la source en erreur pendant des jours.
+  // le serveur les rejette parfois. On retombe alors sur le flux global — mais
+  // seulement quand cela peut aider : si le site nous a bloqués, ou si le flux
+  // global échoue pour la même raison que le flux filtré, le repli est inutile
+  // et son message trompeur.
   let items;
   try {
     items = await fetchRssFeed(rssUrl, 'emploi_territorial');
   } catch (err) {
     if (rssUrl === ET_RSS_BASE) throw err;
+    const first = failureOf(err);
+    if (first.kind === 'bloquee') throw err; // le global sera refusé aussi
+    // Le repli échoue à son tour : on remonte son erreur (même cause ou non), sans
+    // avertissement « repli sur le flux global » qui n'a pas abouti.
+    items = await fetchRssFeed(ET_RSS_BASE, 'emploi_territorial');
     console.warn(
       `[emploi-territorial] flux filtré en échec (${err instanceof Error ? err.message : err}) — ` +
       'repli sur le flux global, post-filtrage client conservé.',
     );
-    items = await fetchRssFeed(ET_RSS_BASE, 'emploi_territorial');
   }
 
   const offers: RawJobOffer[] = items.map(item => {
@@ -226,7 +226,7 @@ export async function parseEmploiTerritorial(
   let droppedTitle = 0, droppedLocation = 0, droppedExclusion = 0;
   const filtered: RawJobOffer[] = [];
   for (const o of offers) {
-    if (!titleMatchesAnyJobTitle(o.title, profile.jobTitles)) {
+    if (!titleMatchesAnyJobTitle(o.title, query.titles)) {
       droppedTitle++;
       continue;
     }

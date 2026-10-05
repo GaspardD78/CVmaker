@@ -79,6 +79,9 @@ export function looksLikeBlockPage(body: string): boolean {
     'checking your browser before accessing',
     'captcha-delivery',
     'datadome',
+    'cf-browser-verification',
+    'verify you are human',
+    'vérifiez que vous êtes un humain',
   ].some(marker => head.includes(marker));
 }
 
@@ -110,6 +113,19 @@ export function assertExpectedBody(
       `HTML reçu au lieu de ${expected.toUpperCase()}`,
       { httpStatus: ctx.httpStatus ?? 200, url: ctx.url },
     );
+  }
+}
+
+/**
+ * Page HTML issue d'un navigateur intégré (sources scrapées) : si c'est un
+ * contrôle anti-robot, la collecte s'arrête en `bloquee`. On ne tente jamais de
+ * le franchir.
+ */
+export function assertNotChallengePage(html: string, ctx: { url: string }): void {
+  if (looksLikeBlockPage(html)) {
+    throw new SourceError('bloquee', 'Contrôle anti-robot affiché par le site', {
+      httpStatus: 200, url: ctx.url,
+    });
   }
 }
 

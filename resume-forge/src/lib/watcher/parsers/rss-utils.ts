@@ -6,6 +6,7 @@
 import { BROWSER_USER_AGENT } from '../http';
 import { fetchResilient } from '../http-client';
 import type { JobSource } from '@/types/job-watch';
+import { assertExpectedBody, SourceError } from '../source-status';
 
 export interface RssItem {
   title: string;
@@ -51,10 +52,17 @@ export async function fetchRssFeed(url: string, source: JobSource | string = 'rs
   });
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} pour ${url}`);
+    // Statut typé : 403/429 = refus du site, 404/410 = adresse disparue.
+    const kind = res.status === 403 || res.status === 429
+      ? 'bloquee'
+      : res.status === 404 || res.status === 410 ? 'introuvable' : 'erreur_reseau';
+    throw new SourceError(kind, `HTTP ${res.status} pour ${url}`, { httpStatus: res.status, url });
   }
 
   const text = await res.text();
+  // Un pare-feu applicatif répond souvent 200 avec une page HTML « Request
+  // Rejected » : ce n'est ni un flux vide ni un flux invalide anodin.
+  assertExpectedBody(text, 'xml', { url, httpStatus: res.status });
   return parseXml(text);
 }
 
@@ -64,7 +72,7 @@ function parseXml(text: string): RssItem[] {
 
   const parseError = doc.querySelector('parsererror');
   if (parseError) {
-    throw new Error(`Erreur parsing XML: ${parseError.textContent?.slice(0, 100)}`);
+    throw new SourceError('reponse_invalide', `Erreur parsing XML: ${parseError.textContent?.slice(0, 100)}`);
   }
 
   // Detect format: RSS 2.0 or Atom

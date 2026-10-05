@@ -15,6 +15,7 @@
 import type { SearchProfile, JobSource } from '@/types/job-watch';
 import { APEC_TYPES_CONTRAT, APEC_FONCTIONS, apecLieuFromDeptCode, APEC_SECTEURS, APEC_TELETRAVAIL } from './parsers/apec-ids';
 import { cityToDeptCode } from './parsers/common/city-departments';
+import { frenchJobTitles, NO_FRENCH_TITLE_MESSAGE } from './french-titles';
 
 // ── APEC ─────────────────────────────────────────────────────────────────────
 
@@ -163,7 +164,9 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
   // We expose the raw title list; the parser runs one request per title and
   // merges/deduplicates results client-side. Exclusions are applied locally
   // via `isExcludedByProfile` post-fetch.
-  const titles = profile.jobTitles.map(t => t.trim()).filter(Boolean).slice(0, 5);
+  // Seuls les intitulés français sont envoyés : l'index France Travail est
+  // francophone et « Talent Acquisition » n'y ramène rien (spec 006).
+  const titles = frenchJobTitles(profile.jobTitles).slice(0, 5);
   // Kept for backwards-compat (summarizeSourceQuery, tests). The parser does
   // not rely on this field anymore — it iterates over `titles` instead.
   const motsCles: string | undefined = titles[0];
@@ -220,6 +223,31 @@ export function buildFranceTravailQuery(profile: SearchProfile): FranceTravailQu
   const publieeDepuis: number | undefined = 7;
 
   return { motsCles, titles, commune, departement, distance, typeContrat, publieeDepuis };
+}
+
+// ── Emploi Territorial ───────────────────────────────────────────────────────
+
+export interface EmploiTerritorialQueryParams {
+  /** Intitulés français retenus (vide = source `intitules_inadaptes`). */
+  titles: string[];
+  /** Expression `q` : phrases exactes entre guillemets, `or` (minuscule) entre alternatives. */
+  q: string | undefined;
+  /** Département (préféré, plus stable) ou ville. */
+  lieu: string | undefined;
+}
+
+export function buildEmploiTerritorialQuery(profile: SearchProfile): EmploiTerritorialQueryParams {
+  // Seuls les jobTitles français sont envoyés, joints avec `or` (le moteur ne
+  // reconnaît ni `OU` ni `OR`). Les skills ne sont pas ajoutés : ils
+  // intersectaient à zéro pour la plupart des profils tech.
+  const titles = frenchJobTitles(profile.jobTitles);
+  const q = titles.length === 0
+    ? undefined
+    : titles.length === 1
+      ? `"${titles[0]}"`
+      : titles.map(t => `"${t}"`).join(' or ');
+  const lieu = profile.location.departmentCodes[0] || profile.location.city || undefined;
+  return { titles, q, lieu };
 }
 
 // ── WTTJ ─────────────────────────────────────────────────────────────────────
@@ -287,7 +315,8 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
     }
     case 'france_travail': {
       const p = buildFranceTravailQuery(profile);
-      const parts = [p.motsCles ?? '(mots-clés vides)'];
+      if (p.titles.length === 0) return NO_FRENCH_TITLE_MESSAGE;
+      const parts = [p.titles.join(' / ')];
       if (p.commune) parts.push(`INSEE: ${p.commune}`);
       else if (p.departement) parts.push(`dept: ${p.departement}`);
       if (p.distance) parts.push(`rayon: ${p.distance}km`);
@@ -322,8 +351,11 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
       const tag = profile.jobTitles[0] ?? '';
       return tag ? `tag: ${tag} | remote worldwide` : 'remote worldwide (aucun tag)';
     }
-    case 'emploi_territorial':
-      return 'Via flux RSS (URL configurée)';
+    case 'emploi_territorial': {
+      const p = buildEmploiTerritorialQuery(profile);
+      if (!p.q) return NO_FRENCH_TITLE_MESSAGE;
+      return [p.q, p.lieu ? `lieu: ${p.lieu}` : null].filter(Boolean).join(' | ');
+    }
     case 'mantiks': {
       const p = buildWttjQuery(profile);
       const parts = [p.query ?? '(mots-clés vides)'];

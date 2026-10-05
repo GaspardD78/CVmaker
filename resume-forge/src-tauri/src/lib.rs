@@ -105,6 +105,67 @@ fn get_db_uri() -> String {
     DB_URI.get_or_init(resolve_db_uri).clone()
 }
 
+const APEC_SEARCH_PAGE: &str = "https://www.apec.fr/candidat/recherche-emploi.html/emploi";
+const APEC_API_URL: &str = "https://www.apec.fr/cms/webservices/rechercheOffre";
+const APEC_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+     (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+/// Durée de vie de la session APEC mise en cache (cookies de la page de recherche).
+const APEC_SESSION_TTL: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// Cookies de session APEC obtenus par un GET préalable de la page de recherche,
+/// réutilisés pour les pages suivantes d'une même recherche (comme un onglet ouvert).
+static APEC_SESSION: std::sync::Mutex<Option<(std::time::Instant, String)>> =
+    std::sync::Mutex::new(None);
+
+/// Construit l'en-tête `Cookie` à partir des en-têtes `Set-Cookie` d'une réponse :
+/// seule la paire `nom=valeur` de chaque cookie est renvoyée, comme le fait un navigateur.
+fn build_cookie_header(set_cookies: &[String]) -> String {
+    set_cookies
+        .iter()
+        .filter_map(|c| c.split(';').next())
+        .map(str::trim)
+        .filter(|pair| pair.contains('='))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// GET préalable de la page de recherche : un navigateur ordinaire l'ouvre avant
+/// d'interroger l'API, et le site y dépose ses cookies de session.
+async fn apec_session_cookies(client: &reqwest::Client) -> String {
+    if let Ok(guard) = APEC_SESSION.lock() {
+        if let Some((at, cookies)) = guard.as_ref() {
+            if at.elapsed() < APEC_SESSION_TTL {
+                return cookies.clone();
+            }
+        }
+    }
+    let resp = client
+        .get(APEC_SEARCH_PAGE)
+        .header(reqwest::header::USER_AGENT, APEC_USER_AGENT)
+        .header(reqwest::header::ACCEPT,
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .header(reqwest::header::ACCEPT_LANGUAGE, "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+        .send()
+        .await;
+    let cookies = match resp {
+        Ok(r) => {
+            let set_cookies: Vec<String> = r
+                .headers()
+                .get_all(reqwest::header::SET_COOKIE)
+                .iter()
+                .filter_map(|v| v.to_str().ok().map(String::from))
+                .collect();
+            build_cookie_header(&set_cookies)
+        }
+        // La page préalable est un « plus » : son échec ne bloque pas la recherche.
+        Err(_) => String::new(),
+    };
+    if let Ok(mut guard) = APEC_SESSION.lock() {
+        *guard = Some((std::time::Instant::now(), cookies.clone()));
+    }
+    cookies
+}
+
 /// Effectue la requête POST vers l'API APEC et gère l'encodage de la réponse.
 ///
 /// L'API APEC (https://www.apec.fr/cms/webservices/rechercheOffre) renvoie du
@@ -114,12 +175,20 @@ fn get_db_uri() -> String {
 /// les données. On contourne en faisant la requête directement avec reqwest,
 /// en lisant les octets bruts, puis en décodant : UTF-8 d'abord, Latin-1 en
 /// repli (chaque octet Latin-1 correspond au même point de code Unicode).
+///
+/// Usage d'un navigateur ordinaire (spec 006, phase 2) : GET préalable de la
+/// page de recherche pour obtenir les cookies, puis POST avec `Origin`,
+/// `Referer`, `Accept`, `Accept-Language`, `Content-Type`, `User-Agent` et les
+/// cookies de session. Rien de plus : pas de rotation d'IP, pas d'empreinte
+/// usurpée. Si le site répond 403 / 429 malgré cela, l'erreur est renvoyée
+/// telle quelle (« APEC HTTP 403 ») et le côté TypeScript met la source en
+/// pause 24 h plutôt que d'insister.
 #[tauri::command]
 async fn fetch_apec_api(body: String) -> Result<String, String> {
     // APEC's search backend regularly returns transient 5xx ("Erreur technique").
     // We retry up to 3 times with exponential backoff (500ms, 1s) — same pattern
     // as the France Travail parser — to avoid polluting the UI with errors for
-    // server-side blips. 4xx are NOT retried (bad query, no point hammering).
+    // server-side blips. 4xx are NOT retried (refusal or bad query: no point hammering).
     const MAX_ATTEMPTS: u32 = 3;
 
     let client = reqwest::Client::builder()
@@ -127,24 +196,24 @@ async fn fetch_apec_api(body: String) -> Result<String, String> {
         .build()
         .map_err(|e| format!("APEC client: {}", e))?;
 
+    let cookies = apec_session_cookies(&client).await;
+
     let mut last_status: Option<u16> = None;
     let mut last_net_err: Option<String> = None;
 
     for attempt in 0..MAX_ATTEMPTS {
-        let send_result = client
-            .post("https://www.apec.fr/cms/webservices/rechercheOffre")
-            .header(reqwest::header::USER_AGENT,
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-                 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        let mut request = client
+            .post(APEC_API_URL)
+            .header(reqwest::header::USER_AGENT, APEC_USER_AGENT)
             .header(reqwest::header::CONTENT_TYPE, "application/json; charset=utf-8")
             .header(reqwest::header::ACCEPT, "application/json, text/plain, */*")
             .header(reqwest::header::ACCEPT_LANGUAGE, "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
-            .header(reqwest::header::REFERER,
-                "https://www.apec.fr/candidat/recherche-emploi.html/emploi")
-            .header("Origin", "https://www.apec.fr")
-            .body(body.clone())
-            .send()
-            .await;
+            .header(reqwest::header::REFERER, APEC_SEARCH_PAGE)
+            .header("Origin", "https://www.apec.fr");
+        if !cookies.is_empty() {
+            request = request.header(reqwest::header::COOKIE, cookies.clone());
+        }
+        let send_result = request.body(body.clone()).send().await;
 
         let resp = match send_result {
             Ok(r) => r,
@@ -172,11 +241,19 @@ async fn fetch_apec_api(body: String) -> Result<String, String> {
 
         last_status = Some(status.as_u16());
 
-        // Retry only on 5xx — 4xx means the request itself is bad.
+        // Retry only on 5xx — 4xx means a refusal or a bad request.
         if status.is_server_error() && attempt + 1 < MAX_ATTEMPTS {
             let backoff_ms = 500u64 << attempt; // 500, 1000
             tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
             continue;
+        }
+
+        // Refus : la session mise en cache n'est plus de confiance, on la
+        // renouvellera à la prochaine tentative (après la pause de 24 h).
+        if status.as_u16() == 401 || status.as_u16() == 403 || status.as_u16() == 429 {
+            if let Ok(mut guard) = APEC_SESSION.lock() {
+                *guard = None;
+            }
         }
 
         return Err(format!("APEC HTTP {}", status.as_u16()));
@@ -823,4 +900,25 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod apec_tests {
+    use super::build_cookie_header;
+
+    #[test]
+    fn cookie_header_keeps_only_name_value_pairs() {
+        let set_cookies = vec![
+            "JSESSIONID=abc123; Path=/; HttpOnly; Secure".to_string(),
+            "lang=fr; Max-Age=3600".to_string(),
+        ];
+        assert_eq!(build_cookie_header(&set_cookies), "JSESSIONID=abc123; lang=fr");
+    }
+
+    #[test]
+    fn cookie_header_ignores_malformed_entries() {
+        let set_cookies = vec!["; Path=/".to_string(), "novalue".to_string()];
+        assert_eq!(build_cookie_header(&set_cookies), "");
+        assert_eq!(build_cookie_header(&[]), "");
+    }
 }

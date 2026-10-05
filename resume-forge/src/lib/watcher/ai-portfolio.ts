@@ -39,7 +39,7 @@ const SOURCE_GUIDE: Array<{ id: JobSource; note: string }> = [
   { id: 'indeed',             note: 'généraliste, gros volume, qualité inégale.' },
   { id: 'hellowork',          note: 'généraliste France, bon sur les profils non-cadres.' },
   { id: 'jobicy',             note: 'remote international, anglophone. Uniquement pour du remote.' },
-  { id: 'emploi_territorial', note: 'fonction publique territoriale UNIQUEMENT.' },
+  { id: 'emploi_territorial', note: 'fonction publique territoriale UNIQUEMENT. Le site refuse les requêtes automatiques : ne pas proposer.' },
 ];
 
 const ALLOWED_SOURCES = new Set<string>(SOURCE_GUIDE.map(s => s.id));

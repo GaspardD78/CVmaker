@@ -11,7 +11,9 @@ import { SOURCE_LABELS } from '@/lib/watcher/sources';
 import { APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
 const DEFAULT_SOURCES: JobSource[] = ['apec', 'wttj'];
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin', 'france_travail', 'emploi_territorial'];
+// Emploi Territorial n'est pas proposé ici (le site refuse les requêtes automatiques) :
+// il reste ajoutable à la main depuis la configuration.
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin', 'france_travail'];
 
 type Step = 'profile' | 'intent' | 'sources';
 

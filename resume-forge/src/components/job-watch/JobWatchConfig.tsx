@@ -27,7 +27,7 @@ import { LocationAutocomplete } from './LocationAutocomplete';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-import { SOURCE_LABELS, ANDROID_INCOMPATIBLE } from '@/lib/watcher/sources';
+import { SOURCE_LABELS, ANDROID_INCOMPATIBLE, addSourceWarning } from '@/lib/watcher/sources';
 import { isAndroid } from '@/lib/platform';
 import { SessionManagerPanel } from './SessionManagerPanel';
 import { AlertList } from './AlertList';
@@ -338,6 +338,9 @@ export function JobWatchConfigView() {
   const unusedSources = platformSources.filter(s => !alertConfigs.some(c => c.source === s));
 
   const handleAddSource = async (source: JobSource) => {
+    // Sources protégées par un contrôle anti-robot : on prévient avant d'ajouter.
+    const warning = addSourceWarning(source);
+    if (warning && !window.confirm(`${warning}\n\nAjouter quand même ?`)) return;
     await upsertConfig({ source, rssUrl: null, enabled: 1 });
     await fetchConfigs();
   };
