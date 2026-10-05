@@ -413,10 +413,19 @@ Le moteur de recherche de cette plateforme a ses propres spécificités. Pour m'
 Réponds de manière très concise pour que je puisse facilement copier-coller les listes de mots-clés.`;
 }
 
-// ── Enhanced prompts for job watch ──────────────────────────────────────────
+// ── Prompts d'analyse de la veille (dépréciés) ──────────────────────────────
+//
+// Spec 005 : les deux générateurs d'origine sont remplacés par
+// `generateWatchAnalysisPrompt(ctx, mode)` (lib/watcher/analysis-prompt.ts), qui
+// reçoit un contexte factuel complet. Les anciens noms restent comme adaptateurs
+// minces pour les appelants qui n'ont que l'ancienne information.
 
 import type { SearchProfile } from '@/types/job-watch';
+import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
+import { buildWatchAnalysisContext, type FeedbackAction, type WatchAnalysisContext } from '@/lib/watcher/analysis-context';
+import { generateWatchAnalysisPrompt } from '@/lib/watcher/analysis-prompt';
 
+/** @deprecated Les métriques sont désormais calculées par `buildWatchAnalysisContext`. */
 interface PerformanceMetrics {
   volumePerWeek: number;
   pertinencePercent: number | null;
@@ -425,38 +434,57 @@ interface PerformanceMetrics {
   learnedNegative: string[];
 }
 
-/**
- * Context-aware optimization prompt that includes search performance data.
- */
-/**
- * Contexte de portefeuille inséré dans les prompts d'analyse d'une piste.
- *
- * Sans cette précaution, chaque diagnostic pousse mécaniquement sa piste vers
- * le centre : au bout de trois optimisations, les quatre pistes convergent
- * vers la même recherche et le portefeuille perd sa raison d'être.
- */
+/** @deprecated Contexte de portefeuille de l'ancienne API. */
 export interface AlertPromptContext {
   alertName: string;
   /** Autres pistes : nom et intitulés visés. */
   otherAlerts: Array<{ name: string; jobTitles: string[] }>;
 }
 
-function portfolioPreamble(context?: AlertPromptContext): string {
-  if (!context || context.otherAlerts.length === 0) return '';
-  const others = context.otherAlerts
-    .map(a => `- ${a.name} : ${a.jobTitles.join(', ') || 'aucun intitulé'}`)
-    .join('\n');
-  return `
-## Contexte : une piste parmi ${context.otherAlerts.length + 1}
-Cette analyse porte sur la piste « ${context.alertName} » d'un portefeuille de recherche.
-Les autres pistes couvrent :
-${others}
-
-N'élargis pas cette piste vers un domaine déjà couvert par une autre : le portefeuille
-explore délibérément plusieurs directions, et les faire converger le viderait de son sens.
-`;
+/** @deprecated Ligne d'offre de l'ancienne API (les champs optionnels enrichissent le prompt). */
+export interface LegacyOfferRow {
+  title: string;
+  score: number;
+  action: string | null;
+  company?: string | null;
+  location?: string | null;
+  source?: string;
+  snippet?: string | null;
 }
 
+const LEGACY_ACTIONS = new Set(['kanban_import', 'thumbs_up', 'thumbs_down', 'quick_archive']);
+
+function legacyContext(
+  searchProfile: SearchProfile,
+  offers: LegacyOfferRow[],
+  candidate: { title: string | null; mainSkills: string[] },
+  context?: AlertPromptContext,
+): WatchAnalysisContext {
+  const now = new Date();
+  return buildWatchAnalysisContext({
+    now,
+    alert: {
+      id: 'legacy', name: context?.alertName ?? searchProfile.name, searchProfile,
+      learnedDict: { positive: {}, negative: {} },
+    },
+    otherAlerts: (context?.otherAlerts ?? []).map((a, i) => ({
+      id: `other-${i}`, name: a.name, searchProfile: { ...DEFAULT_SEARCH_PROFILE, jobTitles: a.jobTitles },
+    })),
+    candidate: { ...candidate, city: null, experienceYears: null },
+    offers: offers.map((o, i) => ({
+      id: `legacy-${i}`, source: o.source ?? 'inconnue', title: o.title, company: o.company ?? null,
+      location: o.location ?? null, contractType: null, salaryMin: null, salaryMax: null, salaryRaw: null,
+      publishedAt: null, fetchedAt: now.toISOString(), storedScore: o.score, snippet: o.snippet ?? null,
+      isRead: false, kanban: o.action === 'kanban_import',
+      actions: o.action && LEGACY_ACTIONS.has(o.action) ? [o.action as FeedbackAction] : [],
+    })),
+  });
+}
+
+/**
+ * @deprecated Utiliser `generateWatchAnalysisPrompt(ctx, 'performance')`.
+ * Adaptateur : sans offres ni dénominateurs, les métriques sont celles passées en argument.
+ */
 export function generatePerformanceOptimizationPrompt(
   profile: { title: string | null } | null,
   entries: { entryType: string; title: string }[],
@@ -464,85 +492,40 @@ export function generatePerformanceOptimizationPrompt(
   metrics: PerformanceMetrics,
   context?: AlertPromptContext,
 ): string {
-  const titleStr = profile?.title ?? 'Non renseigné';
-  const skills = entries.filter(e => e.entryType === 'skill').map(e => e.title).join(', ') || 'Aucune';
-
-  const intentStr = [
-    `Titres visés : ${searchProfile.jobTitles.join(', ') || 'Non défini'}`,
-    `Exclure : ${searchProfile.excludeTitles.join(', ') || 'Aucun'}`,
-    `Compétences : ${searchProfile.skills.join(', ') || 'Non définies'}`,
-    `Secteurs : ${searchProfile.domains.join(', ') || 'Aucun'}`,
-    `Salaire cible : ${searchProfile.salary.target ? `${searchProfile.salary.target}€/an` : 'Non défini'}`,
-    `Fonctions APEC : ${(searchProfile.apecFonctions || []).join(', ') || 'Aucun'}`,
-    `Secteurs APEC : ${(searchProfile.apecSecteurs || []).join(', ') || 'Aucun'}`,
-    `Télétravail APEC : ${(searchProfile.apecTeletravail || []).join(', ') || 'Aucun'}`,
-    `Salaires APEC : ${(searchProfile.apecSalaires || []).join(', ') || 'Aucun'}`,
-  ].join('\n');
-
-  return `Agis comme un expert en sourcing et optimisation de veille emploi.
-${portfolioPreamble(context)}
-## Mon profil
-- Titre : ${titleStr}
-- Compétences : ${skills}
-
-## Ma configuration actuelle (Profil de recherche)
-${intentStr}
-
-## Performance actuelle
-- Volume : ${metrics.volumePerWeek} offres/semaine
-- Pertinence (offres ouvertes) : ${metrics.pertinencePercent !== null ? `${metrics.pertinencePercent}%` : 'Non disponible'}
-- Conversion (importées Kanban) : ${metrics.conversionPercent !== null ? `${metrics.conversionPercent}%` : 'Non disponible'}
-
-## Ce que le système a appris de mes actions
-- Termes que j'apprécie : ${metrics.learnedPositive.length > 0 ? metrics.learnedPositive.join(', ') : 'Pas assez de données'}
-- Termes que je rejette : ${metrics.learnedNegative.length > 0 ? metrics.learnedNegative.join(', ') : 'Pas assez de données'}
-
-## Ta mission
-Analyse ma configuration et mes métriques, puis propose :
-1. **Diagnostic** : Pourquoi ma pertinence/conversion est-elle à ce niveau ? Mes mots-clés sont-ils trop larges ou trop étroits ?
-2. **Mots-clés à ajouter** (rôle principal ou domaine requis) — basés sur les signaux positifs appris
-3. **Mots-clés à exclure** — basés sur les signaux négatifs appris et les offres que je rejette
-4. **Ajustements stratégiques** : dois-je recentrer mon rôle cible, élargir/restreindre le domaine, ajuster le salaire ?
-
-Sois concis et actionnable. Formate les listes en CSV pour un copier-coller facile.`;
+  const ctx = legacyContext(searchProfile, [], {
+    title: profile?.title ?? null,
+    mainSkills: entries.filter(e => e.entryType === 'skill').map(e => e.title).slice(0, 10),
+  }, context);
+  const withMetrics: WatchAnalysisContext = {
+    ...ctx,
+    metrics: {
+      ...ctx.metrics,
+      perWeek: metrics.volumePerWeek,
+      zeroAction: false,
+      pertinence: { percent: metrics.pertinencePercent, numerator: 0, denominator: 0 },
+      conversion: { percent: metrics.conversionPercent, numerator: 0, denominator: 0 },
+    },
+    learned: {
+      fromTitlesOnly: true,
+      signals: [
+        ...metrics.learnedPositive.map(term => ({ term, count: 3, sense: 'positive' as const, conflict: false })),
+        ...metrics.learnedNegative.map(term => ({ term, count: 3, sense: 'negative' as const, conflict: false })),
+      ],
+    },
+  };
+  return generateWatchAnalysisPrompt(withMetrics, 'performance');
 }
 
-/**
- * Diagnostic prompt when search performance is poor.
- * Includes recent offer titles with scores and user actions.
- */
+/** @deprecated Utiliser `generateWatchAnalysisPrompt(ctx, 'diagnostic')`. */
 export function generateDiagnosticPrompt(
   searchProfile: SearchProfile,
-  recentOffers: Array<{ title: string; score: number; action: string | null }>,
+  recentOffers: LegacyOfferRow[],
   context?: AlertPromptContext,
 ): string {
-  const offersStr = recentOffers
-    .map((o, i) => `${i + 1}. [Score: ${o.score}] ${o.title} → ${o.action ?? 'aucune action'}`)
-    .join('\n');
-
-  return `Agis comme un expert en optimisation de recherche d'emploi.
-${portfolioPreamble(context)}
-## Ma configuration
-- Titres visés : ${searchProfile.jobTitles.join(', ') || 'Non défini'}
-- Exclure : ${searchProfile.excludeTitles.join(', ') || 'Aucun'}
-- Domaine requis : ${searchProfile.skills.join(', ') || 'Non défini'}
-- Domaine préféré : ${searchProfile.domains.join(', ') || 'Aucun'}
-- Fonctions APEC : ${(searchProfile.apecFonctions || []).join(', ') || 'Aucun'}
-- Secteurs APEC : ${(searchProfile.apecSecteurs || []).join(', ') || 'Aucun'}
-- Télétravail APEC : ${(searchProfile.apecTeletravail || []).join(', ') || 'Aucun'}
-- Salaires APEC : ${(searchProfile.apecSalaires || []).join(', ') || 'Aucun'}
-
-## Mes 20 dernières offres (avec score et action)
-${offersStr}
-
-## Problème
-Ma recherche ne donne pas de bons résultats. Analyse les offres ci-dessus et identifie :
-1. **Patterns de rejet** : quels types d'offres reviennent et sont systématiquement ignorées ?
-2. **Mots-clés manquants** : quels termes devrais-je ajouter en positif ou négatif ?
-3. **Inadéquation** : mes mots-clés ciblent-ils le bon type de poste ?
-4. **Plan d'action** : les 3 changements les plus impactants à faire immédiatement.
-
-Sois direct et concret.`;
+  return generateWatchAnalysisPrompt(
+    legacyContext(searchProfile, recentOffers, { title: null, mainSkills: [] }, context),
+    'diagnostic',
+  );
 }
 
 

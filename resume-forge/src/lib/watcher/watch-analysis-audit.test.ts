@@ -10,6 +10,8 @@ import { computeScore } from './scorer';
 import { detectCrossSourceDuplicates, dedupeOffers } from './deduplicator';
 import { processFeedback, listLearnedSignals, forgetLearnedTerms } from './learning-engine';
 import { generateDiagnosticPrompt, generatePerformanceOptimizationPrompt } from '@/lib/prompt-templates';
+import { buildWatchAnalysisContext } from './analysis-context';
+import { generateWatchAnalysisPrompt } from './analysis-prompt';
 import { DEFAULT_EXTRACTION, DEFAULT_SEARCH_PROFILE, type SearchProfile } from '@/types/job-watch';
 
 function profile(over: Partial<SearchProfile> = {}): SearchProfile {
@@ -38,11 +40,11 @@ describe('défaut 1 - veto des exclusions sur la description', () => {
 
 describe('défaut 2 - libellés incohérents', () => {
   const sp = profile({ jobTitles: ['rssi'], skills: ['iso 27001'], domains: ['banque'] });
-  test.failing('le champ skills est présenté comme un bonus, jamais comme un « Domaine requis »', () => {
+  test('le champ skills est présenté comme un bonus, jamais comme un « Domaine requis »', () => {
     const diag = generateDiagnosticPrompt(sp, []);
     expect(diag).not.toContain('Domaine requis');
   });
-  test.failing('les deux modes emploient les mêmes libellés pour skills et domains', () => {
+  test('les deux modes emploient les mêmes libellés pour skills et domains', () => {
     const perf = generatePerformanceOptimizationPrompt(null, [], sp, perfMetrics);
     const diag = generateDiagnosticPrompt(sp, []);
     for (const label of ['Mots-clés bonus', 'Domaines bonus']) {
@@ -53,7 +55,7 @@ describe('défaut 2 - libellés incohérents', () => {
 });
 
 describe('défaut 3 - score incompréhensible', () => {
-  test.failing('le score est un entier accompagné de sa décomposition', () => {
+  test('le score est un entier accompagné de sa décomposition', () => {
     const rows = [{ title: 'RSSI', score: 45.575, action: null }];
     const diag = generateDiagnosticPrompt(profile(), rows);
     expect(diag).not.toContain('45.575');
@@ -62,7 +64,7 @@ describe('défaut 3 - score incompréhensible', () => {
 });
 
 describe('défaut 4 - nombre d\'offres codé en dur', () => {
-  test.failing('le libellé reflète le nombre réel d\'offres listées', () => {
+  test('le libellé reflète le nombre réel d\'offres listées', () => {
     const rows = Array.from({ length: 17 }, (_, i) => ({ title: `Offre ${i}`, score: 50, action: null }));
     const diag = generateDiagnosticPrompt(profile(), rows);
     expect(diag).not.toContain('20 dernières');
@@ -97,7 +99,7 @@ describe('défaut 5 - doublons sans entreprise', () => {
 });
 
 describe('défaut 6 - le LLM ne voit que des titres', () => {
-  test.failing('le diagnostic mentionne entreprise, lieu et source des offres', () => {
+  test('le diagnostic mentionne entreprise, lieu et source des offres', () => {
     const rows = [{ title: 'RSSI', score: 50, action: null, company: 'ACME', location: 'Lyon', source: 'apec' }];
     const diag = generateDiagnosticPrompt(profile(), rows as never);
     expect(diag).toContain('ACME');
@@ -107,7 +109,7 @@ describe('défaut 6 - le LLM ne voit que des titres', () => {
 });
 
 describe('défaut 7 - zéro action non signalé', () => {
-  test.failing('le prompt signale l\'absence d\'action et priorise le tri', () => {
+  test('le prompt signale l\'absence d\'action et priorise le tri', () => {
     const rows = [{ title: 'RSSI', score: 50, action: null }];
     const diag = generateDiagnosticPrompt(profile(), rows);
     expect(diag.toLowerCase()).toContain('aucune action');
@@ -124,7 +126,7 @@ describe('défaut 8 - signal appris contraire au profil', () => {
 });
 
 describe('défaut 9 - pistes identiques', () => {
-  test.failing('une piste aux intitulés identiques à une autre est signalée', () => {
+  test('une piste aux intitulés identiques à une autre est signalée', () => {
     const ctx = {
       alertName: 'A',
       otherAlerts: [{ name: 'B', jobTitles: ['RSSI', 'DSI'] }],
@@ -135,7 +137,7 @@ describe('défaut 9 - pistes identiques', () => {
 });
 
 describe('défaut 10 - incohérences de configuration', () => {
-  test.failing('un salaire cible hors tranche APEC est signalé', () => {
+  test('un salaire cible hors tranche APEC est signalé', () => {
     const sp = profile({ salary: { min: null, target: 50000 }, apecSalaires: ['40-50k€'] });
     const perf = generatePerformanceOptimizationPrompt(null, [], sp, perfMetrics);
     expect(perf.toLowerCase()).toContain('incohérence');
@@ -143,23 +145,39 @@ describe('défaut 10 - incohérences de configuration', () => {
 });
 
 describe('défaut 11 - profil incomplet', () => {
-  test.failing('le diagnostic contient le profil candidat', () => {
+  test('le diagnostic contient le profil candidat', () => {
     const diag = generateDiagnosticPrompt(profile(), []);
     expect(diag).toContain('Profil');
   });
 });
 
 describe('défaut 12 - sortie non applicable', () => {
-  test.failing('le prompt demande un JSON watch-analysis/v1', () => {
+  test('le prompt demande un JSON watch-analysis/v1', () => {
     const perf = generatePerformanceOptimizationPrompt(null, [], profile(), perfMetrics);
     expect(perf).toContain('watch-analysis/v1');
   });
 });
 
 describe('défaut 13 - métriques sans échantillon', () => {
-  test.failing('la pertinence est accompagnée de son dénominateur', () => {
+  test('la pertinence est accompagnée de son dénominateur et de sa période', () => {
+    const now = new Date();
+    const mk = (i: number, isRead: boolean) => ({
+      id: `o${i}`, source: 'apec', title: `Offre ${i}`, company: `Soc ${i}`, location: null, contractType: null,
+      salaryMin: null, salaryMax: null, salaryRaw: null, publishedAt: null, fetchedAt: now.toISOString(),
+      storedScore: 50, snippet: null, isRead, kanban: false, actions: [],
+    });
+    const ctx = buildWatchAnalysisContext({
+      now, alert: { id: 'a', name: 'A', searchProfile: profile({ jobTitles: ['rssi'] }), learnedDict: { positive: {}, negative: {} } },
+      otherAlerts: [], candidate: { title: null, mainSkills: [], city: null, experienceYears: null },
+      offers: [...Array.from({ length: 7 }, (_, i) => mk(i, true)), ...Array.from({ length: 13 }, (_, i) => mk(100 + i, false))],
+    });
+    const prompt = generateWatchAnalysisPrompt(ctx, 'performance');
+    expect(prompt).toMatch(/35\s?% de 20 offres/);
+    expect(prompt).toContain('30 jours');
+  });
+  test('API dépréciée : pourcentage signalé sans échantillon plutôt que présenté comme exact', () => {
     const perf = generatePerformanceOptimizationPrompt(null, [], profile(), perfMetrics);
-    expect(perf).toMatch(/35\s?% de \d+ offres/);
+    expect(perf).toContain('échantillon non communiqué');
   });
 });
 
