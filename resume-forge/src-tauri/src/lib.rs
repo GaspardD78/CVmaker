@@ -758,6 +758,12 @@ pub fn run() {
             sql: include_str!("../migrations/019_job_watch_alerts.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 20,
+            description: "cv_angles",
+            sql: include_str!("../migrations/020_cv_angles.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]

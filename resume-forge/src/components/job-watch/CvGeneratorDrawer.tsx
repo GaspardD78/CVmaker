@@ -11,6 +11,10 @@ import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
 import { AiCvGuardReport } from '@/components/cv-builder/AiCvGuardReport';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import type { JobOffer } from '@/types/job-watch';
+import { useAngleStore } from '@/stores/angleStore';
+import { CvAnglePanel } from '@/components/angles/CvAnglePanel';
+import { NO_ANGLE, angleOptions, selectionSnapshot, type AngleSelection } from '@/lib/cv-angle-selection';
+import type { CvAngle } from '@/lib/cv-angles';
 
 // ---------------------------------------------------------------------------
 
@@ -20,6 +24,8 @@ interface CvGeneratorDrawerProps {
 }
 
 type Tab = 'master' | 'existing' | 'cover';
+
+const NO_ANGLES: CvAngle[] = [];
 
 const ENTRY_TYPE_LABELS: Record<string, string> = {
   experience: 'Expérience',
@@ -37,7 +43,9 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
 export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const { profile, entries } = useProfileStore();
   const { cvs, fetchCvs, duplicateCv } = useCvStore();
-  const { targetPages, loadTargetPages } = usePromptStore();
+  const { targetPages, loadTargetPages, personalRules, personalRulesProfileId, loadPersonalRules } = usePromptStore();
+  // Règles personnelles du profil courant (jamais celles d'un autre profil).
+  const ownRules = profile && personalRulesProfileId === profile.id ? personalRules : '';
 
   const [activeTab, setActiveTab] = useState<Tab>('master');
   const [selectedCvId, setSelectedCvId] = useState<string>('');
@@ -53,6 +61,11 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const [promptCopied, setPromptCopied] = useState(false);
   const [cvPromptCopied, setCvPromptCopied] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [angleSelection, setAngleSelection] = useState<AngleSelection>(NO_ANGLE);
+  const { angles: angleLibrary, profileId: angleProfileId } = useAngleStore();
+  const library = profile && angleProfileId === profile.id ? angleLibrary : NO_ANGLES;
+  // Angle choisi : transmis au prompt, au garde-fou, puis enregistré dans le CV (instantané).
+  const angleOpts = useMemo(() => angleOptions(angleSelection, library, entries), [angleSelection, library, entries]);
   const drawerRef = useRef<HTMLDivElement>(null);
 
   const open = offer !== null;
@@ -62,6 +75,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (open) {
       fetchCvs();
       loadTargetPages();
+      if (profile) loadPersonalRules(profile.id);
       // Reset state on each new offer
       setActiveTab('master');
       setJsonInput('');
@@ -73,14 +87,15 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setMdInput('');
       setPromptCopied(false);
       setCvPromptCopied(false);
+      setAngleSelection(NO_ANGLE);
     }
-  }, [open, offer?.id, fetchCvs, loadTargetPages]);
+  }, [open, offer?.id, fetchCvs, loadTargetPages, loadPersonalRules, profile?.id]);
 
   // Parse + garde-fou du JSON collé : alimente le rapport, la revue des suggestions et le récapitulatif.
   // Les erreurs de format sont ignorées ici (signalées à l'application).
   const analysis = useMemo(
-    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages }) : null),
-    [jsonInput, entries, profile, extraContext, targetPages],
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, ...angleOpts }) : null),
+    [jsonInput, entries, profile, extraContext, targetPages, angleOpts],
   );
 
   useEffect(() => {
@@ -131,12 +146,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules, ...angleOpts });
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages });
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules, ...angleOpts });
   };
 
   // ── Suggested-entry helpers (off-profile, opt-in) ─────────────────────────
@@ -179,6 +194,18 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     }
     return useProfileStore.getState().entries.filter(e => !beforeIds.has(e.id)).map(e => e.id);
   };
+
+  const renderAnglePanel = () => (
+    <CvAnglePanel
+      profile={profile}
+      entries={entries}
+      offerText={offerText}
+      company={offer.company || undefined}
+      personalRules={ownRules}
+      selection={angleSelection}
+      onSelectionChange={setAngleSelection}
+    />
+  );
 
   const renderClarifyToggle = () => (
     <label className="flex items-start gap-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 cursor-pointer">
@@ -283,12 +310,13 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const handleApplyMasterJson = async () => {
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, ...angleOpts });
     if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
     }
     const data = result.data;
+    const cvAngle = selectionSnapshot(angleSelection, library, entries, result.report.angle);
 
     setIsApplying(true);
     try {
@@ -307,7 +335,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
         targetJob: data.title ?? offer.title,
         targetCompany: offer.company ?? null,
         customSummary: data.summary ?? null,
-        settings: {},
+        settings: cvAngle ? { cvAngle } : {},
         isFavorite: false,
         lastExported: null,
         markdownContent: null,
@@ -343,12 +371,13 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!selectedCvId) { toast.error('Sélectionnez un CV à dupliquer'); return; }
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, ...angleOpts });
     if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
     }
     const data = result.data;
+    const cvAngle = selectionSnapshot(angleSelection, library, entries, result.report.angle);
 
     setIsApplying(true);
     try {
@@ -366,6 +395,8 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
         name: cvName,
         targetJob: data.title ?? offer.title,
         customSummary: data.summary ?? null,
+        // Instantané de l'angle (remplace celui du CV dupliqué, retiré sans angle).
+        settings: { ...Object.fromEntries(Object.entries(newCv.settings ?? {}).filter(([k]) => k !== 'cvAngle')), ...(cvAngle ? { cvAngle } : {}) },
       });
 
       // 3. Apply entry overrides, skill grouping and re-ordering (non destructive)
@@ -551,6 +582,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               {/* Step 1 */}
               <div className="space-y-2">
                 <StepLabel n={1} label="Copier le prompt d'analyse" />
+                {renderAnglePanel()}
                 {renderClarifyToggle()}
                 <CopyBtn
                   copied={promptCopied}
@@ -656,6 +688,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               {/* Step 2 */}
               <div className="space-y-2">
                 <StepLabel n={2} label="Copier le prompt d'analyse" />
+                {renderAnglePanel()}
                 {renderClarifyToggle()}
                 <CopyBtn
                   copied={cvPromptCopied}

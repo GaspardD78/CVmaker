@@ -73,15 +73,14 @@ describe('flux complet : annonce EN', () => {
     expect(store.currentCvBlocks.find(b => b.entryId === 'l1')!.overrideData.subtitle).toBe('Native');
   });
 
-  it('cible 1 page (défaut) : le regroupement des compétences est retiré avant application', async () => {
+  it('cible 1 page (défaut) : le regroupement des compétences isolées est conservé', async () => {
     const analysis = analyzeAiCvJson(EN_RESPONSE, ctx);
     expect(analysis.ok).toBe(true);
     if (!analysis.ok) return;
-    expect(analysis.data.skillGroups).toBeUndefined();
+    expect(analysis.data.skillGroups?.length).toBeGreaterThan(0);
     const store = makeFakeStore(makeBlocks(entries));
     const report = await applyAiCvToBlocks('cv1', analysis.data, { store: () => store, entries });
-    expect(report.skillGrouping).toBe('none');
-    expect(store.currentCvBlocks.some(b => b.overrideData.level === 'sub')).toBe(false);
+    expect(report.skillGrouping).not.toBe('none');
   });
 
   it('un nombre inventé est détecté avant l\'application', () => {

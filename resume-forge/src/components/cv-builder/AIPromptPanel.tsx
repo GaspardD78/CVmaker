@@ -25,6 +25,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     loadDifferentiator,
     isLoaded,
     targetPages, loadTargetPages,
+    personalRules, personalRulesProfileId, loadPersonalRules,
   } = usePromptStore();
 
   const [selectedBlockId, setSelectedBlockId] = useState<string>('');
@@ -40,6 +41,10 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     if (!isLoaded) loadDifferentiator();
     loadTargetPages();
   }, [isLoaded, loadDifferentiator, loadTargetPages]);
+
+  useEffect(() => {
+    if (profile) loadPersonalRules(profile.id);
+  }, [profile?.id, loadPersonalRules]);
 
   // Parse + garde-fou du JSON collé (rapport affiché avant l'application).
   const analysis = useMemo(
@@ -109,7 +114,10 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     if (!profile) return;
 
     try {
-      const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer, undefined, undefined, clarify, { pageBudget: targetPages });
+      const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer, undefined, undefined, clarify, {
+        pageBudget: targetPages,
+        personalRules: personalRulesProfileId === profile.id ? personalRules : '',
+      });
       await navigator.clipboard.writeText(prompt);
       setFullPromptCopied(true);
       toast.success("Prompt copié dans le presse-papier");

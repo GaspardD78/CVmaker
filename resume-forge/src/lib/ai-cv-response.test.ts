@@ -438,3 +438,22 @@ describe('parseAiCvResponse - texte parasite', () => {
     expect(() => parseAiCvResponse('{"title":"coupé"')).toThrow();
   });
 });
+
+describe('parseAiCvResponse - analyse.angle (champ additif)', () => {
+  it('objet { slug, raison } ou slug seul ; absent : undefined', () => {
+    const base = { entries: [], analyse: { indispensables: ['A'] } };
+    const withObj = parseAiCvResponse(JSON.stringify({ ...base, analyse: { ...base.analyse, angle: { slug: 'soc', raison: 'Annonce orientée détection' } } }));
+    expect(withObj.analyse?.angle).toEqual({ slug: 'soc', raison: 'Annonce orientée détection' });
+    expect(parseAiCvResponse(JSON.stringify({ ...base, analyse: { angle: 'soc' } })).analyse?.angle).toEqual({ slug: 'soc' });
+    expect(parseAiCvResponse(JSON.stringify(base)).analyse?.angle).toBeUndefined();
+  });
+});
+
+describe('parseAiCvResponse - analyse.alertes_cap (champ additif)', () => {
+  it('liste de chaînes dédoublonnée ; absente : undefined ; schéma v2 conservé', () => {
+    const r = parseAiCvResponse(JSON.stringify({ schemaVersion: 2, entries: [], analyse: { alertes_cap: ['Trajet trop long', 'Trajet trop long', ''] } }));
+    expect(r.analyse?.alertesCap).toEqual(['Trajet trop long']);
+    expect(r.schemaVersion).toBe(2);
+    expect(parseAiCvResponse(JSON.stringify({ entries: [], analyse: { ecarts: ['X'] } })).analyse?.alertesCap).toBeUndefined();
+  });
+});

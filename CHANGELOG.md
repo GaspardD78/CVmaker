@@ -5,6 +5,18 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [Non publié] - 2026-10-04
+
+### Catégories de compétences, titres, générateur de CV ciblé, angles de CV
+
+- **Ajout** : une entrée `skill` dont la description contient des puces est une **catégorie**, rendue `**Catégorie** : a · b · c` (aperçu, PDF, bande latérale, DOCX ; formats liste, colonnes et tableau adaptés) par une logique partagée (`lib/skill-lines.ts`). La surcharge `description` d'un bloc choisit les éléments ; une catégorie vidée disparaît ; les compétences isolées forment une dernière ligne.
+- **Corrigé** : la description ne remplace plus le titre que pour les compétences : centres d'intérêt, langues et certifications affichent leur titre (et sous-titre). Séparateur « - » au lieu du tiret cadratin dans le rendu.
+- **Ajout** : titre d'affichage sans l'employeur en double (`lib/entry-display.ts`, `displayTitle`) dans l'aperçu, le PDF, le DOCX et le prompt ; le titre brut reste la clé de rapprochement de l'import.
+- **Changé** : le prompt « CV ciblé » liste les éléments de chaque catégorie, joint la trajectoire du profil (titre et résumé), autorise le titre du profil tel quel ou suivi d'un mot-clé, et le budget une page devient : accroche de 3 lignes (≈ 330 caractères), 3 / 2 puces / une ligne selon l'ancienneté, 3 à 5 catégories et 12 à 15 éléments de compétences. Le garde-fou retire les éléments de compétences absents de la source (`skill-item-invented`).
+- **Ajout** : règles personnelles du candidat, par profil (Paramètres), injectées en priorité absolue avant les règles de rédaction ; alertes `analyse.alertes_cap` quand l'annonce contredit les critères de recherche (affichées, non bloquantes).
+- **Corrigé** : restauration d'une sauvegarde à plusieurs profils : seul le profil de l'utilisateur actif est importé (ou celui choisi dans l'écran d'import, y compris depuis Google Drive) ; auparavant le premier profil de la sauvegarde était remappé sur le profil actif et les données des autres profils étaient importées aussi.
+- **Ajout** : angles de CV (migration 020, table `cv_angles`, 4 par profil, 3 angles génériques de départ) : écran « Angles de CV » (édition, matrice d'affinité qui écrit les tags `angle:<slug>` / `hide:<slug>`, import d'un fichier d'affinités local avec récapitulatif) ; dans le générateur, mode 1 « Ma bibliothèque » (ou choix laissé à l'IA, `analyse.angle`) et mode 2 « Proposer selon l'annonce » (2 à 3 propositions validées par `parseAnglePropositions`) ; garde-fou des entrées masquées et de la règle de titre ; instantané `cv.settings.cvAngle` affiché dans la liste des CV et la fiche de candidature. Sauvegarde : `cv_angles` dans le module « Entrées CV ».
+
 ## [Non publié] - 2026-10-02
 
 ### Pages cibles (spec 004)

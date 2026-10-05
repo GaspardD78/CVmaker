@@ -1,0 +1,111 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`buildAnglePrompt snapshot 1`] = `
+"# Rôle
+Tu es recruteur senior IT et cybersécurité et expert ATS. Tu optimises un CV pour UNE annonce, sans jamais rien inventer.
+
+## Objectif
+Proposer 2 à 3 ANGLES de CV pour cette annonce. Un angle choisit et ordonne le contenu du profil maître (entrées en tête, entrées masquées, ordre des catégories de compétences, structure de l'accroche) ; il n'ajoute aucun fait. Le CV sera généré dans un second temps avec l'angle retenu.
+
+## Contexte
+Annonce :
+<<<
+Chargé de développement RH, secteur public (H/F). Formation des managers, évaluation, conduite de projets RH.
+>>>
+
+## Profil maître (données sources)
+### Trajectoire du profil (source du ton de l'accroche)
+- Titre du profil : Analyste SOC
+- Résumé du profil : Analyste cybersécurité.
+
+### Expériences
+- ID: "x1" | Titre: "Analyste SOC" | Entreprise: "Acme" | Dates: "2021-01 - Présent" | Tags: angle:soc
+  Description :
+    - Supervision de 12 sources de logs avec Splunk
+- ID: "x2" | Titre: "Technicien support" | Entreprise: "Globex" | Dates: "2016-01 - 2018-12" | Tags: hide:soc
+  Description :
+    - Support de niveau 2
+- ID: "x3" | Titre: "Animateur" | Entreprise: "Club fictif" | Dates: "2010-01 - 2012-01" | Tags: hide:soc
+  Description : (aucune)
+
+### Compétences
+- ID: "k1" | Catégorie: "Outils SOC" | Éléments: Splunk ; Elastic | Tags: angle:soc
+- ID: "k2" | Catégorie: "Langages" | Éléments: Python ; Bash
+
+### Formations
+(aucune)
+
+### Certifications
+(aucune)
+
+### Langues
+(aucune)
+
+### Projets
+(aucun)
+
+### Centres d'intérêt
+- ID: "i1" | Titre: "Astronomie" | Tags: hide:soc
+
+### Bénévolat
+(aucun)
+
+## Ma bibliothèque d'angles (références)
+Une proposition peut reprendre un angle existant (son "slug") en l'ajustant, ou en proposer un nouveau ("slug": null).
+
+### Angle "soc" : Analyste SOC
+- Titre : « Analyste SOC » tel quel. Aucun autre intitulé.
+- Accroche (gabarit à créneaux) : « {intitulé} depuis {année}, {outils de détection}, {preuve chiffrée} »
+- En tête : "x1", "k1"
+- Masquées par défaut : "x2", "x3", "i1"
+- Catégories de compétences : Outils SOC, Langages
+- Vocabulaire : Vocabulaire de la détection. Aucun sigle non défini.
+- Anciennes expériences : terminées depuis plus de 5 ans et sans lien avec un indispensable : une ligne (titre, employeur, dates), sans description.
+
+### Règles personnelles du candidat : priorité absolue, elles priment sur l'annonce
+Règle fictive : aucun volume.
+
+## Contraintes
+- Analyse d'abord l'annonce ("analyse") : indispensables et importants en formulation exacte, correspondances (ID de l'entrée qui étaye chaque indispensable, ou null), écarts. Renseigne "alertes_cap" si l'annonce contredit un critère de recherche des règles personnelles.
+- 2 à 3 propositions au maximum, nettement différentes : jamais deux angles quasi identiques.
+- Aucune proposition ne présente un intitulé de poste non tenu. "titleRule" vaut "profile" (titre du profil tel quel) ou "profile+keyword" (titre du profil suivi d'un mot-clé de l'annonce).
+- "summaryStructure" est un gabarit à créneaux entre accolades (« {intitulé} depuis {année}, … »), jamais du texte final.
+- "leadEntryIds" (au moins 2) et "hideEntryIds" ne contiennent que des IDs exacts du profil maître, sans recoupement. Aucune entrée qui étaye un indispensable ne figure dans "hideEntryIds".
+- "skillCategoryOrder" ne contient que des titres exacts de catégories de compétences existantes.
+- "sacrifie" dit ce que l'angle laisse de côté ; "ecarts" liste les indispensables qu'il ne couvre pas.
+- "recommandation" désigne l'index (à partir de 0) de la proposition la plus adaptée, avec sa raison en une phrase.
+
+## Format de sortie OBLIGATOIRE
+### Forme de la réponse
+- Réponds UNIQUEMENT avec l'objet JSON du schéma : pas de texte avant ou après, pas de markdown, pas de bloc de code.
+- JSON strict : guillemets doubles, aucune virgule finale, aucun commentaire. Les sauts de ligne d'une description s'écrivent \\n.
+- Respecte l'ordre des clés du schéma : "analyse" d'abord, puis le reste. Omets un champ optionnel plutôt que de mettre null, "" ou [].
+- Recopie les IDs EXACTEMENT comme dans le profil maître. N'invente aucun ID.
+
+{
+  "schemaVersion": 1,
+  "analyse": {
+    "langue_annonce": "fr",
+    "indispensables": ["(formulation exacte)"],
+    "importants": ["(formulation exacte)"],
+    "correspondances": [{ "exigence": "(un indispensable)", "entryId": "(ID ou null)" }],
+    "ecarts": ["(indispensable sans preuve)"],
+    "alertes_cap": ["(optionnel) critère éliminatoire contredit par l'annonce"]
+  },
+  "propositions": [
+    {
+      "slug": "(slug d'un angle de la bibliothèque, ou null pour un angle nouveau)",
+      "label": "(nom court)",
+      "pourquoi": "(une phrase, liée à des indispensables)",
+      "titleRule": "profile | profile+keyword",
+      "summaryStructure": "(gabarit à créneaux)",
+      "leadEntryIds": ["(IDs exacts)"],
+      "hideEntryIds": ["(IDs exacts)"],
+      "skillCategoryOrder": ["(titres exacts de catégories existantes)"],
+      "sacrifie": "(ce que cet angle laisse de côté)",
+      "ecarts": ["(indispensables que cet angle ne couvre pas)"]
+    }
+  ],
+  "recommandation": { "index": 0, "raison": "(une phrase)" }
+}"
+`;

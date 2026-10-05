@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'bun:test';
-import { bulletTense, extractNumbers, extractTechnicalTerms, guardAiCv, type GuardContext } from './ai-cv-guard';
+import { bulletTense, extractNumbers, extractTechnicalTerms, guardAiCv, titleForRule, type GuardContext } from './ai-cv-guard';
+import { SOC_ANGLE, makeAngleEntries } from './test-helpers/angle-fixtures';
 import type { AiCvResponse } from './ai-cv-response';
 import { TEST_PROFILE, makeEntries, makeEntry } from './test-helpers/cv-fixtures';
+import { makeCategoryEntries } from './test-helpers/skill-fixtures';
 
 const NOW = new Date(Date.UTC(2026, 5, 15));
 const entries = makeEntries();
@@ -231,17 +233,24 @@ describe('guardAiCv - cible 1 page', () => {
     guardAiCv(data, ctx({ entries: entriesList, pageBudget: 1, ...extra }));
   const onePageMsgs = (r: ReturnType<typeof guardAiCv>) => r.report.warnings.filter(w => w.code === 'one-page').map(w => w.message);
 
-  it('résumé de plus de 2 lignes signalé', () => {
-    const long = 'Analyste SOC. '.repeat(20);
+  it('résumé de plus de 3 lignes (≈ 330 caractères) signalé', () => {
+    const long = 'Analyste SOC. '.repeat(25);
+    expect(long.length).toBeGreaterThan(330);
+    // 3 lignes (≈ 300 caractères) acceptées.
+    expect(onePageMsgs(onePage(resp({ summary: 'Analyste SOC. '.repeat(21) }))).some(m => m.includes('Résumé'))).toBe(false);
     expect(onePageMsgs(onePage(resp({ summary: long }))).some(m => m.includes('Résumé'))).toBe(true);
     expect(onePageMsgs(onePage(resp({ summary: 'Analyste SOC, 7 ans.' }))).some(m => m.includes('Résumé'))).toBe(false);
   });
 
-  it('expérience récente : 3 puces maximum ; plus ancienne : 2', () => {
-    const list = [exp('r', 'Poste récent', '2022-01', null, 4), exp('o', 'Poste ancien', '2005-01', '2008-01', 3), exp('ok', 'Poste ok', '2023-01', null, 3)];
+  it('moins de 5 ans : 3 puces ; 5 à 10 ans : 2 ; plus ancienne : une ligne', () => {
+    const list = [
+      exp('r', 'Poste récent', '2022-01', null, 4), exp('m', 'Poste moyen', '2014-01', '2018-01', 3),
+      exp('o', 'Poste ancien', '2005-01', '2008-01', 1), exp('ok', 'Poste ok', '2023-01', null, 3),
+    ];
     const msgs = onePageMsgs(onePage(resp(), list));
     expect(msgs.some(m => m.includes('Poste récent') && m.includes('3 maximum'))).toBe(true);
-    expect(msgs.some(m => m.includes('Poste ancien') && m.includes('2 maximum'))).toBe(true);
+    expect(msgs.some(m => m.includes('Poste moyen') && m.includes('2 maximum'))).toBe(true);
+    expect(msgs.some(m => m.includes('Poste ancien') && m.includes('0 maximum') && m.includes('une ligne'))).toBe(true);
     expect(msgs.some(m => m.includes('Poste ok'))).toBe(false);
   });
 
@@ -267,17 +276,16 @@ describe('guardAiCv - cible 1 page', () => {
     expect(msgs.some(m => m.includes('Analyste Splunk'))).toBe(false);
   });
 
-  it('plus de 15 compétences : signalé ; 15 : accepté', () => {
+  it('plus de 15 éléments de compétences (compétences isolées) : signalé ; 15 : accepté', () => {
     const many = (n: number) => Array.from({ length: n }, (_, i) => makeEntry(`k${i}`, 'skill', `Skill${i}`));
-    expect(onePageMsgs(onePage(resp(), many(16))).some(m => m.includes('16 compétences'))).toBe(true);
-    expect(onePageMsgs(onePage(resp(), many(15))).some(m => m.includes('compétences visibles'))).toBe(false);
+    expect(onePageMsgs(onePage(resp(), many(16))).some(m => m.includes('16 éléments de compétences'))).toBe(true);
+    expect(onePageMsgs(onePage(resp(), many(15))).some(m => m.includes('éléments de compétences visibles'))).toBe(false);
   });
 
-  it('regroupement des compétences ignoré (retiré des données nettoyées)', () => {
+  it('regroupement des compétences isolées conservé (1 page comme 2 pages)', () => {
     const r = onePage(resp({ skillGroups: [{ category: 'A', entryIds: ['s1', 's2'] }, { category: 'B', entryIds: ['s3', 's4'] }] }));
-    expect(r.data.skillGroups).toBeUndefined();
-    expect(onePageMsgs(r).some(m => m.includes('regroupement'))).toBe(true);
-    // 2 pages : conservé.
+    expect(r.data.skillGroups).toHaveLength(2);
+    expect(onePageMsgs(r).some(m => m.includes('regroupement'))).toBe(false);
     expect(guardAiCv(resp({ skillGroups: [{ category: 'A', entryIds: ['s1', 's2'] }, { category: 'B', entryIds: ['s3', 's4'] }] }), ctx({ pageBudget: 2 })).data.skillGroups).toHaveLength(2);
   });
 
@@ -354,5 +362,118 @@ describe('guardAiCv - dépassement : « dépasse probablement 1 page » et élé
     const many = Array.from({ length: 30 }, (_, i) => makeEntry(`m${i}`, 'experience', `P${i}`, { startDate: '2010', endDate: '2012', description: '- a\n- b\n- c\n- d' }));
     const w = guardAiCv(resp(), ctx({ entries: many, pageBudget: 2 })).report.warnings.find(x => x.code === 'volume');
     expect(w?.message).toContain('Dépasse probablement 2 pages');
+  });
+});
+
+describe('guardAiCv - éléments des catégories de compétences', () => {
+  const catEntries = makeCategoryEntries();
+  const catCtx = (pageBudget = 2): GuardContext => ({ entries: catEntries, profile: TEST_PROFILE, now: NOW, pageBudget });
+
+  it('élément absent de la source : avertissement skill-item-invented et puce retirée', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'k1', visible: true, description: '- SQL\n- Rust\n- Python' }] }), catCtx());
+    const w = r.report.warnings.filter(x => x.code === 'skill-item-invented');
+    expect(w).toHaveLength(1);
+    expect(w[0].message).toContain('Rust');
+    expect(r.data.entries[0].description).toBe('- SQL\n- Python');
+  });
+
+  it('sélection et ordre de l\'IA conservés, libellé exact de la source rétabli', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'k3', visible: true, description: '- analyse de LOGS\n- MITRE ATT&CK' }] }), catCtx());
+    expect(r.report.warnings.some(x => x.code === 'skill-item-invented')).toBe(false);
+    expect(r.data.entries[0].description).toBe('- Analyse de logs\n- MITRE ATT&CK');
+  });
+
+  it('aucun élément valide : la description de la source est conservée', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'k4', visible: true, description: '- Kubernetes' }] }), catCtx());
+    expect(r.report.warnings.some(x => x.code === 'skill-item-invented')).toBe(true);
+    expect(r.data.entries[0].description).toBeUndefined();
+  });
+
+  it('puces ajoutées à une compétence isolée : inventées', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'k5', visible: true, description: '- GitLab CI' }] }), catCtx());
+    expect(r.report.warnings.some(x => x.code === 'skill-item-invented')).toBe(true);
+  });
+
+  it('1 page : compte les éléments, pas les entrées', () => {
+    // 4 catégories (10 éléments) + 1 isolée = 11 éléments, 5 entrées : aucun dépassement.
+    const ok = guardAiCv(resp(), catCtx(1)).report.warnings.filter(x => x.code === 'one-page').map(x => x.message);
+    expect(ok.some(m => m.includes('éléments de compétences'))).toBe(false);
+    // 16 éléments répartis dans 2 catégories : dépassement signalé.
+    const big = [makeEntry('g1', 'skill', 'A', { description: Array.from({ length: 8 }, (_, i) => `- a${i}`).join('\n') }),
+      makeEntry('g2', 'skill', 'B', { description: Array.from({ length: 8 }, (_, i) => `- b${i}`).join('\n') })];
+    const over = guardAiCv(resp(), { entries: big, profile: TEST_PROFILE, now: NOW, pageBudget: 1 }).report.warnings.map(x => x.message);
+    expect(over.some(m => m.includes('16 éléments de compétences visibles'))).toBe(true);
+  });
+
+  it('skillGroups : une catégorie n\'est jamais rangée dans un groupe', () => {
+    const r = guardAiCv(resp({ skillGroups: [{ category: 'X', entryIds: ['k1', 'k5'] }] }), catCtx());
+    expect(r.data.skillGroups).toEqual([{ category: 'X', entryIds: ['k5'] }]);
+    expect(r.report.warnings.some(x => x.code === 'unknown-id')).toBe(false);
+  });
+});
+
+describe('guardAiCv - angle', () => {
+  const angleEntries = makeAngleEntries();
+  const actx = (extra: Partial<GuardContext> = {}): GuardContext => ({ entries: angleEntries, profile: TEST_PROFILE, now: NOW, pageBudget: 2, angle: SOC_ANGLE, ...extra });
+
+  it('hide: visible sans correspondance : avertissement et masquage', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'x2', visible: true }] }), actx());
+    expect(r.report.warnings.some(w => w.code === 'angle-hidden-entry-visible' && w.entryId === 'x2')).toBe(true);
+    expect(r.data.entries.find(e => e.id === 'x2')!.visible).toBe(false);
+    // Absente du JSON (donc affichée telle quelle) : masquée aussi.
+    expect(r.data.entries.find(e => e.id === 'x3')!.visible).toBe(false);
+  });
+
+  it('hide: visible avec correspondance pour un indispensable : conservée', () => {
+    const r = guardAiCv(resp({
+      entries: [{ id: 'x2', visible: true }],
+      analyse: { indispensables: ['Support'], importants: [], ecarts: [], correspondances: [{ exigence: 'Support', entryId: 'x2' }] },
+    }), actx());
+    expect(r.data.entries.find(e => e.id === 'x2')!.visible).toBe(true);
+    expect(r.report.warnings.some(w => w.code === 'angle-hidden-entry-visible' && w.entryId === 'x2')).toBe(false);
+  });
+
+  it('entrée en tête masquée alors qu\'elle étaye un indispensable : réaffichée', () => {
+    const r = guardAiCv(resp({
+      entries: [{ id: 'x1', visible: false }],
+      analyse: { indispensables: ['Splunk'], importants: [], ecarts: [], correspondances: [{ exigence: 'Splunk', entryId: 'x1' }] },
+    }), actx());
+    expect(r.data.entries.find(e => e.id === 'x1')!.visible).toBe(true);
+    expect(r.report.warnings.some(w => w.code === 'angle-lead-entry-hidden')).toBe(true);
+  });
+
+  it('titre hors règle : corrigé', () => {
+    const r = guardAiCv(resp({ title: 'Ingénieur détection' }), actx());
+    expect(r.data.title).toBe('Analyste SOC');
+    expect(r.report.warnings.some(w => w.code === 'angle-title-corrected')).toBe(true);
+    const ok = guardAiCv(resp({ title: 'Analyste SOC' }), actx());
+    expect(ok.report.warnings.some(w => w.code === 'angle-title-corrected')).toBe(false);
+  });
+
+  it('choix de l\'IA dans la bibliothèque : angle appliqué d\'après analyse.angle.slug', () => {
+    const r = guardAiCv(resp({
+      entries: [{ id: 'x2', visible: true }],
+      analyse: { indispensables: [], importants: [], ecarts: [], correspondances: [], angle: { slug: 'soc' } },
+    }), actx({ angle: undefined, angleChoices: [SOC_ANGLE] }));
+    expect(r.report.angle?.slug).toBe('soc');
+    expect(r.data.entries.find(e => e.id === 'x2')!.visible).toBe(false);
+    // Slug inconnu : aucun angle.
+    const none = guardAiCv(resp({ analyse: { indispensables: [], importants: [], ecarts: [], correspondances: [], angle: { slug: 'x' } } }), actx({ angle: undefined, angleChoices: [SOC_ANGLE] }));
+    expect(none.report.angle).toBeUndefined();
+  });
+});
+
+describe('titleForRule', () => {
+  it('profile : titre du profil tel quel', () => {
+    expect(titleForRule('Autre chose', 'profile', 'Analyste SOC')).toBe('Analyste SOC');
+    expect(titleForRule('analyste soc', 'profile', 'Analyste SOC')).toBe('analyste soc');
+  });
+  it('profile+keyword : « titre - mot-clé »', () => {
+    expect(titleForRule('Analyste SOC - Cloud', 'profile+keyword', 'Analyste SOC')).toBe('Analyste SOC - Cloud');
+    expect(titleForRule('Ingénieur - Cloud', 'profile+keyword', 'Analyste SOC')).toBe('Analyste SOC - Cloud');
+    expect(titleForRule('Ingénieur', 'profile+keyword', 'Analyste SOC')).toBe('Analyste SOC');
+  });
+  it('sans titre de profil : inchangé', () => {
+    expect(titleForRule('Ingénieur', 'profile', null)).toBe('Ingénieur');
   });
 });

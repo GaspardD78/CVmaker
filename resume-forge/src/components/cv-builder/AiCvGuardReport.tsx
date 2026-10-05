@@ -78,6 +78,24 @@ export function AiCvGuardReport({ report }: AiCvGuardReportProps) {
         </p>
       )}
 
+      {report.angle && (
+        <p className="text-gray-600 dark:text-gray-300" data-testid="ai-cv-angle">
+          <span className="font-semibold">Angle :</span> {report.angle.label}
+        </p>
+      )}
+
+      {report.metrics.alertesCap.length > 0 && (
+        <div className="text-amber-800 dark:text-amber-200" data-testid="ai-cv-alertes-cap">
+          <p className="font-semibold flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            L'annonce contredit tes critères de recherche (la génération n'est pas bloquée)
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {report.metrics.alertesCap.map((a, i) => <li key={i}>{a}</li>)}
+          </ul>
+        </div>
+      )}
+
       {report.aiWarnings.length > 0 && (
         <ul className="space-y-1 text-sky-700 dark:text-sky-300">
           {report.aiWarnings.map((w, i) => (

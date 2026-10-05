@@ -17,3 +17,6 @@ Thumbs.db
 # Clés de signature — ne jamais versionner
 *.keystore
 key.properties
+
+# Affinités des angles de CV : fichier personnel, chargé localement, jamais versionné
+docs/angles-affinities.json

@@ -286,4 +286,27 @@ rendu : PrintableCV / export-docx (sections vides masquées, lib/cv-sections.ts)
 - **Pages cibles** : réglage `cv_target_pages` (1 par défaut, 2), lu par `promptStore.targetPages` et transmis au prompt (`options.pageBudget`) et au garde-fou (`ctx.pageBudget`). À 1 page : `ONE_PAGE_LIMITS` (lib/cv-prompt.ts) pilote le bloc « UNE PAGE » du prompt et les contrôles `one-page` du garde-fou ; `metrics.overflow` liste les éléments à retirer en priorité (intérêts/bénévolat sans lien, expériences sans lien, formations/certifications en trop, compétences au-delà de 15, puces en trop, résumé).
 - **Typographie** (`lib/cv-typography.ts`) appliquée par le garde-fou : le texte retourné par `guardAiCv` est celui qu'on applique.
 - Limites : détection de termes heuristique (sigles, CamelCase, noms propres en français), temps verbaux approximatifs, aucune évaluation sémantique, le LLM externe reste libre de désobéir (d'où le garde-fou).
+- **Catégories de compétences** : le prompt liste `Catégorie | Éléments` ; le LLM réduit et réordonne les éléments dans `description` ; le garde-fou n'accepte que des éléments de la source (`skill-item-invented`) et compte les éléments, pas les entrées (`ONE_PAGE_LIMITS.minSkillItems/maxSkillItems`, `minSkillCategories/maxSkillCategories`).
+- **Règles personnelles** : texte par profil (`settings`, clé `cv_personal_rules:{profileId}`), bloc placé avant `CV_WRITING_RULES` ; quand il existe, l'analyse demande `alertes_cap` (critères de recherche contredits, non bloquant).
+
+## 8. Angles de CV
+
+```
+cv_angles (migration 020, par profil, 4 au maximum)   master_entries.tags : angle:<slug> | hide:<slug>
+        │                                                       │
+        └──────── resolveAngle (lib/cv-angles.ts) ◄─────────────┘
+                       │ AngleSpec { règle de titre, gabarit d'accroche, ordre des catégories,
+                       │             vocabulaire, anciennes expériences, leadEntryIds, hideEntryIds }
+mode 1 : angle de la bibliothèque ── buildAngle ──────────┐
+         ou choix par l'IA ─────── buildAngleChoice ──────┤ (lib/cv-angle-prompt.ts)
+mode 2 : buildAnglePrompt → LLM → parseAnglePropositions ─┘ (lib/ai-angle-response.ts)
+                       ▼
+buildCvPrompt (bloc d'angle entre l'analyse et les règles) → LLM → guardAiCv (ctx.angle / ctx.angleChoices)
+                       ▼
+cv.settings.cvAngle = instantané (lib/cv-angle-selection.ts) : liste des CV, fiche de candidature
+```
+
+- Un angle ne contient aucun fait de CV : la mise en tête et le masquage passent uniquement par les tags des entrées (écran « Angles de CV », matrice d'affinité, import d'un fichier local jamais versionné).
+- Garde-fou : une entrée `hide:` visible sans correspondance pour un indispensable est masquée (`angle-hidden-entry-visible`) ; une entrée en tête qui étaye un indispensable n'est pas masquée (`angle-lead-entry-hidden`) ; le titre suit `title_rule` (`angle-title-corrected`).
+- Sauvegarde : `cv_angles` appartient au module « Entrées CV » (`DELETE_ORDER`, `INSERT_ORDER`, `TABLES_WITH_PROFILE_ID`). Restauration : `resolveSourceProfileId` choisit le profil de la sauvegarde (choix de l'utilisateur, sinon profil actif, sinon profil unique ; plusieurs profils sans correspondance : `BackupProfileChoiceRequired`, jamais le premier par défaut) et `selectBackupProfile` ne garde que ses données (tables filles filtrées par leur parent, réglages `cv_personal_rules:<id>`) avant de les remapper sur le profil actif.
 

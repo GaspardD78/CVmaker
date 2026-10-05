@@ -59,7 +59,7 @@ describe('buildBadgeRows', () => {
     ];
     const rows = buildBadgeRows(blocks(['l', 'c']), others);
     expect(rows).toEqual([{ category: null, items: [{ name: 'Espagnol', level: 'B2' }, { name: 'Certif fictive', level: 'Organisme X' }] }]);
-    expect(rowText(rows[0])).toBe('Espagnol — B2 · Certif fictive — Organisme X');
+    expect(rowText(rows[0])).toBe('Espagnol - B2 · Certif fictive - Organisme X');
   });
 
   it('compétence isolée avec une description sans puces : la description reste le libellé', () => {
