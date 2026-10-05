@@ -14,6 +14,7 @@
  * salaire, blacklist, mode de scoring — en est délibérément exclu.
  */
 
+import { frenchJobTitles } from './french-titles';
 import type { JobSource, SearchProfile } from '@/types/job-watch';
 
 /** Normalise une liste : trim, minuscules, sans vides, dédupliquée, triée. */
@@ -64,7 +65,9 @@ export function queryShape(source: JobSource, profile: SearchProfile): Record<st
       };
 
     case 'france_travail':
-      return { titles, insee: profile.location.inseeCode.trim(), radius, contracts };
+      // Seuls les intitulés français sont envoyés (spec 006) : deux pistes qui
+      // ne diffèrent que par leurs intitulés anglais émettent la même requête.
+      return { titles: norm(frenchJobTitles(profile.jobTitles).slice(0, 5)), insee: profile.location.inseeCode.trim(), radius, contracts };
 
     case 'wttj':
       // Le parser n'interroge que les premiers intitulés (une requête Algolia
@@ -85,7 +88,7 @@ export function queryShape(source: JobSource, profile: SearchProfile): Record<st
       return { titles };
 
     case 'emploi_territorial':
-      return { titles, city, departments: norm(profile.location.departmentCodes) };
+      return { titles: norm(frenchJobTitles(profile.jobTitles)), city, departments: norm(profile.location.departmentCodes) };
 
     default:
       return { titles, city, radius, contracts };

@@ -13,6 +13,7 @@ import { dedupeOffers } from '@/lib/watcher/offer-dedup';
 import { useScoreRecalcStore } from '@/stores/scoreRecalcStore';
 import { ThresholdPanel } from './ThresholdPanel';
 import { BlacklistSuggestions } from './BlacklistSuggestions';
+import { buildSourceCoverage, renderCoverageSection } from '@/lib/watcher/source-coverage';
 import { findNearDuplicateAlert } from '@/lib/watcher/alert-similarity';
 import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import { PortfolioReviewPanel } from './PortfolioReviewPanel';
@@ -343,13 +344,18 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
 
   // Contexte du portefeuille : empêche chaque diagnostic de pousser sa piste
   // vers le centre, ce qui ferait converger toutes les pistes à la longue.
-  const portfolioContext = currentAlert
+  // `sampleSources` : sources des offres réellement analysées par le prompt —
+  // c'est leur répartition qui révèle un échantillon biaisé.
+  const buildPortfolioContext = (sampleSources: string[]) => currentAlert
     ? {
         alertName: currentAlert.name,
         otherAlerts: alerts
           .filter(a => a.id !== currentAlert.id)
           .sort((a, b) => a.position - b.position)
           .map(a => ({ name: a.name, jobTitles: a.searchProfile.jobTitles })),
+        coverageSection: renderCoverageSection(buildSourceCoverage({
+          lastLogBySource, configuredSources, sampleSources,
+        })),
       }
     : undefined;
 
@@ -389,7 +395,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
         learnedPositive: suggestions.positive.slice(0, 5),
         learnedNegative: suggestions.negative.slice(0, 5),
       },
-      portfolioContext,
+      buildPortfolioContext(
+        scopedOffers.filter(o => (o.scoreVersion ?? 1) >= SCORER_VERSION).map(o => o.source),
+      ),
     );
     await navigator.clipboard.writeText(prompt);
     toast.success("Prompt d'optimisation copié ! Collez-le dans votre IA.");
@@ -424,15 +432,16 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
         `);
     // Une annonce n'est analysée qu'une fois, et seulement avec un score de la
     // version courante : mêler deux échelles fausserait le diagnostic.
-    const rows = dedupeOffers(
+    const sample = dedupeOffers(
       raw
         .filter(r => (r.score_version ?? 1) >= SCORER_VERSION)
         .map(r => ({
           id: r.id, source: r.source, title: r.title, company: r.company, location: r.location,
           score: r.score, isArchived: 0, kanbanId: null, alerts: [], action: r.action,
         })),
-    ).slice(0, 20).map(r => ({ title: r.title, score: r.score, action: r.action }));
-    const prompt = generateDiagnosticPrompt(searchProfile, rows, portfolioContext);
+    ).slice(0, 20);
+    const rows = sample.map(r => ({ title: r.title, score: r.score, action: r.action }));
+    const prompt = generateDiagnosticPrompt(searchProfile, rows, buildPortfolioContext(sample.map(r => r.source)));
     await navigator.clipboard.writeText(prompt);
     toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
   };

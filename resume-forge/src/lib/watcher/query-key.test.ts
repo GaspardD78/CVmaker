@@ -68,3 +68,14 @@ describe('computeQueryKey', () => {
     expect(trois).toBe(quatre);
   });
 });
+
+describe('computeQueryKey — sources francophones (spec 006)', () => {
+  test('France Travail et Emploi Territorial ignorent les intitulés anglais', () => {
+    const a = profile({ jobTitles: ['Recruteur', 'Talent Acquisition'] });
+    const b = profile({ jobTitles: ['Recruteur', 'Tech Recruiter'] });
+    expect(computeQueryKey('france_travail', a)).toBe(computeQueryKey('france_travail', b));
+    expect(computeQueryKey('emploi_territorial', a)).toBe(computeQueryKey('emploi_territorial', b));
+    // APEC accepte les deux langues : l'empreinte reste distincte.
+    expect(computeQueryKey('apec', a)).not.toBe(computeQueryKey('apec', b));
+  });
+});

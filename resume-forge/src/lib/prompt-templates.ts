@@ -439,6 +439,11 @@ export interface AlertPromptContext {
   alertName: string;
   /** Autres pistes : nom et intitulés visés. */
   otherAlerts: Array<{ name: string; jobTitles: string[] }>;
+  /**
+   * Couverture par source déjà rendue en Markdown (`renderCoverageSection`) :
+   * statut de chaque source, part dans l'échantillon, avertissement de biais.
+   */
+  coverageSection?: string;
 }
 
 function portfolioPreamble(context?: AlertPromptContext): string {
@@ -481,6 +486,7 @@ export function generatePerformanceOptimizationPrompt(
 
   return `Agis comme un expert en sourcing et optimisation de veille emploi.
 ${portfolioPreamble(context)}
+${context?.coverageSection ?? ''}
 ## Mon profil
 - Titre : ${titleStr}
 - Compétences : ${skills}
@@ -521,7 +527,7 @@ export function generateDiagnosticPrompt(
     .join('\n');
 
   return `Agis comme un expert en optimisation de recherche d'emploi.
-${portfolioPreamble(context)}
+${portfolioPreamble(context)}${context?.coverageSection ?? ''}
 ## Ma configuration
 - Titres visés : ${searchProfile.jobTitles.join(', ') || 'Non défini'}
 - Exclure : ${searchProfile.excludeTitles.join(', ') || 'Aucun'}
