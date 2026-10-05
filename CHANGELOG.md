@@ -7,6 +7,19 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-05
 
+### Veille emploi : refonte de l'analyse IA (spec 005)
+
+- **Changé** : les boutons « Optimiser » et « Diagnostic » génèrent un seul prompt (`generateWatchAnalysisPrompt`, deux modes) construit depuis un contexte factuel : règles exactes du moteur (générées depuis les poids du scorer), profil candidat (expérience, lieu, contrat), configuration avec libellés uniques (« Mots-clés bonus », « Domaines bonus »), incohérences détectées par code, métriques avec période et dénominateur, signaux appris avec compteur, et jusqu'à 30 offres dédoublonnées (entreprise, lieu, source, contrat, salaire, télétravail, âge, extrait, score entier décomposé, action). Les anciens générateurs restent comme adaptateurs dépréciés.
+- **Ajout** : la réponse de l'IA est un JSON `watch-analysis/v1`. L'écran « Appliquer les recommandations » le lit tolérablement, valide les libellés APEC, applique des garde-fous (exclusion présente dans une offre importée ou aimée bloquée, intitulé déjà porté par une autre piste bloqué, jamais tous les intitulés retirés), simule l'effet sur les offres des 30 derniers jours (gagnées, perdues, perdues aimées surlignées), affiche le diff avec cases à cocher et laisse un instantané pour annuler.
+- **Changé** : portée des exclusions par terme. « Exclure ces rôles » (`excludeTitles`) n'élimine plus que sur le **titre** ; « Exclure ces secteurs » (`excludeDomains`) garde le veto titre + description (score inchangé). La portée se règle terme par terme dans la configuration. Les profils existants n'ont aucune donnée réécrite.
+- **Ajout** : `requiredDomains` (optionnel, vide par défaut) : aucun domaine obligatoire présent = score plafonné à 25 (écarté en mode strict).
+- **Corrigé** : un terme finissant par une lettre accentuée (« cybersécurité », « qualité ») ne correspondait jamais, `\b` ignorant les accents ; bornes de mot Unicode.
+- **Corrigé** : `processFeedback` n'apprend plus en négatif un terme des intitulés, mots-clés, domaines, domaines obligatoires ou fonctions APEC de la piste ; les suggestions d'exclusion du tableau de bord écartent les mêmes termes ; panneau « Signaux appris » (compteur, conflit, « oublier »).
+- **Corrigé** : dédoublonnage des offres sans entreprise (titre normalisé + lieu entre sources ; liste d'analyse : titre + lieu + source) ; le diagnostic ne produit plus de doublons dus aux feedbacks multiples.
+- **Changé** : score affiché en entier, avec « Détail du score » (recalculé) dans la carte d'offre ; métriques du tableau de bord avec dénominateur ; badge « Piste quasi identique à X » (recouvrement > 60 %) ; bandeau « N offres sans action » quand plus de 80 % des offres récentes ne sont pas triées.
+
+---
+
 ### Veille Emploi : sources, doublons, rescoring, blacklist (spec 006)
 
 - **Ajout** : statuts de source fiables (`ok`, `vide`, `bloquée`, `introuvable`, `erreur réseau`, `réponse invalide`, `intitulés inadaptés`, `non configurée`) dans le journal de collecte (migration 021) et le tableau « Dernières collectes » (par piste, info-bulle : code HTTP, URL sans secret, heure, conseil). Une page de pare-feu « Request Rejected » ou du HTML au lieu de XML/JSON n'est plus jamais comptée comme 0 offre.

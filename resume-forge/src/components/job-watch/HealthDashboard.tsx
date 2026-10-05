@@ -6,16 +6,20 @@ import {
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { analyzeFeedback, getKeywordSuggestions, isProtectedTerm, protectedTokensOf, LearningResult } from '@/lib/watcher/learning-engine';
-import { generatePerformanceOptimizationPrompt, generateDiagnosticPrompt } from '@/lib/prompt-templates';
-import { getDb } from '@/lib/db';
+import { analyzeFeedback, LearningResult } from '@/lib/watcher/learning-engine';
+import { buildWatchAnalysisContext, countUntreated, type WatchAnalysisOfferInput } from '@/lib/watcher/analysis-context';
+import { loadAlertOffers, loadWatchAnalysisInput } from '@/lib/watcher/analysis-loader';
+import { generateWatchAnalysisPrompt, type WatchAnalysisMode } from '@/lib/watcher/analysis-prompt';
+import { profileVocabulary } from '@/lib/watcher/learning-engine';
+import { overlapWithOthers } from '@/lib/watcher/title-overlap';
+import { useAuthStore } from '@/stores/authStore';
+import { AnalysisPatchPanel } from './AnalysisPatchPanel';
+import { LearnedSignalsPanel } from './LearnedSignalsPanel';
 import { dedupeOffers } from '@/lib/watcher/offer-dedup';
 import { useScoreRecalcStore } from '@/stores/scoreRecalcStore';
 import { ThresholdPanel } from './ThresholdPanel';
 import { BlacklistSuggestions } from './BlacklistSuggestions';
 import { buildSourceCoverage, renderCoverageSection } from '@/lib/watcher/source-coverage';
-import { findNearDuplicateAlert } from '@/lib/watcher/alert-similarity';
-import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import { PortfolioReviewPanel } from './PortfolioReviewPanel';
 import type { JobSource, FetchLog } from '@/types/job-watch';
 import {
@@ -200,6 +204,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   const recalc = useScoreRecalcStore();
   /** Vue portefeuille : compare les pistes entre elles au lieu d'en analyser une. */
   const [portfolioMode, setPortfolioMode] = useState(false);
+  const { currentUserId } = useAuthStore();
+  /** Offres de la piste sur 30 jours avec leurs actions : alimente le bandeau « sans action ». */
+  const [recentOffers, setRecentOffers] = useState<WatchAnalysisOfferInput[]>([]);
 
   useEffect(() => {
     // Suggestions et réputation entreprise sont propres à la piste : celles
@@ -209,7 +216,17 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       .catch(() => setAnalysis(null));
 
     loadFetchLogs();
-  }, [currentAlert, loadFetchLogs]);
+
+    let cancelled = false;
+    if (currentAlert) {
+      loadAlertOffers(currentAlert.id, currentUserId ?? null)
+        .then(rows => { if (!cancelled) setRecentOffers(rows); })
+        .catch(() => { if (!cancelled) setRecentOffers([]); });
+    } else {
+      setRecentOffers([]);
+    }
+    return () => { cancelled = true; };
+  }, [currentAlert, currentUserId, offers.length, loadFetchLogs]);
 
   // ── Metrics ───────────────────────────────────────────────────────────────────
 
@@ -228,7 +245,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     [offers, currentAlert],
   );
 
-  const { volume, volumeAlert, pertinence, conversion, conversionAlert, kanbanCount } = useMemo(() => {
+  const { volume, volumeAlert, pertinence, conversion, conversionAlert, kanbanCount, activeTotal, readCount } = useMemo(() => {
     const volume = scopedOffers.filter(o => o.fetchedAt >= weekCutoff).length;
     const active  = scopedOffers.filter(o => o.isArchived === 0);
     const total   = active.length;
@@ -241,6 +258,8 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       conversion:      total > 0 ? Math.round((kanban / total) * 100) : null,
       conversionAlert: total > 0 && kanban / total < 0.05,
       kanbanCount:     kanban,
+      activeTotal:     total,
+      readCount:       read,
     };
   }, [scopedOffers, weekCutoff]);
 
@@ -314,10 +333,10 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       ...searchProfile.excludeTitles.map(k => k.toLowerCase()),
       ...searchProfile.excludeDomains.map(k => k.toLowerCase()),
     ]);
-    // Pas de suggestion d'exclure un terme des intitulés, skills ou domaines de la piste.
-    const protectedTokens = protectedTokensOf(searchProfile);
+    // Jamais suggérer d'exclure un terme que la piste cherche (intitulés, mots-clés, domaines, fonctions APEC).
+    const wanted = profileVocabulary(searchProfile);
     return analysis.suggestedExclusions
-      .filter(t => !already.has(t) && !dismissed.has(`excl:${t}`) && !isProtectedTerm(t, protectedTokens))
+      .filter(t => !already.has(t) && !wanted.has(t) && !dismissed.has(`excl:${t}`))
       .slice(0, 5);
   }, [analysis, searchProfile, dismissed]);
 
@@ -336,28 +355,21 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0;
 
   const noJobTitles = searchProfile.jobTitles.length === 0;
-  const nearDuplicate = currentAlert ? findNearDuplicateAlert(currentAlert, alerts) : null;
 
   useEffect(() => {
     if (hasAlerts) setExpanded(true);
   }, [hasAlerts]);
 
-  // Contexte du portefeuille : empêche chaque diagnostic de pousser sa piste
-  // vers le centre, ce qui ferait converger toutes les pistes à la longue.
-  // `sampleSources` : sources des offres réellement analysées par le prompt —
-  // c'est leur répartition qui révèle un échantillon biaisé.
-  const buildPortfolioContext = (sampleSources: string[]) => currentAlert
-    ? {
-        alertName: currentAlert.name,
-        otherAlerts: alerts
-          .filter(a => a.id !== currentAlert.id)
-          .sort((a, b) => a.position - b.position)
-          .map(a => ({ name: a.name, jobTitles: a.searchProfile.jobTitles })),
-        coverageSection: renderCoverageSection(buildSourceCoverage({
-          lastLogBySource, configuredSources, sampleSources,
-        })),
-      }
-    : undefined;
+  // Recouvrement d'intitulés avec les autres pistes (Jaccard, seuil 0,6) : badge d'alerte.
+  const nearIdenticalTracks = useMemo(() => {
+    if (!currentAlert) return [];
+    return overlapWithOthers(
+      currentAlert.searchProfile.jobTitles,
+      alerts.filter(a => a.id !== currentAlert.id).map(a => ({ name: a.name, jobTitles: a.searchProfile.jobTitles })),
+    ).filter(o => o.nearIdentical);
+  }, [currentAlert, alerts]);
+
+  const untreated = useMemo(() => countUntreated(recentOffers), [recentOffers]);
 
   // ── Action handlers ────────────────────────────────────────────────────────────
 
@@ -380,71 +392,37 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     dismiss(`bonus:${term}`);
   };
 
-  const handlePerformancePrompt = async () => {
-    // Le dictionnaire appris appartient à la piste analysée.
-    const suggestions = getKeywordSuggestions(
-      currentAlert?.learnedDict ?? { positive: {}, negative: {} },
-      3,
-    );
-    const prompt = generatePerformanceOptimizationPrompt(
-      profile, entries, searchProfile,
-      {
-        volumePerWeek: volume,
-        pertinencePercent: pertinence,
-        conversionPercent: conversion,
-        learnedPositive: suggestions.positive.slice(0, 5),
-        learnedNegative: suggestions.negative.slice(0, 5),
-      },
-      buildPortfolioContext(
-        scopedOffers.filter(o => (o.scoreVersion ?? 1) >= SCORER_VERSION).map(o => o.source),
-      ),
-    );
-    await navigator.clipboard.writeText(prompt);
-    toast.success("Prompt d'optimisation copié ! Collez-le dans votre IA.");
+  /**
+   * Construit le contexte factuel de la piste puis le prompt du mode demandé.
+   * Les deux boutons partagent le même contexte : seuls la mission change.
+   */
+  const copyAnalysisPrompt = async (mode: WatchAnalysisMode) => {
+    if (!currentAlert) {
+      toast.error('Aucune piste à analyser.');
+      return;
+    }
+    try {
+      const input = await loadWatchAnalysisInput({
+        alert: currentAlert, allAlerts: alerts, profile, entries, profileId: currentUserId ?? null,
+      });
+      const ctx = buildWatchAnalysisContext(input);
+      // Couverture par source : statut, part de l'échantillon, avertissement de biais.
+      const coverage = renderCoverageSection(buildSourceCoverage({
+        lastLogBySource, configuredSources,
+        sampleSources: input.offers.map(o => String(o.source)),
+      }));
+      await navigator.clipboard.writeText(`${coverage}\n${generateWatchAnalysisPrompt(ctx, mode)}`);
+      toast.success(
+        `Prompt copié (${ctx.offers.shown} offre${ctx.offers.shown > 1 ? 's' : ''} sur ${ctx.offers.total}). ` +
+        'Collez-le dans votre IA, puis la réponse dans « Appliquer les recommandations ».',
+      );
+    } catch (err) {
+      toast.error(`Prompt impossible à générer : ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
-  const handleDiagnosticPrompt = async () => {
-    const db = await getDb();
-    // Offres de la piste analysée : diagnostiquer une piste sur les offres
-    // d'une autre produirait des recommandations à contresens.
-    // Dernier retour de l'utilisateur par sous-requête : une jointure sur les
-    // retours répétait l'offre une fois par action (aimée puis importée…).
-    type DiagRow = {
-      id: string; source: string; title: string; company: string | null; location: string | null;
-      score: number; score_version: number | null; action: string | null;
-    };
-    const lastAction = `(SELECT f.action FROM job_offer_feedback f WHERE f.offer_id = o.id
-                          ORDER BY f.created_at DESC LIMIT 1)`;
-    const raw = currentAlert
-      ? await db.select<DiagRow[]>(`
-          SELECT o.id, o.source, o.title, o.company, o.location, l.score, l.score_version, ${lastAction} AS action
-          FROM job_offer_alerts l
-          JOIN job_offers o ON o.id = l.offer_id
-          WHERE l.alert_id = ?1
-          ORDER BY o.fetched_at DESC
-          LIMIT 60
-        `, [currentAlert.id])
-      : await db.select<DiagRow[]>(`
-          SELECT o.id, o.source, o.title, o.company, o.location, o.score, o.score_version, ${lastAction} AS action
-          FROM job_offers o
-          ORDER BY o.fetched_at DESC
-          LIMIT 60
-        `);
-    // Une annonce n'est analysée qu'une fois, et seulement avec un score de la
-    // version courante : mêler deux échelles fausserait le diagnostic.
-    const sample = dedupeOffers(
-      raw
-        .filter(r => (r.score_version ?? 1) >= SCORER_VERSION)
-        .map(r => ({
-          id: r.id, source: r.source, title: r.title, company: r.company, location: r.location,
-          score: r.score, isArchived: 0, kanbanId: null, alerts: [], action: r.action,
-        })),
-    ).slice(0, 20);
-    const rows = sample.map(r => ({ title: r.title, score: r.score, action: r.action }));
-    const prompt = generateDiagnosticPrompt(searchProfile, rows, buildPortfolioContext(sample.map(r => r.source)));
-    await navigator.clipboard.writeText(prompt);
-    toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
-  };
+  const handlePerformancePrompt = () => copyAnalysisPrompt('performance');
+  const handleDiagnosticPrompt = () => copyAnalysisPrompt('diagnostic');
 
   // ── Render ─────────────────────────────────────────────────────────────────────
 
@@ -511,6 +489,33 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
 
           {portfolioMode && <PortfolioReviewPanel />}
 
+          {/* Piste quasi identique à une autre : les deux ramènent les mêmes offres. */}
+          {!portfolioMode && nearIdenticalTracks.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {nearIdenticalTracks.map(o => (
+                <span
+                  key={o.name}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300"
+                  title={`Recouvrement des intitulés : ${Math.round(o.overlap * 100)} %`}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Piste quasi identique à « {o.name} » ({Math.round(o.overlap * 100)} %)
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Aucun tri : le système n'apprend rien tant que les offres ne sont pas triées. */}
+          {!portfolioMode && untreated.showBanner && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300">
+              <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {untreated.untreated} offre{untreated.untreated > 1 ? 's' : ''} sans action sur {untreated.total} :
+                triez-les (pouce haut/bas, import) pour que le système apprenne.
+              </span>
+            </div>
+          )}
+
           {/* Warning: no jobTitles configured */}
           {!portfolioMode && noJobTitles && (
             <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-xs text-amber-700 dark:text-amber-300">
@@ -522,16 +527,6 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
             </div>
           )}
 
-          {/* Piste quasi identique à une autre : mêmes offres, comparaisons faussées */}
-          {!portfolioMode && nearDuplicate && (
-            <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-xs text-amber-700 dark:text-amber-300">
-              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-              <span>
-                Cette piste est quasi identique à « {nearDuplicate.otherName} » ({Math.round(nearDuplicate.similarity * 100)} % d'intitulés communs) :
-                elles ramènent les mêmes offres. Différenciez ses intitulés ou désactivez l'une des deux.
-              </span>
-            </div>
-          )}
 
           {/* Version du scoring : recalcul en cours, ou bilan du dernier recalcul */}
           {!portfolioMode && (recalc.running || (recalc.recalculatedCount !== null && !recalc.bannerDismissed) || recalc.error) && (
@@ -582,6 +577,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
               label="Volume / semaine"
               value={volume}
               unit="offres"
+              subtitle="sur les 7 derniers jours"
               alert={volumeAlert ? 'Trop peu — élargir le domaine ?' : null}
             />
             <MetricTile
@@ -589,14 +585,14 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
               label="Pertinence"
               value={pertinence}
               unit="%"
-              subtitle="offres ouvertes"
+              subtitle={`${pertinence ?? 0} % de ${activeTotal} offres actives (${readCount} ouvertes)`}
             />
             <MetricTile
               icon={<Target className="w-3.5 h-3.5" />}
               label="Conversion"
               value={conversion}
               unit="%"
-              subtitle="importées Kanban"
+              subtitle={`${conversion ?? 0} % de ${activeTotal} offres actives (${kanbanCount} importées)`}
               alert={conversionAlertMessage}
             />
           </div>
@@ -795,6 +791,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
             )}
           </div>
           )}
+
+          {!portfolioMode && currentAlert && <AnalysisPatchPanel alert={currentAlert} />}
+          {!portfolioMode && currentAlert && <LearnedSignalsPanel alert={currentAlert} />}
 
           {/* Actionable learning suggestions */}
           {!portfolioMode && (suggestExclude.length > 0 || suggestBonus.length > 0) && (

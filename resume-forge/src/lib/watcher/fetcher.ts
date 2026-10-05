@@ -605,7 +605,8 @@ export async function runFetch(
   const toInsert = retained.filter(p => p.existingId === null);
   const skipIndices = detectCrossSourceDuplicates(
     toInsert.map(p => ({
-      title: p.raw.title, company: p.raw.company, source: p.raw.source, score: bestScoreOfEntry(p),
+      title: p.raw.title, company: p.raw.company, location: p.raw.location,
+      source: p.raw.source, score: bestScoreOfEntry(p),
     })),
   );
   const skipped = new Set<string>();

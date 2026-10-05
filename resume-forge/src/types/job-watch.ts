@@ -76,6 +76,22 @@ export interface SearchProfile {
   /** Domain/sector terms that disqualify an offer (score → 0). */
   excludeDomains: string[];  // e.g. ["BTP", "Restauration", "VPC"]
 
+  /**
+   * Portée de chaque exclusion, par terme (clé en minuscules).
+   * Absent = défaut résolu à la lecture : `excludeTitles` → `title`,
+   * `excludeDomains` → `anywhere` (cf. `watcher/exclusions.ts`).
+   * `title` : le terme n'élimine que s'il figure dans le titre.
+   * `anywhere` : veto sur le titre OU la description.
+   */
+  excludeScopes?: Record<string, 'title' | 'anywhere'>;
+
+  /**
+   * Domaines obligatoires (optionnel, vide par défaut). Si la liste est non vide
+   * et qu'aucun de ses termes n'apparaît dans le titre ou la description, le
+   * score est plafonné (balanced/loose) ou mis à 0 (strict).
+   */
+  requiredDomains?: string[];
+
   // ── Location ─────────────────────────────────────────────────────────────
   location: {
     /** Display label shown in UI (e.g. "Paris (75)") */

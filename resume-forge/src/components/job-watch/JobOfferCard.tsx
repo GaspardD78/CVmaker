@@ -6,6 +6,8 @@ import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
 import type { JobOffer, JobOfferWithAlerts, JobSource } from '@/types/job-watch';
 import { computeLightProfileMatch } from '@/lib/watcher/scorer';
+import { replayScore } from '@/lib/watcher/score-replay';
+import { formatBreakdown, formatScore } from '@/lib/watcher/score-display';
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
 
 
@@ -23,6 +25,7 @@ const SOURCE_COLORS: Record<JobSource, string> = {
 };
 
 function ScoreBadge({ score }: { score: number }) {
+  score = formatScore(score);
   const color =
     score >= 70 ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' :
     score >= 40 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' :
@@ -141,6 +144,17 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, onGener
   const displayedScore = selectedAlertId
     ? (offer.alerts.find(l => l.alertId === selectedAlertId)?.score ?? offer.score)
     : offer.score;
+  const scoreAlert = (selectedAlertId ? offerAlerts.find(a => a.id === selectedAlertId) : null) ?? offerAlerts[0];
+  const scoreDetail = useMemo(() => {
+    if (!scoreAlert) return null;
+    try {
+      return formatBreakdown(replayScore(
+        { ...offer, snippet: offer.descriptionSnippet },
+        scoreAlert.searchProfile,
+        { learnedDict: scoreAlert.learnedDict, companyReputation: scoreAlert.companyReputation, aiFilterRule: scoreAlert.aiFilterRule },
+      ));
+    } catch { return null; }
+  }, [offer, scoreAlert]);
   const { profile } = useProfileStore();
   const displayedAt = useRef<number>(Date.now());
   const getTimeToAction = () => Math.floor((Date.now() - displayedAt.current) / 1000);
@@ -321,6 +335,14 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, onGener
             <SkillMatchBadge match={skillMatch} />
           )}
         </div>
+
+        {/* Décomposition du score, recalculée avec la configuration actuelle de la piste. */}
+        {scoreDetail && (
+          <details className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+            <summary className="cursor-pointer select-none">Détail du score (recalculé, indicatif)</summary>
+            <p className="mt-1">{scoreDetail}</p>
+          </details>
+        )}
 
         {/* Description snippet */}
         {offer.descriptionSnippet && (

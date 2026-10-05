@@ -7,10 +7,17 @@
  *     actionable exclusion/bonus-term suggestions.
  */
 
+import type { SearchProfile } from '@/types/job-watch';
+
 export interface LearnedDictionary {
   positive: Record<string, number>;
   negative: Record<string, number>;
 }
+
+/** Partie du profil de piste qui définit son vocabulaire « cible ». */
+export type ProfileVocabularySource = Partial<
+  Pick<SearchProfile, 'jobTitles' | 'skills' | 'domains' | 'requiredDomains' | 'apecFonctions'>
+>;
 
 const STOP_WORDS = new Set([
   // French
@@ -52,26 +59,29 @@ export function extractSignificantTerms(text: string, includeBigrams = false): s
 }
 
 /**
- * Mots significatifs des intitulés, skills et domaines d'une piste : ce que la
- * piste cherche, donc ce que ses rejets ne doivent jamais apprendre à fuir.
+ * Vocabulaire cible d'une piste : mots et bigrammes des intitulés, compétences,
+ * domaines, domaines obligatoires et fonctions APEC. Un terme de cette liste ne
+ * doit jamais être appris comme « rejeté » : l'utilisateur le cherche.
  */
-export function protectedTokensOf(profile: {
-  jobTitles: string[]; skills: string[]; domains: string[];
-}): Set<string> {
-  const tokens = new Set<string>();
-  for (const text of [...profile.jobTitles, ...profile.skills, ...profile.domains]) {
-    for (const token of extractSignificantTerms(text)) tokens.add(token);
+export function profileVocabulary(profile?: ProfileVocabularySource | null): Set<string> {
+  const out = new Set<string>();
+  if (!profile) return out;
+  const sources = [
+    ...(profile.jobTitles ?? []), ...(profile.skills ?? []), ...(profile.domains ?? []),
+    ...(profile.requiredDomains ?? []), ...(profile.apecFonctions ?? []),
+  ];
+  for (const text of sources) {
+    for (const term of extractSignificantTerms(text, true)) out.add(term);
   }
-  return tokens;
-}
-
-/** Un terme (mot ou bigramme) est protégé dès que l'un de ses mots l'est. */
-export function isProtectedTerm(term: string, protectedTokens: ReadonlySet<string>): boolean {
-  return term.split(' ').some(word => protectedTokens.has(word));
+  return out;
 }
 
 /**
  * Updates the learned dictionary based on an action performed on an offer title.
+ *
+ * Si le profil de la piste est fourni, les termes de son vocabulaire cible ne sont
+ * jamais appris en négatif (rejeter « Responsable cybersécurité » ne doit pas faire
+ * de « cybersécurité » un terme rejeté quand c'est le domaine recherché).
  *
  * Weights:
  *   kanban_import → positive +2
@@ -83,26 +93,18 @@ export function processFeedback(
   offerTitle: string,
   action: string,
   currentDict: LearnedDictionary,
-  protectedTokens?: ReadonlySet<string>,
+  profile?: ProfileVocabularySource | null,
 ): LearnedDictionary {
   const allTerms = extractSignificantTerms(offerTitle, true); // include bigrams
   if (allTerms.length === 0) return currentDict;
-
-  // Pas d'apprentissage NÉGATIF sur un terme des intitulés, skills ou domaines
-  // de la piste : rejeter un poste technique chez une société de la cible ne
-  // doit pas pénaliser « recrutement » ou « sécurité ». Le rejet apprend le
-  // type de poste (« développeur »), pas le domaine visé.
-  const isNegative = action === 'thumbs_down' || action === 'quick_archive';
-  const terms = isNegative && protectedTokens && protectedTokens.size > 0
-    ? allTerms.filter(term => !isProtectedTerm(term, protectedTokens))
-    : allTerms;
-  if (terms.length === 0) return currentDict;
+  const vocabulary = profileVocabulary(profile);
 
   const positive = { ...currentDict.positive };
   const negative = { ...currentDict.negative };
 
-  const increment = (dict: Record<string, number>, weight: number) => {
-    for (const term of terms) {
+  const increment = (dict: Record<string, number>, weight: number, skipProtected = false) => {
+    for (const term of allTerms) {
+      if (skipProtected && vocabulary.has(term)) continue;
       dict[term] = (dict[term] ?? 0) + weight;
     }
   };
@@ -112,12 +114,53 @@ export function processFeedback(
   } else if (action === 'thumbs_up') {
     increment(positive, 1);
   } else if (action === 'thumbs_down') {
-    increment(negative, 1);
+    increment(negative, 1, true);
   } else if (action === 'quick_archive') {
-    increment(negative, 2);
+    increment(negative, 2, true);
   }
 
   return { positive, negative };
+}
+
+// ── Lecture et oubli des signaux appris ──────────────────────────────────────
+
+export interface LearnedSignal {
+  term: string;
+  /** Poids cumulé (kanban_import +2, thumbs_up +1, thumbs_down +1, quick_archive +2). */
+  count: number;
+  sense: 'positive' | 'negative';
+  /** Le terme figure dans le vocabulaire cible de la piste. */
+  conflict: boolean;
+}
+
+/**
+ * Signaux appris les plus forts, avec compteur et sens. Un terme négatif présent
+ * dans le vocabulaire cible est marqué `conflict` (héritage d'avant la protection).
+ */
+export function listLearnedSignals(
+  dict: LearnedDictionary,
+  profile?: ProfileVocabularySource | null,
+  options: { minCount?: number; limit?: number } = {},
+): LearnedSignal[] {
+  const { minCount = 3, limit = 10 } = options;
+  const vocabulary = profileVocabulary(profile);
+  const rows = (sense: 'positive' | 'negative'): LearnedSignal[] =>
+    Object.entries(dict[sense])
+      .filter(([, count]) => count >= minCount)
+      .map(([term, count]) => ({
+        term, count: Math.round(count * 10) / 10, sense,
+        conflict: sense === 'negative' && vocabulary.has(term),
+      }));
+  const byCount = (a: LearnedSignal, b: LearnedSignal) => b.count - a.count;
+  return [...rows('positive').sort(byCount).slice(0, limit), ...rows('negative').sort(byCount).slice(0, limit)];
+}
+
+/** Retire des termes du dictionnaire appris (« oublier ce terme »). */
+export function forgetLearnedTerms(dict: LearnedDictionary, terms: string[]): LearnedDictionary {
+  const drop = new Set(terms.map(t => t.trim().toLowerCase()));
+  const keep = (d: Record<string, number>) =>
+    Object.fromEntries(Object.entries(d).filter(([term]) => !drop.has(term.toLowerCase())));
+  return { positive: keep(dict.positive), negative: keep(dict.negative) };
 }
 
 // ── Time-decay for learned dictionaries ─────────────────────────────────────

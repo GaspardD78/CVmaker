@@ -310,6 +310,40 @@ cv.settings.cvAngle = instantané (lib/cv-angle-selection.ts) : liste des CV, fi
 - Garde-fou : une entrée `hide:` visible sans correspondance pour un indispensable est masquée (`angle-hidden-entry-visible`) ; une entrée en tête qui étaye un indispensable n'est pas masquée (`angle-lead-entry-hidden`) ; le titre suit `title_rule` (`angle-title-corrected`).
 - Sauvegarde : `cv_angles` appartient au module « Entrées CV » (`DELETE_ORDER`, `INSERT_ORDER`, `TABLES_WITH_PROFILE_ID`). Restauration : `resolveSourceProfileId` choisit le profil de la sauvegarde (choix de l'utilisateur, sinon profil actif, sinon profil unique ; plusieurs profils sans correspondance : `BackupProfileChoiceRequired`, jamais le premier par défaut) et `selectBackupProfile` ne garde que ses données (tables filles filtrées par leur parent, réglages `cv_personal_rules:<id>`) avant de les remapper sur le profil actif.
 
+---
+
+## 9. Veille emploi : analyse IA (spec 005)
+
+Les deux boutons du `HealthDashboard` (« Optimiser » et « Diagnostic ») partagent un seul pipeline, testable sans IA ni base :
+
+```
+analysis-loader.ts (SQL, 1 ligne/offre)  ->  analysis-context.ts (pur)  ->  analysis-prompt.ts (texte)
+                                                       |
+réponse du LLM  ->  analysis-patch.ts : parse tolérant -> garde-fous -> simulation -> application -> instantané
+```
+
+| Fichier (`lib/watcher/`) | Rôle |
+|---|---|
+| `scorer.ts` | `SCORING_WEIGHTS` (poids exportés, lus par le prompt), bornes de mot Unicode, `requiredDomains`, plafond `capApplied` |
+| `exclusions.ts` | `resolveExclusions` : portée par terme (`title` / `anywhere`), défaut résolu **à la lecture** (`excludeTitles` -> `title`, `excludeDomains` -> `anywhere`), aucune donnée réécrite |
+| `engine-rules.ts` | règles du moteur en langage clair, **générées** depuis `SCORING_WEIGHTS` |
+| `score-replay.ts` | rejeu du scorer sur une offre en base (`extraction` non persistée : titre `high`, contrat `high` si connu) |
+| `score-display.ts` | score entier + décomposition (titre, mots-clés, domaine, contrat, salaire, ancienneté) |
+| `title-overlap.ts` | recouvrement de pistes (Jaccard sur intitulés normalisés, seuil 0,6) |
+| `analysis-context.ts` | `buildWatchAnalysisContext` : piste, règles, candidat, portefeuille, incohérences, métriques avec dénominateur, signaux appris, 30 offres dédoublonnées |
+| `analysis-prompt.ts` | `generateWatchAnalysisPrompt(ctx, 'performance' \| 'diagnostic')`, sortie JSON `watch-analysis/v1` |
+| `analysis-patch.ts` | `parseWatchAnalysisResponse`, `evaluateChanges` (garde-fous), `simulatePatch`, `applyChanges`, instantané d'annulation |
+| `deduplicator.ts` | clé de repli titre + lieu (+ source) pour les offres sans entreprise |
+| `learning-engine.ts` | `processFeedback(.., profil)` n'apprend jamais en négatif le vocabulaire de la piste ; `listLearnedSignals`, `forgetLearnedTerms` |
+
+Champs ajoutés à `SearchProfile` (optionnels, stockés dans le JSON de la piste, aucune migration SQL) : `excludeScopes`, `requiredDomains`.
+
+Points d'attention :
+- Un terme d'exclusion élimine l'offre selon sa **portée** ; l'UI de configuration l'affiche et le prompt l'explique au LLM.
+- Les incohérences (salaire cible hors tranche APEC, terme appris contraire au profil, exclusion présente dans les offres importées, piste vide) sont calculées par du code, jamais laissées au LLM.
+- Le patch n'écrit jamais seul : aperçu en diff, cases à cocher, confirmation, instantané (`watch_analysis_undo:<alertId>`, localStorage) pour annuler.
+- Limite de la simulation : seules les offres déjà collectées sont rejouées.
+
 
 ## Veille Emploi : fiabilité des sources (spec 006)
 

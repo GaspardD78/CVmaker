@@ -16,7 +16,7 @@ import {
   DEFAULT_EXPIRED_MAX_AGE_DAYS,
   JobSource,
 } from '@/types/job-watch';
-import { processFeedback, processCompanyReputation, protectedTokensOf } from '@/lib/watcher/learning-engine';
+import { processFeedback, processCompanyReputation } from '@/lib/watcher/learning-engine';
 import { dedupeOffers } from '@/lib/watcher/offer-dedup';
 import { isTitleExcluded } from '@/lib/watcher/title-exclusion';
 import { SCORER_VERSION } from '@/lib/watcher/scorer';
@@ -695,7 +695,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       (async () => {
         try {
           await get().updateAlert(target.id, {
-            learnedDict:       processFeedback(offer.title, action, target.learnedDict, protectedTokensOf(target.searchProfile)),
+            learnedDict:       processFeedback(offer.title, action, target.learnedDict, target.searchProfile),
             companyReputation: processCompanyReputation(offer.company, action, target.companyReputation),
           });
         } catch { /* silent */ }

@@ -14,7 +14,8 @@ import type {
   SearchProfile,
 } from '@/types/job-watch';
 import { summarizeSourceQuery } from '@/lib/watcher/profile-to-query';
-import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
+import { buildSearchProfileFromProfile, SCORING_WEIGHTS } from '@/lib/watcher/scorer';
+import { resolveExclusions, exclusionKey, type ExclusionScope } from '@/lib/watcher/exclusions';
 import {
   HelpButton,
   FranceTravailHelpModal,
@@ -106,6 +107,21 @@ function Field({
 const inputCls = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500';
 const textareaCls = inputCls + ' resize-none';
 
+/** Ne garde que les portées qui s'écartent du défaut, pour des termes encore exclus. */
+function pruneScopes(
+  excludeTitles: string[],
+  excludeDomains: string[],
+  scopes: Record<string, ExclusionScope>,
+): Record<string, ExclusionScope> {
+  const out: Record<string, ExclusionScope> = {};
+  for (const e of resolveExclusions({ excludeTitles, excludeDomains })) {
+    const key = exclusionKey(e.term);
+    const chosen = scopes[key];
+    if (chosen && chosen !== e.scope) out[key] = chosen;
+  }
+  return out;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function JobWatchConfigView() {
@@ -127,6 +143,8 @@ export function JobWatchConfigView() {
   const [excludeTitlesText, setExcludeTitlesText] = useState(joinList(sp.excludeTitles));
   const [excludeDomainsText, setExcludeDomainsText] = useState(joinList(sp.excludeDomains));
   const [blacklistText,    setBlacklistText]    = useState(joinList(sp.blacklistedCompanies));
+  const [requiredDomainsText, setRequiredDomainsText] = useState(joinList(sp.requiredDomains ?? []));
+  const [excludeScopes, setExcludeScopes] = useState<Record<string, ExclusionScope>>(sp.excludeScopes ?? {});
 
   const [locationLabel,    setLocationLabel]    = useState(sp.location.label);
   const [locationCity,     setLocationCity]     = useState(sp.location.city);
@@ -155,6 +173,8 @@ export function JobWatchConfigView() {
     setExcludeTitlesText(joinList(sp2.excludeTitles));
     setExcludeDomainsText(joinList(sp2.excludeDomains));
     setBlacklistText(joinList(sp2.blacklistedCompanies));
+    setRequiredDomainsText(joinList(sp2.requiredDomains ?? []));
+    setExcludeScopes(sp2.excludeScopes ?? {});
     setLocationLabel(sp2.location.label);
     setLocationCity(sp2.location.city);
     setInseeCode(sp2.location.inseeCode);
@@ -185,6 +205,9 @@ export function JobWatchConfigView() {
     domains:      parseList(domainsText),
     excludeTitles: parseList(excludeTitlesText),
     excludeDomains: parseList(excludeDomainsText),
+    // Seules les portées DIFFÉRENTES du défaut sont stockées, et uniquement pour des termes encore présents.
+    excludeScopes: pruneScopes(parseList(excludeTitlesText), parseList(excludeDomainsText), excludeScopes),
+    requiredDomains: parseList(requiredDomainsText),
     location: {
       label:           locationLabel,
       city:            locationCity,
@@ -254,6 +277,7 @@ export function JobWatchConfigView() {
     if (partial.domains)        setDomainsText(joinList(partial.domains));
     if (partial.excludeTitles)  setExcludeTitlesText(joinList(partial.excludeTitles));
     if (partial.excludeDomains) setExcludeDomainsText(joinList(partial.excludeDomains));
+    if (partial.requiredDomains) setRequiredDomainsText(joinList(partial.requiredDomains));
     if (partial.contractTypes)  setContractTypes(partial.contractTypes);
     if (partial.salary) {
       setSalaryMin(partial.salary.min    != null ? String(partial.salary.min)    : '');
@@ -412,7 +436,7 @@ export function JobWatchConfigView() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Titres de poste visés" help="+35 pts si dans le titre de l'offre">
+          <Field label="Titres de poste visés" help={`+${SCORING_WEIGHTS.titleOther} à +${SCORING_WEIGHTS.titleHigh} pts si dans le titre de l'offre`}>
             <textarea rows={2} className={textareaCls}
               value={jobTitlesText}
               onChange={e => setJobTitlesText(e.target.value)}
@@ -420,7 +444,7 @@ export function JobWatchConfigView() {
             />
           </Field>
 
-          <Field label="Compétences / outils" help="+5 pts par compétence trouvée">
+          <Field label="Compétences / outils" help={`Bonus : +${SCORING_WEIGHTS.skillInTitle} pts (titre) ou +${SCORING_WEIGHTS.skillInDescription} pts (description) par mot-clé, jamais éliminatoire`}>
             <textarea rows={2} className={textareaCls}
               value={skillsText}
               onChange={e => setSkillsText(e.target.value)}
@@ -428,7 +452,7 @@ export function JobWatchConfigView() {
             />
           </Field>
 
-          <Field label="Secteurs / environnements" help="+3 pts par secteur trouvé">
+          <Field label="Secteurs / environnements" help={`Bonus : +${SCORING_WEIGHTS.domainMatch} pts par secteur trouvé (max +${SCORING_WEIGHTS.domainCap}), jamais éliminatoire`}>
             <textarea rows={2} className={textareaCls}
               value={domainsText}
               onChange={e => setDomainsText(e.target.value)}
@@ -446,7 +470,7 @@ export function JobWatchConfigView() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Exclure ces rôles" help="Score → 0 si trouvé dans le titre">
+          <Field label="Exclure ces rôles" help="Score → 0 si trouvé dans le titre (portée modifiable ci-dessous)">
             <textarea rows={2} className={textareaCls}
               value={excludeTitlesText}
               onChange={e => setExcludeTitlesText(e.target.value)}
@@ -454,11 +478,60 @@ export function JobWatchConfigView() {
             />
           </Field>
 
-          <Field label="Exclure ces secteurs" help="Score → 0 si trouvé dans l'offre">
+          <Field label="Exclure ces secteurs" help="Score → 0 si trouvé dans le titre ou la description">
             <textarea rows={2} className={textareaCls}
               value={excludeDomainsText}
               onChange={e => setExcludeDomainsText(e.target.value)}
               placeholder="BTP, Restauration, VPC"
+            />
+          </Field>
+        </div>
+
+        {/* Portée par terme : un terme courant dans les descriptions ne doit pas
+            éliminer des offres pertinentes. */}
+        {resolveExclusions({
+          excludeTitles: parseList(excludeTitlesText),
+          excludeDomains: parseList(excludeDomainsText),
+          excludeScopes,
+        }).length > 0 && (
+          <div className="mt-3 rounded border border-gray-200 dark:border-gray-700 p-2">
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">
+              Portée de chaque exclusion : « titre » n'élimine que si le terme est dans le titre ;
+              « titre + description » élimine aussi sur le texte de l'offre.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {resolveExclusions({
+                excludeTitles: parseList(excludeTitlesText),
+                excludeDomains: parseList(excludeDomainsText),
+                excludeScopes,
+              }).map(e => (
+                <label key={exclusionKey(e.term)} className="inline-flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+                  <span className="font-medium">{e.term}</span>
+                  <select
+                    value={e.scope}
+                    onChange={ev => setExcludeScopes(prev => ({
+                      ...prev, [exclusionKey(e.term)]: ev.target.value as ExclusionScope,
+                    }))}
+                    className="px-1 py-0.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-xs"
+                  >
+                    <option value="title">titre</option>
+                    <option value="anywhere">titre + description</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3">
+          <Field
+            label="Domaines obligatoires (optionnel)"
+            help="Si renseigné : au moins un doit figurer dans le titre ou la description, sinon le score est plafonné"
+          >
+            <textarea rows={1} className={textareaCls}
+              value={requiredDomainsText}
+              onChange={e => setRequiredDomainsText(e.target.value)}
+              placeholder="cybersécurité, sécurité des systèmes d'information"
             />
           </Field>
         </div>
