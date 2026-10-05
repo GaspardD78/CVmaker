@@ -238,6 +238,25 @@ export async function getDb(): Promise<Database> {
       )
     `).catch(() => {/* already exists */});
 
+    // Fallback: ensure migration 021 schema exists (santé des sources, version du scoring).
+    for (const stmt of [
+      `ALTER TABLE job_watch_fetch_log ADD COLUMN source_status TEXT`,
+      `ALTER TABLE job_watch_fetch_log ADD COLUMN http_status INTEGER`,
+      `ALTER TABLE job_watch_fetch_log ADD COLUMN error_url TEXT`,
+      `ALTER TABLE job_offers ADD COLUMN score_version INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE job_offer_alerts ADD COLUMN score_version INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE job_watch_alerts ADD COLUMN titles_updated_at TEXT`,
+    ]) {
+      await db.execute(stmt).catch(() => {/* already exists */});
+    }
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS job_watch_source_cooldown (
+        source        TEXT PRIMARY KEY,
+        blocked_until TEXT NOT NULL,
+        reason        TEXT
+      )
+    `).catch(() => {/* already exists */});
+
     // Fallback: ensure migration 020 table exists (bibliothèque d'angles de CV, par profil).
     await db.execute(`
       CREATE TABLE IF NOT EXISTS cv_angles (

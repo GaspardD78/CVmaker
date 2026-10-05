@@ -24,6 +24,7 @@ const dbState = {
   links: [] as LinkRow[],
   logs: [] as Array<{ source: string; alert_id: string; offers_new: number }>,
   nextId: 1,
+  cooldowns: new Map<string, string>(),
 };
 
 const fakeDb = {
@@ -40,6 +41,9 @@ const fakeDb = {
     }
     if (sql.includes('SELECT offer_id, alert_id FROM job_offer_alerts')) {
       return dbState.links.map(l => ({ offer_id: l.offer_id, alert_id: l.alert_id })) as T;
+    }
+    if (sql.includes('FROM job_watch_source_cooldown')) {
+      return [...dbState.cooldowns].map(([source, blocked_until]) => ({ source, blocked_until, reason: null })) as T;
     }
     if (sql.includes('SELECT id FROM job_offers WHERE hash')) {
       const found = dbState.offers.find(o => o.hash === params[0]);
@@ -75,6 +79,14 @@ const fakeDb = {
       if (offer && offer.score < score) offer.score = score;
       return;
     }
+    if (sql.includes('INSERT INTO job_watch_source_cooldown')) {
+      dbState.cooldowns.set(params[0] as string, params[1] as string);
+      return;
+    }
+    if (sql.includes('DELETE FROM job_watch_source_cooldown')) {
+      dbState.cooldowns.delete(params[0] as string);
+      return;
+    }
     if (sql.includes('INSERT INTO job_watch_fetch_log')) {
       dbState.logs.push({
         source: params[0] as string, alert_id: params[1] as string, offers_new: params[3] as number,
@@ -92,6 +104,8 @@ const parserOutput: Record<string, RawJobOffer[]> = {};
 let parserCalls: string[] = [];
 /** Sources qui échouent lors du cycle courant. */
 let failingSources = new Set<string>();
+/** Erreurs précises levées par un parser (statuts détaillés de la spec 006). */
+let failingWith: Record<string, Error> = {};
 /** Score attribué : titre de l'offre → nom de la piste → score. */
 let scoreTable: Record<string, Record<string, number>> = {};
 
@@ -106,6 +120,7 @@ mock.module('@/stores/jobWatchStore', () => ({
   useJobWatchStore: { getState: () => ({ settings: {}, saveSettings: async () => {} }) },
 }));
 
+import { SourceError } from './source-status';
 import { buildFetchPlan, estimateFetchLoad, runFetch, type FetchDependencies } from './fetcher';
 
 /**
@@ -116,6 +131,7 @@ import { buildFetchPlan, estimateFetchLoad, runFetch, type FetchDependencies } f
 const deps: FetchDependencies = {
   runParser: async (config) => {
     parserCalls.push(config.source);
+    if (failingWith[config.source]) throw failingWith[config.source];
     if (failingSources.has(config.source)) {
       // Message au format réellement produit par le parser APEC : reconnu
       // comme panne opérationnelle, donc journalisé sans bruit d'erreur.
@@ -173,8 +189,10 @@ beforeEach(() => {
   dbState.links = [];
   dbState.logs = [];
   dbState.nextId = 1;
+  dbState.cooldowns = new Map();
   parserCalls = [];
   failingSources = new Set();
+  failingWith = {};
   scoreTable = {};
   for (const key of Object.keys(parserOutput)) delete parserOutput[key];
 });
@@ -362,6 +380,55 @@ describe('runFetch', () => {
     expect(results.find(r => r.source === 'wttj')?.newOffers).toBe(1);
     // La collecte est journalisée pour les deux sources de la piste.
     expect(dbState.logs).toHaveLength(2);
+  });
+
+  test('statuts détaillés : un échec n\'est jamais présenté comme « vide »', async () => {
+    const a = alert('A');
+    failingWith.apec = new SourceError('bloquee', 'Page de pare-feu reçue (Request Rejected) au lieu de XML', {
+      httpStatus: 200, url: 'https://www.emploi-territorial.fr/rss/offres-emploi.rss?token=SECRET',
+    });
+    failingWith.emploi_territorial = new Error('HTTP 404 pour https://www.emploi-territorial.fr/rss/offres-emploi.rss');
+    failingWith.hellowork = new SourceError('reponse_invalide', 'HTML reçu au lieu de JSON');
+    parserOutput.wttj = [];
+
+    const { results } = await runFetch(
+      [a],
+      [config('A', 'apec'), config('A', 'emploi_territorial'), config('A', 'hellowork'), config('A', 'wttj')],
+      settings, undefined, null, deps,
+    );
+    const statusOf = (s: string) => results.find(r => r.source === s)?.sourceStatus;
+    expect(statusOf('apec')).toBe('bloquee');
+    expect(statusOf('emploi_territorial')).toBe('introuvable');
+    expect(statusOf('hellowork')).toBe('reponse_invalide');
+    expect(statusOf('wttj')).toBe('vide');
+    // L'URL journalisée ne contient pas de secret.
+    const apec = results.find(r => r.source === 'apec')!;
+    expect(apec.failure?.url).not.toContain('SECRET');
+  });
+
+  test('APEC bloquée : pause de 24 h, aucune nouvelle tentative au cycle suivant', async () => {
+    const a = alert('A');
+    failingWith.apec = new SourceError('bloquee', 'APEC HTTP 403', { httpStatus: 403 });
+
+    await runFetch([a], [config('A', 'apec')], settings, undefined, null, deps);
+    expect(parserCalls).toEqual(['apec']);
+    expect(dbState.cooldowns.has('apec')).toBe(true);
+
+    // Cycle suivant : la source est en pause, le parser n'est pas rappelé.
+    parserCalls = [];
+    const { results } = await runFetch([a], [config('A', 'apec')], settings, undefined, null, deps);
+    expect(parserCalls).toEqual([]);
+    expect(results[0].sourceStatus).toBe('bloquee');
+    expect(results[0].errors[0]).toContain('en pause');
+
+    // Pause écoulée : on réessaie, et un succès efface la pause.
+    dbState.cooldowns.set('apec', new Date(Date.now() - 1000).toISOString());
+    failingWith = {};
+    parserOutput.apec = [offer('poste')];
+    scoreTable.poste = { A: 70 };
+    await runFetch([a], [config('A', 'apec')], settings, undefined, null, deps);
+    expect(parserCalls).toEqual(['apec']);
+    expect(dbState.cooldowns.has('apec')).toBe(false);
   });
 
   test('une offre captée par plusieurs pistes ne compte qu\'une nouvelle offre', async () => {

@@ -32,7 +32,14 @@ import { linkOfferToAlerts } from './alerts';
 import { ANDROID_INCOMPATIBLE } from './sources';
 import { computeOfferHash, loadExistingOfferIndex, detectCrossSourceDuplicates } from './deduplicator';
 import { isOperationalSourceError } from './source-error';
-import { computeScore, LearnedSignals } from './scorer';
+import {
+  deriveSourceStatus, failureOf, SourceError,
+  type SourceFailure, type SourceStatus,
+} from './source-status';
+import {
+  clearCooldown, cooldownUntil, formatCooldownMessage, isCoolingDown, loadCooldowns, saveCooldown,
+} from './source-cooldown';
+import { computeScore, LearnedSignals, SCORER_VERSION } from './scorer';
 import { resolveProfileGeo, classifyOfferZone } from './geo';
 import { getCommuteMinutes, getCommuteMinutesByCoords } from './commute';
 import { parseApec } from './parsers/apec';
@@ -208,8 +215,9 @@ async function writeFetchLog(
   try {
     await db.execute(
       `INSERT INTO job_watch_fetch_log
-         (source, alert_id, offers_fetched, offers_new, offers_duplicate, offers_filtered, status, error_message, duration_ms)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+         (source, alert_id, offers_fetched, offers_new, offers_duplicate, offers_filtered, status, error_message, duration_ms,
+          source_status, http_status, error_url)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
       [
         entry.source,
         alertId,
@@ -220,6 +228,9 @@ async function writeFetchLog(
         entry.status,
         entry.errorMessage,
         entry.durationMs,
+        entry.sourceStatus ?? null,
+        entry.httpStatus ?? null,
+        entry.errorUrl ?? null,
       ]
     );
     await db.execute(
@@ -264,6 +275,13 @@ export interface FetchResult {
   durationMs: number;
   /** Statut calculé : success si pas d'erreur et offres > 0, empty si 0 offre, error si erreur */
   status: 'success' | 'error' | 'empty';
+  /**
+   * Statut détaillé : distingue « 0 résultat » (`vide`) d'un blocage, d'une
+   * adresse disparue ou d'une réponse invalide, qui ne sont jamais « 0 offre ».
+   */
+  sourceStatus: SourceStatus;
+  /** Cause de l'échec de la requête, null si la source a répondu. */
+  failure: SourceFailure | null;
 }
 
 /**
@@ -391,6 +409,7 @@ export async function runFetch(
         newOffers: 0, offersLinked: 0, totalFetched: 0,
         offersDuplicate: 0, offersFiltered: 0,
         errors: [], durationMs: 0, status: 'empty',
+        sourceStatus: 'vide', failure: null,
       };
       results.set(key, result);
     }
@@ -409,12 +428,29 @@ export async function runFetch(
     return geoCache.get(key) ?? null;
   };
 
+  const cooldowns = await loadCooldowns(db);
+
   const processed = new Map<string, ProcessedOffer>();
   const lastRequestAt = new Map<JobSource, number>();
 
   // ── Phase 1 : une requête par groupe, scoring par piste ───────────────────
   for (const group of plan) {
     const alertNames = group.alerts.map(a => a.name).join(', ');
+
+    // Source en pause après un refus : pas de nouvelle tentative (pas de martèlement).
+    const cooldown = cooldowns.get(group.source);
+    if (isCoolingDown(cooldown)) {
+      const failure: SourceFailure = { kind: 'bloquee', httpStatus: null, url: null };
+      const message = formatCooldownMessage(group.source, cooldown!);
+      console.info(`[fetcher] ${message}`);
+      for (const alert of group.alerts) {
+        const result = resultFor(alert, group.source);
+        result.errors.push(message);
+        result.failure = failure;
+        result.status = 'error';
+      }
+      continue;
+    }
 
     // Throttle : deux requêtes distinctes vers une même source sont espacées.
     const previous = lastRequestAt.get(group.source);
@@ -442,7 +478,8 @@ export async function runFetch(
       // autres tâches continuent. On la logue donc en `console.warn`
       // (opérationnel) pour ne pas la faire remonter comme un bug dans le suivi
       // d'erreurs, qui n'enveloppe que `console.error`.
-      if (isOperationalSourceError(msg)) {
+      const failure = failureOf(err);
+      if (err instanceof SourceError || isOperationalSourceError(msg)) {
         console.warn(`[fetcher] Source ${group.source} indisponible (opérationnel) : ${msg}`);
       } else {
         console.error(`[fetcher] Erreur source ${group.source}:`, err);
@@ -452,8 +489,19 @@ export async function runFetch(
         result.errors.push(`Parser error: ${msg}`);
         result.durationMs = durationMs;
         result.status = 'error';
+        result.failure = failure;
+      }
+      const until = cooldownUntil(group.source, failure);
+      if (until) {
+        cooldowns.set(group.source, { blockedUntil: until, reason: msg });
+        await saveCooldown(db, group.source, until, msg);
       }
       continue;
+    }
+
+    if (cooldowns.has(group.source)) {
+      cooldowns.delete(group.source);
+      await clearCooldown(db, group.source);
     }
 
     const durationMs = Date.now() - startTime;
@@ -623,8 +671,8 @@ export async function runFetch(
              contract_type, description_snippet, published_at, score,
              commute_minutes, commute_status,
              salary_min, salary_max, salary_raw,
-             is_read, is_archived, kanban_id, profile_id)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18)`,
+             is_read, is_archived, kanban_id, profile_id, score_version)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18,?19)`,
           [
             entry.raw.source, entry.raw.url, entry.hash, entry.raw.title,
             entry.raw.company ?? null, entry.raw.location ?? null,
@@ -633,7 +681,7 @@ export async function runFetch(
             entry.raw.publishedAt ?? null, bestScore,
             entry.commuteMinutes, entry.commuteStatus,
             entry.raw.salaryMin ?? null, entry.raw.salaryMax ?? null, entry.raw.salaryRaw ?? null,
-            profileId ?? null,
+            profileId ?? null, SCORER_VERSION,
           ]
         );
         const rows = await db.select<{ id: string }[]>(
@@ -685,6 +733,11 @@ export async function runFetch(
     if (result.errors.length > 0)        result.status = 'error';
     else if (result.totalFetched === 0)  result.status = 'empty';
     else                                 result.status = 'success';
+    // Une erreur de traitement d'offre (sans échec de requête) reste une erreur
+    // réseau/applicative côté statut détaillé ; un échec de requête garde son type.
+    result.sourceStatus = result.status === 'error' && !result.failure
+      ? 'erreur_reseau'
+      : deriveSourceStatus({ failure: result.failure, totalFetched: result.totalFetched });
 
     onProgress?.({
       source: result.source,
@@ -701,6 +754,9 @@ export async function runFetch(
       status:          result.status,
       errorMessage:    result.errors.length > 0 ? result.errors[0] : null,
       durationMs:      result.durationMs,
+      sourceStatus:    result.sourceStatus,
+      httpStatus:      result.failure?.httpStatus ?? null,
+      errorUrl:        result.failure?.url ?? null,
     });
   }
 

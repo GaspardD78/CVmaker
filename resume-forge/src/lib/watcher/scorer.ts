@@ -142,6 +142,17 @@ export interface ScoreBreakdown {
   aiFilterMatches?: AIFilterMatch[];
 }
 
+/**
+ * Version du scorer. À incrémenter dès que la formule ou l'échelle change :
+ * les offres stockées avec une version plus ancienne sont recalculées en tâche
+ * de fond (`score-recalc.ts`) et exclues des comparaisons tant qu'elles ne le
+ * sont pas (filtre de score minimum, métriques, prompt d'analyse).
+ *
+ *   1 — tous les scores antérieurs à la spec 006 (échelles décimales mêlées)
+ *   2 — entiers de 0 à 100
+ */
+export const SCORER_VERSION = 2;
+
 export function computeScore(
   offer: ScorerOffer,
   profile: SearchProfile,
@@ -349,7 +360,9 @@ export function computeScoreWithBreakdown(
 
   // Mode balanced, no title match → cap at 25
   const capped = applyBalancedCap ? Math.min(25, raw) : raw;
-  const total  = Math.max(0, Math.min(100, capped));
+  // Échelle unique : entiers de 0 à 100 (SCORER_VERSION 2). Les scores
+  // décimaux d'avant la spec 006 sont recalculés, jamais comparés tels quels.
+  const total  = Math.round(Math.max(0, Math.min(100, capped)));
 
   return {
     total,

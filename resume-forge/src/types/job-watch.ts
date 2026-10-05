@@ -1,6 +1,8 @@
 import type { AIFilterRule } from '@/lib/watcher/ai-filter';
 import type { LearnedDictionary } from '@/lib/watcher/learning-engine';
 
+import type { SourceStatus } from '@/lib/watcher/source-status';
+
 export type JobSource =
   | 'apec'
   | 'wttj'
@@ -399,6 +401,12 @@ export interface FetchLog {
   /** Offres rejetées par le filtre minSaveScore */
   offersFiltered: number;
   status: 'success' | 'error' | 'empty';
+  /** Statut détaillé (spec 006) ; null sur les lignes antérieures à la migration 021. */
+  sourceStatus?: SourceStatus | null;
+  /** Code HTTP de l'échec, quand il y en a un. */
+  httpStatus?: number | null;
+  /** URL interrogée en cas d'échec, sans secret. */
+  errorUrl?: string | null;
   errorMessage: string | null;
   durationMs: number;
 }

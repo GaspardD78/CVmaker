@@ -24,6 +24,7 @@ import {
   type OfferAlertLink,
   type SearchProfile,
 } from '@/types/job-watch';
+import { SCORER_VERSION } from './scorer';
 import type { AIFilterRule } from './ai-filter';
 import type { LearnedDictionary } from './learning-engine';
 
@@ -504,20 +505,20 @@ export async function linkOfferToAlerts(
 
   for (const { alertId, score } of plan.inserts) {
     await db.execute(
-      `INSERT OR IGNORE INTO job_offer_alerts (offer_id, alert_id, score) VALUES (?1, ?2, ?3)`,
-      [offerId, alertId, score],
+      `INSERT OR IGNORE INTO job_offer_alerts (offer_id, alert_id, score, score_version) VALUES (?1, ?2, ?3, ?4)`,
+      [offerId, alertId, score, SCORER_VERSION],
     );
   }
   for (const { alertId, score } of plan.scoreUpdates) {
     await db.execute(
-      `UPDATE job_offer_alerts SET score = ?1 WHERE offer_id = ?2 AND alert_id = ?3`,
-      [score, offerId, alertId],
+      `UPDATE job_offer_alerts SET score = ?1, score_version = ?4 WHERE offer_id = ?2 AND alert_id = ?3`,
+      [score, offerId, alertId, SCORER_VERSION],
     );
   }
   if (plan.inserts.length > 0 || plan.scoreUpdates.length > 0) {
     await db.execute(
-      `UPDATE job_offers SET score = ?1 WHERE id = ?2 AND score < ?1`,
-      [plan.bestScore, offerId],
+      `UPDATE job_offers SET score = ?1, score_version = ?3 WHERE id = ?2 AND (score < ?1 OR score_version < ?3)`,
+      [plan.bestScore, offerId, SCORER_VERSION],
     );
   }
 }
