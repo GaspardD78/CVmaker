@@ -669,7 +669,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       (async () => {
         try {
           await get().updateAlert(target.id, {
-            learnedDict:       processFeedback(offer.title, action, target.learnedDict),
+            learnedDict:       processFeedback(offer.title, action, target.learnedDict, target.searchProfile),
             companyReputation: processCompanyReputation(offer.company, action, target.companyReputation),
           });
         } catch { /* silent */ }

@@ -7,8 +7,8 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { computeScore } from './scorer';
-import { detectCrossSourceDuplicates } from './deduplicator';
-import { processFeedback, type LearnedDictionary } from './learning-engine';
+import { detectCrossSourceDuplicates, dedupeOffers } from './deduplicator';
+import { processFeedback, listLearnedSignals, forgetLearnedTerms } from './learning-engine';
 import { generateDiagnosticPrompt, generatePerformanceOptimizationPrompt } from '@/lib/prompt-templates';
 import { DEFAULT_EXTRACTION, DEFAULT_SEARCH_PROFILE, type SearchProfile } from '@/types/job-watch';
 
@@ -30,7 +30,7 @@ const perfMetrics = {
 };
 
 describe('défaut 1 - veto des exclusions sur la description', () => {
-  test.failing("un terme d'excludeTitles présent seulement dans la description ne tue pas l'offre", () => {
+  test("un terme d'excludeTitles présent seulement dans la description ne tue pas l'offre", () => {
     const p = profile({ jobTitles: ['rssi'], excludeTitles: ['développeur'] });
     expect(computeScore(offer('RSSI', 'Vous encadrez un développeur senior.'), p)).toBeGreaterThan(0);
   });
@@ -71,12 +71,28 @@ describe('défaut 4 - nombre d\'offres codé en dur', () => {
 });
 
 describe('défaut 5 - doublons sans entreprise', () => {
-  test.failing('deux offres sans entreprise, même titre, mêmes lieu, sources différentes : un doublon', () => {
+  test('deux offres sans entreprise, même titre, mêmes lieu, sources différentes : un doublon', () => {
     const skip = detectCrossSourceDuplicates([
       { title: 'RSSI H/F', company: null, source: 'apec', score: 60, location: 'Paris' },
       { title: 'RSSI H/F', company: null, source: 'wttj', score: 50, location: 'Paris' },
-    ] as never);
+    ]);
     expect(skip.size).toBe(1);
+  });
+  test('sans lieu ni entreprise : pas de dédoublonnage hasardeux', () => {
+    const skip = detectCrossSourceDuplicates([
+      { title: 'RSSI H/F', company: null, source: 'apec', score: 60 },
+      { title: 'RSSI H/F', company: null, source: 'wttj', score: 50 },
+    ]);
+    expect(skip.size).toBe(0);
+  });
+  test('liste : une offre à deux feedbacks ou un doublon de même source tient une seule ligne', () => {
+    const rows = [
+      { title: 'RSSI', company: null, location: 'Paris', source: 'apec' },
+      { title: 'rssi', company: null, location: 'PARIS', source: 'apec' },
+      { title: 'RSSI', company: 'ACME', location: 'Paris', source: 'apec' },
+      { title: 'RSSI', company: 'Acme', location: 'Lyon', source: 'wttj' },
+    ];
+    expect(dedupeOffers(rows)).toHaveLength(2);
   });
 });
 
@@ -100,11 +116,9 @@ describe('défaut 7 - zéro action non signalé', () => {
 });
 
 describe('défaut 8 - signal appris contraire au profil', () => {
-  test.failing('un terme du profil n\'est pas appris en négatif', () => {
+  test('un terme du profil n\'est pas appris en négatif', () => {
     const p = profile({ jobTitles: ['responsable cybersécurité'] });
-    // Le 4ᵉ argument (profil de la piste) n'existe pas encore : il est ignoré aujourd'hui.
-    const learn = processFeedback as (...a: unknown[]) => LearnedDictionary;
-    const dict = learn('Responsable cybersécurité', 'thumbs_down', { positive: {}, negative: {} }, p);
+    const dict = processFeedback('Responsable cybersécurité', 'thumbs_down', { positive: {}, negative: {} }, p);
     expect(dict.negative['cybersécurité']).toBeUndefined();
   });
 });
@@ -146,5 +160,27 @@ describe('défaut 13 - métriques sans échantillon', () => {
   test.failing('la pertinence est accompagnée de son dénominateur', () => {
     const perf = generatePerformanceOptimizationPrompt(null, [], profile(), perfMetrics);
     expect(perf).toMatch(/35\s?% de \d+ offres/);
+  });
+});
+
+describe('défaut 8 (suite) - apprentissage protégé et oubli', () => {
+  test('les termes hors profil sont toujours appris en négatif', () => {
+    const p = profile({ jobTitles: ['responsable cybersécurité'] });
+    const dict = processFeedback('Responsable commercial BTP', 'quick_archive', { positive: {}, negative: {} }, p);
+    expect(dict.negative['commercial']).toBe(2);
+    expect(dict.negative['btp']).toBe(2);
+    expect(dict.negative['responsable']).toBeUndefined();
+  });
+  test('sans profil : comportement historique inchangé', () => {
+    const dict = processFeedback('Responsable cybersécurité', 'thumbs_down', { positive: {}, negative: {} });
+    expect(dict.negative['cybersécurité']).toBe(1);
+  });
+  test('un conflit hérité est listé avec son compteur puis oublié', () => {
+    const p = profile({ jobTitles: ['responsable cybersécurité'] });
+    const legacy = { positive: {}, negative: { 'cybersécurité': 6, btp: 4 } };
+    const signals = listLearnedSignals(legacy, p);
+    expect(signals.find(s => s.term === 'cybersécurité')).toMatchObject({ count: 6, sense: 'negative', conflict: true });
+    expect(signals.find(s => s.term === 'btp')?.conflict).toBe(false);
+    expect(forgetLearnedTerms(legacy, ['Cybersécurité']).negative).toEqual({ btp: 4 });
   });
 });

@@ -90,7 +90,7 @@ export async function loadExistingOfferIndex(
  * Normalizes a string for fuzzy comparison: lowercase, strip accents,
  * collapse whitespace, remove punctuation.
  */
-function normalizeForDedup(text: string): string {
+export function normalizeForDedup(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip accents
@@ -144,7 +144,7 @@ export interface CrossSourceDuplicate {
  * bucket size — linear in practice since most buckets hold 1-2 offers.
  */
 export function detectCrossSourceDuplicates(
-  offers: Array<{ title: string; company: string | null; source: string; score: number }>,
+  offers: Array<{ title: string; company: string | null; source: string; score: number; location?: string | null }>,
 ): Set<number> {
   const skipIndices = new Set<number>();
   const normalizedTitles = offers.map(o => normalizeForDedup(o.title));
@@ -187,5 +187,62 @@ export function detectCrossSourceDuplicates(
     }
   }
 
+  // Phase 3 : offres SANS entreprise. Clé de repli = titre normalisé identique +
+  // lieu identique non vide, entre sources différentes. Sans lieu, deux titres
+  // identiques sont trop souvent deux postes distincts : on ne déduplique pas.
+  const fallback = new Map<string, number[]>();
+  for (let i = 0; i < offers.length; i++) {
+    if (offers[i].company && normalizeForDedup(offers[i].company!)) continue;
+    const location = offers[i].location ? normalizeForDedup(offers[i].location!) : '';
+    if (!location || !normalizedTitles[i]) continue;
+    const key = `${normalizedTitles[i]}|${location}`;
+    const arr = fallback.get(key);
+    if (arr) arr.push(i);
+    else fallback.set(key, [i]);
+  }
+  for (const indices of fallback.values()) {
+    for (let a = 0; a < indices.length; a++) {
+      const i = indices[a];
+      if (skipIndices.has(i)) continue;
+      for (let b = a + 1; b < indices.length; b++) {
+        const j = indices[b];
+        if (skipIndices.has(j) || offers[i].source === offers[j].source) continue;
+        const skipIdx = offers[i].score >= offers[j].score ? j : i;
+        skipIndices.add(skipIdx);
+        if (skipIdx === i) break;
+      }
+    }
+  }
+
   return skipIndices;
+}
+
+// ── Dédoublonnage d'une liste d'offres déjà en base ─────────────────────────
+
+/**
+ * Clé de dédoublonnage d'une liste d'offres (analyse IA, affichage).
+ *  - avec entreprise : entreprise + titre normalisés ;
+ *  - sans entreprise : titre normalisé + lieu + source (clé de repli).
+ */
+export function offerDedupKey(o: { title: string; company: string | null; location?: string | null; source: string }): string {
+  const title = normalizeForDedup(o.title);
+  const company = o.company ? normalizeForDedup(o.company) : '';
+  if (company) return `c:${company}|${title}`;
+  const location = o.location ? normalizeForDedup(o.location) : '';
+  return `t:${title}|${location}|${o.source}`;
+}
+
+/** Garde la première occurrence de chaque clé (l'ordre d'entrée est conservé). */
+export function dedupeOffers<T extends { title: string; company: string | null; location?: string | null; source: string }>(
+  rows: T[],
+): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const key = offerDedupKey(row);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
 }
