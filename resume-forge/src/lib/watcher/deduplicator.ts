@@ -4,6 +4,7 @@
  */
 
 import type { JobSource } from '@/types/job-watch';
+import { offerDedupKey } from './offer-dedup';
 
 /** Compute SHA-256 hash of (source + url) as a hex string */
 export async function computeOfferHash(source: JobSource, url: string): Promise<string> {
@@ -188,4 +189,37 @@ export function detectCrossSourceDuplicates(
   }
 
   return skipIndices;
+}
+
+// ── Même annonce, autre adresse ─────────────────────────────────────────────
+
+/**
+ * Empreintes des offres déjà en base : source + entreprise + intitulé + lieu
+ * normalisés → hash de l'offre. Sert à reconnaître une annonce republiée sous
+ * une autre adresse (autre slug, paramètre de suivi) que le hash `source + url`
+ * ne rapproche pas. Les offres sans entreprise ou sans intitulé n'ont pas
+ * d'empreinte exploitable et sont ignorées.
+ */
+export async function loadExistingFingerprints(
+  db: { select: <T>(sql: string, params?: unknown[]) => Promise<T> },
+  profileId: string | null,
+): Promise<Map<string, string>> {
+  type Row = { hash: string; source: string; title: string; company: string | null; location: string | null };
+  const rows = profileId
+    ? await db.select<Row[]>(
+        'SELECT hash, source, title, company, location FROM job_offers WHERE profile_id = ?1',
+        [profileId],
+      )
+    : await db.select<Row[]>(
+        'SELECT hash, source, title, company, location FROM job_offers WHERE profile_id IS NULL',
+      );
+
+  const byFingerprint = new Map<string, string>();
+  for (const row of rows) {
+    const key = offerDedupKey({ id: row.hash, source: row.source, title: row.title, company: row.company, location: row.location });
+    if (key.startsWith('id:')) continue;
+    // Premier enregistrement gardé : c'est lui qui porte les rattachements.
+    if (!byFingerprint.has(key)) byFingerprint.set(key, row.hash);
+  }
+  return byFingerprint;
 }

@@ -16,7 +16,10 @@ import { DEFAULT_JOB_WATCH_SETTINGS, DEFAULT_SEARCH_PROFILE } from '@/types/job-
 
 // ── Base simulée ─────────────────────────────────────────────────────────────
 
-interface OfferRow { id: string; hash: string; score: number; is_read: number; profile_id: string | null }
+interface OfferRow {
+  id: string; hash: string; score: number; is_read: number; profile_id: string | null;
+  source: string; title: string; company: string | null; location: string | null;
+}
 interface LinkRow { offer_id: string; alert_id: string; score: number; matched_at: string }
 
 const dbState = {
@@ -35,7 +38,11 @@ const fakeDb = {
         .filter(o => o.profile_id === pid)
         .map(o => ({ id: o.id, hash: o.hash, score: o.score })) as T;
     }
-    if (sql.includes('SELECT offer_id, alert_id, score, matched_at FROM job_offer_alerts')) {
+    if (sql.includes('SELECT hash, source, title, company, location FROM job_offers')) {
+      const pid = sql.includes('profile_id = ?1') ? (params[0] as string) : null;
+      return dbState.offers.filter(o => o.profile_id === pid) as T;
+    }
+    if (sql.includes('SELECT offer_id, alert_id, score, matched_at, score_version FROM job_offer_alerts')) {
       const ids = new Set(params as string[]);
       return dbState.links.filter(l => ids.has(l.offer_id)) as T;
     }
@@ -58,6 +65,8 @@ const fakeDb = {
       dbState.offers.push({
         id: `o${dbState.nextId++}`, hash, score: params[11] as number,
         is_read: 0, profile_id: (params[17] as string | null) ?? null,
+        source: params[0] as string, title: params[3] as string,
+        company: params[4] as string | null, location: params[5] as string | null,
       });
       return;
     }
@@ -429,6 +438,27 @@ describe('runFetch', () => {
     await runFetch([a], [config('A', 'apec')], settings, undefined, null, deps);
     expect(parserCalls).toEqual(['apec']);
     expect(dbState.cooldowns.has('apec')).toBe(false);
+  });
+
+  test('même annonce republiée sous une autre adresse : un seul enregistrement (cas Hublo)', async () => {
+    const a = alert('A');
+    const b = alert('B', { id: 'B', searchProfile: { ...a.searchProfile, name: 'B' } });
+    const hublo = (url: string) => ({
+      ...offer('poste', 'wttj', url),
+      title: 'Senior Talent Acquisition Specialist (f/h/n)', company: 'Hublo', location: 'Paris',
+    }) as RawJobOffer;
+    scoreTable['Senior Talent Acquisition Specialist (f/h/n)'] = { A: 87, B: 80 };
+
+    // Même cycle : deux adresses pour la même annonce.
+    parserOutput.wttj = [hublo('https://wttj.test/hublo/job-1'), hublo('https://wttj.test/hublo/job-1-bis')];
+    await runFetch([a, b], [config('A', 'wttj'), config('B', 'wttj')], settings, undefined, null, deps);
+    expect(dbState.offers).toHaveLength(1);
+
+    // Cycle suivant : une troisième adresse se rattache à l'offre connue.
+    parserOutput.wttj = [hublo('https://wttj.test/hublo/job-1-ter')];
+    const { newOffers } = await runFetch([a, b], [config('A', 'wttj'), config('B', 'wttj')], settings, undefined, null, deps);
+    expect(newOffers).toBe(0);
+    expect(dbState.offers).toHaveLength(1);
   });
 
   test('une offre captée par plusieurs pistes ne compte qu\'une nouvelle offre', async () => {

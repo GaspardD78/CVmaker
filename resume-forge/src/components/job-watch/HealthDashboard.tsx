@@ -9,12 +9,18 @@ import { useProfileStore } from '@/stores/profileStore';
 import { analyzeFeedback, getBlacklistSuggestions, getKeywordSuggestions, LearningResult } from '@/lib/watcher/learning-engine';
 import { generatePerformanceOptimizationPrompt, generateDiagnosticPrompt } from '@/lib/prompt-templates';
 import { getDb } from '@/lib/db';
+import { dedupeOffers } from '@/lib/watcher/offer-dedup';
+import { findNearDuplicateAlert } from '@/lib/watcher/alert-similarity';
+import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import { PortfolioReviewPanel } from './PortfolioReviewPanel';
 import type { JobSource, FetchLog } from '@/types/job-watch';
+import {
+  adviceFor, FAILING_STATUSES, legacyToSourceStatus, SOURCE_STATUS_LABELS, type SourceStatus,
+} from '@/lib/watcher/source-status';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-import { RECOMMENDED_SOURCES, SOURCE_LABELS } from '@/lib/watcher/sources';
+import { RECOMMENDED_SOURCES, SOURCE_LABELS, SOURCE_SETUP_HINTS } from '@/lib/watcher/sources';
 import { WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
 import { SelectorDebugPanel } from './SelectorDebugPanel';
 
@@ -122,47 +128,41 @@ function SuggestionAlert({
 
 // ── Fetch log status badge ────────────────────────────────────────────────────
 
-type FetchStatus = 'success' | 'error' | 'empty' | 'unconfigured' | 'pending';
+const STATUS_STYLE: Record<SourceStatus, { cls: string; icon: React.ReactNode }> = {
+  ok:                  { cls: 'text-emerald-700 dark:text-emerald-400', icon: <CheckCircle2 className="w-3 h-3" /> },
+  vide:                { cls: 'text-amber-600 dark:text-amber-400',     icon: <Circle className="w-3 h-3" /> },
+  bloquee:             { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  introuvable:         { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  erreur_reseau:       { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  reponse_invalide:    { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  intitules_inadaptes: { cls: 'text-amber-600 dark:text-amber-400',     icon: <AlertTriangle className="w-3 h-3" /> },
+  non_configuree:      { cls: 'text-gray-400 dark:text-gray-500',       icon: <Circle className="w-3 h-3" /> },
+  en_attente:          { cls: 'text-blue-500 dark:text-blue-400',       icon: <Clock className="w-3 h-3" /> },
+};
 
-function StatusBadge({ status }: { status: FetchStatus }) {
-  switch (status) {
-    case 'success':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-          <CheckCircle2 className="w-3 h-3" />
-          Succès
-        </span>
-      );
-    case 'error':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400">
-          <XCircle className="w-3 h-3" />
-          Erreur
-        </span>
-      );
-    case 'empty':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
-          <Circle className="w-3 h-3" />
-          Vide
-        </span>
-      );
-    case 'pending':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-500 dark:text-blue-400">
-          <Clock className="w-3 h-3" />
-          En attente
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 dark:text-gray-500">
-          <Circle className="w-3 h-3" />
-          Non configurée
-        </span>
-      );
-  }
+function StatusBadge({ status }: { status: SourceStatus }) {
+  const style = STATUS_STYLE[status];
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${style.cls}`}>
+      {style.icon}
+      {SOURCE_STATUS_LABELS[status]}
+    </span>
+  );
 }
+
+/** Info-bulle : code HTTP, URL (sans secret), heure et action conseillée. */
+function statusTooltip(status: SourceStatus, source: JobSource, log: FetchLog | undefined): string {
+  const lines: string[] = [adviceFor(status, source)];
+  if (log) {
+    if (log.httpStatus) lines.push(`Code HTTP : ${log.httpStatus}`);
+    if (log.errorUrl) lines.push(`URL : ${log.errorUrl}`);
+    lines.push(`Heure : ${new Date(log.fetchedAt).toLocaleString('fr-FR')}`);
+    if (log.errorMessage) lines.push(`Détail : ${log.errorMessage}`);
+  }
+  return lines.join('\n');
+}
+
+const FAILING: ReadonlySet<SourceStatus> = FAILING_STATUSES;
 
 function formatRelativeTime(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
@@ -222,9 +222,18 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     return d.toISOString();
   }, []);
 
+  // Offres de la piste analysée, une fois chacune : une offre liée à deux pistes
+  // ou republiée sous une autre adresse ne gonfle pas les compteurs.
+  const scopedOffers = useMemo(
+    () => dedupeOffers(
+      currentAlert ? offers.filter(o => o.alerts.some(l => l.alertId === currentAlert.id)) : offers,
+    ),
+    [offers, currentAlert],
+  );
+
   const { volume, volumeAlert, pertinence, conversion, conversionAlert, kanbanCount } = useMemo(() => {
-    const volume = offers.filter(o => o.fetchedAt >= weekCutoff).length;
-    const active  = offers.filter(o => o.isArchived === 0);
+    const volume = scopedOffers.filter(o => o.fetchedAt >= weekCutoff).length;
+    const active  = scopedOffers.filter(o => o.isArchived === 0);
     const total   = active.length;
     const read    = active.filter(o => o.isRead === 1).length;
     const kanban  = active.filter(o => o.kanbanId !== null).length;
@@ -236,28 +245,41 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       conversionAlert: total > 0 && kanban / total < 0.05,
       kanbanCount:     kanban,
     };
-  }, [offers, weekCutoff]);
+  }, [scopedOffers, weekCutoff]);
 
   // ── Fetch log helpers ─────────────────────────────────────────────────────────
 
+  // Les sources et les collectes appartiennent à la piste analysée : afficher
+  // la dernière collecte d'une autre piste ferait lire un statut qui n'est pas le sien.
+  const alertLogs = useMemo(
+    () => currentAlert
+      ? fetchLogs.filter(l => !l.alertId || l.alertId === currentAlert.id)
+      : fetchLogs,
+    [fetchLogs, currentAlert],
+  );
+
   const configuredSources = useMemo(
-    () => new Set(configs.filter(c => c.enabled === 1).map(c => c.source)),
-    [configs]
+    () => new Set(
+      configs
+        .filter(c => c.enabled === 1 && (!currentAlert || c.alertId === currentAlert.id))
+        .map(c => c.source),
+    ),
+    [configs, currentAlert],
   );
 
   // Last log per source
   const lastLogBySource = useMemo(() => {
     const map = new Map<JobSource, FetchLog>();
-    for (const log of fetchLogs) {
+    for (const log of alertLogs) {
       if (!map.has(log.source)) map.set(log.source, log);
     }
     return map;
-  }, [fetchLogs]);
+  }, [alertLogs]);
 
   // 10 most recent logs per source for history expand
   const historyBySource = useMemo(() => {
     const map = new Map<JobSource, FetchLog[]>();
-    for (const log of fetchLogs) {
+    for (const log of alertLogs) {
       const arr = map.get(log.source) ?? [];
       if (arr.length < 10) {
         arr.push(log);
@@ -265,7 +287,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       }
     }
     return map;
-  }, [fetchLogs]);
+  }, [alertLogs]);
 
   // Explique une conversion faible plutôt que d'accuser systématiquement le score :
   // si une large part des offres récupérées tombe sous le score minimum, le seuil
@@ -320,6 +342,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0;
 
   const noJobTitles = searchProfile.jobTitles.length === 0;
+  const nearDuplicate = currentAlert ? findNearDuplicateAlert(currentAlert, alerts) : null;
 
   useEffect(() => {
     if (hasAlerts) setExpanded(true);
@@ -410,23 +433,39 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     const db = await getDb();
     // Offres de la piste analysée : diagnostiquer une piste sur les offres
     // d'une autre produirait des recommandations à contresens.
-    const rows = currentAlert
-      ? await db.select<{ title: string; score: number; action: string | null }[]>(`
-          SELECT o.title, l.score, f.action
+    // Dernier retour de l'utilisateur par sous-requête : une jointure sur les
+    // retours répétait l'offre une fois par action (aimée puis importée…).
+    type DiagRow = {
+      id: string; source: string; title: string; company: string | null; location: string | null;
+      score: number; score_version: number | null; action: string | null;
+    };
+    const lastAction = `(SELECT f.action FROM job_offer_feedback f WHERE f.offer_id = o.id
+                          ORDER BY f.created_at DESC LIMIT 1)`;
+    const raw = currentAlert
+      ? await db.select<DiagRow[]>(`
+          SELECT o.id, o.source, o.title, o.company, o.location, l.score, l.score_version, ${lastAction} AS action
           FROM job_offer_alerts l
           JOIN job_offers o ON o.id = l.offer_id
-          LEFT JOIN job_offer_feedback f ON f.offer_id = o.id
           WHERE l.alert_id = ?1
           ORDER BY o.fetched_at DESC
-          LIMIT 20
+          LIMIT 60
         `, [currentAlert.id])
-      : await db.select<{ title: string; score: number; action: string | null }[]>(`
-          SELECT o.title, o.score, f.action
+      : await db.select<DiagRow[]>(`
+          SELECT o.id, o.source, o.title, o.company, o.location, o.score, o.score_version, ${lastAction} AS action
           FROM job_offers o
-          LEFT JOIN job_offer_feedback f ON f.offer_id = o.id
           ORDER BY o.fetched_at DESC
-          LIMIT 20
+          LIMIT 60
         `);
+    // Une annonce n'est analysée qu'une fois, et seulement avec un score de la
+    // version courante : mêler deux échelles fausserait le diagnostic.
+    const rows = dedupeOffers(
+      raw
+        .filter(r => (r.score_version ?? 1) >= SCORER_VERSION)
+        .map(r => ({
+          id: r.id, source: r.source, title: r.title, company: r.company, location: r.location,
+          score: r.score, isArchived: 0, kanbanId: null, alerts: [], action: r.action,
+        })),
+    ).slice(0, 20).map(r => ({ title: r.title, score: r.score, action: r.action }));
     const prompt = generateDiagnosticPrompt(searchProfile, rows, portfolioContext);
     await navigator.clipboard.writeText(prompt);
     toast.success('Prompt diagnostic copié ! Collez-le dans votre IA.');
@@ -508,6 +547,17 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
             </div>
           )}
 
+          {/* Piste quasi identique à une autre : mêmes offres, comparaisons faussées */}
+          {!portfolioMode && nearDuplicate && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                Cette piste est quasi identique à « {nearDuplicate.otherName} » ({Math.round(nearDuplicate.similarity * 100)} % d'intitulés communs) :
+                elles ramènent les mêmes offres. Différenciez ses intitulés ou désactivez l'une des deux.
+              </span>
+            </div>
+          )}
+
           {/* Scoring update info banner */}
           {!portfolioMode && !scoringInfoDismissed && (
             <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300">
@@ -575,9 +625,10 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                   {RECOMMENDED_SOURCES.map(source => {
                     const log = lastLogBySource.get(source);
                     const isConfigured = configuredSources.has(source);
-                    const status: FetchStatus = log
-                      ? log.status
-                      : isConfigured ? 'pending' : 'unconfigured';
+                    const status: SourceStatus = log
+                      ? (log.sourceStatus ?? legacyToSourceStatus(log.status))
+                      : isConfigured ? 'en_attente' : 'non_configuree';
+                    const setupHint = status === 'non_configuree' ? SOURCE_SETUP_HINTS[source] : undefined;
                     const history = historyBySource.get(source) ?? [];
                     const isExpanded = expandedSource === source;
 
@@ -592,12 +643,24 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                             {SOURCE_LABELS[source]}
                           </td>
                           <td className="px-3 py-2">
-                            {log?.errorMessage ? (
-                              <span title={log.errorMessage}>
-                                <StatusBadge status={status} />
-                              </span>
-                            ) : (
+                            <span title={statusTooltip(status, source, log)}>
                               <StatusBadge status={status} />
+                            </span>
+                            {setupHint && (
+                              <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 max-w-xs whitespace-normal">
+                                {setupHint.explanation}{' '}
+                                <button
+                                  onClick={() => window.dispatchEvent(new CustomEvent('jobwatch:open-config', { detail: { source, target: setupHint.target } }))}
+                                  className="font-semibold underline underline-offset-2 text-indigo-500 hover:text-indigo-700"
+                                >
+                                  {setupHint.actionLabel}
+                                </button>
+                              </p>
+                            )}
+                            {FAILING.has(status) && (
+                              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 max-w-xs whitespace-normal">
+                                {adviceFor(status, source)}
+                              </p>
                             )}
                           </td>
                           <td
@@ -674,7 +737,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                                     return (
                                       <tr key={h.id} className="text-gray-500 dark:text-gray-400">
                                         <td className="pl-8 pr-3 py-1.5 w-1/6">
-                                          <StatusBadge status={h.status} />
+                                          <StatusBadge status={h.sourceStatus ?? legacyToSourceStatus(h.status)} />
                                         </td>
                                         <td className="px-2 py-1.5 text-right">{h.offersFetched} récup.</td>
                                         <td className="px-2 py-1.5 text-right">{h.offersNew} nouvelles{breakdown}</td>

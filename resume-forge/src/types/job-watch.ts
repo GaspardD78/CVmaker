@@ -219,6 +219,8 @@ export interface JobOffer {
   isArchived: number;   // 0 | 1
   archivedAt: string | null;
   kanbanId: string | null;
+  /** Version du scorer ayant produit `score` (absent = 1, échelle antérieure à la spec 006). */
+  scoreVersion?: number;
 }
 
 export interface JobOfferFeedback {
@@ -323,6 +325,8 @@ export interface OfferAlertLink {
   score: number;
   /** Première fois que cette piste a capté cette offre. */
   matchedAt: string;
+  /** Version du scorer ayant produit `score` (absent = 1, échelle antérieure). */
+  scoreVersion?: number;
 }
 
 /** Offre enrichie des pistes qui l'ont captée — ce que consomme l'UI. */
@@ -401,6 +405,8 @@ export interface FetchLog {
   /** Offres rejetées par le filtre minSaveScore */
   offersFiltered: number;
   status: 'success' | 'error' | 'empty';
+  /** Piste concernée (null avant le portefeuille multi-pistes). */
+  alertId?: string | null;
   /** Statut détaillé (spec 006) ; null sur les lignes antérieures à la migration 021. */
   sourceStatus?: SourceStatus | null;
   /** Code HTTP de l'échec, quand il y en a un. */

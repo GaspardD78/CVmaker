@@ -474,14 +474,14 @@ export async function loadOfferAlertLinks(offerIds: string[]): Promise<Map<strin
   for (let i = 0; i < offerIds.length; i += BATCH) {
     const batch = offerIds.slice(i, i + BATCH);
     const placeholders = batch.map((_, idx) => `?${idx + 1}`).join(', ');
-    const rows = await db.select<Array<{ offer_id: string; alert_id: string; score: number; matched_at: string }>>(
-      `SELECT offer_id, alert_id, score, matched_at FROM job_offer_alerts
+    const rows = await db.select<Array<{ offer_id: string; alert_id: string; score: number; matched_at: string; score_version: number | null }>>(
+      `SELECT offer_id, alert_id, score, matched_at, score_version FROM job_offer_alerts
        WHERE offer_id IN (${placeholders}) ORDER BY score DESC`,
       batch,
     );
     for (const row of rows) {
       const list = byOffer.get(row.offer_id) ?? [];
-      list.push({ alertId: row.alert_id, score: row.score, matchedAt: row.matched_at });
+      list.push({ alertId: row.alert_id, score: row.score, matchedAt: row.matched_at, scoreVersion: row.score_version ?? 1 });
       byOffer.set(row.offer_id, list);
     }
   }

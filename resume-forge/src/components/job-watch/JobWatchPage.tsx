@@ -17,6 +17,13 @@ export function JobWatchPage() {
 
   useEffect(() => { initialize(); }, [initialize]);
 
+  // « Configurer » depuis le tableau des collectes : ouvre l'onglet Configuration.
+  useEffect(() => {
+    const open = () => setActiveTab('config');
+    window.addEventListener('jobwatch:open-config', open);
+    return () => window.removeEventListener('jobwatch:open-config', open);
+  }, []);
+
   const showWizard = !wizardDismissed && alerts.length === 0 && configs.length === 0 && profile?.title;
   const unread = unreadCount();
 

@@ -30,7 +30,8 @@ import type {
 import { computeQueryKey } from './query-key';
 import { linkOfferToAlerts } from './alerts';
 import { ANDROID_INCOMPATIBLE } from './sources';
-import { computeOfferHash, loadExistingOfferIndex, detectCrossSourceDuplicates } from './deduplicator';
+import { computeOfferHash, loadExistingOfferIndex, loadExistingFingerprints, detectCrossSourceDuplicates } from './deduplicator';
+import { offerDedupKey } from './offer-dedup';
 import { isOperationalSourceError } from './source-error';
 import {
   deriveSourceStatus, failureOf, SourceError,
@@ -388,6 +389,9 @@ export async function runFetch(
 ): Promise<FetchOutcome> {
   const db = await getDb();
   const existingOffers = await loadExistingOfferIndex(db, profileId ?? null);
+  // Empreintes (source, entreprise, intitulé, lieu) : une annonce republiée sous
+  // une autre adresse se rattache à l'offre connue au lieu d'être insérée en double.
+  const fingerprints = await loadExistingFingerprints(db, profileId ?? null);
 
   // Sur Android, on saute silencieusement les sources de scraping (LinkedIn,
   // Indeed, HelloWork) qui ne fonctionnent pas de façon fiable sur mobile
@@ -521,7 +525,18 @@ export async function runFetch(
 
     for (const raw of rawOffers) {
       try {
-        const hash = await computeOfferHash(raw.source, raw.url);
+        let hash = await computeOfferHash(raw.source, raw.url);
+        if (!existingOffers.has(hash) && !processed.has(hash)) {
+          const fingerprint = offerDedupKey({
+            id: hash, source: raw.source, title: raw.title,
+            company: raw.company ?? null, location: raw.location ?? null,
+          });
+          if (!fingerprint.startsWith('id:')) {
+            const known = fingerprints.get(fingerprint);
+            if (known) hash = known;               // même annonce, autre adresse
+            else fingerprints.set(fingerprint, hash);
+          }
+        }
         const existing = existingOffers.get(hash) ?? null;
 
         for (const alert of group.alerts) {
