@@ -29,6 +29,7 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 import { RECOMMENDED_SOURCES, SOURCE_LABELS, SOURCE_SETUP_HINTS, COVERED_VIA } from '@/lib/watcher/sources';
+import { describeSourceMetrics, parseSourceMetrics } from '@/lib/watcher/source-metrics';
 import { countTerritorialOffers, territorialCoverageText } from '@/lib/watcher/territorial-coverage';
 import { WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
 import { SelectorDebugPanel } from './SelectorDebugPanel';
@@ -690,7 +691,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                               ? `Source → ${log.offersFetched} offres\n` +
                                 `${log.offersDuplicate} doublons déjà connus\n` +
                                 `${log.offersFiltered} sous le score minimum\n` +
-                                `${log.offersNew} enregistrées`
+                                `${log.offersNew} enregistrées` +
+                                (describeSourceMetrics(parseSourceMetrics(log.metrics))
+                                  ? `\n${describeSourceMetrics(parseSourceMetrics(log.metrics))}` : '')
                               : undefined}
                           >
                             {log ? log.offersFetched : '—'}

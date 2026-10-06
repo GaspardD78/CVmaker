@@ -264,6 +264,8 @@ export interface JobOffer {
   origin?: OfferOrigin | null;
   /** Référence de l'annonce chez l'émetteur (spec 007). */
   reference?: string | null;
+  /** Catégorie d'employeur affichée par la source (spec 007). */
+  employerType?: string | null;
 }
 
 export interface JobOfferFeedback {
@@ -460,6 +462,8 @@ export interface FetchLog {
   errorUrl?: string | null;
   errorMessage: string | null;
   durationMs: number;
+  /** Mesures propres à la source, en JSON (spec 007) : voir `parseSourceMetrics`. */
+  metrics?: string | null;
 }
 
 export type SortOption = 'score_desc' | 'date_newest' | 'date_oldest' | 'commute_asc' | 'salary_desc';
@@ -518,6 +522,8 @@ export interface RawJobOffer {
   origin?: OfferOrigin | null;
   /** Référence de l'annonce chez l'émetteur (dédoublonnage entre canaux). */
   reference?: string | null;
+  /** Catégorie d'employeur affichée par la source (« Communes »), distincte de `company`. */
+  employerType?: string | null;
   /** Extraction quality metadata — populated by parsers */
   extraction: ExtractionMetadata;
 }

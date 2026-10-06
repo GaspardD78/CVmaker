@@ -23,11 +23,12 @@ import { isExcludedByProfile } from '../profile-to-query';
 import { looksLikeBlockPage, SourceError } from '../source-status';
 import { normalizeLocation } from './common/location';
 import {
-  CSP_BASE, CSP_HOST, buildCspSearchUrl, detectOrigin, employerName, isEmptyResultPage,
+  CSP_BASE, CSP_HOST, buildCspSearchUrl, detectOrigin, resolveEmployer, isEmptyResultPage,
   parseCspList, parseCspOffer, referenceFromOfferUrl,
   type CspListItem, type CspOfferDetail, type CspVersantValue,
 } from './csp-html';
 import { resolveCspLocationIds } from './csp-locations';
+import { searchTermsForAll, titleMatches } from './csp-relevance';
 
 export const CSP_USER_AGENT = `ResumeForge/${pkg.version} (veille emploi personnelle)`;
 export const CSP_MIN_INTERVAL_MS = 1000;
@@ -214,7 +215,7 @@ export function buildCspOffer(item: CspListItem, detail: CspOfferDetail | null):
     ? detectOrigin(reference, detail?.originalUrl ?? null, versant)
     : reference && /^O0/i.test(reference) ? 'emploi_territorial' : null;
   const title = detail?.title ?? item.title;
-  const company = employerName(title, detail?.company ?? item.employer, versant);
+  const { company, employerType } = resolveEmployer(title, detail?.company ?? item.employer, versant);
   const location = normalizeLocation(detail?.location ?? item.location);
   const deadline = detail?.deadline ? `Date limite de candidature : ${detail.deadline.slice(0, 10)}. ` : '';
   const snippet = `${deadline}${detail?.description ?? ''}`.trim();
@@ -224,6 +225,7 @@ export function buildCspOffer(item: CspListItem, detail: CspOfferDetail | null):
     url: item.url,
     title,
     company,
+    employerType,
     location,
     contractType: detail?.contractType ?? null,
     descriptionSnippet: snippet ? snippet.slice(0, 500) : null,
@@ -248,17 +250,45 @@ export function versantWanted(wanted: CspVersantValue | 'all' | undefined, seen:
 
 // ── Point d'entrée ───────────────────────────────────────────────────────────
 
+/** Mesure d'une collecte (journal de collecte, spec 007). */
+export interface CspMetrics {
+  /** Offres distinctes listées par les pages lues. */
+  listed: number;
+  /** Offres retenues par le post-filtre (versant, titre, exclusions, lieu), avant enrichissement. */
+  retained: number;
+  /** Pages d'offre demandées pour enrichissement. */
+  enriched: number;
+  /** Pages de liste demandées. */
+  listPages: number;
+  durationMs: number;
+}
+
+let lastMetrics: CspMetrics | null = null;
+
+/** Mesure de la dernière collecte, une seule fois (lue par le pipeline après `parseChoisirServicePublic`). */
+export function consumeCspMetrics(): CspMetrics | null {
+  const m = lastMetrics;
+  lastMetrics = null;
+  return m;
+}
+
 export async function parseChoisirServicePublic(
   _config: JobWatchConfig,
   _settings: JobWatchSettings,
   profile: SearchProfile,
   deps: CspDeps = DEFAULT_CSP_DEPS,
 ): Promise<RawJobOffer[]> {
+  lastMetrics = null;
+  const startedAt = deps.now();
   const titles = frenchJobTitles(profile.jobTitles).slice(0, MAX_TITLES);
   if (titles.length === 0) throw new SourceError('intitules_inadaptes', NO_FRENCH_TITLE_MESSAGE);
 
   const rules = await loadRobotsRules(deps);
   const known = await deps.knownUrls();
+
+  // Le site ne fait pas de recherche exacte : on interroge chaque intitulé ET son mot le
+  // plus discriminant (2 requêtes au plus par intitulé et par lieu), puis on filtre.
+  const terms = searchTermsForAll(titles);
 
   // Lieux interrogés : identifiant interne du département ou de la région (un seul
   // « sans filtre » quand le lieu n'est pas reconnu : le post-filtre client reste actif).
@@ -269,18 +299,35 @@ export async function parseChoisirServicePublic(
   });
   if (locationIds.length === 0) locationIds.push(null);
 
-  // Liste : par intitulé et par lieu, 3 pages au plus, arrêt sur page entièrement connue.
+  const expectedDepts = new Set(profile.location.departmentCodes.map(c => c.trim()).filter(Boolean));
+  const expectedCity = profile.location.city?.trim() || null;
+
+  /**
+   * Post-filtre sur la carte, avant tout enrichissement : versant, titre porteur d'un
+   * intitulé de la piste, exclusions du profil, lieu connu dans la zone.
+   */
+  const passes = (item: CspListItem): boolean =>
+    versantWanted(profile.cspVersant, item.versant)
+    && titleMatches(item.title, profile.jobTitles)
+    && !isExcludedByProfile(item.title, profile)
+    && !((expectedDepts.size > 0 || expectedCity) && item.location
+      && !locationMatches(item.location, expectedDepts, expectedCity));
+
+  // Liste : par requête et par lieu, 3 pages au plus, arrêt sur page sans offre retenue
+  // ou entièrement connue.
   const fresh = new Map<string, CspListItem>();
   // Offres déjà en base revues dans les pages lues : renvoyées sans enrichissement
   // (aucune requête) pour que le pipeline les rattache aux pistes concernées.
   const revisited = new Map<string, CspListItem>();
-  const seen = new Set<string>();
-  for (const keywords of titles) {
+  const listed = new Set<string>();
+  let listPages = 0;
+  for (const keywords of terms) {
     for (const locationId of locationIds) {
       for (let page = 1; page <= CSP_MAX_PAGES; page++) {
         const url = buildCspSearchUrl({ keywords, locationId, categorie: profile.cspCategorie, page });
         let html: string;
         try {
+          listPages += 1;
           html = await getHtml(url, deps, rules);
         } catch (err) {
           // Au-delà de la première page, un 404 marque la fin des résultats.
@@ -298,24 +345,22 @@ export async function parseChoisirServicePublic(
           }
           break;
         }
-        // Le filtre de versant d'URL est ignoré par le site : on filtre ici.
-        const relevant = items.filter(item => versantWanted(profile.cspVersant, item.versant));
+        for (const item of items) listed.add(item.url);
+        const relevant = items.filter(passes);
         let unseen = 0;
         for (const item of relevant) {
           if (known.has(item.url)) { revisited.set(item.url, item); continue; }
           unseen += 1;
-          if (!seen.has(item.url)) { seen.add(item.url); fresh.set(item.url, item); }
+          if (!fresh.has(item.url)) fresh.set(item.url, item);
         }
-        // Page entièrement connue : inutile d'aller plus loin. Une page sans offre
-        // du versant voulu n'est pas « connue » : on continue (dans la limite des pages).
-        if (relevant.length > 0 && unseen === 0) break;
+        // Plus aucune offre pertinente sur cette page (le site classe mal : la suite sera
+        // pire), ou rien que de déjà connu : inutile d'aller plus loin.
+        if (relevant.length === 0 || unseen === 0) break;
       }
     }
   }
 
-  // Enrichissement best-effort par le JSON-LD de la page d'offre.
-  const expectedDepts = new Set(profile.location.departmentCodes.map(c => c.trim()).filter(Boolean));
-  const expectedCity = profile.location.city?.trim() || null;
+  // Enrichissement best-effort par le JSON-LD, des seules offres retenues.
   const offers: RawJobOffer[] = [];
   let enriched = 0;
   let enrichmentStopped = false;
@@ -332,15 +377,14 @@ export async function parseChoisirServicePublic(
         console.debug(`[choisir-service-public] enrichissement ignoré (${item.url}):`, err);
       }
     }
-    const offer = buildCspOffer(item, detail);
     // Versant lu sur la page d'offre (plus fiable que la carte) : on écarte après coup.
     if (detail?.versant && !versantWanted(profile.cspVersant, detail.versant)) continue;
-    offers.push(offer);
+    offers.push(buildCspOffer(item, detail));
   }
 
   for (const item of revisited.values()) offers.push(buildCspOffer(item, null));
 
-  return offers.filter(o => {
+  const result = offers.filter(o => {
     if (isExcludedByProfile(`${o.title} ${o.descriptionSnippet ?? ''}`, profile)) return false;
     // Lieu inconnu : on garde (impossible de trancher) ; lieu connu hors zone : on écarte.
     if ((expectedDepts.size > 0 || expectedCity) && o.location) {
@@ -348,4 +392,13 @@ export async function parseChoisirServicePublic(
     }
     return true;
   });
+
+  lastMetrics = {
+    listed: listed.size,
+    retained: fresh.size + revisited.size,
+    enriched,
+    listPages,
+    durationMs: deps.now() - startedAt,
+  };
+  return result;
 }

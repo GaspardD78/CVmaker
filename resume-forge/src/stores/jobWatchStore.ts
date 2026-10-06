@@ -751,7 +751,7 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
         `SELECT id, source, fetched_at, offers_fetched, offers_new,
                 offers_duplicate, offers_filtered,
                 status, error_message, duration_ms,
-                source_status, http_status, error_url, alert_id
+                source_status, http_status, error_url, alert_id, metrics
          FROM job_watch_fetch_log
          ORDER BY fetched_at DESC
          LIMIT 300`

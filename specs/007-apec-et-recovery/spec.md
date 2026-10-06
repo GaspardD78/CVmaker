@@ -37,7 +37,22 @@ Corrections issues des captures réelles :
 
 Décisions inchangées : parseur sans DOM ; offre de base conservée si l'enrichissement échoue ; un 403 arrête les enrichissements ; offres connues revues renvoyées sans requête ; page non reconnue = `reponse_invalide` ; catégorie `Toutes` ou `A` seulement (`A+` non vérifié) ; pause 6 h après 403/429.
 
-Non vérifié : le filtre `categorie/<id>/` (1805 = A) n'a pas été testé sur le site ; poids de page non réduit (pas d'endpoint plus léger identifié).
+Vérifié sur le site (collecte réelle de l'utilisateur) : `…/mot-cles/<mots>/localisation/<id>/categorie/1805/` filtre bien la catégorie A ; l'ordre des segments compte (mot-clé, lieu, catégorie, page : `categorie/…/localisation/…` renvoie 404). Non vérifié : poids de page non réduit (pas d'endpoint plus léger identifié).
+
+### Pertinence (collecte réelle : 2 offres sur 39 concernaient le recrutement)
+
+Le moteur du site ne fait pas de recherche exacte (« chargé de recrutement » ramène déchèterie, voirie…). Décisions :
+
+| Décision | Détail |
+|---|---|
+| Post-filtre strict sur la carte, **avant** l'enrichissement | `csp-relevance.ts` : le titre normalisé (casse, accents, `(h/f)`, `F/H`, `(e)`) contient un intitulé de la piste, ou à défaut tous ses mots significatifs ; versant, exclusions et lieu connu sont appliqués au même moment. Seules les offres retenues sont enrichies. |
+| Choix strict assumé | « Assistant administratif et recrutement » est écarté pour l'intitulé « chargé de recrutement » (un seul mot sur deux). |
+| 2 requêtes au plus par intitulé et par lieu | l'intitulé, puis son mot le plus discriminant (« recrutement ») ; fusion sans doublon |
+| Pagination | arrêt dès qu'une page ne contient aucune offre retenue, ou que des offres déjà connues |
+| Titres | entités décodées en deux passes au plus (`&amp;amp;` → `&`) ; numéro de référence en tête retiré (« 2026-8271 … ») |
+| Employeur | suffixe du titre retenu seulement s'il commence par un type d'employeur (Mairie, Conseil départemental, Région, CCAS, Centre de gestion…) ou, sans type, s'il ne contient ni `H/F` ni mot du métier ; sinon `company` reste vide et la catégorie du site va dans `employerType` (colonne `employer_type`) |
+| Mesure | journal de collecte : `metrics` (JSON) = offres listées, retenues, enrichies, pages de liste, durée ; visible dans l'info-bulle de la colonne « Récup. » (migration 023) |
+
 
 ## Données
 

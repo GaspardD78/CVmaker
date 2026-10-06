@@ -11,7 +11,7 @@ import { join } from 'node:path';
 mock.module('@tauri-apps/plugin-http', () => ({ fetch: async () => new Response('', { status: 500 }) }));
 
 import {
-  parseChoisirServicePublic, parseRobotsDisallow, isAllowedByRobots, buildCspOffer,
+  parseChoisirServicePublic, consumeCspMetrics, parseRobotsDisallow, isAllowedByRobots, buildCspOffer,
   __resetCspStateForTests, CSP_USER_AGENT, CSP_MAX_PAGES, CSP_MIN_INTERVAL_MS, type CspDeps,
 } from './choisir-service-public';
 import { failureOf } from '../source-status';
@@ -55,7 +55,7 @@ const searchCalls = (calls: Call[]) => calls.filter(c => isSearch(c.url));
 
 /** Page de liste dont les liens portent un suffixe, pour fabriquer des pages distinctes. */
 const pageOf = (n: number) =>
-  `<ul>${[1, 2].map(i => `<li><a href="/offre-emploi/poste-${n}-${i}-reference-2026-${n}${i}/">Poste ${n}-${i}</a></li>`).join('')}</ul>`;
+  `<ul>${[1, 2].map(i => `<li><a href="/offre-emploi/poste-${n}-${i}-reference-2026-${n}${i}/">Chargé de recrutement ${n}-${i}</a></li>`).join('')}</ul>`;
 
 beforeEach(() => __resetCspStateForTests());
 
@@ -100,7 +100,7 @@ describe('collecte', () => {
     }
   });
 
-  test('3 pages au plus par intitulé', async () => {
+  test('3 pages au plus par requête, 2 requêtes par intitulé (intitulé + mot discriminant)', async () => {
     const { deps, calls } = harness(url => {
       if (isSearch(url)) {
         const page = Number(/\/page\/(\d+)\//.exec(url)?.[1] ?? 1);
@@ -109,15 +109,17 @@ describe('collecte', () => {
       return html(OFFER_PEP);
     });
     await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps);
-    expect(searchCalls(calls)).toHaveLength(CSP_MAX_PAGES);
+    expect(searchCalls(calls)).toHaveLength(2 * CSP_MAX_PAGES);
     expect(searchCalls(calls)[CSP_MAX_PAGES - 1].url).toContain('/page/3/');
+    expect(searchCalls(calls)[0].url).toContain('/mot-cles/Charg%C3%A9%20de%20recrutement/');
+    expect(searchCalls(calls)[CSP_MAX_PAGES].url).toContain('/mot-cles/recrutement/');
   });
 
-  test('chaque intitulé a ses propres 3 pages', async () => {
+  test('chaque requête a ses propres 3 pages', async () => {
     const { deps, calls } = harness(url => (isSearch(url) ? html(pageOf(Math.random() * 1e6 | 0)) : html(OFFER_PEP)));
     await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS,
       profile({ jobTitles: ['Chargé de recrutement', 'Responsable des ressources humaines'] }), deps);
-    expect(searchCalls(calls)).toHaveLength(2 * CSP_MAX_PAGES);
+    expect(searchCalls(calls)).toHaveLength(4 * CSP_MAX_PAGES); // 2 intitulés × 2 requêtes
   });
 
   test('arrêt dès qu\'une page ne contient que des offres déjà connues', async () => {
@@ -132,7 +134,7 @@ describe('collecte', () => {
       return html(OFFER_PEP);
     }, known);
     const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps);
-    expect(searchCalls(calls)).toHaveLength(2);
+    expect(searchCalls(calls)).toHaveLength(4); // 2 requêtes × 2 pages
     // 2 nouvelles (enrichies) + 2 connues revues (non enrichies)
     expect(offers).toHaveLength(4);
     expect(calls.filter(c => isOffer(c.url))).toHaveLength(2);
@@ -143,7 +145,7 @@ describe('collecte', () => {
       `https://choisirleservicepublic.gouv.fr/offre-emploi/poste-1-${i}-reference-2026-1${i}/`);
     const { deps, calls } = harness(url => (isSearch(url) ? html(pageOf(1)) : html(OFFER_PEP)), known);
     const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps);
-    expect(searchCalls(calls)).toHaveLength(1);
+    expect(searchCalls(calls)).toHaveLength(2); // une page par requête
     expect(calls.filter(c => isOffer(c.url))).toHaveLength(0);
     expect(offers).toHaveLength(2); // renvoyées pour rattachement aux pistes, sans requête
   });
@@ -165,7 +167,7 @@ describe('collecte', () => {
   test('redirection vers un autre domaine : non suivie, l\'offre de base est conservée', async () => {
     const { deps, calls } = harness(url => {
       if (url.endsWith('/robots.txt')) return html('User-agent: *\nDisallow: /wp-admin/');
-      if (isSearch(url)) return html('<a href="/offre-emploi/a-reference-2026-1/">Offre A</a>');
+      if (isSearch(url)) return html('<a href="/offre-emploi/a-reference-2026-1/">Chargé de recrutement A</a>');
       return new Response(null, { status: 302, headers: { location: 'https://autre.example/piege' } });
     });
     const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps);
@@ -175,10 +177,10 @@ describe('collecte', () => {
   });
 
   test('échec d\'enrichissement : offre de base conservée', async () => {
-    const { deps } = harness(url => (isSearch(url) ? html('<a href="/offre-emploi/a-reference-2026-1/">Offre A</a>') : html('boom', 500)));
+    const { deps } = harness(url => (isSearch(url) ? html('<a href="/offre-emploi/a-reference-2026-1/">Chargé de recrutement A</a>') : html('boom', 500)));
     const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps);
     expect(offers).toHaveLength(1);
-    expect(offers[0].title).toBe('Offre A');
+    expect(offers[0].title).toBe('Chargé de recrutement A');
     expect(offers[0].origin).toBeNull();
   });
 
@@ -259,7 +261,7 @@ describe('collecte', () => {
 
   test('versant filtré côté client sur la carte (le filtre d\'URL est ignoré par le site)', async () => {
     const card = (slug: string, vers: string) =>
-      `<li><a href="/offre-emploi/${slug}/">Poste ${slug}</a><ul><li>Fonction publique : ${vers}</li><li>Employeur : X</li></ul></li>`;
+      `<li><a href="/offre-emploi/${slug}/">Chargé de recrutement ${slug}</a><ul><li>Fonction publique : ${vers}</li><li>Employeur : X</li></ul></li>`;
     const page = `<ul>${card('a-reference-O0001', 'Fonction publique Territoriale')}${card('b-reference-DEF_1-2', "Fonction publique de l'État")}</ul>`;
     const run = (cspVersant?: 'all' | 'fpt' | 'etat') => parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS,
       profile({ cspVersant }), harness(url => (isSearch(url) ? html(page) : html('', 500))).deps);
@@ -269,13 +271,13 @@ describe('collecte', () => {
     expect(await run()).toHaveLength(2);
   });
 
-  test('une page sans offre du versant voulu n\'arrête pas la pagination', async () => {
+  test('une page sans aucune offre retenue arrête la pagination de la requête', async () => {
     const card = (n: number) =>
-      `<ul><li><a href="/offre-emploi/p${n}-reference-DEF_${n}-1/">P${n}</a><ul><li>Fonction publique : Fonction publique de l'État</li></ul></li></ul>`;
+      `<ul><li><a href="/offre-emploi/p${n}-reference-DEF_${n}-1/">Chargé de recrutement P${n}</a><ul><li>Fonction publique : Fonction publique de l'État</li></ul></li></ul>`;
     const { deps, calls } = harness(url => (isSearch(url) ? html(card(Number(/\/page\/(\d+)\//.exec(url)?.[1] ?? 1))) : html('', 500)));
     const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile({ cspVersant: 'fpt' }), deps);
     expect(offers).toEqual([]);
-    expect(searchCalls(calls)).toHaveLength(CSP_MAX_PAGES);
+    expect(searchCalls(calls)).toHaveLength(2); // une page par requête, pas de page 2
   });
 
   test('post-filtre : exclusions du profil et lieu connu hors zone', async () => {
@@ -291,6 +293,66 @@ describe('collecte', () => {
     const excluded = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS,
       profile({ excludeTitles: ['mobilité'] }), harness(url => (isSearch(url) ? html(LIST) : html(OFFER_PEP))).deps);
     expect(excluded.some(o => /mobilité/.test(o.title))).toBe(false);
+  });
+});
+
+describe('pertinence : post-filtre avant enrichissement', () => {
+  const card = (slug: string, title: string, loc = 'Yvelines (78)') =>
+    `<li><a href="/offre-emploi/${slug}/">${title}</a><ul><li>Localisation : ${loc}</li><li>Fonction publique : Fonction publique Territoriale</li><li>Employeur : Communes</li></ul></li>`;
+  const page = `<ul>
+    ${card('a-reference-O0781', 'Chargé de recrutement et formation - H/F - Mairie de TRAPPES')}
+    ${card('b-reference-O0782', 'Chargé d\'exploitation déchèterie - H/F - Mairie de X')}
+    ${card('c-reference-O0783', 'Chargé de voirie')}
+    ${card('d-reference-O0784', 'Chargé de recrutement (h/f)', 'Paris (75)')}
+  </ul>`;
+
+  const OFFER_78 = `<script type="application/ld+json">{"@type":"JobPosting","title":"Chargé de recrutement et formation - H/F - Mairie de TRAPPES","jobLocation":{"address":{"addressLocality":"Trappes (78), France"}}}</script>`;
+  const firstPageOnly = (url: string) => (url.includes('/page/') ? html('<p>Aucune offre</p>') : html(page));
+
+  test('les offres rejetées ne déclenchent aucune requête d\'enrichissement', async () => {
+    const { deps, calls } = harness(url => (isSearch(url) ? firstPageOnly(url) : html(OFFER_78)));
+    const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS,
+      profile({ location: { ...DEFAULT_SEARCH_PROFILE.location, departmentCodes: ['78'], radiusKm: 30 } }), deps);
+    const fetched = calls.filter(c => isOffer(c.url)).map(c => c.url);
+    expect(fetched).toHaveLength(1);
+    expect(fetched[0]).toContain('/a-reference-O0781/');
+    expect(fetched.some(u => /b-reference|c-reference|d-reference/.test(u))).toBe(false);
+    expect(offers).toHaveLength(1);
+  });
+
+  test('mesure : listées, retenues, enrichies, durée', async () => {
+    const { deps } = harness(url => (isSearch(url) ? firstPageOnly(url) : html(OFFER_PEP)));
+    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS,
+      profile({ location: { ...DEFAULT_SEARCH_PROFILE.location, departmentCodes: ['78'], radiusKm: 30 } }), deps);
+    const m = consumeCspMetrics();
+    expect(m).toMatchObject({ listed: 4, retained: 1, enriched: 1 });
+    expect(m!.listPages).toBe(4); // page 1 et page vide, pour chacune des 2 requêtes
+    expect(m!.durationMs).toBeGreaterThanOrEqual(CSP_MIN_INTERVAL_MS);
+    expect(consumeCspMetrics()).toBeNull(); // lue une seule fois
+  });
+
+  test('page sans offre pertinente : on s\'arrête (pas de page 2)', async () => {
+    const irrelevant = `<ul>${card('z-reference-O09', 'Chargé de voirie')}</ul>`;
+    const { deps, calls } = harness(url => (isSearch(url) ? html(irrelevant) : html('', 500)));
+    expect(await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps)).toEqual([]);
+    expect(calls.filter(c => c.url.includes('/page/'))).toHaveLength(0);
+  });
+
+  test('titre doublement encodé et préfixe numérique nettoyés dans l\'offre', async () => {
+    const p = `<ul>${card('e-reference-O0785', '2026-8271 Chargé de recrutement &amp;amp; mobilité')}</ul>`;
+    const { deps } = harness(url => (isSearch(url) ? html(p) : html('', 500)));
+    const [o] = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps);
+    expect(o.title).toBe('Chargé de recrutement & mobilité');
+  });
+
+  test('employeur : catégorie dans employerType, company vide sans suffixe d\'employeur', async () => {
+    const p = `<ul>${card('f-reference-O0786', 'Chargé de recrutement - Finances publiques (H/F)')}${card('g-reference-O0787', 'Chargé de recrutement - Mairie de TRAPPES')}</ul>`;
+    const { deps } = harness(url => (isSearch(url) ? html(p) : html('', 500)));
+    const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), deps);
+    const byRef = (r: string) => offers.find(o => o.reference === r)!;
+    expect(byRef('O0786').company).toBeNull();
+    expect(byRef('O0786').employerType).toBe('Communes');
+    expect(byRef('O0787').company).toBe('Mairie de TRAPPES');
   });
 });
 

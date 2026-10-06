@@ -69,6 +69,31 @@ export function decodeEntities(text: string): string {
   });
 }
 
+/**
+ * Décode jusqu'à stabilité, deux passes au plus : un titre peut arriver doublement
+ * encodé (`&amp;amp;` → `&amp;` → `&`).
+ */
+export function decodeEntitiesDeep(text: string): string {
+  let current = text;
+  for (let pass = 0; pass < 2; pass++) {
+    const next = decodeEntities(current);
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+}
+
+/**
+ * Titre d'offre nettoyé : entités décodées (deux passes), espaces repliés, numéro
+ * de référence en tête retiré (« 2026-8271 Chargé de mission… » → « Chargé de mission… »).
+ */
+export function cleanTitle(raw: string): string {
+  return decodeEntitiesDeep(raw)
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*\d{4}-\d{2,}\s*[-–:.]?\s+(?=\S)/, '')
+    .trim();
+}
+
 /** HTML → texte brut. Le contenu est une donnée non fiable : jamais réinjecté tel quel. */
 export function stripTags(html: string): string {
   return decodeEntities(
@@ -162,7 +187,7 @@ export function parseCspList(html: string): CspListItem[] {
     const url = canonicalOfferUrl(href);
     if (!url || seen.has(url)) continue;
     const attrs = `${m[1]} ${m[4]}`;
-    const title = oneLine(stripTags(m[5])) || oneLine(attr(attrs, 'title') ?? attr(attrs, 'aria-label') ?? '');
+    const title = cleanTitle(oneLine(stripTags(m[5])) || oneLine(attr(attrs, 'title') ?? attr(attrs, 'aria-label') ?? ''));
     if (!title) continue;
     seen.add(url);
     hits.push({ url, title, start: m.index, end: m.index + m[0].length });
@@ -370,7 +395,7 @@ export function parseCspOffer(html: string, pageUrl: string): CspOfferDetail {
   const description = asString(posting?.description) ?? asString(posting?.Description);
 
   return {
-    title: asString(posting?.title),
+    title: asString(posting?.title) ? cleanTitle(asString(posting?.title)!) : null,
     company: ldCompany ?? (textEmployer ? oneLine(textEmployer) : null),
     location: posting ? locationOf(posting) : null,
     publishedAt: parseCspDate(posting?.datePosted),
@@ -386,18 +411,65 @@ export function parseCspOffer(html: string, pageUrl: string): CspOfferDetail {
 
 // ── Employeur et origine ─────────────────────────────────────────────────────
 
+export interface Employer {
+  /** Employeur réel, ou null quand on ne le connaît pas (jamais une catégorie). */
+  company: string | null;
+  /** Catégorie d'employeur affichée par le site pour le territorial (« Communes »…). */
+  employerType: string | null;
+}
+
+/** Début de nom qui désigne à coup sûr un employeur public. */
+const EMPLOYER_PREFIXES = [
+  'mairie', 'commune', 'ville', 'conseil departemental', 'conseil regional', 'conseil general',
+  'communaute', 'region', 'departement', 'ccas', 'cias', 'centre de gestion', 'centre communal',
+  'centre intercommunal', 'metropole', 'syndicat', 'cdg', 'office', 'etablissement public', 'agglomeration',
+  'cnfpt', 'sdis', 'service departemental', 'collectivite', 'caisse des ecoles', 'parc naturel',
+];
+
+/** Mots du métier : un suffixe qui en contient est un bout d'intitulé, pas un employeur. */
+const JOB_WORDS = new Set([
+  'charge', 'chargee', 'charges', 'responsable', 'gestionnaire', 'assistant', 'assistante', 'agent',
+  'technicien', 'technicienne', 'directeur', 'directrice', 'adjoint', 'adjointe', 'mission', 'missions',
+  'chef', 'cheffe', 'coordinateur', 'coordinatrice', 'animateur', 'animatrice', 'instructeur', 'referent',
+  'referente', 'conseiller', 'conseillere', 'recrutement', 'formation', 'ingenieur', 'redacteur',
+  'redactrice', 'educateur', 'educatrice', 'auxiliaire', 'cadre', 'poste', 'emploi',
+]);
+
+function fold(text: string): string {
+  return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** Suffixe de titre après le dernier tiret (« … - Mairie de TRAPPES »), ou null. */
+function titleSuffix(title: string): string | null {
+  // Séparateur = tiret entouré d'espaces ; les tirets des noms (« Val-de-Marne ») ne coupent pas.
+  const parts = title.trim().split(/\s[-–—]\s+/);
+  if (parts.length < 2) return null;
+  const suffix = parts[parts.length - 1].trim();
+  return suffix.length >= 3 ? suffix : null;
+}
+
+/** Vrai si le suffixe peut être un employeur. */
+export function isEmployerSuffix(suffix: string): boolean {
+  const folded = fold(suffix);
+  if (!folded) return false;
+  if (EMPLOYER_PREFIXES.some(prefix => folded === prefix || folded.startsWith(`${prefix} `))) return true;
+  if (/(^|[\s(])[hfx]\s*\/\s*[hfx]([\s/)]|$)/i.test(suffix)) return false;
+  return !folded.split(' ').some(word => JOB_WORDS.has(word));
+}
+
 /**
- * Employeur affiché. Pour le territorial, le site n'affiche qu'une catégorie
- * (« Communes », « Conseils départementaux ») ; l'employeur réel est le suffixe
- * du titre (« … - CONSEIL DÉPARTEMENTAL DU MORBIHAN »). Sans suffixe, on garde
- * ce que le site affiche.
+ * Employeur d'une offre. Pour le territorial, le site n'affiche qu'une catégorie
+ * (« Communes », « Conseils départementaux ») ; l'employeur réel est le suffixe du
+ * titre (« … - Mairie de TRAPPES »), retenu seulement s'il ne ressemble pas à un
+ * bout d'intitulé (« Finances publiques (H/F) »). À défaut l'employeur reste
+ * inconnu (`company` null) et la catégorie va dans `employerType`. Pour l'État et
+ * l'hospitalier, le site affiche l'employeur lui-même.
  */
-export function employerName(title: string, shown: string | null, versant: CspVersantValue | null): string | null {
-  if (versant === 'fpt') {
-    const suffix = /\s[-–]\s+([^-–]{3,})$/.exec(title)?.[1]?.trim();
-    if (suffix) return suffix;
-  }
-  return shown;
+export function resolveEmployer(title: string, shown: string | null, versant: CspVersantValue | null): Employer {
+  if (versant !== 'fpt') return { company: shown, employerType: null };
+  const suffix = titleSuffix(title);
+  if (suffix && isEmployerSuffix(suffix)) return { company: suffix, employerType: shown };
+  return { company: null, employerType: shown };
 }
 
 // ── Origine ──────────────────────────────────────────────────────────────────
