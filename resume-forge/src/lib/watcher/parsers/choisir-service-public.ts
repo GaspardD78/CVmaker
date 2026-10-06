@@ -27,7 +27,7 @@ import {
   parseCspList, parseCspOffer, referenceFromOfferUrl,
   type CspListItem, type CspOfferDetail, type CspVersantValue,
 } from './csp-html';
-import { resolveCspLocationIds } from './csp-locations';
+import { resolveCspLocations } from './csp-locations';
 import { searchTermsForAll, titleMatches } from './csp-relevance';
 
 export const CSP_USER_AGENT = `ResumeForge/${pkg.version} (veille emploi personnelle)`;
@@ -36,6 +36,8 @@ export const CSP_MAX_PAGES = 3;
 /** Plafond d'enrichissements (une requête par offre nouvelle) par collecte. */
 export const CSP_MAX_ENRICH = 40;
 const MAX_TITLES = 5;
+/** Pages de liste demandées au plus par collecte, toutes pistes confondues (hors robots.txt et enrichissements). */
+export const CSP_MAX_LIST_REQUESTS = 20;
 const MAX_REDIRECTS = 3;
 
 /** Chemins interdits par le robots.txt constaté (repli si le fichier est illisible). */
@@ -77,8 +79,17 @@ export const DEFAULT_CSP_DEPS: CspDeps = {
 /** Cadence partagée par toutes les requêtes vers le site, d'une collecte à l'autre. */
 let lastRequestAt = 0;
 
+/** Pages de liste déjà demandées pendant la collecte en cours (toutes pistes confondues). */
+let listRequestsThisCollection = 0;
+
+/** À appeler au début d'une collecte : le plafond de pages de liste repart de zéro. */
+export function resetCspCollectionBudget(): void {
+  listRequestsThisCollection = 0;
+}
+
 export function __resetCspStateForTests(): void {
   lastRequestAt = 0;
+  listRequestsThisCollection = 0;
   robotsCache = null;
 }
 
@@ -260,6 +271,8 @@ export interface CspMetrics {
   enriched: number;
   /** Pages de liste demandées. */
   listPages: number;
+  /** Plafond de pages de liste atteint : la collecte a été interrompue. */
+  capped: boolean;
   durationMs: number;
 }
 
@@ -292,14 +305,17 @@ export async function parseChoisirServicePublic(
 
   // Lieux interrogés : identifiant interne du département ou de la région (un seul
   // « sans filtre » quand le lieu n'est pas reconnu : le post-filtre client reste actif).
-  const locationIds: Array<number | null> = resolveCspLocationIds({
+  const resolved = resolveCspLocations({
     departmentCodes: profile.location.departmentCodes,
     city: profile.location.city,
     radiusKm: profile.location.radiusKm,
   });
+  const locationIds: Array<number | null> = [...resolved.ids];
   if (locationIds.length === 0) locationIds.push(null);
 
-  const expectedDepts = new Set(profile.location.departmentCodes.map(c => c.trim()).filter(Boolean));
+  // Le post-filtre suit la requête : une recherche sur une région accepte tous les départements
+  // de cette région (le rayon exact est ensuite jugé par le filtre géographique du pipeline).
+  const expectedDepts = resolved.departments;
   const expectedCity = profile.location.city?.trim() || null;
 
   /**
@@ -321,9 +337,17 @@ export async function parseChoisirServicePublic(
   const revisited = new Map<string, CspListItem>();
   const listed = new Set<string>();
   let listPages = 0;
+  let capped = false;
+  search:
   for (const keywords of terms) {
     for (const locationId of locationIds) {
       for (let page = 1; page <= CSP_MAX_PAGES; page++) {
+        if (listRequestsThisCollection >= CSP_MAX_LIST_REQUESTS) {
+          capped = true;
+          console.warn(`[choisir-service-public] plafond de ${CSP_MAX_LIST_REQUESTS} requêtes de liste atteint : collecte arrêtée`);
+          break search;
+        }
+        listRequestsThisCollection += 1;
         const url = buildCspSearchUrl({ keywords, locationId, categorie: profile.cspCategorie, page });
         let html: string;
         try {
@@ -398,6 +422,7 @@ export async function parseChoisirServicePublic(
     retained: fresh.size + revisited.size,
     enriched,
     listPages,
+    capped,
     durationMs: deps.now() - startedAt,
   };
   return result;

@@ -74,6 +74,14 @@ const REGION_OF_DEPARTMENT: Record<string, string> = Object.fromEntries(
   Object.entries(REGION_DEPARTMENTS).flatMap(([region, depts]) => depts.map(d => [d, region])),
 );
 
+/** Départements d'une région, par identifiant de lieu du site (null si ce n'est pas une région connue). */
+export function departmentsOfRegionId(id: number): string[] | null {
+  for (const [region, depts] of Object.entries(REGION_DEPARTMENTS)) {
+    if (cspLocationId(region) === id) return depts;
+  }
+  return null;
+}
+
 export function departmentLocationId(code: string): number | null {
   const name = DEPARTMENT_PLACE[code];
   return name ? cspLocationId(name) : null;
@@ -108,17 +116,44 @@ function normalizeCode(raw: string): string {
  *  - lieu inconnu → aucun filtre (le post-filtre client reste actif).
  */
 export function resolveCspLocationIds(query: LocationQuery): number[] {
-  let codes = query.departmentCodes.map(normalizeCode).filter(Boolean);
+  return resolveCspLocations(query).ids;
+}
+
+export interface ResolvedLocations {
+  /** Identifiants de lieu à interroger. */
+  ids: number[];
+  /**
+   * Départements couverts par ces requêtes, plus ceux de la piste : un lieu
+   * retourné par la recherche d'une région est dans la zone dès qu'il est dans
+   * un de ces départements (le post-filtre doit suivre la requête).
+   */
+  departments: Set<string>;
+}
+
+/** Comme {@link resolveCspLocationIds}, avec les départements couverts par la requête. */
+export function resolveCspLocations(query: LocationQuery): ResolvedLocations {
+  const own = query.departmentCodes.map(normalizeCode).filter(Boolean);
+  let codes = own;
   if (codes.length === 0) {
     const fromCity = cityToDeptCode(query.city);
     if (fromCity) codes = [normalizeCode(fromCity)];
   }
-  if (codes.length === 0) return [];
+  const departments = new Set<string>(own);
+  if (codes.length === 0) return { ids: [], departments };
 
+  let ids: number[] = [];
   if (codes.length === 1 && query.radiusKm <= REGION_RADIUS_KM) {
     const dept = departmentLocationId(codes[0]);
-    if (dept) return [dept];
+    if (dept) ids = [dept];
   }
-  const regions = [...new Set(codes.map(regionLocationIdOf).filter((id): id is number => id !== null))];
-  return regions.slice(0, MAX_LOCATION_SEARCHES);
+  if (ids.length === 0) {
+    ids = [...new Set(codes.map(regionLocationIdOf).filter((id): id is number => id !== null))]
+      .slice(0, MAX_LOCATION_SEARCHES);
+  }
+  for (const id of ids) {
+    for (const code of departmentsOfRegionId(id) ?? []) departments.add(code);
+    for (const code of codes) if (departmentLocationId(code) === id) departments.add(code);
+  }
+  for (const code of codes) if (ids.length === 0 || ids.some(id => id === departmentLocationId(code))) departments.add(code);
+  return { ids, departments };
 }

@@ -9,6 +9,7 @@ export interface SourceMetrics {
   retained?: number;
   enriched?: number;
   listPages?: number;
+  capped?: boolean;
   durationMs?: number;
 }
 
@@ -26,5 +27,6 @@ export function parseSourceMetrics(raw: string | null | undefined): SourceMetric
 export function describeSourceMetrics(m: SourceMetrics | null): string | null {
   if (!m || m.listed === undefined) return null;
   const secs = m.durationMs !== undefined ? ` en ${Math.round(m.durationMs / 1000)} s` : '';
-  return `${m.listed} listées, ${m.retained ?? 0} retenues, ${m.enriched ?? 0} enrichies${secs}`;
+  const cap = m.capped ? ' — plafond de requêtes de liste atteint, collecte interrompue' : '';
+  return `${m.listed} listées, ${m.retained ?? 0} retenues, ${m.enriched ?? 0} enrichies${secs}${cap}`;
 }

@@ -11,7 +11,7 @@ import { join } from 'node:path';
 mock.module('@tauri-apps/plugin-http', () => ({ fetch: async () => new Response('', { status: 500 }) }));
 
 import {
-  parseChoisirServicePublic, consumeCspMetrics, parseRobotsDisallow, isAllowedByRobots, buildCspOffer,
+  parseChoisirServicePublic, consumeCspMetrics, resetCspCollectionBudget, CSP_MAX_LIST_REQUESTS, parseRobotsDisallow, isAllowedByRobots, buildCspOffer,
   __resetCspStateForTests, CSP_USER_AGENT, CSP_MAX_PAGES, CSP_MIN_INTERVAL_MS, type CspDeps,
 } from './choisir-service-public';
 import { failureOf } from '../source-status';
@@ -353,6 +353,73 @@ describe('pertinence : post-filtre avant enrichissement', () => {
     expect(byRef('O0786').company).toBeNull();
     expect(byRef('O0786').employerType).toBe('Communes');
     expect(byRef('O0787').company).toBe('Mairie de TRAPPES');
+  });
+});
+
+describe('zone : le post-filtre suit la requête', () => {
+  const card = (slug: string, loc: string) =>
+    `<li><a href="/offre-emploi/${slug}/">Chargé de recrutement ${slug}</a><ul><li>Localisation : ${loc}</li><li>Fonction publique : Fonction publique Territoriale</li><li>Employeur : Communes</li></ul></li>`;
+  const page = `<ul>${card('val-de-marne-reference-O094', 'Val de Marne (94)')}${card('yvelines-reference-O078', 'Yvelines (78)')}${card('isere-reference-O038', 'Isère (38)')}</ul>`;
+  const run = async (radiusKm: number, departmentCodes = ['78']) => {
+    const { deps, calls } = harness(url => (isSearch(url) ? (url.includes('/page/') ? html('<p>Aucune offre</p>') : html(page)) : html('', 500)));
+    const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS,
+      profile({ location: { ...DEFAULT_SEARCH_PROFILE.location, departmentCodes, radiusKm } }), deps);
+    return { locations: offers.map(o => o.location), calls };
+  };
+
+  test('78, rayon 60 (recherche sur la région 208) : une offre du Val-de-Marne est gardée', async () => {
+    const { locations, calls } = await run(60);
+    expect(searchCalls(calls)[0].url).toContain('/localisation/208/');
+    expect(locations).toContain('Val de Marne (94)');
+    expect(locations).toContain('Yvelines (78)');
+  });
+
+  test('78, rayon 30 (recherche départementale) : la même offre est écartée', async () => {
+    const { locations, calls } = await run(30);
+    expect(searchCalls(calls)[0].url).toContain('/localisation/289/');
+    expect(locations).not.toContain('Val de Marne (94)');
+    expect(locations).toContain('Yvelines (78)');
+  });
+
+  test('une offre hors région (Isère) est écartée dans les deux cas', async () => {
+    expect((await run(60)).locations).not.toContain('Isère (38)');
+    expect((await run(30)).locations).not.toContain('Isère (38)');
+  });
+
+  test('plusieurs départements d\'une même région : toute la région est acceptée', async () => {
+    const { locations } = await run(30, ['78', '92']);
+    expect(locations).toContain('Val de Marne (94)');
+    expect(locations).not.toContain('Isère (38)');
+  });
+});
+
+describe('plafond de requêtes de liste', () => {
+  const many = (n: number) =>
+    `<ul>${[1, 2].map(i => `<li><a href="/offre-emploi/r${n}-${i}-reference-O0${n}${i}/">Chargé de recrutement r${n}-${i}</a></li>`).join('')}</ul>`;
+  const titles = ['Chargé de recrutement', 'Responsable des ressources humaines', 'Gestionnaire de paie', 'Chargé de formation', 'Chef de projet numérique'];
+  let counter = 0;
+  const respond = (url: string) => (isSearch(url) ? html(many(++counter)) : html('', 500));
+
+  test('au plus 20 pages de liste par collecte, journalisé', async () => {
+    const { deps, calls } = harness(respond);
+    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile({ jobTitles: titles }), deps);
+    expect(searchCalls(calls)).toHaveLength(CSP_MAX_LIST_REQUESTS);
+    expect(consumeCspMetrics()).toMatchObject({ capped: true, listPages: CSP_MAX_LIST_REQUESTS });
+  });
+
+  test('le plafond est partagé entre les pistes d\'une même collecte, puis repart de zéro', async () => {
+    const first = harness(respond);
+    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile({ jobTitles: titles }), first.deps);
+    const second = harness(respond);
+    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), second.deps);
+    expect(searchCalls(second.calls)).toHaveLength(0);
+    expect(consumeCspMetrics()).toMatchObject({ capped: true });
+
+    resetCspCollectionBudget();
+    const third = harness(respond);
+    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile(), third.deps);
+    expect(searchCalls(third.calls).length).toBeGreaterThan(0);
+    expect(consumeCspMetrics()).toMatchObject({ capped: false });
   });
 });
 
