@@ -30,4 +30,4 @@ Rust : `fetch_apec_api` ouvre la page de recherche (cookies de session, cache 10
 
 - `SCORER_VERSION = 2` : entiers 0-100. Une offre d'une version antérieure n'est ni masquée par le seuil, ni comptée comme masquée, ni utilisée par les métriques et prompts tant qu'elle n'est pas recalculée.
 - Regroupement des doublons à l'affichage (non destructif) + rattachement à la collecte via empreinte source/entreprise/intitulé/lieu.
-- Emploi Territorial : migration vers l'API officielle impossible à vérifier (voir AUDIT.md) ; source non proposée par défaut, statut explicite, avertissement à l'ajout.
+- Emploi Territorial : source **indisponible** (migration 024, `UNAVAILABLE_SOURCES`) ; l'API officielle (OpenAPI v5.3) est authentifiée et n'expose aucune recherche d'offres publiées, aucun parser API. Parser RSS conservé (voir AUDIT.md).

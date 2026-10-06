@@ -1,0 +1,2637 @@
+openapi: 3.0.0
+info:
+  title: 'API Emploi-Territorial'
+  description: "Ressources concernant l'emploi public territorial,\n        mises à disposition par les Centres de Gestion de la Fonction Publique Territoriale\n        dans le cadre de leur mission de publicité légale des vacances d'emploi et de promotion de l'emploi territorial.\n        <br />L'accès à ces ressources nécessite une authentification,\n        contactez le GIP Informatique des CDG pour plus d'informations."
+  contact:
+    name: 'GIP Informatique des Centres de Gestion'
+    url: 'https://www.gipcdg.fr'
+    email: support@gipcdg.fr
+  license:
+    name: 'Etalab 2.0'
+    url: 'https://www.etalab.gouv.fr/wp-content/uploads/2017/04/ETALAB-Licence-Ouverte-v2.0.pdf'
+  version: '5.3'
+servers:
+  -
+    url: /api
+    description: 'Environnement actuel'
+  -
+    url: 'https://www.emploi-territorial.fr/api'
+    description: 'Environnement de production'
+  -
+    url: 'https://demo.emploi-territorial.fr/api'
+    description: 'Environnement de démonstration'
+paths:
+  /token/info:
+    get:
+      tags:
+        - token
+      summary: "Retourne les catégories de points d'entrée utilisables avec le token fourni en authentification"
+      operationId: fc10dcdbf769820642ad4531d297f98e
+      responses:
+        '200':
+          description: "Renvoie dans l'objet success les droits\n                   sur les catégories de points d'entrée pouvant faire l'objet de requêtes\n                   avec le jeton fourni en authentification"
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                required:
+                  - status
+                  - status_message
+                  - success
+                allOf:
+                  - { $ref: '#/components/schemas/ReponseStandard' }
+                  - { properties: { success: { $ref: '#/components/schemas/DroitsUtilisateur' } }, type: object }
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/metiers:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des métiers actifs'
+      operationId: 4e1b788fb253b2452fe496c333c256d7
+      parameters:
+        -
+          $ref: '#/components/parameters/cod_sfam'
+        -
+          $ref: '#/components/parameters/cod_fam'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/metiersdetail:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne une liste détaillée des métiers'
+      operationId: de5d33e73ca54664862493f147730bae
+      parameters:
+        -
+          $ref: '#/components/parameters/cod_metier'
+        -
+          $ref: '#/components/parameters/cod_sfam'
+        -
+          $ref: '#/components/parameters/cod_fam'
+        -
+          $ref: '#/components/parameters/actif'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/sfamillesmetiers:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des sous-familles de métiers actives'
+      operationId: 13d9c98267641eea41ec43f968e589f3
+      parameters:
+        -
+          $ref: '#/components/parameters/cod_fam'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/famillesmetiers:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des familles de métiers actives'
+      operationId: abd2dbf96c934d45c3275c74c9478d35
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/grades:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des grades de la Fonction Publique Territoriale,\nsous forme d'une liste de clé (code grade Emploi-Territorial) / valeur (libellé du grade)"
+      operationId: b6b46d7d4c60f2d60fae72b0637bfcad
+      parameters:
+        -
+          $ref: '#/components/parameters/grade'
+        -
+          $ref: '#/components/parameters/cemp'
+        -
+          $ref: '#/components/parameters/fil'
+        -
+          $ref: '#/components/parameters/cat'
+        -
+          $ref: '#/components/parameters/actif'
+        -
+          $ref: '#/components/parameters/special'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/gradesdetail:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste détaillée des grades de la Fonction Publique Territoriale,\nsous forme d'une liste d'objets détaillés avec en-tête"
+      operationId: b29c207c17952930a301f4c8d7cfe0d4
+      parameters:
+        -
+          $ref: '#/components/parameters/grade'
+        -
+          $ref: '#/components/parameters/cemp'
+        -
+          $ref: '#/components/parameters/fil'
+        -
+          $ref: '#/components/parameters/cat'
+        -
+          $ref: '#/components/parameters/actif'
+        -
+          $ref: '#/components/parameters/special'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/cadresemplois:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des cadres d'emplois actifs de la Fonction Publique Territoriale"
+      operationId: 5b03974c8c3419e303847557fa14d48a
+      parameters:
+        -
+          $ref: '#/components/parameters/fil'
+        -
+          $ref: '#/components/parameters/cat'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/filieres:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des filières de la Fonction Publique Territoriale'
+      operationId: 4a3a4b319925900a041802a17ce6089a
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/typesemploi:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des types d'emploi. Cette liste peut varier selon le CDG de rattachement d'une collectivité."
+      description: "Voir la page [/faq#ReponseFPTPER](/faq#ReponseFPTPER) pour une description textuelle des types d'emploi."
+      operationId: 364edcf9a0db2771299af8f6717d90b2
+      parameters:
+        -
+          $ref: '#/components/parameters/one_etab'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/detailtypeemploi:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne les caractéristiques d'un type d'emploi"
+      operationId: 3b94f4ed750dd9a4f41fd8f73f03e43f
+      parameters:
+        -
+          $ref: '#/components/parameters/cod_typ_op'
+      responses:
+        '200':
+          description: "Renvoie dans l'objet success les caractéristiques du type d'emploi"
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                required:
+                  - status
+                  - status_message
+                  - success
+                allOf:
+                  - { $ref: '#/components/responses/default' }
+                  - { properties: { success: { $ref: '#/components/schemas/TypeEmploi' } }, type: object }
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/modesrecrutement:
+    get:
+      tags:
+        - referentiels
+      summary: "Récupère la liste des modes de recrutement. Cette liste dépend du grade de recrutement et du type d'emploi."
+      operationId: 79aafe5ad0638fb3e028e1bc6eafb2e3
+      parameters:
+        -
+          $ref: '#/components/parameters/one_grade'
+        -
+          $ref: '#/components/parameters/cod_typ_op'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/departements:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des départements avec leur code utilisé sur Emploi-Territorial'
+      operationId: 0722f64574fdfbc3c1898d3abf4dc0a7
+      parameters:
+        -
+          $ref: '#/components/parameters/reg'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/secteursgeographiques:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des secteurs géographiques utilisés sur Emploi-Territorial'
+      operationId: e7bda340147a865b2c71b05c224be22a
+      parameters:
+        -
+          $ref: '#/components/parameters/dep'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/regions:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des régions avec leur code utilisé sur Emploi-Territorial'
+      operationId: 2d47f7886b2198fd30a6ccfe98610bee
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/categoriesjuridiques:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des catégories juridiques de collectivités et établissements territoriaux.'
+      description: "Reprend partiellement le [référentiel de l'INSEE](https://www.insee.fr/fr/information/2028129)"
+      operationId: 5495eb22c8e66dcf2d5db83d37609f82
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/fondementsjuridiques:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des fondements juridiques de recrutement des contractuels\nsur une opération de recrutement. Cette liste dépend du type d'emploi."
+      operationId: 4952b7beebe337536deb082da9294676
+      parameters:
+        -
+          $ref: '#/components/parameters/cod_typ_op'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/motifsannulation:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des motifs d'annulation de déclarations de vacance d'emploi pouvant être renseignés sur\nEmploi-Territorial."
+      operationId: 5d73fc921aaa7e9dba69226109cfddc7
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/motifsdeclaration:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des motifs de saisie d'une déclaration de vacance d'emploi."
+      description: "Les valeurs possibles dépendent du type d'emploi."
+      operationId: c7d12a94bb269827b38887e2e2f96824
+      parameters:
+        -
+          $ref: '#/components/parameters/cod_typ_op'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/etab:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des établissements adhérents'
+      operationId: 315e806d3a55b32572457362b75e3706
+      parameters:
+        -
+          name: type
+          in: query
+          description: "type d'établissement à retourner (0 => CDG adhérents,\n                    1 => CNFPT, 2 => CDG coordonnateurs régionaux, 3 => ministères adhérents,\n                    4 => SDIS, 5 => tous les établissements)"
+          schema:
+            type: integer
+            default: 0
+            enum:
+              - 0
+              - 1
+              - 2
+              - 3
+              - 4
+              - 5
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/situationpro:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des situations actuelles des demandeurs inscrits sur Emploi-Territorial'
+      operationId: f1c20d30a9576a72995e441beba0b7de
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/niveauxetudes:
+    get:
+      tags:
+        - referentiels
+      summary: 'Retourne la liste des niveaux de scolarité associés aux demandeurs ou aux nominations'
+      operationId: d0318d6e72e1168ddf62ce8d62d37c25
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/caces:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des habilitations (de type CACES)\nque les demandeurs peuvent sélectionner lors de l'édition de leur profil"
+      operationId: b12d53c6d95893ba7866760348a35d66
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /referentiels/permis:
+    get:
+      tags:
+        - referentiels
+      summary: "Retourne la liste des permis de conduire que les demandeurs peuvent sélectionner lors de l'édition de leur profil"
+      operationId: 4495b426f9b13be1883e848afe8ff27d
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /col/info:
+    get:
+      tags:
+        - col
+      summary: "Renvoie les informations de la fiche collectivité reliée au token d'authentification sur Emploi-Territorial"
+      operationId: 6f10483f4b357c3895b81d06c14a0f5c
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+      responses:
+        '200':
+          $ref: '#/components/responses/details-col'
+        default:
+          $ref: '#/components/responses/default'
+  /col/rattachements:
+    get:
+      tags:
+        - col
+      summary: "Renvoie le numéro SIRET (en clé) et le libellé des collectivités rattachées à la collectivité\nprincipale authentifiée"
+      operationId: 041a484fdc54c111fb70db27ff14a6fa
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+      responses:
+        '200':
+          $ref: '#/components/responses/cles_valeurs'
+        default:
+          $ref: '#/components/responses/default'
+  /col/listoffres:
+    get:
+      tags:
+        - col
+      summary: 'Retourne une liste des offres de la collectivité authentifiée'
+      operationId: 94999413bb3742dac47af415e8ae0658
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+        -
+          $ref: '#/components/parameters/limit'
+        -
+          $ref: '#/components/parameters/offset'
+        -
+          $ref: '#/components/parameters/grade'
+        -
+          name: date_cr_min
+          in: query
+          description: 'Date de saisie minimale. Formats de saisie possibles : jj/mm/aaaa, aaaa-mm-dd, intervalle de date en anglais.'
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: string
+            format: date
+          example: '-1 year'
+        -
+          name: date_cr_max
+          in: query
+          description: 'Date de saisie maximale (incluse)'
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: string
+            format: date
+          example: now
+        -
+          name: publie
+          in: query
+          description: "État de l'offre (1 => en cours de publication, 0 => toutes les offres"
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: integer
+            default: 1
+            enum:
+              - 0
+              - 1
+      responses:
+        default:
+          $ref: '#/components/responses/default'
+        '200':
+          $ref: '#/components/responses/tableau'
+  /col/listdec:
+    get:
+      tags:
+        - col
+      summary: 'Retourne une liste des déclarations passées sur un arrêté pour la collectivité authentifiée'
+      operationId: 13a9f1dd31268f62e1b256344f49955a
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+        -
+          $ref: '#/components/parameters/limit'
+        -
+          $ref: '#/components/parameters/offset'
+        -
+          $ref: '#/components/parameters/grade'
+        -
+          name: date_cr_min
+          in: query
+          description: 'Date de saisie minimale. Formats de saisie possibles : jj/mm/aaaa, aaaa-mm-dd, intervalle de date en anglais.'
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: string
+            format: date
+          example: '-1 year'
+        -
+          name: date_cr_max
+          in: query
+          description: 'Date de saisie maximale (incluse)'
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: string
+            format: date
+          example: now
+        -
+          name: etat
+          in: query
+          description: 'État de la déclaration (-1 => tous, 0 => en cours de validation, 1 => exécutoire, 2 => annulée, 3 => nommée, 4 => transmissible ou en attente de modification)'
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: integer
+            default: 1
+            enum:
+              - -1
+              - 0
+              - 1
+              - 2
+              - 3
+              - 4
+      responses:
+        default:
+          $ref: '#/components/responses/default'
+        '200':
+          $ref: '#/components/responses/tableau'
+  '/col/{id}/detailoffre':
+    get:
+      tags:
+        - col
+      summary: "Retourne le détail complet d'une offre"
+      operationId: 7dee244fc23f554b6b019c93bf981dae
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+        -
+          name: id
+          in: path
+          description: "Numéro d'offre'"
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        default:
+          $ref: '#/components/responses/default'
+        '200':
+          $ref: '#/components/responses/tableau'
+  '/col/{id}/detaildec':
+    get:
+      tags:
+        - col
+      summary: "Retourne le détail complet d'une déclaration"
+      operationId: 3e3225b31768fa7005ee2e2884a062f4
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+        -
+          name: id
+          in: path
+          description: 'Numéro de déclaration'
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        default:
+          $ref: '#/components/responses/default'
+        '200':
+          $ref: '#/components/responses/tableau'
+  /col/transmetop:
+    post:
+      tags:
+        - col
+      summary: 'Crée ou modifie une opération de recrutement pour le compte de la collectivité authentifiée.'
+      description: "Elle sera créée (avec une offre et le cas échéant une déclaration) à l'état transmise pour validation auprès\ndu CDG ou du CNFPT, ou mise à jour si elle existe déjà."
+      operationId: e9c4d5b747445d3c7642cf635ae240af
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+      requestBody:
+        description: 'Objet du type opération de recrutement Emploi-Territorial au format JSON'
+        required: true
+        content:
+          application/json:
+            schema:
+              description: 'Objet reprenant les éléments des schémas OperationRecrutementAPI et opContact'
+              type: object
+              allOf:
+                -
+                  $ref: '#/components/schemas/OperationRecrutement'
+                -
+                  $ref: '#/components/schemas/OperationContact'
+      responses:
+        '200':
+          $ref: '#/components/responses/retour-post-transmission-op'
+        default:
+          $ref: '#/components/responses/default'
+  /col/annuleop:
+    post:
+      tags:
+        - col
+      summary: "Annule et cloture sans embauche et de façon irrémédiable une opération préalablement transmise\npar le point d'entrée col/transmetop."
+      operationId: c9e920c89e279475b1625580d5b29bc1
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+      requestBody:
+        description: "Objet indiquant la référence de l'opération à supprimer"
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - applicatif_envoi
+                - num_externe
+              properties:
+                num_externe:
+                  description: "Numéro de l'opération d'Emploi-Territorial, ou numéro unique d'offre interne à la collectivité ou à son logiciel de recrutement"
+                  type: string
+                  maxLength: 100
+                  minLength: 1
+                  example: OFR-0001-2021
+                applicatif_envoi:
+                  description: "Nom de l'application utilisée pour l'envoi de la requête"
+                  type: string
+                  maxLength: 100
+                  minLength: 5
+                  example: 'E-Recrutement 2042'
+                motif_annulation:
+                  description: "Code du motif d'annulation du recrutement. Voir le point d'entrée referentiels/motifsannulation pour la liste des valeurs possibles. Requis si la déclaration de l'opération a été validée et a déjà fait l'objet d'une publicité légale."
+                  type: string
+                  maxLength: 2
+                  example: '02'
+              type: object
+      responses:
+        default:
+          $ref: '#/components/responses/default'
+  /col/depublieop:
+    post:
+      tags:
+        - col
+      summary: "Dépublie l'offre d'emploi en cours de publication d'une opération préalablement transmise par le point\nd'entrée col/transmetop, puis validée par le CDG ou le CNFPT. Pour republier une offre dépubliée, relancer\nun appel du point d'entrée col/transmetop avec les mêmes données que celles passées sur la dépublication."
+      operationId: 2a00e4ea961478d974755d5e86ad1c1c
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+      requestBody:
+        description: "Objet indiquant la référence de l'opération à dépublier"
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - applicatif_envoi
+                - num_externe
+              properties:
+                num_externe:
+                  description: "Numéro de l'opération d'Emploi-Territorial, ou numéro unique d'offre interne  à la collectivité ou à son logiciel de recrutement"
+                  type: string
+                  maxLength: 100
+                  minLength: 1
+                  example: OFR-0001-2021
+                applicatif_envoi:
+                  description: "Nom de l'application utilisée pour l'envoi de la requête"
+                  type: string
+                  maxLength: 100
+                  minLength: 5
+                  example: 'E-Recrutement 2042'
+              type: object
+      responses:
+        '200':
+          $ref: '#/components/responses/retour-post-transmission-op'
+        default:
+          $ref: '#/components/responses/default'
+  /col/nomination:
+    post:
+      tags:
+        - col
+      summary: "Cloture une déclaration de vacance ou de création d'emploi par la saisie d'une nomination."
+      operationId: bce3d0a83c1d71e7516d0b6f1b5bb315
+      parameters:
+        -
+          $ref: '#/components/parameters/siret'
+      requestBody:
+        description: 'Objet du type Nomination au format JSON'
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Nomination'
+      responses:
+        '200':
+          $ref: '#/components/responses/retour-post-nomination'
+        default:
+          $ref: '#/components/responses/default'
+  /cdg/collectivites:
+    get:
+      tags:
+        - cdg
+      summary: 'Retourne la liste des collectivités actives gérées par le CDG'
+      operationId: 0d229924e069da352f5a6cbd0bcf8759
+      parameters:
+        -
+          $ref: '#/components/parameters/sirets'
+        -
+          $ref: '#/components/parameters/references'
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/offset'
+        -
+          $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/liste-cols'
+        default:
+          $ref: '#/components/responses/default'
+  /cdg/collectivitesaverifier:
+    get:
+      tags:
+        - cdg
+      summary: 'Retourne une liste de collectivités avec un numéro SIRET invalide ou obsolète'
+      operationId: 89eb8f0f77fa5866b93870f7a9993446
+      parameters:
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/offset'
+        -
+          $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /demandeurs/transmetdemande:
+    post:
+      tags:
+        - demandeurs
+      summary: 'Transmet une pour diffusion auprès des collectivités sur Emploi-Territorial'
+      operationId: 6d731bca6ea8c22695906ef54b227844
+      requestBody:
+        description: "Objet JSON contenant les attributs des demandes à ajouter ou mettre à jour.\n              Dans le cas d'une mise à jour, il est seulement nécessaire de transmettre les attributs modifiés ;\n              si juste l'identifiant est envoyé sans données supplémentaires,\n              la durée de diffusion de la demande est prolognée de 3 mois par rapport à la date du jour."
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              allOf:
+                -
+                  $ref: '#/components/schemas/Demandeur'
+                -
+                  $ref: '#/components/schemas/SituationActuelle'
+                -
+                  $ref: '#/components/schemas/Demande'
+      responses:
+        '200':
+          $ref: '#/components/responses/retour-post-demande'
+        default:
+          $ref: '#/components/responses/default'
+  /demandeurs/depubliedemande:
+    post:
+      tags:
+        - demandeurs
+      summary: 'Retire de la publication une ou plusieurs demandes'
+      operationId: 6dcc5466abf768f9705025620286de43
+      requestBody:
+        description: "liste d'e-mails identifiant les demandes à retirer de la publication"
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+                example: prenom.nomdemandeur@gipcdg.fr
+      responses:
+        default:
+          $ref: '#/components/responses/default'
+  /demandeurs/infodemande:
+    get:
+      tags:
+        - demandeurs
+      summary: "Renvoie le détail d'une ou plusieurs demandes consultables par l'utilisateur actif"
+      operationId: 4cb17ff4ae2e4677858e7a8bba2dc99b
+      parameters:
+        -
+          $ref: '#/components/parameters/statut'
+        -
+          $ref: '#/components/parameters/missions-temporaires'
+        -
+          $ref: '#/components/parameters/email'
+        -
+          $ref: '#/components/parameters/num'
+        -
+          $ref: '#/components/parameters/date'
+        -
+          $ref: '#/components/parameters/metier'
+        -
+          $ref: '#/components/parameters/offset'
+        -
+          $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/details-demandes'
+        default:
+          $ref: '#/components/responses/default'
+  '/demandeurs/cv/{num}':
+    get:
+      tags:
+        - demandeurs
+      summary: 'Renvoie le CV (encodé en base 64) associé à une demande'
+      operationId: 79ac578eee47f617ec419e7c1c3e5998
+      parameters:
+        -
+          name: num
+          in: path
+          description: 'Numéro de la demande'
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/cv'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/demandes:
+    get:
+      tags:
+        - stats
+      summary: "Indicateurs d'activité concernant les demandes"
+      operationId: 5acac6a5633d2029740f9313ecd0e5dd
+      parameters:
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/demandesparetab:
+    get:
+      tags:
+        - stats
+      summary: "Indicateurs d'activité concernant les demandes par établissement\nselon la date de transmission ou du dernier renouvellement"
+      operationId: 79350fec9538e26233c84730d0ad2d48
+      parameters:
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/offres:
+    get:
+      tags:
+        - stats
+      summary: "Renvoie le nombre d'offres actuellement publiées par département, région, métier et/ou grade"
+      operationId: 3c9591094c4a05bf43e74da51ef37103
+      parameters:
+        -
+          $ref: '#/components/parameters/dep'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/grade'
+        -
+          $ref: '#/components/parameters/metier'
+        -
+          name: total
+          in: query
+          description: 'Type de retour, 0 => par département (par défaut), 1 => uniquement valeur totale'
+          required: false
+          schema:
+            type: integer
+            default: 0
+            enum:
+              - 0
+              - 1
+      responses:
+        '200':
+          description: "Retourne les résultats dans la variable success sous forme de valeur numérique\n                 ou de tableau de clés/valeurs, en fonction du paramètre retour renseigné"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { allOf: [{ $ref: '#/components/schemas/ReponseStandard' }, { properties: { success: { type: integer } }, type: object }] }
+                  - { allOf: [{ $ref: '#/components/schemas/ReponseStandard' }, { properties: { success: { type: array, items: { type: object } } }, type: object }] }
+        default:
+          $ref: '#/components/responses/default'
+  /stats/operationsparetab:
+    get:
+      tags:
+        - stats
+      summary: "Renvoie le nombre d'opérations de recrutement (non archivées) sur une période donnée,\npar établissement et/ou région"
+      operationId: 85eb2333fc566ef6997ae77589a276c0
+      parameters:
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/bilanemploi21:
+    get:
+      tags:
+        - stats
+      summary: "Tableau 2.1 du bilan de l'emploi, répartition des opérations de recrutement par type de collectivités."
+      description: "Les données sont prises en compte en fonction d'une date de début et de fin\n(selon la date exécutoire de la déclaration ou date de première publication d'une offre),\npar défaut sur les 12 derniers mois"
+      operationId: 4c80cd79239da824fcdfe8fd7f1516ae
+      parameters:
+        -
+          name: group
+          in: query
+          description: "regroupement des résultats par établissements (etab), type de collectivités (type),\n                    strate démographique des communes (strate) ou CDG en tant qu'employeur (cdg)"
+          schema:
+            type: string
+            default: etab
+            enum:
+              - etab
+              - type
+              - strate
+              - cdg
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/cr'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/bilanemploi22:
+    get:
+      tags:
+        - stats
+      summary: "Tableau 2.2 du bilan de l'emploi, répartition des opérations de recrutement par cadre statutaire."
+      description: "Les données sont prises en comte en fonction d'une date de début et de fin (selon la date exécutoire\nde la déclaration ou date de première publication d'une offre), par défaut sur les 12 derniers mois."
+      operationId: 9f91f78a2c8003b3a9f10c890b8db6ec
+      parameters:
+        -
+          name: group
+          in: query
+          description: "regroupement des résultats par temps de travail (temps),\n                  catégorie (categorie), grade (grade), cadre d'emplois (cemp) ou filière (filiere)"
+          schema:
+            type: string
+            default: categorie
+            enum:
+              - temps
+              - categorie
+              - grade
+              - cemp
+              - filiere
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/cr'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/bilanemploi23:
+    get:
+      tags:
+        - stats
+      summary: "Tableau 2.3 du bilan de l'emploi, répartition des opérations de recrutement par période."
+      description: "Les données sont prises en compte en fonction d'une date de début et de fin (selon la date exécutoire\nde la déclaration ou date de première publication d'une offre), par défaut sur les 12 derniers mois"
+      operationId: b3217fe62535a31a32512b65327c3126
+      parameters:
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/cr'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/bilanemploi24:
+    get:
+      tags:
+        - stats
+      summary: "Tableaux 2.4 et 2.5 du bilan de l'emploi, types de recrutement par établissement."
+      description: "Les données sont prises en compte en fonction d'une date de début et de fin (selon la date de nomination),\npar défaut sur les 12 derniers mois"
+      operationId: 178c58ceea1f187f55aac33712c5389f
+      parameters:
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/cr'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/bilanemploi26:
+    get:
+      tags:
+        - stats
+      summary: "Tableau 2.6 du bilan de l'emploi, répartition des nominations et opérations de recrutement."
+      description: "Les données sont regroupées par métier en fonction d'une date de début et de fin\n(selon la date de nomination), par défaut sur les 12 derniers mois"
+      operationId: c18c5de974d699ef8a16bf49c46abf6a
+      parameters:
+        -
+          name: rmt
+          in: query
+          description: 'version du référentiel des métiers CNFPT'
+          schema:
+            type: string
+            default: v4
+            enum:
+              - v3
+              - v4
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+        -
+          $ref: '#/components/parameters/etab'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/cr'
+      responses:
+        '200':
+          $ref: '#/components/responses/tableau'
+        default:
+          $ref: '#/components/responses/default'
+  /stats/barometreemploi:
+    get:
+      tags:
+        - stats
+      summary: "Renvoie le nombre d'offres du site Emploi-Territorial diffusées sur une période donnée par critères."
+      operationId: 2fa2cc1840a8eca48317dedac209fe55
+      parameters:
+        -
+          $ref: '#/components/parameters/debut'
+        -
+          $ref: '#/components/parameters/fin'
+        -
+          $ref: '#/components/parameters/dep'
+        -
+          $ref: '#/components/parameters/reg'
+        -
+          $ref: '#/components/parameters/grade'
+        -
+          name: type
+          in: query
+          description: "Inclure ou non les offres portant sur des emplois temporaire,\n                    -1 => uniquement emplois permanents et contrats de projet,\n                    0 => tous, 1 => que les emplois temporaires"
+          schema:
+            type: integer
+            default: -1
+            enum:
+              - -1
+              - 0
+              - 1
+        -
+          name: partenaire
+          in: query
+          description: "Inclure ou non les offres partenaires, 0 => exclure,\n                    1 => uniquement si offre diffusée sur le SET, 2 => tous"
+          schema:
+            type: integer
+            default: 1
+            enum:
+              - 0
+              - 1
+              - 2
+      responses:
+        '200':
+          description: 'Retourne les résultats dans la variable success sous forme de valeur numérique.'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/ReponseStandard' }
+                  - { properties: { success: { type: integer } }, type: object }
+        default:
+          $ref: '#/components/responses/default'
+components:
+  schemas:
+    ReponseStandard:
+      required:
+        - status
+        - status_message
+      properties:
+        status:
+          description: 'Code de la réponse'
+          type: integer
+          example: '200'
+          nullable: true
+        status_message:
+          description: 'Message associé au code de la réponse'
+          type: string
+          example: 'Valid Request'
+          nullable: true
+        success:
+          description: 'Retour(s) spécifique(s) en cas de succès du traitement de la requête'
+          type: object
+          nullable: true
+        errors:
+          description: "Retour(s) spécifique(s) en cas d'erreur rencontrée lors du traitement"
+          type: array
+          items:
+            type: string
+          nullable: true
+      type: object
+    ReponseTableauDonnees:
+      required:
+        - status
+        - status_message
+        - success
+      type: object
+      allOf:
+        -
+          $ref: '#/components/schemas/ReponseStandard'
+        -
+          properties:
+            success:
+              $ref: '#/components/schemas/TableauDonnees'
+          type: object
+    TableauDonnees:
+      description: "Objet composé d'un en-tête décrivant les différents attributs des sous-objets renvoyés en réponse d'une API\net de sous-objets"
+      properties:
+        headers:
+          description: "En-tête recensant les différentes propriétés des objets utilisés dans les résultats,\nsous forme de clés (nom technique de la propriété) - valeurs (description de la propriété)"
+          type: mixed
+          example:
+            attribut1: "Description de l'attribut 1"
+            attribut2: "Description de l'attribut 2"
+            attribut3: "Description de l'attribut 3"
+          nullable: true
+          additionalProperties:
+            description: "Description d'une propriété renvoyée dans les résultats, identifiée par sa clé"
+            type: string
+        rows:
+          description: "Objets renvoyés par la requête, composés de différentes propriétés énumérées et décrites dans l'en-tête"
+          type: array
+          items:
+            type: object
+          example:
+            -
+              attribut1: "Valeur de l'attribut 1 de l'objet 1"
+              attribut2: "Valeur de l'attribut 2 de l'objet 1"
+              attribut3: "Valeur de l'attribut 3 de l'objet 1"
+            -
+              attribut1: "Valeur de l'attribut 1 de l'objet 2"
+              attribut2: "Valeur de l'attribut 2 de l'objet 2"
+              attribut3: "Valeur de l'attribut 3 de l'objet 2"
+        _total:
+          description: 'Nombre total de résultats.'
+          type: integer
+        _displayed:
+          description: 'Nombre de résultats affiché dans le tableau.'
+          type: integer
+        _from:
+          description: 'Position du premier résultat du tableau.'
+          type: integer
+        _to:
+          description: 'Position du dernier résultat du tableau'
+          type: integer
+      type: object
+    DroitsUtilisateur:
+      description: "Information et droits associés au jeton d'accès à l'API d'Emploi-Territorial"
+      properties:
+        compte:
+          description: 'Libellé de la collectivité, établissement ou partenaire associé au token'
+          type: string
+        token:
+          description: "Accès aux points d'entrée donnant des informations sur le compte courant utilisé sur l'API Emploi-Territorial"
+          type: boolean
+        referentiels:
+          description: "Accès aux points d'entrée renvoyant les données Référentiels d'Emploi-Territorial"
+          type: boolean
+        col:
+          description: "Accès aux points d'entrée permettant aux collectivités d'exploiter des données d'Emploi-Territorial"
+          type: boolean
+        cdg:
+          description: "Accès aux points d'entrée permettant aux CDG d'exploiter des données d'Emploi-Territorial"
+          type: boolean
+        demandeurs:
+          description: "Accès aux points d'entrée permettant d'accéder à la CVthéque d'Emploi-Territorial"
+          type: boolean
+        cdgnonadherents:
+          description: "Accès aux points d'entrée permettant de diffuser des offres pour le compte d'un CDG sur Emploi-Territorial à partir d'un logiciel tiers de gestion de la bourse de l'emploi"
+          type: boolean
+        stats:
+          description: "Accès aux points d'entrée renvoyant des données statistiques sur Emploi-Territorial"
+          type: boolean
+        date_creation_token:
+          description: "Date de création du jeton d'accès à l'API, au format JJ/MM/AAAA hh:mm:ss"
+          type: string
+          format: date-time
+          nullable: true
+        date_reinitialisation_quota:
+          description: "Horaire d'expiration de la session courante, au format JJ/MM/AAAA hh:mm:ss"
+          type: string
+          format: date-time
+          nullable: true
+        quota_get_restant:
+          description: "Nombre maximal de requêtes de type GET pouvant être utilisées jusqu'à la fin de la session"
+          type: integer
+          nullable: true
+        quota_post_restant:
+          description: "Nombre maximal de requêtes de type POST pouvant être utilisées jusqu'à la fin de la session"
+          type: integer
+          nullable: true
+      type: object
+    Demande:
+      description: "Demandes d'emploi"
+      properties:
+        publiee:
+          description: 'La demande est-elle en cours de publication ?'
+          type: boolean
+          readOnly: true
+        lib_etat_dem:
+          description: 'État de la demande'
+          type: string
+          readOnly: true
+        prolonge_diffusion:
+          description: 'Prolonge la diffusion de la demande de 3 mois par rapport à la date actuelle. Par défaut oui.'
+          type: boolean
+          default: true
+          writeOnly: true
+        num_dem:
+          description: "Numéro de la demande. Généré automatiquement après la création d'une demande, non modifiable."
+          type: string
+          readOnly: true
+          nullable: true
+        emploi_rech_dem:
+          description: "Libellé de l'emploi recherché par le demandeur. Si non renseigné, reprend par défaut le libellé du premier métier sélectionné."
+          type: string
+          maxLength: 80
+          example: 'Secrétaire de mairie'
+          nullable: true
+        date_dispon_cand:
+          description: 'Date de disponibilité du demandeur, au format JJ/MM/AAAA. Si non renseigné à la création, initié à la date du jour, doit être sinon postérieur à la date du jour.'
+          type: string
+          format: dd/mm/yyyy
+          example: 01/01/2030
+        compl_info_dem:
+          description: "Complément d'informations (pouvant par exemple détailler motivations ou expérience professionnelle) fourni par le demandeur. Texte libre, sans mise en forme."
+          type: string
+          maxLength: 2000
+          example: 'Très motivé !'
+          nullable: true
+        cond_diffus_dem:
+          description: 'Le demandeur autorise-t-il la consultation de ses coordonnées nominatives directement par les collectivités ? Par défaut oui (true), indiquer non (false) si la demande est diffusée en mode anonyme.'
+          type: boolean
+          default: true
+          nullable: true
+        accept_miss_temp:
+          description: 'Le demandeur accepte-t-il des missions temporaires ou des missions de remplacement ? Par défaut non.'
+          type: boolean
+          default: false
+          nullable: true
+        date_saisie_dem:
+          description: 'Date de saisie initiale de la demande'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+        date_mod_dem:
+          description: 'Date de dernière modification de la demande'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+        date_renouv_dem:
+          description: "Date du dernier renouvellement d'une demande, au format JJ/MM/AAAA. Champ en lecture seule."
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+          example: 01/12/2022
+        date_pub_dem:
+          description: "Date de début de publication d'une demande. Champ en lecture seule."
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+          example: 01/10/2022
+        date_fin_pub:
+          description: 'Date de fin de diffusion de la demande, au format JJ/MM/AAAA. Diffusion de 3 mois automatiquement à la création, prolongeable, en lecture seule uniquement.'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+          example: 01/02/2023
+        date_depot_cv:
+          description: 'Date de dépôt du CV'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+          example: 01/12/2022
+        date_valid:
+          description: 'Date de validation de la demande par un gestionnaire CDG'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+        cod_grad_rech:
+          description: "Code du grade recherché par le demandeur. À la création, si non renseigné, initié par le grade actuel du demandeur s'il s'agit d'un fonctionnaire territorial, ou par la catégorie correspondant au niveau d'étude du demandeur."
+          type: string
+          maxLength: 6
+          example: '010204'
+        cod_reg_rech:
+          description: "Tableau contenant les codes des régions recherchées si le candidat est mobile à un niveau régional.\nLa liste des codes valides peut être récupérée via le point d'entrée referentiels/regions.\n5 valeurs maximum, classées par ordre de préférence.\nÀ la création, au moins une valeur doit être renseignée sur les champs cod_reg_rech, cod_dep_rech ou cod_sect."
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          minItems: 1
+          example:
+            - '84'
+            - '44'
+        cod_dep_rech:
+          description: "Tableau de valeurs contenant les codes des départements recherchés si le candidat est mobile à ce niveau.\nLa liste des codes valides peut être récupérée via le point d'entrée referentiels/departements.\n5 valeurs maximum, classées par ordre de préférence. À la création, au moins une valeur doit être renseignée sur les champs cod_reg_rech, cod_dep_rech ou cod_sect."
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          example:
+            - '025'
+            - '067'
+        cod_sect:
+          description: "Tableau contenant les codes des secteurs géographiques recherchés si le candidat est mobile à un niveau local.\nLa liste des codes valides peut être récupérée via le point d'entrée referentiels/secteursgeographiques.\n5 valeurs maximum, classées par ordre de préférence.\nÀ la création, au moins une valeur doit être renseignée sur les champs cod_reg_rech, cod_dep_rech ou cod_sect."
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          example:
+            - '02503'
+            - '09001'
+        cod_etat_dem:
+          description: 'Statut de diffusion de la demande. Champ en lecture seule.'
+          type: string
+          readOnly: true
+        cod_metiers:
+          description: "Tableau contenant les codes des métiers recherchés par le demandeur.\nLa liste des codes valides peut être récupérée via le point d'entrée referentiels/metiers.\n5 valeurs maximum, 1 au minimum, classées par ordre de préférence."
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          minItems: 1
+          example:
+            - E10315
+            - E30425
+        cv:
+          description: 'Contenu du CV, au format PDF, encodé au format base64. Requis lors de la création de la demande.'
+          type: string
+          writeOnly: true
+      type: object
+    Demandeur:
+      description: "Données personnelles des demandeurs d'emploi"
+      required:
+        - email_cand
+      properties:
+        cod_caces:
+          description: "Tableau contenant les codes des habilitations CACES détenues par le demandeur. La liste des codes valides peut être récupérée via le point d'entrée referentiels/caces. 5 valeurs maximum."
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          minItems: 0
+          example:
+            - 'CACES R.482'
+            - 'CACES R.483'
+        cod_permis:
+          description: "Tableau contenant les codes des permis détenus par le demandeur. La liste des codes valides peut être récupérée via le point d'entrée referentiels/permis. 5 valeurs maximum."
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          minItems: 0
+          example:
+            - A1
+            - B
+        civilite_cand:
+          description: 'Civilité du demandeur (M => Homme, MME => Femme). Requis lors de la création du demandeur.'
+          type: string
+          maxLength: 3
+          enum:
+            - M
+            - MME
+          example: M
+          nullable: true
+        nom_cand:
+          description: "Nom d'usage du demandeur. Requis lors de la création du demandeur."
+          type: string
+          maxLength: 100
+          example: DUPONT-LAJOIE
+          nullable: true
+        prenom_cand:
+          description: 'Prénom du demandeur. Requis lors de la création du demandeur.'
+          type: string
+          maxLength: 100
+          example: Maurice
+          nullable: true
+        date_nais_cand:
+          description: 'Date de naissance, au format JJ/MM/AAAA du demandeur. Requis lors de la création du demandeur.'
+          type: string
+          format: date-time
+          example: 01/01/2000
+          nullable: true
+        adr_cand:
+          description: 'Adresse de résidence du demandeur. Requis lors de la création du demandeur.'
+          type: string
+          maxLength: 80
+          example: 'Rue de la paix'
+          nullable: true
+        cp_adr_cand:
+          description: "Code postal de l'adresse du demandeur. Requis lors de la création du demandeur."
+          type: string
+          maxLength: 5
+          example: '75001'
+          nullable: true
+        ville_adr_cand:
+          description: "Ville de l'adresse du demandeur. Requis lors de la création du demandeur."
+          type: string
+          maxLength: 30
+          example: PARIS
+          nullable: true
+        tel_per_cand:
+          description: 'Téléphone principal du demandeur. Requis lors de la création du candidat.'
+          type: string
+          maxLength: 14
+          example: '0102030405'
+          nullable: true
+        tel_pro_cand:
+          description: 'Téléphone secondaire du demandeur.'
+          type: string
+          maxLength: 14
+          example: '0607080910'
+          nullable: true
+        adr_etrang_cand:
+          description: "Adresse (complète avec rue, ville et code postal) si le candidat habite à l'étranger"
+          type: string
+          maxLength: 80
+          nullable: true
+        email_cand:
+          description: 'Adresse e-mail du demandeur. Toujours requis.'
+          type: string
+          maxLength: 320
+          example: mdupont-lajoie@yopmail.com
+          nullable: true
+        date_cre_cand:
+          description: 'Date de création du demandeur'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+        date_dern_auth:
+          description: 'Date de dernière connexion sur Emploi-Territorial'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+        date_mod_cand:
+          description: 'Date de dernière modification des informations demandeur'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+        accept_offre_mail:
+          description: 'Le demandeur souhaite-t-il recevoir par e-mail des alertes sur les nouvelles offres correspondant à ses critères ? Non par défaut.'
+          type: boolean
+          default: false
+          nullable: true
+        handicap:
+          description: "Le demandeur bénéficie-t-il d'une reconnaissance de travailleur handicapé ? Non par défaut."
+          type: boolean
+          default: false
+          nullable: true
+        cod_pays_cand:
+          description: "Code pays issu de la nomenclature de l'INSEE (https://www.insee.fr/fr/information/2028273) de l'adresse du demandeur, à renseigner uniquement si le demandeur réside à l'étranger, code par défaut XXX pour la France."
+          type: string
+          default: XXX
+          maxLength: 5
+          example: XXX
+      type: object
+    SituationActuelle:
+      description: 'Situation professionnelle actuelle des demandeurs'
+      properties:
+        lib_niv_scol_cand:
+          description: 'Libellé du niveau de scolarité du candidat'
+          type: string
+          maxLength: 30
+          readOnly: true
+        lib_sit_act_cand:
+          description: 'Libellé de la situation actuelle du candidat'
+          type: string
+          maxLength: 30
+          readOnly: true
+        cat_cand_fpeh:
+          description: "Catégorie du demandeur si titulaire dans la Fonction Publique d'Etat ou Hospitalière.\nRequis si cod_sit_act_cand = 02."
+          type: string
+          enum:
+            - A
+            - B
+            - C
+          nullable: true
+        cod_conc:
+          description: "Code grade du concours ou examen de la FPT sur lequel le demandeur est inscrit sur liste d'aptitude.\nLa liste des codes grades valides peut être obtenue avec le point d'entrée referentiels/grades.\nRequis si cod_sit_act_cand = 06 (lauréats de concours) ou 07 (lauréats d'examen pro.)."
+          type: string
+          maxLength: 6
+          example: '010205'
+        cod_niv_scol_cand:
+          description: "Code du niveau de scolarité du demandeur.\nLa liste des codes valides peut être obtenue avec le point d'entrée referentiels/niveauxetudes.\nRequis à la création de la demande."
+          type: string
+          maxLength: 2
+          example: '15'
+        cod_sit_act_cand:
+          description: "Code de la situation actuelle du demandeur. La liste des codes valides peut être obtenue avec le point d'entrée\nreferentiels/situationpro. Requis à la création de la demande."
+          type: string
+          maxLength: 2
+          example: '00'
+        date_obt_conc:
+          description: "Date d'inscription sur liste d'aptitude (au format JJ/MM/AAAA) si le demandeur est inscrit sur liste d'aptitude\naprès concours. Doit être antérieure à la date du jour. Requis si cod_sit_act_cand = 06."
+          type: string
+          format: dd/mm/yyyy
+        date_obt_exam:
+          description: "Date d'inscription sur liste d'aptitude (au format JJ/MM/AAAA)\nsi le demandeur est inscrit sur liste d'aptitude après examen professionnel.\nDoit être antérieure à la date du jour. Requis si cod_sit_act_cand = 07."
+          type: string
+          format: dd/mm/yyyy
+        diplome_cand:
+          description: 'Description du ou des diplômes du demandeur, mentionnant les spécialités.'
+          type: string
+          maxLength: 700
+          example: 'Master en gestion des collectivités - Université de Paris XX'
+          nullable: true
+        emploi_act_cand:
+          description: "Libellé de l'emploi actuel ou du dernier emploi du demandeur. Requis si cod_sit_act_cand = 01 (fonctionnaire État), 02 (fonctionnaire hospitalier),  03 (fonctionnaire UE), 05 (salarié secteur privé) ou 08 (demandeur d'emploi)."
+          type: string
+          maxLength: 60
+          example: 'Gestionnaire RH'
+          nullable: true
+        date_mod_prof:
+          description: 'Date de dernière modification du profil actuel'
+          type: string
+          format: dd/mm/yyyy
+          readOnly: true
+        cod_grad_cond_fpt:
+          description: "Grade actuel du demandeur si titulaire ou stagiaire dans la Fonction Publique Territoriale.\nRequis si cod_sit_act_cand = 00."
+          type: string
+          maxLength: 6
+          example: '010204'
+      type: object
+    TypeEmploi:
+      description: "Référentiel des types d'emploi utilisés sur Emploi-Territorial"
+      properties:
+        cod_typ_op:
+          type: string
+        allowed_code_tc:
+          description: "liste des valeurs (séparées par une virgule) autorisées sur le champ code_tc à la création d'une opération sur ce type d'emploi. Valeurs possibles : 00 (emploi ouvert aux contractuels), 01 (emploi ouvert aux fonctionnaires)"
+          type: boolean
+        libc_typ_op:
+          description: "Libellé du type d'emploi"
+          type: string
+          nullable: true
+        observation:
+          description: "Observations diverses concernant ce type d'opération de recrutement"
+          type: string
+          nullable: true
+        duree_mission_required:
+          description: "Vrai s'il est nécessaire de préciser une durée de mission à la création de ce type d'emploi"
+          type: boolean
+          nullable: true
+        can_cr_dve:
+          description: "Vrai si une déclaration de vacance d'emploi peut être saisie sur une opération liée à ce type d'emploi"
+          type: boolean
+          nullable: true
+        can_cr_ofr:
+          description: "Vrai si une offre d'emploi peut être saisie sur une opération liée à ce type d'emploi"
+          type: boolean
+          nullable: true
+        can_cr_dr:
+          description: "Vrai si une nomination peut être saisie sur une opération liée à ce type d'emploi"
+          type: boolean
+          nullable: true
+        envoi_pep:
+          description: "Vrai si les opérations créées sur ce type d'emploi sont transmises sur Place de l'Emploi Public"
+          type: boolean
+          nullable: true
+        duree_mission_max:
+          description: 'Durée maximale de la mission en mois'
+          type: integer
+          nullable: true
+        allowed_code_fj:
+          description: "liste des valeurs (séparées par une virgule) autorisées sur le champ code_fj à la création d'une opération sur ce type d'emploi. Voir le point d'entrée referentiels/fondementsjuridiques pour la signification des codes."
+      type: object
+    OperationRecrutement:
+      description: "Opération de recrutement\n\nExemple :\nChamps issus du contact\n\"email_contact\" : \"drh@gipcdg.fr\",\n\"nom_contact\" : \"Patulacci\",\n\"prenom_contact\" : \"Marcel\",\n\"tel_contact\" : \"0102030405\",\n\"fonctions_contact\" : \"Brigadier-Chef\""
+      required:
+        - applicatif_envoi
+        - num_externe
+      properties:
+        num_externe:
+          description: "Numéro unique d'offre spécifique à la collectivité ou à son logiciel de recrutement.\nCe champ sert de clé pour détecter s'il s'agit d'une mise à jour ou d'une création d'opération sur Emploi-Territorial.\nDans le cas d'une modification, le numéro de l'opération sur Emploi-Territorial peut être indiqué sur ce champ en alternative."
+          type: string
+          default: OFR-0001-2024
+          maxLength: 100
+          minLength: 1
+        int_poste_op:
+          description: "Intitulé du poste. Requis lors de la création de l'opération."
+          type: string
+          maxLength: 200
+          minLength: 3
+          example: 'Gestionnaire recrutement (h/f)'
+        sce_op:
+          description: 'Service / direction du poste. Facultatif.'
+          type: string
+          maxLength: 200
+          example: 'Direction des Ressources Humaines'
+        nbre_poste_op:
+          description: "Nombre de postes. Requis lors de la création de l'opération, ne peut être modifié en mise à jour.\nPar défaut indiqué à 1."
+          type: integer
+          default: 1
+          maximum: 100
+          minimum: 1
+          example: 1
+        tps_trav_op:
+          description: "Code du type de temps de travail.\nIndiquer 0 pour temps non complet, 1 pour temps complet.\nRequis lors de la création de l'offre."
+          type: integer
+          default: 1
+          enum:
+            - 0
+            - 1
+          example: 1
+        duree_tps_trav_hh:
+          description: "Durée du temps de travail hebdomadaire annualisé en heures.\nNe pas prendre en compte les aménagements de temps de travail.\nRequis lors de la création de l'offre s'il s'agit d'un temps non complet, sinon par défaut à 35h par semaine."
+          type: integer
+          default: 35
+          maximum: 168
+          minimum: 0
+          example: 35
+        duree_tps_trav_mm:
+          description: "Durée du temps de travail hebdomadaire annualisé en minutes.\nÀ compléter uniquement si la durée du temps de travail n'est pas un nombre d'heures entier (14h30 par exemple).\nRequis lors de la création de l'offre s'il s'agit d'un temps non complet, par défaut à 0."
+          type: integer
+          default: 0
+          maximum: 59
+          minimum: 0
+          example: 0
+        cod_type_op:
+          description: "Code du type d'emploi, correspondant au référentiel des types d'emploi d'Emploi-Territorial.\nExécuter la requête referentiels/typesemplois pour récupérer la liste des valeurs valides.\nRequis lors de la création de l'offre, ne peut être modifié en mise à jour."
+          type: string
+          maxLength: 2
+          minLength: 2
+          example: '00'
+        duree_mission:
+          description: "Durée de la mission (en mois), requis selon le type d'emploi sélectionné.\nExécuter la requête referentiels/detailtypeemploi pour plus d'informations.\nDes valeurs décimales (séparées par un point) peuvent être renseignées, par ex. 0.5 pour une mission de 15 jours.\nLaisser vide ou indiquer 0 pour les emplois permanents."
+          type: number
+          format: float
+          default: 0
+          maximum: 120
+          minimum: 0
+        code_tc:
+          description: "Le poste est-il ouvert aux contractuels ? Valeurs possibles 00 => oui, 01 => non.\nPar défaut égal à oui.\nSur certains types d'emploi, la valeur 'non' ne peut pas être prise en compte."
+          type: string
+          default: '00'
+          enum:
+            - '00'
+            - '01'
+          example: '00'
+        code_fj:
+          description: "Code du fondement juridique d'ouverture aux contractuels.\nRequis en fonction du type d'emploi sélectionné, exécuter la requête referentiels/fondementsjuridiques\navec en paramètre le code type emploi pour récupérer la liste des valeurs possibles et leur signification.\nLa valeur indiquée ne sera pas prise en compte si le champ code_tc est renseigné à 01."
+          type: string
+          maxLength: 2
+          minLength: 2
+          example: '01'
+        desc_emp_of:
+          description: "Descriptif de l'offre : résumé rapide de l'offre d'emploi, servant d'accroche à l'annonce.\nRequis lors de la création de l'offre."
+          type: string
+          maxLength: 10000
+          example: 'La mairie de Belleville recrute au sein de sa Direction des Ressources Humaines...'
+        missions_of:
+          description: "Missions de l'offre : reprendre les éléments principaux de la fiche de poste.\nRequis lors de la création de l'offre."
+          type: string
+          maxLength: 10000
+          example: 'Mission 1 : ..., Mission 2 : ...., Mission 3: ...'
+        profil_rech_of:
+          description: "Profil recherché de l'offre.\nRequis lors de la création de l'offre."
+          type: string
+          maxLength: 10000
+          example: 'Expert en statut de la fonction publique territoriale'
+        adr_candid_of:
+          description: "Modalités de candidature et informations complémentaires\nconcernant les avantages du poste et ses conditions d'exercice.\nRequis lors de la création de l'offre."
+          type: string
+          maxLength: 2000
+          example: 'Pour postuler, rendez-vous sur notre site Internet via le lien présent sur cette annonce.'
+        date_debut_pub:
+          description: "Date de début de publicité de l'offre au format JJ/MM/AAAA ou ou AAAA-MM-JJ.\nSi non renseigné, égal à la date du jour."
+          type: string
+          format: date
+          example: 01/01/2024
+        date_fin_pub:
+          description: "Date de fin de publicité de l'offre au format JJ/MM/AAAA.\nSi non renseigné, égal à la date du jour plus le délai par défaut de publication,\ndéfini par le CDG de rattachement de la collectivité."
+          type: string
+          format: date
+          example: 01/04/2024
+        date_limit_cand:
+          description: "Date limite de candidature au format JJ/MM/AAAA ou AAAA-MM-JJ.\nSi non renseigné, égal à la date de fin de publication."
+          type: string
+          format: date
+          example: 01/03/2024
+        date_poste_lib:
+          description: "Date prévue de recrutement au format JJ/MM/AAAA ou AAAA-MM-JJ.\nSi non renseigné, égal à la date de fin de publication plus un mois."
+          type: string
+          format: date
+          example: 01/04/2024
+        email_dest_cand_of:
+          description: "Adresse e-mail de destination des candidatures.\nFacultatif. Si renseigné, active la fonctionnalité postuler en ligne sur Emploi-Territorial."
+          type: string
+          maxLength: 320
+          example: drh@belleville.fr
+        lettre_motivation_obligatoire:
+          description: "Indique si une lettre de motivation est obligatoire (valeur => 2),\nfacultative (valeur => 1, par défaut), ou non demandée (valeur => 0)\nsur le formulaire permettant de postuler en ligne sur Emploi-Territorial.\nFacultatif. Pris en compte uniquement si l'adresse e-mail de réception des candidatures est définie.\nPar défaut obligatoire."
+          type: string
+          default: '2'
+          enum:
+            - '0'
+            - '1'
+            - '2'
+          example: '2'
+        url_of_cand:
+          description: "Lien pour candidater sur l'offre si la candidature en ligne est possible.\nDoit inclure le protocole (http:// ou https://). Facultatif.\nPris en compte uniquement s'il n'y a pas d'adresse e-mail de réception des candidatures définie,"
+          type: string
+          maxLength: 320
+          example: 'https://www.gipcdg.fr/recrutement/offre-20240001'
+        adr_lieu_trav:
+          description: "Adresse du lieu de travail principal.\nFacultatif, renseigner uniquement si différent de celui du siège de la collectivité."
+          type: string
+          maxLength: 200
+          example: '80 rue de Reuilly'
+        cp_lieu_trav:
+          description: "Code postal du lieu de travail principal.\nFacultatif, renseigner uniquement si différent de celui du siège de la collectivité."
+          type: string
+          maxLength: 5
+          example: '75019'
+        ville_lieu_trav:
+          description: "Ville du lieu de travail principal.\nFacultatif, renseigner uniquement si différent de celui du siège de la collectivité.\nNe pas inclure d'éléments de type Cedex ou Boîte Postale."
+          type: string
+          maxLength: 100
+          example: Paris
+        management:
+          description: "L'offre concerne-t-elle un poste avec management d'équipe ?\nValeurs possibles : 1 (sans management) ou 2 (avec management)\nChamp facultatif."
+          type: string
+          enum:
+            - '1'
+            - '2'
+          example: '1'
+        teletravail:
+          description: "Le poste peut-il être exercé en télétravail ?\nValeurs possibles : 1 (sans télétravail) ou 2 (avec télétravail)\nChamp facultatif."
+          type: string
+          enum:
+            - '1'
+            - '2'
+          example: '2'
+        experience:
+          description: "Quel est le niveau d'expérience souhaité pour le poste ?\nValeurs possibles : 1 (débutant), 2 (confirmé) ou 3 (expert)\nChamp facultatif."
+          type: string
+          enum:
+            - 1
+            - 2
+            - 3
+          example: 2
+        salaire:
+          description: "Niveau de rémunération indicatif.\nChamp facultatif."
+          type: string
+          maxLength: 255
+          example: 'Rémunération statutaire + primes'
+        cod_emp:
+          description: "Code de l'emploi fonctionnel.\nLes emplois fonctionnels sont des emplois de direction sur lesquels des fonctionnaires peuvent être détachés\nle temps de l'exercice de leurs missions ou dans certains cas\nsur lesquels des contractuels peuvent être recrutés temporairement.\nChamp facultatif, ne pas renseigner s'il ne s'agit pas d'un emploi fonctionnel."
+          type: string
+          maxLength: 6
+          example: '980101'
+        applicatif_envoi:
+          description: "Nom de l'application utilisée pour l'envoi de la requête.\nChamp non affiché aux candidats, utilisé en interne pour la traçabilité des requêtes envoyées."
+          type: string
+          maxLength: 100
+          minLength: 5
+          example: 'E-recrutement 2042'
+        motif_prod_dve:
+          description: "Code du motif de création ou de vacance du poste. Dépend du type d'emploi sélectionné.\nExécuter la requête referentiels/motifsdeclaration pour récupérer la liste des valeurs possibles.\nRequis lors de la création de l'offre selon le type d'emploi."
+          type: string
+          maxLength: 5
+          minLength: 2
+          example: '01'
+        cod_grade:
+          description: "Liste des codes grades de la Fonction Publique Territoriale ouverts au recrutement sur l'offre d'emploi.\nLe nombre de valeurs possibles ne peut excéder 10, mais dépend des CDG rattachés à la collectivité.\nExécuter la requête referentiels/grades pour récupérer la liste des valeurs possibles.\nRequis lors de la création de l'offre, sauf pour le type d'opération vacation, stage et apprentissage,\noù une valeur par défaut est automatiquement renseignée."
+          type: array
+          items:
+            type: string
+          maxItems: 10
+          minItems: 0
+          example:
+            - '010204'
+            - '010205'
+        cod_metier:
+          description: "Liste de codes métiers de l'offre issus du référentiel d'Emploi-Territorial. 5 valeurs maximum.\nExécuter la requête referentiels/metiers pour récupérer la liste des valeurs valides.\nRequis lors de la création de l'offre."
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          minItems: 1
+          example:
+            - C10510
+            - F20103
+        num_op_rattachee:
+          description: "Numéro d'une opération de recrutement sur Emploi-Territorial à rattacher à l'opération en cours,\ncontenant une déclaration de vacance sans offre d'emploi et concernant le même nombre de postes.\nFacultatif. Si renseigné et valide, il n'est pas créé de déclaration sur la nouvelle opération.\nUtiliser le point d'entrée col/listdec pour récupérer la liste des numéros de déclaration utilisables."
+          type: string
+        composition_description_dve:
+          description: "Liste des champs à utiliser pour compléter la description du poste enregistrée sur la déclaration de vacance.\nPar défaut, le champ mission de l'offre est utilisé.<br>\nPour modifier ce comportement par défaut, renseigner les codes des champs à utiliser séparés par des virgules.\nPar exemple :<br>\ndesc_emp_of : la description de la DVE reprendra le contenu du champ de description de l'offre<br>\nmissions_of : la description de la DVE reprendra le contenu du champ de missions de l'offre<br>\ndesc_emp_of, missions_of : la description de la DVE reprendra les champs description et missions de l'offre<br>\nmissions_of, profil_rech_of : la description de la DVE reprendra les missions et le profil recherché<br>\nadr_candid_of : la description de la DVE reprendra le champ informations complémentaires<br>\nValeurs possibles : desc_emp_of, missions_of, profil_rech_of et / ou adr_candid_of"
+          type: string
+        transmettre_op:
+          description: "Dans le cas d'une création d'opération, la nouvelle opération doit-elle passer automatiquement à l'état transmis\npour validation auprès du Centre de Gestion de la collectivité ou du CNFPT ?<br>\nSi la valeur indiquée est vraie (par défaut), l'opération est automatiquement enregistrée à l'état transmise.<br>\nSi la valeur indiquée est fausse, l'opération est enregistrée à l'état transmissible. Il est alors nécessaire de\nse connecter sur son espace employeur pour la vérifier et la transmettre au CDG / CNFPT."
+          type: boolean
+          default: true
+      type: object
+    OperationContact:
+      description: "Contact d'une collectivité.\nLes informations personnelles ne sont pas affichées directement sur l'offre à destination des candidats.\nElles sont diffusées uniquement à destination des gestionnaires emploi des CDG et du CNFPT."
+      properties:
+        email_contact:
+          description: "Adresse e-mail de contact sur l'opération. Sert à désigner un référent interne de la collectivité\nsur l'opération de recrutement, pouvant être joint par les gestionnaires emploi CDG.\nDes notifications seront adressées à cette adresse e-mail lors de la validation d'opération.\nRequis à la création d'une offre.\nSi non renseigné, valeur par défaut reprenant le contact principal référencé sur Emploi-Territorial."
+          type: string
+          maxLength: 255
+          example: drh@belleville.fr
+        nom_contact:
+          description: "Nom du référent interne.\nFacultatif, à renseigner dans le cas de création d'un nouveau contact sur Emploi-Territorial uniquement."
+          type: string
+          maxLength: 255
+          example: MARTIN
+        prenom_contact:
+          description: "Prénom du référent interne.\nFacultatif, à renseigner dans le cas de création d'un nouveau contact sur Emploi-Territorial uniquement."
+          type: string
+          maxLength: 255
+          example: Jeanne
+        tel_contact:
+          description: "Numéro de téléphone du référent interne.\nFacultatif, à renseigner dans le cas de création d'un nouveau contact sur Emploi-Territorial uniquement."
+          type: string
+          maxLength: 255
+          example: '01 02 03 04 05'
+        fonctions_contact:
+          description: "Fonctions du référent interne.\nFacultatif, à renseigner dans le cas de création d'un nouveau contact sur Emploi-Territorial uniquement."
+          type: string
+          maxLength: 255
+          example: DRH
+      type: object
+    Nomination:
+      description: Nominations
+      properties:
+        num_dec:
+          description: "Numéro de déclaration à utiliser pour la nomination d'un agent (titulaire ou contractuel)"
+          type: string
+          maxLength: 20
+          example: V0012025060100001001
+        civ_recrute:
+          description: "Civilité de l'agent recruté"
+          type: string
+          enum:
+            - M
+            - MME
+          example: MME
+        nom_recrute:
+          description: "Nom de l'agent recruté"
+          type: string
+          maxLength: 30
+          example: DUPONT
+        prenom_recrute:
+          description: "Prénom de l'agent recruté"
+          type: string
+          maxLength: 30
+          example: Jeanne
+        annee_naiss_recrute:
+          description: "Année de naissance de l'agent recruté"
+          type: integer
+          example: 2000
+        handicap:
+          description: "L'agent embauché est-il reconnu travailleur handicapé ?"
+          type: boolean
+          example: false
+        date_embauche:
+          description: "Date d'embauche de l'agent recruté. au format JJ/MM/AAAA.\nCe peut être une date passée (mais nécessairement postérieure à la date de visa de préfecture de la déclaration)\nou future."
+          type: string
+          format: d/m/Y
+          example: 01/02/2025
+        cod_mod_recrut:
+          description: "Code du mode de recrutement. Utiliser le point d'entrée referentiels/modesrecrutement (avec en paramètre\nle code grade NET de recrutement) pour obtenir la liste des valeurs possibles."
+          type: string
+          maxLength: 2
+          example: '09'
+        cod_grade:
+          description: "Code grade du recrutement, codification Emploi-Territorial.\nVoir referentiels/grade pour la liste des valeurs possibles."
+          type: string
+          maxLength: 6
+          example: '010204'
+        cod_net:
+          description: "Code grade de recrutement, codification Nomenclature des Emplois Territoriaux (NET).\nPeut être utilisé en alternative à cod_grade. Ne pas indiquer les champs cod_grade et cod_net simultanément\n(redondants, si les deux sont renseignés seule la valeur de cod_grade est prise en compte)."
+          type: string
+          maxLength: 4
+          example: TAT1
+          nullable: true
+        applicatif_envoi:
+          description: "Nom de l'application utilisée pour l'envoi de la requête"
+          type: string
+          maxLength: 100
+          example: 'E-Recrutement 2042'
+      type: object
+    Col:
+      description: 'Collectivités et établissements employeurs'
+      properties:
+        cod_reg_col:
+          description: 'Région du siège de la collectivité'
+          type: string
+        siret_col:
+          description: SIRET
+          type: string
+          maxLength: 14
+          minLength: 14
+          example: '12345678900001'
+        libc_col:
+          description: "Libellé court, visible sur les offres d'emploi"
+          type: string
+          maxLength: 120
+          example: 'Commune de Belleville'
+        libl_col:
+          description: 'Libellé long, utilisé uniquement sur les exports'
+          type: string
+          maxLength: 400
+          example: 'Commune de Belleville'
+        cod_cj_col:
+          description: 'Code catégorie juridique'
+          type: string
+        adr_col:
+          description: 'Adresse du siège'
+          type: string
+          maxLength: 400
+          example: 'Place de la Mairie'
+        cp_col:
+          description: 'Code postal du siège'
+          type: string
+          maxLength: 5
+          example: '99000'
+        ville_col:
+          description: 'Ville du siège'
+          type: string
+          maxLength: 400
+          example: Belleville
+        tel_col:
+          description: "Téléphone de l'accueil"
+          type: string
+          maxLength: 16
+          example: '01 02 03 04 05'
+        email_col:
+          description: 'E-mail de contact général'
+          type: string
+          maxLength: 320
+          example: accueil@belleville.fr
+        web_col:
+          description: 'Site web'
+          type: string
+          maxLength: 320
+          example: 'https://www.belleville.fr'
+        desc_sdis:
+          description: "Description affichée sur les offres d'emploi"
+          type: string
+          maxLength: 2000
+          example: 'Venez travailler à Belleville !'
+        population_col:
+          description: 'Population légale'
+          type: integer
+          minimum: 0
+          example: 10000
+        pop_col_surclasse:
+          description: 'Population avec surclassement'
+          type: integer
+          minimum: 0
+          example: 20000
+        num_externe:
+          description: 'Code collectivité CDG'
+          type: string
+          maxLength: 100
+        cod_dep_col:
+          description: 'Département du siège'
+          type: string
+        cod_sect_geo:
+          description: 'Secteur géographique'
+          type: string
+        cod_intercomunalite:
+          description: Intercommunalité
+          type: string
+        cod_zone_emploi:
+          description: "Zone d'emploi INSEE 2020"
+          type: string
+        id_etab_cdg:
+          description: 'Centre de gestion'
+          type: string
+      type: object
+  responses:
+    default:
+      description: "Réponse renvoyée, avec un code statut 200 pour une requête valide,\n      400 pour une requête invalide, 401 pour une requête nécessitant une authentification,\n      403 pour un token invalide, 404 pour un objet non trouvé,\n      429 pour un nombre dépassé de requêtes, 500 en cas d'exception levée lors du traitement.\n      La réponse contient un objet success si la requête a été correctement traitée,\n      et un tableau errors si des erreurs sont détectées"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReponseStandard'
+    cles_valeurs:
+      description: "Renvoie un code statut 200 pour une requête valide,\n        avec un objet success composé de couples clés / valeurs"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: array, items: { type: object }, example: { cle_objet1: "libellé de l'objet 1", cle_objet2: "libellé de l'objet 2", cle_objet3: "libellé de l'objet 3" } }
+                type: object
+    valeur:
+      description: "Renvoie un code statut 200 pour une requête valide,\n    avec un objet success composé d'une seule valeur numérique"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: integer }
+                type: object
+    tableau:
+      description: "Renvoie un code statut 200 pour une requête valide, avec un objet success composé d'un tableau de données avec en-tête."
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReponseTableauDonnees'
+    retour-post-transmission-op:
+      description: "Renvoie dans l'objet success un message de confirmation et des informations sur l'opération de recrutement créée ou mise à jour"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            required:
+              - status
+              - status_message
+              - success
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: object, allOf: [{ properties: { action: { description: "Résultat de l'envoi (mise à jour ou création d'opération)", type: string, enum: [insert, update] }, message: { description: 'Message de traitement', type: string }, num_op: { description: "Numéro de l'opération sur Emploi-Territorial", type: string }, lib_etat_op: { description: "Libellé de l'état de l'opération sur Emploi-Territorial", type: string }, num_of: { description: "Numéro de l'offre sur Emploi-Territorial", type: string }, lib_etat_of: { description: "Libellé de l'état de l'offre sur Emploi-Territorial", type: string }, num_dec: { description: 'Numéros de déclaration de vacance sur Emploi-Territorial', type: array, items: { type: string } }, lib_etat_dec: { description: "Libellé de l'état de la déclaration sur Emploi-Territorial", type: string }, url_of: { description: "URL de diffusion l'offre sur Emploi-Territorial", type: string }, url_of_previsualisation: { description: "URL de prévisualisation de l'offre sur Emploi-Territorial", type: string }, url_op_modif: { description: "URL de modification de l'opération sur Emploi-Territorial", type: string }, num_op_rattachees: { description: "Numéros d'opérations rattachées automatiquement à l'opération principale", type: string } }, type: object }] }
+                type: object
+    retour-post-nomination:
+      description: "Renvoie dans l'objet success un message de confirmation et des informations sur la nomination créée ou mise à jour"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            required:
+              - status
+              - status_message
+              - success
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: object, allOf: [{ properties: { action: { description: "Résultat de l'envoi (mise à jour ou création d'opération)", type: string, enum: [insert, update] }, message: { description: 'Message de traitement', type: string }, num_op: { description: "Numéro de l'opération", type: string }, lib_etat_op: { description: "Libellé de l'état de l'opération", type: string }, cod_etat_op: { description: "Code de l'état de l'opération", type: string }, num_dec: { description: 'Numéro de déclaration mise à jour', type: string }, lib_etat_dec: { description: "Libellé de l'état de la déclaration", type: string }, cod_etat_dec: { description: "Code de l'état de la déclaration", type: string } }, type: object }] }
+                type: object
+    details-col:
+      description: "Renvoie le détail d'une collectivité"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            required:
+              - status
+              - status_message
+              - success
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { $ref: '#/components/schemas/Col' }
+                type: object
+    liste-cols:
+      description: 'Liste de collectivités'
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            required:
+              - status
+              - status_message
+              - success
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: array, items: { $ref: '#/components/schemas/Col' } }
+                type: object
+    retour-post-demande:
+      description: "Renvoie dans l'objet success un message de confirmation et des informations sur la demande créée"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            required:
+              - status
+              - status_message
+              - success
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: object, allOf: [{ properties: { demande: { description: 'Identifiant (e-mail) de la demande traitée', type: string }, message: { description: 'Message de traitement', type: string }, num_dem: { description: 'Numéro de demande généré', type: string, maxLength: 16 } }, type: object }] }
+                type: object
+    details-demandes:
+      description: "Renvoie dans l'objet success une liste de demandeurs ayant autorisé la diffusion\n                    de leurs données auprès de collectivités"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: array, items: { type: object, allOf: [{ $ref: '#/components/schemas/Demandeur' }, { $ref: '#/components/schemas/SituationActuelle' }, { $ref: '#/components/schemas/Demande' }, { properties: { _position: { description: 'Position dans la recherche', type: integer }, _total: { description: 'Nombre total de résultats dans la recherche', type: integer } }, type: object }] } }
+                type: object
+    cv:
+      description: "Renvoie dans l'objet success les informations sur le fichier de CV"
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            required:
+              - status
+              - status_message
+              - success
+            allOf:
+              -
+                $ref: '#/components/schemas/ReponseStandard'
+              -
+                properties:
+                  success: { type: array, items: { properties: { filename: { description: 'Nom du fichier', type: string }, type: { description: 'Type Mime du fichier', type: string }, content: { description: 'Contenu du fichier encodé en base 64', type: string } }, type: object } }
+                type: object
+  parameters:
+    debut:
+      name: debut
+      in: query
+      description: 'Date de début de prise en compte des résultats, au format AAAA-MM-JJ, JJ/MM/AAAA ou intervalle de date en anglais'
+      required: false
+      schema:
+        type: string
+        format: date
+      example: '-1 year'
+    fin:
+      name: fin
+      in: query
+      description: 'Date de fin (incluse) de prise en compte des résultats, au format AAAA-MM-JJ, JJ/MM/AAAA ou intervalle de date en anglais'
+      required: false
+      schema:
+        type: string
+        format: date
+      example: now
+    limit:
+      name: limit
+      in: query
+      description: 'Nombre maximal de résultats renvoyés'
+      required: false
+      schema:
+        type: integer
+        default: 100
+        maximum: 100000
+        minimum: 1
+    offset:
+      name: offset
+      in: query
+      description: 'Position initiale du curseur'
+      required: false
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+    etab:
+      name: etab
+      in: query
+      description: "Filtre sur un ou des identifiants d'établissement\n      <br />- voir referentiels/etab pour la liste des codes à utiliser"
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: integer
+    one_etab:
+      name: etab
+      in: query
+      description: "Filtre sur un ou des identifiants d'établissement\n    <br />- voir referentiels/etab pour la liste des codes à utiliser"
+      required: false
+      schema:
+        type: integer
+    dep:
+      name: dep
+      in: query
+      description: 'Filtre par code(s) département(s) - voir referentiels/departements pour la liste des codes'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    reg:
+      name: reg
+      in: query
+      description: 'Filtre par code(s) région(s) - voir referentiels/departements pour la liste des codes'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    grade:
+      name: grade
+      in: query
+      description: "Filtre par grade(s) ;\n   renseigner un ou plusieurs codes grades avec leur nomenclature NET (par exemple TAT1 pour attaché)"
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    one_grade:
+      name: grade
+      in: query
+      description: 'Filtre par grade ; renseigner un grade avec leur nomenclature NET (par exemple TAT1 pour attaché)'
+      required: false
+      schema:
+        type: string
+      example: TAT1
+    metier:
+      name: metier
+      in: query
+      description: "Filtre par métier(s) ;\n        renseigner un ou plusieurs codes métiers. Voir referentiels/metiers pour la liste des codes métiers"
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    siret:
+      name: siret
+      in: query
+      description: "numéro SIRET de la collectivité.\n    Si le token d'authentification est relié à une collectivité, le paramètre est facultatif,\n    renvoie par défaut les informations de la collectivité principale,\n    voir le point d'entrée col/rattachements pour obtenir la liste des autres n°SIRET utilisables.\n    <br />Si le token d'authentification est relié à un CDG, le paramètre est obligatoire."
+      required: false
+      schema:
+        type: string
+        maxLength: 14
+        minLength: 14
+    cod_sfam:
+      name: cod_sfam
+      in: query
+      description: 'Code(s) de la sous-famille de métiers'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+          example: A101
+    cod_fam:
+      name: cod_fam
+      in: query
+      description: 'Code(s) de la famille de métiers'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+          example: A1
+    cod_metier:
+      name: cod_metier
+      in: query
+      description: 'Code(s) métier'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+          example: A10101
+    cemp:
+      name: cemp
+      in: query
+      description: "Filtre par par code cadres d'emplois ; voir referentiels/cadresemplois pour la liste des codes"
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    fil:
+      name: fil
+      in: query
+      description: 'Filtre par par code filière ; voir referentiels/filieres pour la liste des codes'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    cat:
+      name: cat
+      in: query
+      description: 'Filtre par par catégorie'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - A+
+            - A
+            - B
+            - C
+    cod_typ_op:
+      name: cod_typ_op
+      in: query
+      description: "filtre par type d'opération de recrutement ;\n      voir le point d'entrée /referentiels/typesemploi pour la liste des valeurs possibles"
+      schema:
+        type: string
+      example: '00'
+    actif:
+      name: actif
+      in: query
+      description: "renvoie ou non les éléments obsolètes\n      (0 => tous, 1 => seulements actifs (par défaut), -1 => seulement obsolètes)"
+      schema:
+        type: integer
+        default: 1
+        enum:
+          - -1
+          - 0
+          - 1
+    special:
+      name: special
+      in: query
+      description: "inclut ou exclut certains types de grades spéciaux\n      (par défaut, t => tous, f => grades portant sur des emplois fonctionnels,\n      v => grades virtuels liés à des emplois contractuels, s => grades liés à un cadre d'emplois statutaire"
+      schema:
+        type: string
+        default: t
+        enum:
+          - t
+          - v
+          - f
+          - s
+    references:
+      name: references
+      in: query
+      description: 'Filtre par numéro(s) de référence interne(s).'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    sirets:
+      name: sirets
+      in: query
+      description: 'Filtre par numéro(s) de référence interne(s).'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+    statut:
+      name: statut
+      in: query
+      description: 'Filtre par statut de publication de la demande'
+      required: false
+      schema:
+        type: string
+        default: tous
+        enum:
+          - tous
+          - publie
+          - depublie
+    missions-temporaires:
+      name: missions-temporaires
+      in: query
+      description: 'Le demandeur accepte ou non les missions temporaires ?'
+      required: false
+      schema:
+        type: string
+        default: tous
+        enum:
+          - tous
+          - oui
+          - non
+    email:
+      name: email
+      in: query
+      description: 'Filtre par adresse e-mail du demandeur'
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: string
+        pattern: '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,4}$'
+    num:
+      name: num
+      in: query
+      description: "Filtre par n° de la demande d'emploi"
+      required: false
+      style: form
+      explode: false
+      schema:
+        type: string
+    date:
+      name: date
+      in: query
+      description: "Filtre par date de mise à jour, au format AAAA-MM-JJ\n        (comprend les dates de création / mises à jour et renouvellement des demandes).\n        Ce filtre prend en compte les demandes d'emploi, de la date passée en paramètre,\n         jusqu'à la date du jour"
+      required: false
+      schema:
+        type: string
+        format: yyyy-mm-dd
+      example: '2000-01-01'
+    cr:
+      name: cr
+      in: query
+      description: "Inclure ou non les opérations de recrutement du conseil régional\n        -1 => exclure, 0 => inclure, 1 => n'inclure que le conseil régional,\n        -2 => exclure conseils régionaux et départementaux, 2 => inclure uniquement les conseils départementaux)"
+      schema:
+        type: integer
+        default: 0
+        enum:
+          - -2
+          - -1
+          - 0
+          - 1
+          - 2
+  headers:
+    X-RateLimit-Limit:
+      description: "Nombre maximal de requêtes pouvant être effectuées à partir de ce compte\n   jusqu'à l'expiration de la session de connexion"
+      schema:
+        type: integer
+        example: '1000'
+    X-RateLimit-Remaining:
+      description: "Nombre restant de requêtes pouvant être effectuées à partir de ce compte\n   jusqu'à l'expiration de la session de connexion"
+      schema:
+        type: integer
+        example: '999'
+    X-RateLimit-Reset:
+      description: 'Timestamp UNIX de réinitialisation de la session de connexion'
+      schema:
+        type: integer
+  securitySchemes:
+    tokenHeader:
+      type: apiKey
+      description: "Token d'authentification transmis par le support GIPCDG"
+      name: X-API-Key
+      in: header
+security:
+  -
+    tokenHeader: []
+tags:
+  -
+    name: token
+    description: "Informations sur les droits associés au jeton d'accès utilisé sur l'API Emploi-Territorial"
+  -
+    name: referentiels
+    description: "Accès aux listes des référentiels utilisés sur le site Emploi-Territorial.\n  <br />L'accès est possible pour tout utilisateur disposant d'un token valide (CDG, partenaire ou collectivité)"
+  -
+    name: col
+    description: "Accès aux données spécifiques d'une collectivité.\n L'accès se fait avec un token généré depuis la page Mes donnnées > Fiche collectivité de l'espace employeur."
+  -
+    name: cdg
+    description: "Accès aux données spécifiques d'un Centre de Gestion.\n L'accès se fait avec un token spécifique, à demander par l'intermédiaire d'un ticket sur le site support du GIPCDG."
+  -
+    name: demandeurs
+    description: "Accès à la CVthèque d'Emploi-Territorial.\n  <br />L'accès est uniquement possible pour des partenaires conventionnées,\n  avec un consentement préalable des demandeurs dont les données personnelles sont communiquées."
+  -
+    name: stats
+    description: "Rapports d'utilisation du site Emploi-Territorial.\n  <br />L'accès est uniquement possible sur demande ou pour les CDG disposant d'un token d'accès."

@@ -34,7 +34,7 @@ import { computeOfferHash, loadExistingOfferIndex, loadExistingFingerprints, det
 import { offerDedupKey } from './offer-dedup';
 import { isOperationalSourceError } from './source-error';
 import {
-  deriveSourceStatus, failureOf, SourceError,
+  deriveSourceStatus, failureOf, SourceError, UNAVAILABLE_SOURCES,
   type SourceFailure, type SourceStatus,
 } from './source-status';
 import {
@@ -404,7 +404,13 @@ export async function runFetch(
   // Indeed, HelloWork) qui ne fonctionnent pas de façon fiable sur mobile
   // (cf. ANDROID_INCOMPATIBLE). Mieux vaut les ignorer que de polluer l'UI
   // d'erreurs récurrentes.
-  const skipSources = isAndroid() ? ANDROID_INCOMPATIBLE : new Set<JobSource>();
+  // Les sources indisponibles (UNAVAILABLE_SOURCES) ne sont jamais interrogées,
+  // même si une configuration a été réactivée à la main.
+  const unavailable = Object.keys(UNAVAILABLE_SOURCES) as JobSource[];
+  const skipSources = new Set<JobSource>([
+    ...(isAndroid() ? ANDROID_INCOMPATIBLE : []),
+    ...unavailable,
+  ]);
   const plan = buildFetchPlan(alerts, configs, skipSources);
 
   // Un résultat par couple (piste, source) — une même requête mutualisée
