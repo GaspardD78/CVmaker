@@ -8,12 +8,13 @@ import type { JobSource } from '@/types/job-watch';
 import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
 
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
+import { isPublicSectorText } from '@/lib/watcher/public-sector';
 import { APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
 const DEFAULT_SOURCES: JobSource[] = ['apec', 'wttj'];
 // Emploi Territorial n'est pas proposé ici (le site refuse les requêtes automatiques) :
-// il reste ajoutable à la main depuis la configuration.
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin', 'france_travail'];
+// ses offres arrivent via « Choisir le service public », proposé à la place.
+const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin', 'france_travail', 'choisir_service_public'];
 
 type Step = 'profile' | 'intent' | 'sources';
 
@@ -54,6 +55,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [selectedSources, setSelectedSources] = useState<JobSource[]>(
     hasFtCredentials ? [...DEFAULT_SOURCES, 'france_travail'] : DEFAULT_SOURCES,
   );
+  // Piste secteur public : « Choisir le service public » (versant territorial) est proposé d'office.
+  const publicSector = isPublicSectorText(rolePrimaryText, domReqText, domPrefText);
+  const [publicSectorPreselected, setPublicSectorPreselected] = useState(false);
+  if (publicSector && !publicSectorPreselected && step === 'sources') {
+    setPublicSectorPreselected(true);
+    setSelectedSources(prev => (prev.includes('choisir_service_public') ? prev : [...prev, 'choisir_service_public']));
+  }
 
   const profileSkills = useMemo(
     () => entries.filter(e => e.entryType === 'skill').map(e => e.title),
@@ -101,6 +109,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       apecSecteurs,
       apecTeletravail,
       apecSalaires,
+      // Piste secteur public : versant territorial par défaut (modifiable ensuite).
+      ...(selectedSources.includes('choisir_service_public') && publicSector ? { cspVersant: 'fpt' as const } : {}),
     };
 
     await saveSettings(settings);
@@ -401,6 +411,12 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                         {needsFt && (
                           <p className="text-[10px] text-amber-500 mt-0.5">
                             Nécessite les clés API (configurable dans les paramètres)
+                          </p>
+                        )}
+                        {source === 'choisir_service_public' && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            Site officiel de l'emploi public ; relaie Emploi Territorial.
+                            {publicSector ? ' Versant territorial sélectionné.' : ' Aucune clé requise.'}
                           </p>
                         )}
                         {needsRss && (

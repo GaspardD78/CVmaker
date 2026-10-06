@@ -87,6 +87,15 @@ export function queryShape(source: JobSource, profile: SearchProfile): Record<st
     case 'jobicy':
       return { titles };
 
+    case 'choisir_service_public':
+      return {
+        titles: norm(frenchJobTitles(profile.jobTitles).slice(0, 5)),
+        versant: profile.cspVersant ?? 'all',
+        categorie: profile.cspCategorie ?? 'all',
+        city,
+        departments: norm(profile.location.departmentCodes),
+      };
+
     case 'emploi_territorial':
       return { titles: norm(frenchJobTitles(profile.jobTitles)), city, departments: norm(profile.location.departmentCodes) };
 

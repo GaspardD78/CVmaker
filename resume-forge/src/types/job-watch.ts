@@ -13,7 +13,15 @@ export type JobSource =
   | 'jobicy'
   | 'france_travail'
   | 'emploi_territorial'
+  | 'choisir_service_public' // site officiel de l'emploi public (DGAFP), relaie Emploi Territorial
   | 'mantiks';           // @deprecated — paid API, low usage
+
+/**
+ * Origine d'une offre relayée par un agrégateur public (spec 007).
+ * `emploi_territorial` : référence `O0…` ou lien vers emploi-territorial.fr ;
+ * `place_emploi_public` : référence `2026-…` (Place de l'emploi public).
+ */
+export type OfferOrigin = 'emploi_territorial' | 'place_emploi_public';
 
 // ── Extraction metadata ──────────────────────────────────────────────────────
 
@@ -159,7 +167,16 @@ export interface SearchProfile {
 
   /** Tranches de salaires APEC sélectionnées */
   apecSalaires?: string[];
+
+  // ── Choisir le service public (spec 007) ──────────────────────────────────
+  /** Versant de la fonction publique : absent ou `all` = les trois. */
+  cspVersant?: CspVersant;
+  /** Catégorie : absent ou `all` = toutes. Un seul filtre de catégorie à la fois. */
+  cspCategorie?: CspCategorie;
 }
+
+export type CspVersant = 'all' | 'fpt' | 'etat' | 'fph';
+export type CspCategorie = 'all' | 'A';
 
 export const DEFAULT_SEARCH_PROFILE: SearchProfile = {
   name: 'Ma recherche',
@@ -243,6 +260,10 @@ export interface JobOffer {
   kanbanId: string | null;
   /** Version du scorer ayant produit `score` (absent = 1, échelle antérieure à la spec 006). */
   scoreVersion?: number;
+  /** Origine de l'annonce relayée (spec 007), null pour les sources directes. */
+  origin?: OfferOrigin | null;
+  /** Référence de l'annonce chez l'émetteur (spec 007). */
+  reference?: string | null;
 }
 
 export interface JobOfferFeedback {
@@ -493,6 +514,10 @@ export interface RawJobOffer {
   salaryMin?: number | null;
   salaryMax?: number | null;
   salaryRaw?: string | null;
+  /** Origine de l'annonce quand la source la relaie (Choisir le service public). */
+  origin?: OfferOrigin | null;
+  /** Référence de l'annonce chez l'émetteur (dédoublonnage entre canaux). */
+  reference?: string | null;
   /** Extraction quality metadata — populated by parsers */
   extraction: ExtractionMetadata;
 }

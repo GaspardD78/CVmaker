@@ -356,6 +356,12 @@ export function summarizeSourceQuery(source: JobSource, profile: SearchProfile):
       if (!p.q) return NO_FRENCH_TITLE_MESSAGE;
       return [p.q, p.lieu ? `lieu: ${p.lieu}` : null].filter(Boolean).join(' | ');
     }
+    case 'choisir_service_public': {
+      const titles = frenchJobTitles(profile.jobTitles);
+      if (titles.length === 0) return NO_FRENCH_TITLE_MESSAGE;
+      const versant = { all: 'tous versants', fpt: 'versant territorial', etat: 'versant État', fph: 'versant hospitalier' }[profile.cspVersant ?? 'all'];
+      return [titles.slice(0, 5).join(' | '), versant, profile.cspCategorie === 'A' ? 'catégorie A' : null].filter(Boolean).join(' | ');
+    }
     case 'mantiks': {
       const p = buildWttjQuery(profile);
       const parts = [p.query ?? '(mots-clés vides)'];

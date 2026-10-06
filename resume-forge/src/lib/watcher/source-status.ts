@@ -218,6 +218,8 @@ export function legacyToSourceStatus(status: 'success' | 'error' | 'empty'): Sou
 }
 
 const BLOCK_ADVICE: Partial<Record<JobSource, string>> = {
+  choisir_service_public:
+    'Choisir le service public a refusé les requêtes (ou robots.txt les interdit). Source mise en pause ; ne multipliez pas les essais.',
   apec: 'APEC refuse les requêtes automatiques. Créez une alerte e-mail APEC en attendant.',
   emploi_territorial:
     'Emploi Territorial refuse les requêtes automatiques. Source désactivée : consultez le site directement.',

@@ -54,6 +54,7 @@ import { parseHellowork } from './parsers/hellowork';
 import { parseJobicy } from './parsers/jobicy';
 import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
+import { parseChoisirServicePublic } from './parsers/choisir-service-public';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { 
   isPermissionGranted, 
@@ -95,6 +96,7 @@ export const SOURCE_THROTTLE_MS: Record<JobSource, number> = {
   wttj:               2000,
   apec:               1000,
   emploi_territorial: 1000,
+  choisir_service_public: 1000, // la cadence d'une requête par seconde est aussi imposée dans le parser
   france_travail:      500,
   jobicy:              500,
   linkedin_rss:        500,
@@ -325,6 +327,7 @@ async function runParser(
     case 'jobicy':             return parseJobicy(config, settings, profile);
     case 'france_travail':     return parseFranceTravail(config, settings, profile);
     case 'emploi_territorial': return parseEmploiTerritorial(config, settings, profile);
+    case 'choisir_service_public': return parseChoisirServicePublic(config, settings, profile);
     // Sources dépréciées — parsers supprimés. Les valeurs restent dans JobSource
     // pour l'affichage des offres historiques ; la migration 016 convertit les
     // configs linkedin_rss → linkedin.
@@ -687,8 +690,8 @@ export async function runFetch(
              contract_type, description_snippet, published_at, score,
              commute_minutes, commute_status,
              salary_min, salary_max, salary_raw,
-             is_read, is_archived, kanban_id, profile_id, score_version)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18,?19)`,
+             is_read, is_archived, kanban_id, profile_id, score_version, origin, reference)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18,?19,?20,?21)`,
           [
             entry.raw.source, entry.raw.url, entry.hash, entry.raw.title,
             entry.raw.company ?? null, entry.raw.location ?? null,
@@ -698,6 +701,7 @@ export async function runFetch(
             entry.commuteMinutes, entry.commuteStatus,
             entry.raw.salaryMin ?? null, entry.raw.salaryMax ?? null, entry.raw.salaryRaw ?? null,
             profileId ?? null, SCORER_VERSION,
+            entry.raw.origin ?? null, entry.raw.reference ?? null,
           ]
         );
         const rows = await db.select<{ id: string }[]>(

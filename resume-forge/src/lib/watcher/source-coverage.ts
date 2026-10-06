@@ -9,7 +9,7 @@
  */
 
 import type { FetchLog, JobSource } from '@/types/job-watch';
-import { RECOMMENDED_SOURCES, SOURCE_LABELS } from './sources';
+import { RECOMMENDED_SOURCES, SOURCE_LABELS, COVERED_VIA } from './sources';
 import {
   FAILING_STATUSES, legacyToSourceStatus, SOURCE_STATUS_LABELS, type SourceStatus,
 } from './source-status';
@@ -27,6 +27,8 @@ export interface CoverageRow {
   sampleCount: number;
   /** Part de l'échantillon, en %. */
   sharePct: number;
+  /** Libellé de la source qui couvre celle-ci (accès direct fermé), le cas échéant. */
+  coveredBy: string | null;
 }
 
 export interface SourceCoverage {
@@ -59,7 +61,9 @@ export function buildSourceCoverage(input: CoverageInput): SourceCoverage {
       ? (log.sourceStatus ?? legacyToSourceStatus(log.status))
       : input.configuredSources.has(source) ? 'en_attente' : 'non_configuree';
     const sampleCount = counts.get(source) ?? 0;
+    const via = COVERED_VIA[source];
     return {
+      coveredBy: via ? SOURCE_LABELS[via.by] : null,
       source,
       label: SOURCE_LABELS[source],
       status,
@@ -76,7 +80,7 @@ export function buildSourceCoverage(input: CoverageInput): SourceCoverage {
     : null;
 
   const toFix = rows
-    .filter(r => FAILING_STATUSES.has(r.status) || r.status === 'non_configuree')
+    .filter(r => !r.coveredBy && (FAILING_STATUSES.has(r.status) || r.status === 'non_configuree'))
     .map(r => ({ label: r.label, status: r.status }));
 
   return { rows, sampleSize, biased, toFix };
@@ -85,6 +89,9 @@ export function buildSourceCoverage(input: CoverageInput): SourceCoverage {
 /** Section Markdown ajoutée au contexte des prompts d'analyse. */
 export function renderCoverageSection(coverage: SourceCoverage): string {
   const lines = coverage.rows.map(r => {
+    if (r.coveredBy) {
+      return `- ${r.label} : couvert via ${r.coveredBy} (accès direct fermé, aucun réglage propre) — ${r.sampleCount} offre${r.sampleCount > 1 ? 's' : ''} d'origine directe dans l'échantillon`;
+    }
     const base = `- ${r.label} : ${SOURCE_STATUS_LABELS[r.status]}`;
     if (r.status === 'non_configuree') return `${base} (non activée pour cette piste)`;
     return `${base} — ${r.fetched} récupérée${r.fetched > 1 ? 's' : ''}, ${r.newOffers} nouvelle${r.newOffers > 1 ? 's' : ''}, ${r.sharePct} % de l'échantillon analysé`;
