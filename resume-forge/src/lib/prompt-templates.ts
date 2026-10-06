@@ -439,6 +439,11 @@ export interface AlertPromptContext {
   alertName: string;
   /** Autres pistes : nom et intitulés visés. */
   otherAlerts: Array<{ name: string; jobTitles: string[] }>;
+  /**
+   * Couverture par source déjà rendue en Markdown (`renderCoverageSection`) :
+   * statut de chaque source, part dans l'échantillon, avertissement de biais.
+   */
+  coverageSection?: string;
 }
 
 /** @deprecated Ligne d'offre de l'ancienne API (les champs optionnels enrichissent le prompt). */
@@ -513,7 +518,7 @@ export function generatePerformanceOptimizationPrompt(
       ],
     },
   };
-  return generateWatchAnalysisPrompt(withMetrics, 'performance');
+  return `${context?.coverageSection ?? ''}${generateWatchAnalysisPrompt(withMetrics, 'performance')}`;
 }
 
 /** @deprecated Utiliser `generateWatchAnalysisPrompt(ctx, 'diagnostic')`. */
@@ -522,10 +527,10 @@ export function generateDiagnosticPrompt(
   recentOffers: LegacyOfferRow[],
   context?: AlertPromptContext,
 ): string {
-  return generateWatchAnalysisPrompt(
+  return `${context?.coverageSection ?? ''}${generateWatchAnalysisPrompt(
     legacyContext(searchProfile, recentOffers, { title: null, mainSkills: [] }, context),
     'diagnostic',
-  );
+  )}`;
 }
 
 

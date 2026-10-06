@@ -11,6 +11,10 @@
  * suggestion structurée s'applique piste par piste, sur décision explicite.
  */
 
+import { dedupeOffers } from '@/lib/watcher/offer-dedup';
+import { SCORER_VERSION } from '@/lib/watcher/scorer';
+import { buildSourceCoverage, renderCoverageSection } from '@/lib/watcher/source-coverage';
+import type { FetchLog, JobSource } from '@/types/job-watch';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Copy, RefreshCw, Sparkles } from 'lucide-react';
@@ -63,7 +67,25 @@ export function PortfolioReviewPanel() {
 
   const copyPrompt = async () => {
     if (!metrics) return;
-    const prompt = buildPortfolioReviewPrompt(alerts, metrics);
+    // Couverture par source de chaque piste : l'IA ne doit pas régler une source en panne.
+    const { fetchLogs, configs, offers } = useJobWatchStore.getState();
+    const coverages = alerts.map(alert => {
+      const lastLogBySource = new Map<JobSource, FetchLog>();
+      for (const log of fetchLogs) {
+        if (log.alertId && log.alertId !== alert.id) continue;
+        if (!lastLogBySource.has(log.source)) lastLogBySource.set(log.source, log);
+      }
+      const scoped = dedupeOffers(offers.filter(o => o.alerts.some(l => l.alertId === alert.id)));
+      return {
+        alertName: alert.name,
+        section: renderCoverageSection(buildSourceCoverage({
+          lastLogBySource,
+          configuredSources: new Set(configs.filter(c => c.enabled === 1 && c.alertId === alert.id).map(c => c.source)),
+          sampleSources: scoped.filter(o => (o.scoreVersion ?? 1) >= SCORER_VERSION).map(o => o.source),
+        })),
+      };
+    });
+    const prompt = buildPortfolioReviewPrompt(alerts, metrics, coverages);
     try {
       await navigator.clipboard.writeText(prompt);
       toast.success('Prompt de revue copié — collez-le dans votre assistant');

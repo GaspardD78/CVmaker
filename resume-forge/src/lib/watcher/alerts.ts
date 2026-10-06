@@ -24,6 +24,7 @@ import {
   type OfferAlertLink,
   type SearchProfile,
 } from '@/types/job-watch';
+import { SCORER_VERSION } from './scorer';
 import type { AIFilterRule } from './ai-filter';
 import type { LearnedDictionary } from './learning-engine';
 
@@ -44,12 +45,14 @@ export interface AlertRow {
   learned_decayed_at: string | null;
   last_fetched_at: string | null;
   created_at: string;
+  /** Dernière modification des intitulés visés (migration 021). */
+  titles_updated_at?: string | null;
 }
 
 const ALERT_COLUMNS =
   'id, profile_id, name, color, kind, position, enabled, search_profile, ' +
   'ai_filter_rule, learned_dict, company_reputation, learned_decayed_at, ' +
-  'last_fetched_at, created_at';
+  'last_fetched_at, created_at, titles_updated_at';
 
 // ── Fonctions pures ──────────────────────────────────────────────────────────
 
@@ -93,6 +96,7 @@ export function mapAlertRow(row: AlertRow, sources: JobSource[] = []): JobWatchA
     learnedDecayedAt:  row.learned_decayed_at,
     lastFetchedAt:     row.last_fetched_at,
     createdAt:         row.created_at,
+    titlesUpdatedAt:   row.titles_updated_at ?? null,
     sources,
   };
 }
@@ -355,19 +359,36 @@ const PATCH_COLUMNS: Record<keyof AlertPatch, { column: string; serialize: (v: u
   lastFetchedAt:     { column: 'last_fetched_at',    serialize: v => v },
 };
 
-export async function updateAlert(id: string, patch: AlertPatch): Promise<void> {
-  const entries = (Object.keys(patch) as Array<keyof AlertPatch>)
-    .filter(key => patch[key] !== undefined && key in PATCH_COLUMNS)
-    .map(key => ({ ...PATCH_COLUMNS[key], value: patch[key] }));
-  if (entries.length === 0) return;
+/** Vrai si les intitulés visés diffèrent (ordre, casse et espaces ignorés). */
+export function jobTitlesChanged(previous: string[], next: string[]): boolean {
+  const norm = (titles: string[]) => titles.map(t => t.trim().toLowerCase()).filter(Boolean).sort().join('\u0000');
+  return norm(previous) !== norm(next);
+}
 
-  const assignments = entries.map((e, i) => `${e.column} = ?${i + 1}`).join(', ');
-  const values = entries.map(e => e.serialize(e.value));
+export async function updateAlert(id: string, patch: AlertPatch): Promise<void> {
+  const assignments: Array<{ column: string; value: unknown }> = (Object.keys(patch) as Array<keyof AlertPatch>)
+    .filter(key => patch[key] !== undefined && key in PATCH_COLUMNS)
+    .map(key => ({ column: PATCH_COLUMNS[key].column, value: PATCH_COLUMNS[key].serialize(patch[key]) }));
+  if (assignments.length === 0) return;
 
   const db = await getDb();
+
+  // Les rejets antérieurs à une modification des intitulés visés ne comptent plus
+  // dans les suggestions de blacklist : on date la modification.
+  if (patch.searchProfile) {
+    const rows = await db.select<Array<{ search_profile: string }>>(
+      `SELECT search_profile FROM job_watch_alerts WHERE id = ?1`, [id],
+    );
+    const previous = parseJson<Partial<SearchProfile>>(rows[0]?.search_profile, {});
+    if (jobTitlesChanged(previous.jobTitles ?? [], patch.searchProfile.jobTitles ?? [])) {
+      assignments.push({ column: 'titles_updated_at', value: new Date().toISOString() });
+    }
+  }
+
+  const setClause = assignments.map((e, i) => `${e.column} = ?${i + 1}`).join(', ');
   await db.execute(
-    `UPDATE job_watch_alerts SET ${assignments} WHERE id = ?${entries.length + 1}`,
-    [...values, id],
+    `UPDATE job_watch_alerts SET ${setClause} WHERE id = ?${assignments.length + 1}`,
+    [...assignments.map(e => e.value), id],
   );
 }
 
@@ -473,14 +494,14 @@ export async function loadOfferAlertLinks(offerIds: string[]): Promise<Map<strin
   for (let i = 0; i < offerIds.length; i += BATCH) {
     const batch = offerIds.slice(i, i + BATCH);
     const placeholders = batch.map((_, idx) => `?${idx + 1}`).join(', ');
-    const rows = await db.select<Array<{ offer_id: string; alert_id: string; score: number; matched_at: string }>>(
-      `SELECT offer_id, alert_id, score, matched_at FROM job_offer_alerts
+    const rows = await db.select<Array<{ offer_id: string; alert_id: string; score: number; matched_at: string; score_version: number | null }>>(
+      `SELECT offer_id, alert_id, score, matched_at, score_version FROM job_offer_alerts
        WHERE offer_id IN (${placeholders}) ORDER BY score DESC`,
       batch,
     );
     for (const row of rows) {
       const list = byOffer.get(row.offer_id) ?? [];
-      list.push({ alertId: row.alert_id, score: row.score, matchedAt: row.matched_at });
+      list.push({ alertId: row.alert_id, score: row.score, matchedAt: row.matched_at, scoreVersion: row.score_version ?? 1 });
       byOffer.set(row.offer_id, list);
     }
   }
@@ -504,20 +525,20 @@ export async function linkOfferToAlerts(
 
   for (const { alertId, score } of plan.inserts) {
     await db.execute(
-      `INSERT OR IGNORE INTO job_offer_alerts (offer_id, alert_id, score) VALUES (?1, ?2, ?3)`,
-      [offerId, alertId, score],
+      `INSERT OR IGNORE INTO job_offer_alerts (offer_id, alert_id, score, score_version) VALUES (?1, ?2, ?3, ?4)`,
+      [offerId, alertId, score, SCORER_VERSION],
     );
   }
   for (const { alertId, score } of plan.scoreUpdates) {
     await db.execute(
-      `UPDATE job_offer_alerts SET score = ?1 WHERE offer_id = ?2 AND alert_id = ?3`,
-      [score, offerId, alertId],
+      `UPDATE job_offer_alerts SET score = ?1, score_version = ?4 WHERE offer_id = ?2 AND alert_id = ?3`,
+      [score, offerId, alertId, SCORER_VERSION],
     );
   }
   if (plan.inserts.length > 0 || plan.scoreUpdates.length > 0) {
     await db.execute(
-      `UPDATE job_offers SET score = ?1 WHERE id = ?2 AND score < ?1`,
-      [plan.bestScore, offerId],
+      `UPDATE job_offers SET score = ?1, score_version = ?3 WHERE id = ?2 AND (score < ?1 OR score_version < ?3)`,
+      [plan.bestScore, offerId, SCORER_VERSION],
     );
   }
 }

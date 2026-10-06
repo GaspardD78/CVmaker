@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import { RefreshCw, Trash2, UserRound, Archive, BookmarkCheck, CheckCircle, Settings, Zap, SlidersHorizontal, ChevronDown, ChevronUp, Search, Grid, List, MoreVertical, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
@@ -526,7 +527,8 @@ export function JobOffersView() {
           <button
             onClick={async () => {
               const threshold = filters.minScore > 0 ? filters.minScore : 30;
-              const ids = offers.filter(o => o.score < threshold && o.isArchived === 0).map(o => o.id);
+              // Seuls les scores de la version courante sont comparables au seuil.
+              const ids = offers.filter(o => (o.scoreVersion ?? 1) >= SCORER_VERSION && o.score < threshold && o.isArchived === 0).map(o => o.id);
               if (ids.length === 0) { toast.info('Aucune offre à archiver sous ce score'); return; }
               await batchArchive(ids);
               toast.success(`${ids.length} offre(s) archivée(s) (score < ${threshold})`);

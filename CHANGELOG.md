@@ -20,6 +20,18 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+### Veille Emploi : sources, doublons, rescoring, blacklist (spec 006)
+
+- **Ajout** : statuts de source fiables (`ok`, `vide`, `bloquée`, `introuvable`, `erreur réseau`, `réponse invalide`, `intitulés inadaptés`, `non configurée`) dans le journal de collecte (migration 021) et le tableau « Dernières collectes » (par piste, info-bulle : code HTTP, URL sans secret, heure, conseil). Une page de pare-feu « Request Rejected » ou du HTML au lieu de XML/JSON n'est plus jamais comptée comme 0 offre.
+- **Changé** : APEC ouvre d'abord la page de recherche (cookies de session) puis appelle l'API avec des en-têtes de navigateur ordinaire. Après un refus (403, 429, pare-feu), APEC et Emploi Territorial sont mis en pause 24 h (table `job_watch_source_cooldown`), sans contournement.
+- **Changé** : Emploi Territorial n'est plus proposé par défaut, plus de repli trompeur sur le flux global, avertissement à l'ajout. Migration vers l'API officielle non faite (documentation inaccessible depuis l'environnement de développement).
+- **Changé** : France Travail et Emploi Territorial n'interrogent qu'avec les intitulés français de la piste ; sans intitulé français, statut `intitulés inadaptés`. Indeed et HelloWork : explication et lien « Configurer » dans le tableau, arrêt en `bloquée` sur contrôle anti-robot.
+- **Corrigé** : une même annonce n'apparaît plus deux fois (regroupement à l'affichage, rattachement à la collecte, métriques et échantillon du diagnostic) ; indicateur « piste quasi identique ».
+- **Ajout** : version du scorer (`score_version`), scores entiers de 0 à 100, recalcul en tâche de fond des 60 derniers jours avec progression et bouton « Recalculer les scores ». Seuil, métriques et prompts n'utilisent que la version courante.
+- **Ajout** : panneau du seuil (seuil actuel, offres masquées, seuil suggéré avec aperçu).
+- **Changé** : suggestions de blacklist avec titres rejetés, actions « Blacklister l'entreprise » (confirmation + annulation) ou « Ignorer ce type de poste chez elle » (`companyTitleExclusions`), pas de suggestion pour une entreprise appréciée ou qui recrute pour la cible, rejets antérieurs à la modification des intitulés ignorés ; l'apprentissage négatif ne porte plus sur les termes des intitulés, skills et domaines de la piste.
+- **Ajout** : couverture par source et avertissement d'échantillon biaisé (> 70 %) dans les prompts de diagnostic, d'optimisation et de revue de portefeuille.
+
 ## [Non publié] - 2026-10-04
 
 ### Catégories de compétences, titres, générateur de CV ciblé, angles de CV

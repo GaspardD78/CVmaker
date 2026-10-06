@@ -10,6 +10,8 @@
  * des ajustements (cf. `ai-portfolio.ts`).
  */
 
+import { offerDedupKey } from './offer-dedup';
+import { SCORER_VERSION } from './scorer';
 import { getDb } from '@/lib/db';
 import type { JobWatchAlert } from '@/types/job-watch';
 
@@ -66,6 +68,41 @@ export interface MetricRow {
   isRead: number;
   hasKanban: boolean;
   quickArchived: boolean;
+  /** Version du scorer ayant produit `score` ; absente = non renseignée, traitée comme courante. */
+  scoreVersion?: number;
+}
+
+const isCurrentVersion = (version?: number): boolean => version === undefined || version >= SCORER_VERSION;
+
+/**
+ * Ramène à une seule ligne par (piste, annonce) les enregistrements d'une même
+ * annonce republiée sous une autre adresse : sans cela, la piste compterait
+ * deux fois l'offre et le recouvrement entre pistes serait faussé.
+ *
+ * `canonicalOf` associe chaque identifiant d'offre à celui de son groupe.
+ */
+export function mergeDuplicateRows(rows: MetricRow[], canonicalOf: Map<string, string>): MetricRow[] {
+  const merged = new Map<string, MetricRow>();
+  for (const row of rows) {
+    const offerId = canonicalOf.get(row.offerId) ?? row.offerId;
+    const key = `${row.alertId}::${offerId}`;
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, { ...row, offerId });
+      continue;
+    }
+    current.isRead = current.isRead === 1 || row.isRead === 1 ? 1 : 0;
+    current.hasKanban = current.hasKanban || row.hasKanban;
+    current.quickArchived = current.quickArchived || row.quickArchived;
+    // Le score retenu est celui de la version courante le plus élevé, à défaut le plus élevé.
+    const currentOk = isCurrentVersion(current.scoreVersion);
+    const rowOk = isCurrentVersion(row.scoreVersion);
+    if ((rowOk && !currentOk) || (rowOk === currentOk && row.score > current.score)) {
+      current.score = row.score;
+      current.scoreVersion = row.scoreVersion;
+    }
+  }
+  return [...merged.values()];
 }
 
 function percent(part: number, whole: number): number {
@@ -117,7 +154,8 @@ export function computeMetricsFromRows(
       readRate:         percent(alertRows.filter(r => r.isRead === 1).length, total),
       kanbanRate:       percent(alertRows.filter(r => r.hasKanban).length, total),
       quickArchiveRate: percent(alertRows.filter(r => r.quickArchived).length, total),
-      medianScore:      median(alertRows.map(r => r.score)),
+      // Seuls les scores de la version courante entrent dans la médiane.
+      medianScore:      median(alertRows.filter(r => isCurrentVersion(r.scoreVersion)).map(r => r.score)),
     };
   });
 
@@ -161,6 +199,11 @@ export async function computePortfolioMetrics(
     SELECT l.alert_id       AS alertId,
            l.offer_id       AS offerId,
            l.score          AS score,
+           l.score_version  AS scoreVersion,
+           o.source         AS source,
+           o.title          AS title,
+           o.company        AS company,
+           o.location       AS location,
            o.is_read        AS isRead,
            o.kanban_id      AS kanbanId,
            (SELECT COUNT(*) FROM job_offer_feedback f
@@ -172,19 +215,31 @@ export async function computePortfolioMetrics(
   `;
 
   const rows = await db.select<Array<{
-    alertId: string; offerId: string; score: number;
+    alertId: string; offerId: string; score: number; scoreVersion: number | null;
+    source: string; title: string; company: string | null; location: string | null;
     isRead: number; kanbanId: string | null; quickArchived: number;
   }>>(sql, profileId ? [since, profileId] : [since]);
 
+  // Annonces republiées sous une autre adresse : un seul groupe, donc une seule offre.
+  const canonicalOf = new Map<string, string>();
+  const firstOfKey = new Map<string, string>();
+  for (const r of rows) {
+    const key = offerDedupKey({ id: r.offerId, source: r.source, title: r.title, company: r.company, location: r.location });
+    const first = firstOfKey.get(key);
+    if (first === undefined) firstOfKey.set(key, r.offerId);
+    canonicalOf.set(r.offerId, first ?? r.offerId);
+  }
+
   return computeMetricsFromRows(
-    rows.map(r => ({
+    mergeDuplicateRows(rows.map(r => ({
       alertId: r.alertId,
       offerId: r.offerId,
       score: r.score ?? 0,
       isRead: r.isRead ?? 0,
       hasKanban: r.kanbanId !== null,
       quickArchived: (r.quickArchived ?? 0) > 0,
-    })),
+      scoreVersion: r.scoreVersion ?? 1,
+    })), canonicalOf),
     alerts,
     windowDays,
   );

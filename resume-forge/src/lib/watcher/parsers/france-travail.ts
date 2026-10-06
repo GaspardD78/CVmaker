@@ -27,6 +27,8 @@
 
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile, ExtractionMetadata } from '@/types/job-watch';
 import { buildFranceTravailQuery, isExcludedByProfile, isValidInseeCode } from '../profile-to-query';
+import { NO_FRENCH_TITLE_MESSAGE } from '../french-titles';
+import { SourceError } from '../source-status';
 import { resolveProfileGeo } from '../geo';
 import { tauriFetch } from '../http';
 
@@ -264,7 +266,12 @@ export async function parseFranceTravail(
     }
   }
 
-  const queries: (string | undefined)[] = query.titles.length > 0 ? query.titles : [undefined];
+  // Aucun intitulé français : l'index France Travail est francophone, une
+  // requête en anglais ne ramènerait rien et passerait pour « 0 offre ».
+  if (query.titles.length === 0) {
+    throw new SourceError('intitules_inadaptes', NO_FRENCH_TITLE_MESSAGE);
+  }
+  const queries: (string | undefined)[] = query.titles;
 
   // Sticky : si une commune INSEE est rejetée sur la première requête, on bascule
   // définitivement sur `departement` pour toutes les requêtes suivantes.

@@ -39,7 +39,7 @@ const SOURCE_GUIDE: Array<{ id: JobSource; note: string }> = [
   { id: 'indeed',             note: 'généraliste, gros volume, qualité inégale.' },
   { id: 'hellowork',          note: 'généraliste France, bon sur les profils non-cadres.' },
   { id: 'jobicy',             note: 'remote international, anglophone. Uniquement pour du remote.' },
-  { id: 'emploi_territorial', note: 'fonction publique territoriale UNIQUEMENT.' },
+  { id: 'emploi_territorial', note: 'fonction publique territoriale UNIQUEMENT. Le site refuse les requêtes automatiques : ne pas proposer.' },
 ];
 
 const ALLOWED_SOURCES = new Set<string>(SOURCE_GUIDE.map(s => s.id));
@@ -499,7 +499,12 @@ export interface PortfolioReview {
 export function buildPortfolioReviewPrompt(
   alerts: Array<Pick<JobWatchAlert, 'name' | 'kind' | 'searchProfile' | 'sources'>>,
   metrics: PortfolioMetrics,
+  /** Couverture par source de chaque piste, déjà rendue (`renderCoverageSection`). */
+  coverages: Array<{ alertName: string; section: string }> = [],
 ): string {
+  const coverageBlock = coverages.length > 0
+    ? `\n# COUVERTURE PAR SOURCE (À LIRE AVANT TOUT AVIS)\n${coverages.map(c => `\n### ${c.alertName}${c.section}`).join('\n')}\n`
+    : '';
   const definitions = alerts.map(a => `
 ## ${a.name} (${ALERT_KIND_LABELS[a.kind]})
 - Titres visés : ${list(a.searchProfile.jobTitles, 'aucun')}
@@ -527,7 +532,7 @@ ${perAlert}
 
 # RECOUVREMENT ENTRE PISTES
 ${overlaps}
-
+${coverageBlock}
 # CE QUE TU DOIS PRODUIRE
 1. \`overlaps\` : pour chaque paire dont le recouvrement dépasse 40 %, dis laquelle des
    deux pistes est redondante et ce qu'il faut modifier pour les différencier.

@@ -10,7 +10,8 @@ import { describe, expect, test, mock } from 'bun:test';
 
 mock.module('@/lib/db', () => ({ getDb: async () => ({}) }));
 
-import { computeMetricsFromRows, type MetricRow } from './portfolio-metrics';
+import { computeMetricsFromRows, mergeDuplicateRows, type MetricRow } from './portfolio-metrics';
+import { SCORER_VERSION } from './scorer';
 
 const alerts = [
   { id: 'a', name: 'Piste A', position: 0 },
@@ -115,5 +116,38 @@ describe('computeMetricsFromRows', () => {
     expect(metrics.perAlert[0].total).toBe(1);
     // L'offre n'est comptée que sur une piste connue : elle reste exclusive.
     expect(metrics.perAlert[0].exclusive).toBe(1);
+  });
+});
+
+describe('échelle de score et annonces republiées', () => {
+  test('la médiane ignore les scores d\'une ancienne version', () => {
+    const metrics = computeMetricsFromRows(
+      [
+        row('a', 'o1', { score: 80, scoreVersion: SCORER_VERSION }),
+        row('a', 'o2', { score: 60, scoreVersion: SCORER_VERSION }),
+        row('a', 'o3', { score: 12.345, scoreVersion: 1 }),
+      ],
+      alerts,
+    );
+    expect(metrics.perAlert[0].medianScore).toBe(70);
+  });
+
+  test('une annonce republiée (deux enregistrements) ne compte qu\'une fois dans la piste', () => {
+    const canonical = new Map([['o1', 'o1'], ['o1-bis', 'o1']]);
+    const merged = mergeDuplicateRows(
+      [row('a', 'o1', { score: 70 }), row('a', 'o1-bis', { score: 85, isRead: 1 })],
+      canonical,
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ offerId: 'o1', score: 85, isRead: 1 });
+    expect(computeMetricsFromRows(merged, alerts).perAlert[0].total).toBe(1);
+  });
+
+  test('le recouvrement entre pistes tient compte du regroupement', () => {
+    const canonical = new Map([['o1', 'o1'], ['o1-bis', 'o1']]);
+    const merged = mergeDuplicateRows([row('a', 'o1'), row('b', 'o1-bis')], canonical);
+    const metrics = computeMetricsFromRows(merged, alerts);
+    expect(metrics.overlaps[0].shared).toBe(1);
+    expect(metrics.perAlert[0].exclusive).toBe(0);
   });
 });

@@ -38,7 +38,9 @@ import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile, Extr
 import { buildApecQuery, isExcludedByProfile } from '../profile-to-query';
 import { APEC_TYPES_CONTRAT_LABEL } from './apec-ids';
 import { cityToDeptCode } from './common/city-departments';
+import { assertExpectedBody, SourceError } from '../source-status';
 
+const APEC_API_URL = 'https://www.apec.fr/cms/webservices/rechercheOffre';
 const APEC_OFFER_BASE = 'https://www.apec.fr/candidat/recherche-emploi.html/emploi/detail-offre';
 
 /** Pages successives à demander tant qu'il y a des résultats (50 × 3 = 150 max). */
@@ -235,12 +237,17 @@ export async function parseApec(
 
     const text = await invoke<string>('fetch_apec_api', { body: JSON.stringify(body) });
 
+    // Une page de pare-feu en 200 n'est pas « 0 offre » : statut `bloquee`.
+    assertExpectedBody(text, 'json', { url: APEC_API_URL, httpStatus: 200 });
+
     let data: ApecSearchResponse;
     try {
       data = JSON.parse(text) as ApecSearchResponse;
     } catch (parseErr) {
       console.error('[apec] JSON Parse Error. Snippet:', text.slice(0, 500));
-      throw new Error(`APEC JSON Parse Error: ${(parseErr as Error).message}`);
+      throw new SourceError('reponse_invalide', `APEC JSON Parse Error: ${(parseErr as Error).message}`, {
+        httpStatus: 200, url: APEC_API_URL,
+      });
     }
 
     const resultats = data.resultats ?? [];

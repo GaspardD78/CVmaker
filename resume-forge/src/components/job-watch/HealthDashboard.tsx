@@ -6,7 +6,7 @@ import {
 import { toast } from 'sonner';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { useProfileStore } from '@/stores/profileStore';
-import { analyzeFeedback, getBlacklistSuggestions, LearningResult } from '@/lib/watcher/learning-engine';
+import { analyzeFeedback, LearningResult } from '@/lib/watcher/learning-engine';
 import { buildWatchAnalysisContext, countUntreated, type WatchAnalysisOfferInput } from '@/lib/watcher/analysis-context';
 import { loadAlertOffers, loadWatchAnalysisInput } from '@/lib/watcher/analysis-loader';
 import { generateWatchAnalysisPrompt, type WatchAnalysisMode } from '@/lib/watcher/analysis-prompt';
@@ -15,12 +15,20 @@ import { overlapWithOthers } from '@/lib/watcher/title-overlap';
 import { useAuthStore } from '@/stores/authStore';
 import { AnalysisPatchPanel } from './AnalysisPatchPanel';
 import { LearnedSignalsPanel } from './LearnedSignalsPanel';
+import { dedupeOffers } from '@/lib/watcher/offer-dedup';
+import { useScoreRecalcStore } from '@/stores/scoreRecalcStore';
+import { ThresholdPanel } from './ThresholdPanel';
+import { BlacklistSuggestions } from './BlacklistSuggestions';
+import { buildSourceCoverage, renderCoverageSection } from '@/lib/watcher/source-coverage';
 import { PortfolioReviewPanel } from './PortfolioReviewPanel';
 import type { JobSource, FetchLog } from '@/types/job-watch';
+import {
+  adviceFor, FAILING_STATUSES, legacyToSourceStatus, SOURCE_STATUS_LABELS, type SourceStatus,
+} from '@/lib/watcher/source-status';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-import { RECOMMENDED_SOURCES, SOURCE_LABELS } from '@/lib/watcher/sources';
+import { RECOMMENDED_SOURCES, SOURCE_LABELS, SOURCE_SETUP_HINTS } from '@/lib/watcher/sources';
 import { WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
 import { SelectorDebugPanel } from './SelectorDebugPanel';
 
@@ -128,47 +136,41 @@ function SuggestionAlert({
 
 // ── Fetch log status badge ────────────────────────────────────────────────────
 
-type FetchStatus = 'success' | 'error' | 'empty' | 'unconfigured' | 'pending';
+const STATUS_STYLE: Record<SourceStatus, { cls: string; icon: React.ReactNode }> = {
+  ok:                  { cls: 'text-emerald-700 dark:text-emerald-400', icon: <CheckCircle2 className="w-3 h-3" /> },
+  vide:                { cls: 'text-amber-600 dark:text-amber-400',     icon: <Circle className="w-3 h-3" /> },
+  bloquee:             { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  introuvable:         { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  erreur_reseau:       { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  reponse_invalide:    { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
+  intitules_inadaptes: { cls: 'text-amber-600 dark:text-amber-400',     icon: <AlertTriangle className="w-3 h-3" /> },
+  non_configuree:      { cls: 'text-gray-400 dark:text-gray-500',       icon: <Circle className="w-3 h-3" /> },
+  en_attente:          { cls: 'text-blue-500 dark:text-blue-400',       icon: <Clock className="w-3 h-3" /> },
+};
 
-function StatusBadge({ status }: { status: FetchStatus }) {
-  switch (status) {
-    case 'success':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-          <CheckCircle2 className="w-3 h-3" />
-          Succès
-        </span>
-      );
-    case 'error':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400">
-          <XCircle className="w-3 h-3" />
-          Erreur
-        </span>
-      );
-    case 'empty':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
-          <Circle className="w-3 h-3" />
-          Vide
-        </span>
-      );
-    case 'pending':
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-500 dark:text-blue-400">
-          <Clock className="w-3 h-3" />
-          En attente
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 dark:text-gray-500">
-          <Circle className="w-3 h-3" />
-          Non configurée
-        </span>
-      );
-  }
+function StatusBadge({ status }: { status: SourceStatus }) {
+  const style = STATUS_STYLE[status];
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${style.cls}`}>
+      {style.icon}
+      {SOURCE_STATUS_LABELS[status]}
+    </span>
+  );
 }
+
+/** Info-bulle : code HTTP, URL (sans secret), heure et action conseillée. */
+function statusTooltip(status: SourceStatus, source: JobSource, log: FetchLog | undefined): string {
+  const lines: string[] = [adviceFor(status, source)];
+  if (log) {
+    if (log.httpStatus) lines.push(`Code HTTP : ${log.httpStatus}`);
+    if (log.errorUrl) lines.push(`URL : ${log.errorUrl}`);
+    lines.push(`Heure : ${new Date(log.fetchedAt).toLocaleString('fr-FR')}`);
+    if (log.errorMessage) lines.push(`Détail : ${log.errorMessage}`);
+  }
+  return lines.join('\n');
+}
+
+const FAILING: ReadonlySet<SourceStatus> = FAILING_STATUSES;
 
 function formatRelativeTime(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
@@ -185,7 +187,7 @@ function formatRelativeTime(isoDate: string): string {
 
 export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: boolean }) {
   const { offers, configs, fetchLogs, loadFetchLogs, selectorDebugInfo, selectorOverrides,
-          alerts, activeAlert, setActiveAlert, activeSearchProfile, updateSearchProfile, updateAlert } = useJobWatchStore();
+          alerts, activeAlert, setActiveAlert, activeSearchProfile, updateSearchProfile } = useJobWatchStore();
 
   // Piste analysée : celle sélectionnée, à défaut la première du portefeuille.
   const currentAlert = activeAlert() ?? alerts[0] ?? null;
@@ -197,12 +199,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   const [analysis, setAnalysis]   = useState<LearningResult | null>(null);
   const [expanded, setExpanded]   = useState(alwaysExpanded);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [companySuggestions, setCompanySuggestions] = useState<string[]>([]);
   const [expandedSource, setExpandedSource] = useState<JobSource | null>(null);
   const [debugSource, setDebugSource] = useState<JobSource | null>(null);
-  const [scoringInfoDismissed, setScoringInfoDismissed] = useState(
-    () => localStorage.getItem('scoring_info_dismissed') === '1'
-  );
+  const recalc = useScoreRecalcStore();
   /** Vue portefeuille : compare les pistes entre elles au lieu d'en analyser une. */
   const [portfolioMode, setPortfolioMode] = useState(false);
   const { currentUserId } = useAuthStore();
@@ -226,10 +225,6 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     } else {
       setRecentOffers([]);
     }
-
-    setCompanySuggestions(
-      currentAlert ? getBlacklistSuggestions(currentAlert.companyReputation) : [],
-    );
     return () => { cancelled = true; };
   }, [currentAlert, currentUserId, offers.length, loadFetchLogs]);
 
@@ -241,9 +236,18 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
     return d.toISOString();
   }, []);
 
+  // Offres de la piste analysée, une fois chacune : une offre liée à deux pistes
+  // ou republiée sous une autre adresse ne gonfle pas les compteurs.
+  const scopedOffers = useMemo(
+    () => dedupeOffers(
+      currentAlert ? offers.filter(o => o.alerts.some(l => l.alertId === currentAlert.id)) : offers,
+    ),
+    [offers, currentAlert],
+  );
+
   const { volume, volumeAlert, pertinence, conversion, conversionAlert, kanbanCount, activeTotal, readCount } = useMemo(() => {
-    const volume = offers.filter(o => o.fetchedAt >= weekCutoff).length;
-    const active  = offers.filter(o => o.isArchived === 0);
+    const volume = scopedOffers.filter(o => o.fetchedAt >= weekCutoff).length;
+    const active  = scopedOffers.filter(o => o.isArchived === 0);
     const total   = active.length;
     const read    = active.filter(o => o.isRead === 1).length;
     const kanban  = active.filter(o => o.kanbanId !== null).length;
@@ -257,28 +261,41 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       activeTotal:     total,
       readCount:       read,
     };
-  }, [offers, weekCutoff]);
+  }, [scopedOffers, weekCutoff]);
 
   // ── Fetch log helpers ─────────────────────────────────────────────────────────
 
+  // Les sources et les collectes appartiennent à la piste analysée : afficher
+  // la dernière collecte d'une autre piste ferait lire un statut qui n'est pas le sien.
+  const alertLogs = useMemo(
+    () => currentAlert
+      ? fetchLogs.filter(l => !l.alertId || l.alertId === currentAlert.id)
+      : fetchLogs,
+    [fetchLogs, currentAlert],
+  );
+
   const configuredSources = useMemo(
-    () => new Set(configs.filter(c => c.enabled === 1).map(c => c.source)),
-    [configs]
+    () => new Set(
+      configs
+        .filter(c => c.enabled === 1 && (!currentAlert || c.alertId === currentAlert.id))
+        .map(c => c.source),
+    ),
+    [configs, currentAlert],
   );
 
   // Last log per source
   const lastLogBySource = useMemo(() => {
     const map = new Map<JobSource, FetchLog>();
-    for (const log of fetchLogs) {
+    for (const log of alertLogs) {
       if (!map.has(log.source)) map.set(log.source, log);
     }
     return map;
-  }, [fetchLogs]);
+  }, [alertLogs]);
 
   // 10 most recent logs per source for history expand
   const historyBySource = useMemo(() => {
     const map = new Map<JobSource, FetchLog[]>();
-    for (const log of fetchLogs) {
+    for (const log of alertLogs) {
       const arr = map.get(log.source) ?? [];
       if (arr.length < 10) {
         arr.push(log);
@@ -286,7 +303,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       }
     }
     return map;
-  }, [fetchLogs]);
+  }, [alertLogs]);
 
   // Explique une conversion faible plutôt que d'accuser systématiquement le score :
   // si une large part des offres récupérées tombe sous le score minimum, le seuil
@@ -334,13 +351,8 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
       .slice(0, 5);
   }, [analysis, searchProfile, dismissed]);
 
-  const suggestBlacklist = useMemo(() => {
-    const already = new Set(searchProfile.blacklistedCompanies.map(c => c.toLowerCase()));
-    return companySuggestions.filter(c => !already.has(c) && !dismissed.has(`bl:${c}`));
-  }, [companySuggestions, searchProfile.blacklistedCompanies, dismissed]);
-
   const hasAlerts =
-    volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0;
+    volumeAlert || conversionAlert || suggestExclude.length > 0 || suggestBonus.length > 0;
 
   const noJobTitles = searchProfile.jobTitles.length === 0;
 
@@ -381,33 +393,6 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
   };
 
   /**
-   * Ajoute une entreprise à la blacklist.
-   *
-   * La portée est explicite : écarter un employeur sur la piste cœur de cible
-   * ne veut pas dire l'écarter d'une exploration, et l'inverse est vrai aussi.
-   */
-  const handleBlacklistCompany = async (company: string, scope: 'alert' | 'all') => {
-    const targets = scope === 'all' ? alerts : (currentAlert ? [currentAlert] : []);
-    for (const target of targets) {
-      const already = target.searchProfile.blacklistedCompanies
-        .some(c => c.trim().toLowerCase() === company.trim().toLowerCase());
-      if (already) continue;
-      await updateAlert(target.id, {
-        searchProfile: {
-          ...target.searchProfile,
-          blacklistedCompanies: [...target.searchProfile.blacklistedCompanies, company],
-        },
-      });
-    }
-    dismiss(`bl:${company}`);
-  };
-
-  const handleDismissScoringInfo = () => {
-    localStorage.setItem('scoring_info_dismissed', '1');
-    setScoringInfoDismissed(true);
-  };
-
-  /**
    * Construit le contexte factuel de la piste puis le prompt du mode demandé.
    * Les deux boutons partagent le même contexte : seuls la mission change.
    */
@@ -421,7 +406,12 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
         alert: currentAlert, allAlerts: alerts, profile, entries, profileId: currentUserId ?? null,
       });
       const ctx = buildWatchAnalysisContext(input);
-      await navigator.clipboard.writeText(generateWatchAnalysisPrompt(ctx, mode));
+      // Couverture par source : statut, part de l'échantillon, avertissement de biais.
+      const coverage = renderCoverageSection(buildSourceCoverage({
+        lastLogBySource, configuredSources,
+        sampleSources: input.offers.map(o => String(o.source)),
+      }));
+      await navigator.clipboard.writeText(`${coverage}\n${generateWatchAnalysisPrompt(ctx, mode)}`);
       toast.success(
         `Prompt copié (${ctx.offers.shown} offre${ctx.offers.shown > 1 ? 's' : ''} sur ${ctx.offers.total}). ` +
         'Collez-le dans votre IA, puis la réponse dans « Appliquer les recommandations ».',
@@ -537,20 +527,45 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
             </div>
           )}
 
-          {/* Scoring update info banner */}
-          {!portfolioMode && !scoringInfoDismissed && (
-            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300">
-              <div className="flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                <span>Le scoring a été mis à jour. Les offres précédentes conservent leur score d'origine.</span>
+
+          {/* Version du scoring : recalcul en cours, ou bilan du dernier recalcul */}
+          {!portfolioMode && (recalc.running || (recalc.recalculatedCount !== null && !recalc.bannerDismissed) || recalc.error) && (
+            <div className="px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 text-xs text-blue-700 dark:text-blue-300 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>
+                    {recalc.running
+                      ? `Scoring mis à jour : recalcul en cours (${recalc.done} / ${recalc.total} offres)`
+                      : recalc.error
+                        ? `Recalcul des scores interrompu : ${recalc.error}`
+                        : `Scoring mis à jour : ${recalc.recalculatedCount} offre${(recalc.recalculatedCount ?? 0) > 1 ? 's' : ''} recalculée${(recalc.recalculatedCount ?? 0) > 1 ? 's' : ''}`}
+                  </span>
+                </div>
+                {!recalc.running && (
+                  <button
+                    onClick={recalc.dismissBanner}
+                    aria-label="Fermer"
+                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-              <button
-                onClick={handleDismissScoringInfo}
-                aria-label="Fermer"
-                className="flex-shrink-0 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {recalc.running && (
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={recalc.total}
+                  aria-valuenow={recalc.done}
+                  className="h-1.5 rounded bg-blue-100 dark:bg-blue-900/40 overflow-hidden"
+                >
+                  <div
+                    className="h-full bg-blue-500 transition-all"
+                    style={{ width: `${recalc.total > 0 ? Math.round((recalc.done / recalc.total) * 100) : 0}%` }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -583,6 +598,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
           </div>
           )}
 
+          {/* Seuil de score : visible quand la conversion est faible ou des offres sont masquées */}
+          {!portfolioMode && conversionAlert && <ThresholdPanel offers={scopedOffers} />}
+
           {/* Dernières collectes table */}
           <div className="pt-1 border-t border-gray-100 dark:border-gray-700">
             <p className="text-[10px] uppercase tracking-wide font-medium text-gray-400 dark:text-gray-500 mb-1.5">
@@ -605,9 +623,10 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                   {RECOMMENDED_SOURCES.map(source => {
                     const log = lastLogBySource.get(source);
                     const isConfigured = configuredSources.has(source);
-                    const status: FetchStatus = log
-                      ? log.status
-                      : isConfigured ? 'pending' : 'unconfigured';
+                    const status: SourceStatus = log
+                      ? (log.sourceStatus ?? legacyToSourceStatus(log.status))
+                      : isConfigured ? 'en_attente' : 'non_configuree';
+                    const setupHint = status === 'non_configuree' ? SOURCE_SETUP_HINTS[source] : undefined;
                     const history = historyBySource.get(source) ?? [];
                     const isExpanded = expandedSource === source;
 
@@ -622,12 +641,24 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                             {SOURCE_LABELS[source]}
                           </td>
                           <td className="px-3 py-2">
-                            {log?.errorMessage ? (
-                              <span title={log.errorMessage}>
-                                <StatusBadge status={status} />
-                              </span>
-                            ) : (
+                            <span title={statusTooltip(status, source, log)}>
                               <StatusBadge status={status} />
+                            </span>
+                            {setupHint && (
+                              <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 max-w-xs whitespace-normal">
+                                {setupHint.explanation}{' '}
+                                <button
+                                  onClick={() => window.dispatchEvent(new CustomEvent('jobwatch:open-config', { detail: { source, target: setupHint.target } }))}
+                                  className="font-semibold underline underline-offset-2 text-indigo-500 hover:text-indigo-700"
+                                >
+                                  {setupHint.actionLabel}
+                                </button>
+                              </p>
+                            )}
+                            {FAILING.has(status) && (
+                              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 max-w-xs whitespace-normal">
+                                {adviceFor(status, source)}
+                              </p>
                             )}
                           </td>
                           <td
@@ -704,7 +735,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                                     return (
                                       <tr key={h.id} className="text-gray-500 dark:text-gray-400">
                                         <td className="pl-8 pr-3 py-1.5 w-1/6">
-                                          <StatusBadge status={h.status} />
+                                          <StatusBadge status={h.sourceStatus ?? legacyToSourceStatus(h.status)} />
                                         </td>
                                         <td className="px-2 py-1.5 text-right">{h.offersFetched} récup.</td>
                                         <td className="px-2 py-1.5 text-right">{h.offersNew} nouvelles{breakdown}</td>
@@ -740,6 +771,15 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
               <Bot className="w-3 h-3" />
               Optimiser ma recherche (prompt IA)
             </button>
+            <button
+              onClick={() => void recalc.run({ force: true })}
+              disabled={recalc.running}
+              title="Recalcule les scores des offres des 60 derniers jours avec le scorer actuel"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 transition-colors"
+            >
+              <Wrench className="w-3 h-3" />
+              Recalculer les scores
+            </button>
             {(volumeAlert || conversionAlert) && (
               <button
                 onClick={handleDiagnosticPrompt}
@@ -756,7 +796,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
           {!portfolioMode && currentAlert && <LearnedSignalsPanel alert={currentAlert} />}
 
           {/* Actionable learning suggestions */}
-          {!portfolioMode && (suggestExclude.length > 0 || suggestBonus.length > 0 || suggestBlacklist.length > 0) && (
+          {!portfolioMode && (suggestExclude.length > 0 || suggestBonus.length > 0) && (
             <div className="space-y-1.5 pt-1 border-t border-gray-100 dark:border-gray-700">
               {suggestExclude.map(term => (
                 <SuggestionAlert
@@ -778,19 +818,12 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                   onDismiss={() => dismiss(`bonus:${term}`)}
                 />
               ))}
-              {suggestBlacklist.map(company => (
-                <SuggestionAlert
-                  key={`bl:${company}`}
-                  type="negative"
-                  message={`Vous rejetez souvent les offres de "${company}".`}
-                  actionLabel={alerts.length > 1 ? 'Cette piste' : 'Blacklister'}
-                  onAction={() => handleBlacklistCompany(company, 'alert')}
-                  secondaryActionLabel={alerts.length > 1 ? 'Toutes les pistes' : undefined}
-                  onSecondaryAction={() => handleBlacklistCompany(company, 'all')}
-                  onDismiss={() => dismiss(`bl:${company}`)}
-                />
-              ))}
             </div>
+          )}
+
+          {/* Suggestions de blacklist : titres rejetés visibles, portée entreprise ou type de poste */}
+          {!portfolioMode && currentAlert && (
+            <BlacklistSuggestions alert={currentAlert} offers={offers} />
           )}
         </div>
       )}

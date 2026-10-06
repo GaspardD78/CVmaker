@@ -19,6 +19,7 @@ import { runFetch, type FetchProgressEvent } from '@/lib/watcher/fetcher';
 import { buildDigestSections, sendDigestEmail } from '@/lib/watcher/email-digest';
 import { decayLearnedDict } from '@/lib/watcher/learning-engine';
 import { getCapturedDebugHtml, WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
+import { useScoreRecalcStore } from '@/stores/scoreRecalcStore';
 
 // Only one mounted instance owns the auto-trigger + periodic scheduler.
 let schedulerOwned = false;
@@ -219,6 +220,15 @@ export function useJobWatcher() {
       setFetching(false);
     }
   }, [setFetching, setFetchProgress, setError, fetchOffers, loadFetchLogs, updateLastFetchedAt, updateAlert, setSelectorDebugInfo, purgeExpiredOffers]);
+
+  // Recalcul des scores en tâche de fond quand la version du scorer a changé
+  // (offres des 60 derniers jours) — une seule instance, comme le scheduler.
+  const alertCount = useJobWatchStore(s => s.alerts.length);
+  useEffect(() => {
+    if (!isScheduler.current || !settingsLoaded || alertCount === 0) return;
+    const timeout = setTimeout(() => { void useScoreRecalcStore.getState().run(); }, 5_000);
+    return () => clearTimeout(timeout);
+  }, [settingsLoaded, alertCount]);
 
   // Auto-trigger on mount if data is stale — only the scheduler instance runs this.
   useEffect(() => {

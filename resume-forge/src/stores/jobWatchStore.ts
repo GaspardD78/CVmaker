@@ -17,6 +17,9 @@ import {
   JobSource,
 } from '@/types/job-watch';
 import { processFeedback, processCompanyReputation } from '@/lib/watcher/learning-engine';
+import { dedupeOffers } from '@/lib/watcher/offer-dedup';
+import { isTitleExcluded } from '@/lib/watcher/title-exclusion';
+import { SCORER_VERSION } from '@/lib/watcher/scorer';
 import {
   resolveFeedbackAlert,
   replaceAlertSources,
@@ -321,6 +324,21 @@ interface JobWatchState {
 
 // ── Store implementation ────────────────────────────────────────────────────────
 
+/**
+ * Identifiants demandés, étendus aux enregistrements regroupés derrière la même
+ * carte (annonce republiée sous une autre adresse).
+ */
+function withDuplicates(offers: JobOfferWithAlerts[], ids: string[]): string[] {
+  const wanted = new Set(ids);
+  for (const card of dedupeOffers(offers)) {
+    if (wanted.has(card.id) || card.duplicateIds.some(d => wanted.has(d))) {
+      wanted.add(card.id);
+      for (const d of card.duplicateIds) wanted.add(d);
+    }
+  }
+  return [...wanted];
+}
+
 export const useJobWatchStore = create<JobWatchState>((set, get) => ({
   offers: [],
   alerts: [],
@@ -570,22 +588,28 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
 
   markRead: async (id) => {
     const db = await getDb();
-    await db.execute(`UPDATE job_offers SET is_read = 1 WHERE id = ?1`, [id]);
+    // Une carte peut regrouper plusieurs enregistrements de la même annonce :
+    // l'action s'applique à tout le groupe, sinon un doublon réapparaîtrait.
+    const ids = withDuplicates(get().offers, [id]);
+    const placeholders = ids.map((_, i) => `?${i + 1}`).join(',');
+    await db.execute(`UPDATE job_offers SET is_read = 1 WHERE id IN (${placeholders})`, ids);
     set(state => ({
-      offers: state.offers.map(o => o.id === id ? { ...o, isRead: 1 } : o),
+      offers: state.offers.map(o => ids.includes(o.id) ? { ...o, isRead: 1 } : o),
     }));
   },
 
   markArchived: async (id, archived) => {
     const db = await getDb();
     const archivedAt = archived ? new Date().toISOString() : null;
+    const ids = withDuplicates(get().offers, [id]);
+    const placeholders = ids.map((_, i) => `?${i + 3}`).join(',');
     await db.execute(
-      `UPDATE job_offers SET is_archived = ?1, archived_at = ?2 WHERE id = ?3`,
-      [archived ? 1 : 0, archivedAt, id]
+      `UPDATE job_offers SET is_archived = ?1, archived_at = ?2 WHERE id IN (${placeholders})`,
+      [archived ? 1 : 0, archivedAt, ...ids]
     );
     set(state => ({
       offers: state.offers.map(o =>
-        o.id === id ? { ...o, isArchived: archived ? 1 : 0, archivedAt } : o
+        ids.includes(o.id) ? { ...o, isArchived: archived ? 1 : 0, archivedAt } : o
       ),
     }));
   },
@@ -610,8 +634,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     set({ offers: [] });
   },
 
-  batchArchive: async (ids) => {
-    if (ids.length === 0) return;
+  batchArchive: async (rawIds) => {
+    if (rawIds.length === 0) return;
+    const ids = withDuplicates(get().offers, rawIds);
     const db = await getDb();
     const archivedAt = new Date().toISOString();
     const placeholders = ids.map((_, i) => `?${i + 1}`).join(',');
@@ -624,8 +649,9 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     }));
   },
 
-  batchMarkRead: async (ids) => {
-    if (ids.length === 0) return;
+  batchMarkRead: async (rawIds) => {
+    if (rawIds.length === 0) return;
+    const ids = withDuplicates(get().offers, rawIds);
     const db = await getDb();
     const placeholders = ids.map((_, i) => `?${i + 1}`).join(',');
     await db.execute(
@@ -724,7 +750,8 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       const raw = await db.select<Record<string, unknown>[]>(
         `SELECT id, source, fetched_at, offers_fetched, offers_new,
                 offers_duplicate, offers_filtered,
-                status, error_message, duration_ms
+                status, error_message, duration_ms,
+                source_status, http_status, error_url, alert_id
          FROM job_watch_fetch_log
          ORDER BY fetched_at DESC
          LIMIT 300`
@@ -912,15 +939,26 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     const blacklist = new Set(
       scopedAlerts.flatMap(a => a.searchProfile.blacklistedCompanies.map(c => c.trim().toLowerCase())),
     );
+    // « Ignorer ce type de poste chez elle » : même portée que la blacklist, mais
+    // limitée aux titres contenant le terme.
+    const titleExclusions = scopedAlerts.flatMap(a => a.searchProfile.companyTitleExclusions ?? []);
 
-    const filtered = offers.filter(o => {
+    const matching = offers.filter(o => {
       if (filters.alertId === 'unlinked') {
         if (o.alerts.length > 0) return false;
       } else if (filters.alertId !== null) {
         if (!o.alerts.some(l => l.alertId === filters.alertId)) return false;
       }
       if (!filters.sources.includes(o.source as JobSource)) return false;
-      if (o.score < filters.minScore) return false;
+      // Le seuil ne compare que des scores de la version courante : une offre
+      // pas encore recalculée (échelle antérieure) n'est ni masquée ni comptée
+      // comme masquée tant que le recalcul n'est pas passé.
+      const alertLink = typeof filters.alertId === 'string' && filters.alertId !== 'unlinked'
+        ? o.alerts.find(l => l.alertId === filters.alertId)
+        : undefined;
+      const viewScore = alertLink?.score ?? o.score;
+      const viewVersion = alertLink ? (alertLink.scoreVersion ?? 1) : (o.scoreVersion ?? 1);
+      if (viewVersion >= SCORER_VERSION && viewScore < filters.minScore) return false;
       if (filters.status === 'unread'   && (o.isRead === 1 || o.isArchived === 1)) return false;
       if (filters.status === 'archived' && o.isArchived === 0) return false;
       if (filters.status === 'all'      && o.isArchived === 1) return false;
@@ -934,6 +972,10 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       if (filters.dateTo   && o.fetchedAt > filters.dateTo)   return false;
 
       if (blacklist.size > 0 && o.company && blacklist.has(o.company.trim().toLowerCase())) {
+        return false;
+      }
+
+      if (titleExclusions.length > 0 && o.company && isTitleExcluded(o.title, o.company, titleExclusions)) {
         return false;
       }
 
@@ -959,6 +1001,10 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
       return true;
     });
 
+    // Une annonce republiée sous une autre adresse ne doit apparaître qu'une fois
+    // (regroupement à l'affichage, rien n'est supprimé en base).
+    const filtered = dedupeOffers(matching);
+
     const sortBy = filters.sortBy ?? 'score_desc';
     // En vue filtrée, on trie sur le score de la piste, pas sur le meilleur
     // score : sinon l'ordre d'une piste secondaire est dicté par une autre.
@@ -980,10 +1026,10 @@ export const useJobWatchStore = create<JobWatchState>((set, get) => ({
     return filtered;
   },
 
-  unreadCount: () => get().offers.filter(o => o.isRead === 0 && o.isArchived === 0).length,
+  unreadCount: () => dedupeOffers(get().offers).filter(o => o.isRead === 0 && o.isArchived === 0).length,
 
   unreadCountForAlert: (alertId) =>
-    get().offers.filter(
+    dedupeOffers(get().offers).filter(
       o => o.isRead === 0 && o.isArchived === 0 && o.alerts.some(l => l.alertId === alertId),
     ).length,
 

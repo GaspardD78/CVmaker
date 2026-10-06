@@ -1,6 +1,8 @@
 import type { AIFilterRule } from '@/lib/watcher/ai-filter';
 import type { LearnedDictionary } from '@/lib/watcher/learning-engine';
 
+import type { SourceStatus } from '@/lib/watcher/source-status';
+
 export type JobSource =
   | 'apec'
   | 'wttj'
@@ -132,6 +134,12 @@ export interface SearchProfile {
   /** Companies to always exclude from results (score → 0). */
   blacklistedCompanies: string[];
 
+  /**
+   * « Ignorer ce type de poste chez elle » : exclut un terme de titre pour une
+   * entreprise précise, sans blacklister l'entreprise (portée titre uniquement).
+   */
+  companyTitleExclusions?: Array<{ company: string; term: string }>;
+
   // ── APEC-specific ─────────────────────────────────────────────────────────
   /**
    * Libellés de fonctions APEC sélectionnés (ex. ["Chargé de recrutement", "Développement RH"]).
@@ -233,6 +241,8 @@ export interface JobOffer {
   isArchived: number;   // 0 | 1
   archivedAt: string | null;
   kanbanId: string | null;
+  /** Version du scorer ayant produit `score` (absent = 1, échelle antérieure à la spec 006). */
+  scoreVersion?: number;
 }
 
 export interface JobOfferFeedback {
@@ -324,6 +334,8 @@ export interface JobWatchAlert {
   learnedDecayedAt: string | null;
   lastFetchedAt: string | null;
   createdAt: string;
+  /** Dernière modification des intitulés visés (null = jamais modifiés depuis la migration 021). */
+  titlesUpdatedAt?: string | null;
   /** Sources actives de la piste, dérivées des `JobWatchConfig` rattachées. */
   sources: JobSource[];
 }
@@ -337,6 +349,8 @@ export interface OfferAlertLink {
   score: number;
   /** Première fois que cette piste a capté cette offre. */
   matchedAt: string;
+  /** Version du scorer ayant produit `score` (absent = 1, échelle antérieure). */
+  scoreVersion?: number;
 }
 
 /** Offre enrichie des pistes qui l'ont captée — ce que consomme l'UI. */
@@ -415,6 +429,14 @@ export interface FetchLog {
   /** Offres rejetées par le filtre minSaveScore */
   offersFiltered: number;
   status: 'success' | 'error' | 'empty';
+  /** Piste concernée (null avant le portefeuille multi-pistes). */
+  alertId?: string | null;
+  /** Statut détaillé (spec 006) ; null sur les lignes antérieures à la migration 021. */
+  sourceStatus?: SourceStatus | null;
+  /** Code HTTP de l'échec, quand il y en a un. */
+  httpStatus?: number | null;
+  /** URL interrogée en cas d'échec, sans secret. */
+  errorUrl?: string | null;
   errorMessage: string | null;
   durationMs: number;
 }
