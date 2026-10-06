@@ -51,6 +51,8 @@ Le moteur du site ne fait pas de recherche exacte (« chargé de recrutement » 
 | Pagination | arrêt dès qu'une page ne contient aucune offre retenue, ou que des offres déjà connues |
 | Titres | entités décodées en deux passes au plus (`&amp;amp;` → `&`) ; numéro de référence en tête retiré (« 2026-8271 … ») |
 | Employeur | suffixe du titre retenu seulement s'il commence par un type d'employeur (Mairie, Conseil départemental, Région, CCAS, Centre de gestion…) ou, sans type, s'il ne contient ni `H/F` ni mot du métier ; sinon `company` reste vide et la catégorie du site va dans `employerType` (colonne `employer_type`) |
+| Zone élargie | le post-filtre de lieu suit la requête : une recherche sur une région accepte tous les départements de cette région (`resolveCspLocations`), plus ceux de la piste. Le rayon réel (distance) est jugé ensuite, pour toutes les sources, par `classifyOfferZone` du pipeline (`fetcher.ts`) : le parseur n'a pas les coordonnées de la zone. |
+| Plafond | 20 pages de liste au plus par collecte, toutes pistes confondues (`resetCspCollectionBudget()` au début de `runFetch`) ; atteint, la collecte s'arrête, `metrics.capped` et un avertissement console le signalent, et l'info-bulle du tableau l'affiche |
 | Mesure | journal de collecte : `metrics` (JSON) = offres listées, retenues, enrichies, pages de liste, durée ; visible dans l'info-bulle de la colonne « Récup. » (migration 023) |
 
 

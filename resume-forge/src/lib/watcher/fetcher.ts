@@ -54,7 +54,7 @@ import { parseHellowork } from './parsers/hellowork';
 import { parseJobicy } from './parsers/jobicy';
 import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
-import { parseChoisirServicePublic, consumeCspMetrics } from './parsers/choisir-service-public';
+import { parseChoisirServicePublic, consumeCspMetrics, resetCspCollectionBudget } from './parsers/choisir-service-public';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { 
   isPermissionGranted, 
@@ -393,6 +393,7 @@ export async function runFetch(
   profileId?:  string | null,
   deps:        FetchDependencies = DEFAULT_FETCH_DEPS,
 ): Promise<FetchOutcome> {
+  resetCspCollectionBudget();
   const db = await getDb();
   const existingOffers = await loadExistingOfferIndex(db, profileId ?? null);
   // Empreintes (source, entreprise, intitulé, lieu) : une annonce republiée sous
