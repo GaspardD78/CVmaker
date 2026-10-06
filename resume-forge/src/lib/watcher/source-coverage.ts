@@ -11,7 +11,7 @@
 import type { FetchLog, JobSource } from '@/types/job-watch';
 import { RECOMMENDED_SOURCES, SOURCE_LABELS } from './sources';
 import {
-  FAILING_STATUSES, legacyToSourceStatus, SOURCE_STATUS_LABELS, type SourceStatus,
+  displayStatus, FAILING_STATUSES, legacyToSourceStatus, SOURCE_STATUS_LABELS, type SourceStatus,
 } from './source-status';
 
 /** Part d'une source au-delà de laquelle l'échantillon est jugé biaisé. */
@@ -55,9 +55,9 @@ export function buildSourceCoverage(input: CoverageInput): SourceCoverage {
 
   const rows: CoverageRow[] = (input.sources ?? RECOMMENDED_SOURCES).map(source => {
     const log = input.lastLogBySource.get(source);
-    const status: SourceStatus = log
+    const status: SourceStatus = displayStatus(source, log
       ? (log.sourceStatus ?? legacyToSourceStatus(log.status))
-      : input.configuredSources.has(source) ? 'en_attente' : 'non_configuree';
+      : input.configuredSources.has(source) ? 'en_attente' : 'non_configuree');
     const sampleCount = counts.get(source) ?? 0;
     return {
       source,
@@ -87,6 +87,7 @@ export function renderCoverageSection(coverage: SourceCoverage): string {
   const lines = coverage.rows.map(r => {
     const base = `- ${r.label} : ${SOURCE_STATUS_LABELS[r.status]}`;
     if (r.status === 'non_configuree') return `${base} (non activée pour cette piste)`;
+    if (r.status === 'indisponible') return `${base} (hors d'atteinte : ne rien proposer pour cette source)`;
     return `${base} — ${r.fetched} récupérée${r.fetched > 1 ? 's' : ''}, ${r.newOffers} nouvelle${r.newOffers > 1 ? 's' : ''}, ${r.sharePct} % de l'échantillon analysé`;
   });
 

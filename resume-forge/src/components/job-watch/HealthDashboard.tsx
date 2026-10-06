@@ -23,7 +23,7 @@ import { buildSourceCoverage, renderCoverageSection } from '@/lib/watcher/source
 import { PortfolioReviewPanel } from './PortfolioReviewPanel';
 import type { JobSource, FetchLog } from '@/types/job-watch';
 import {
-  adviceFor, FAILING_STATUSES, legacyToSourceStatus, SOURCE_STATUS_LABELS, type SourceStatus,
+  adviceFor, displayStatus, FAILING_STATUSES, legacyToSourceStatus, SOURCE_STATUS_LABELS, type SourceStatus,
 } from '@/lib/watcher/source-status';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -145,6 +145,7 @@ const STATUS_STYLE: Record<SourceStatus, { cls: string; icon: React.ReactNode }>
   reponse_invalide:    { cls: 'text-red-600 dark:text-red-400',         icon: <XCircle className="w-3 h-3" /> },
   intitules_inadaptes: { cls: 'text-amber-600 dark:text-amber-400',     icon: <AlertTriangle className="w-3 h-3" /> },
   non_configuree:      { cls: 'text-gray-400 dark:text-gray-500',       icon: <Circle className="w-3 h-3" /> },
+  indisponible:        { cls: 'text-gray-500 dark:text-gray-400',       icon: <XCircle className="w-3 h-3" /> },
   en_attente:          { cls: 'text-blue-500 dark:text-blue-400',       icon: <Clock className="w-3 h-3" /> },
 };
 
@@ -623,9 +624,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                   {RECOMMENDED_SOURCES.map(source => {
                     const log = lastLogBySource.get(source);
                     const isConfigured = configuredSources.has(source);
-                    const status: SourceStatus = log
+                    const status: SourceStatus = displayStatus(source, log
                       ? (log.sourceStatus ?? legacyToSourceStatus(log.status))
-                      : isConfigured ? 'en_attente' : 'non_configuree';
+                      : isConfigured ? 'en_attente' : 'non_configuree');
                     const setupHint = status === 'non_configuree' ? SOURCE_SETUP_HINTS[source] : undefined;
                     const history = historyBySource.get(source) ?? [];
                     const isExpanded = expandedSource === source;
@@ -655,7 +656,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                                 </button>
                               </p>
                             )}
-                            {FAILING.has(status) && (
+                            {(FAILING.has(status) || status === 'indisponible') && (
                               <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 max-w-xs whitespace-normal">
                                 {adviceFor(status, source)}
                               </p>

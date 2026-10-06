@@ -13,8 +13,8 @@
 
 ## Phase 3 - Emploi Territorial
 - [x] Détection pare-feu, plus de repli trompeur sur le flux global
-- [ ] Migration vers l'API officielle : non faite (documentation inaccessible depuis l'environnement de travail)
-- [x] Source non proposée par défaut, avertissement à l'ajout
+- [x] Spec OpenAPI v5.3 lue : API authentifiée, sans recherche d'offres publiées, aucun parser API (décision finale, `AUDIT.md`)
+- [x] Source indisponible : migration 022, statut et message, plus proposée, plus interrogée ; parser RSS conservé
 
 ## Phase 4 - Sources et requêtes par piste
 - [x] Sources par piste : déjà livrées (spec 003)

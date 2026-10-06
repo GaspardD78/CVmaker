@@ -56,7 +56,9 @@ describe('couverture par source', () => {
     const text = renderCoverageSection(realCase());
     expect(text).toContain('Sources à réparer ou activer d\'abord');
     expect(text).toContain('APEC (Bloquée)');
-    expect(text).toContain('Emploi Territorial (Introuvable)');
+    // Emploi Territorial est indisponible : signalée, mais pas « à réparer ».
+    expect(text).toContain('Emploi Territorial : Indisponible');
+    expect(text).not.toContain('Emploi Territorial (');
     expect(text).toContain('Indeed (Non configurée)');
     expect(text).toContain('ne propose AUCUN réglage');
     // « Vide » n'est pas une panne : France Travail n'est pas à réparer.

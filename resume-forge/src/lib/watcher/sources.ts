@@ -4,6 +4,7 @@
  */
 
 import type { JobSource } from '@/types/job-watch';
+import { UNAVAILABLE_SOURCES } from './source-status';
 
 export const SOURCE_LABELS: Record<JobSource, string> = {
   apec:               'APEC',
@@ -63,8 +64,9 @@ export const ALL_SOURCES: JobSource[] = [
 export const RECOMMENDED_SOURCES: JobSource[] = ALL_SOURCES;
 
 /**
- * Sources jamais activées d'office : le site refuse les requêtes automatiques
- * (pare-feu applicatif). Elles restent ajoutables à la main, avec un avertissement.
+ * Sources jamais activées d'office. Emploi Territorial est en outre déclarée
+ * indisponible (`UNAVAILABLE_SOURCES`) : elle n'est plus proposée à l'ajout et
+ * n'est plus interrogée.
  */
 export const DISABLED_BY_DEFAULT: Set<JobSource> = new Set(['emploi_territorial']);
 
@@ -106,21 +108,16 @@ export const SOURCE_SETUP_HINTS: Partial<Record<JobSource, SourceSetupHint>> = {
     target: 'france-travail',
     actionLabel: 'Saisir les clés',
   },
-  emploi_territorial: {
-    explanation:
-      'Désactivée par défaut : le site refuse les requêtes automatiques. Ajoutez-la seulement si vous avez une URL de flux qui fonctionne.',
-    target: 'add-source',
-    actionLabel: 'Ajouter quand même',
-  },
 };
 
 /** Sources qui demandent l'accord de l'utilisateur avant d'être ajoutées (avertissement). */
 export function addSourceWarning(source: JobSource): string | null {
-  if (source === 'emploi_territorial') {
-    return 'Emploi Territorial refuse les requêtes automatiques : sans URL de flux valide, cette source restera « Bloquée ».';
-  }
   if (source === 'indeed' || source === 'hellowork') {
     return `${SOURCE_LABELS[source]} est protégé par un contrôle anti-robot : si le site l'oppose, la collecte s'arrête (statut « Bloquée ») sans contournement.`;
   }
   return null;
 }
+
+/** Sources proposées par l'assistant de configuration (jamais une source indisponible). */
+export const SETUP_WIZARD_SOURCES: JobSource[] =
+  (['apec', 'wttj', 'linkedin', 'france_travail'] as JobSource[]).filter(s => !(s in UNAVAILABLE_SOURCES));

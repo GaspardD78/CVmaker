@@ -23,12 +23,27 @@ export type SourceStatus =
   | 'reponse_invalide'
   | 'intitules_inadaptes'
   | 'non_configuree'
-  | 'en_attente';
+  | 'en_attente'
+  | 'indisponible';
 
 /** Statuts qui signalent une source à réparer ou à activer (pas un simple « 0 résultat »). */
 export const FAILING_STATUSES: ReadonlySet<SourceStatus> = new Set<SourceStatus>([
   'bloquee', 'introuvable', 'erreur_reseau', 'reponse_invalide', 'intitules_inadaptes',
 ]);
+
+/**
+ * Sources indisponibles pour toutes les pistes, quoi qu'en disent les journaux.
+ * Retirer une entrée suffit à la réactiver : le parser reste en place.
+ *
+ * Emploi Territorial : accès automatiques bloqués par un pare-feu applicatif, et
+ * API officielle (OpenAPI v5.3) authentifiée par un token délivré par le support
+ * du GIP des CDG, sans endpoint de recherche des offres publiées.
+ */
+export const UNAVAILABLE_SOURCES: Partial<Record<JobSource, string>> = {
+  emploi_territorial:
+    'Emploi Territorial bloque les accès automatiques et son API est réservée aux collectivités. ' +
+    'Créez une alerte e-mail sur emploi-territorial.fr.',
+};
 
 export type SourceFailureKind = Extract<
   SourceStatus,
@@ -188,6 +203,11 @@ export function failureOf(err: unknown): SourceFailure {
  * Statut final d'une collecte pour un couple (piste, source).
  * `failure` prime : un échec n'est jamais présenté comme « 0 offre ».
  */
+/** Statut affiché : l'indisponibilité d'une source prime sur son dernier journal. */
+export function displayStatus(source: JobSource, status: SourceStatus): SourceStatus {
+  return source in UNAVAILABLE_SOURCES ? 'indisponible' : status;
+}
+
 export function deriveSourceStatus(input: {
   failure: SourceFailure | null;
   totalFetched: number;
@@ -208,6 +228,7 @@ export const SOURCE_STATUS_LABELS: Record<SourceStatus, string> = {
   intitules_inadaptes: 'Intitulés inadaptés',
   non_configuree:      'Non configurée',
   en_attente:          'En attente',
+  indisponible:        'Indisponible',
 };
 
 /** Statut persistant (`status` historique) → statut détaillé quand la ligne est ancienne. */
@@ -226,6 +247,8 @@ const BLOCK_ADVICE: Partial<Record<JobSource, string>> = {
 /** Action conseillée affichée dans l'info-bulle ou la ligne dépliable. */
 export function adviceFor(status: SourceStatus, source: JobSource): string {
   switch (status) {
+    case 'indisponible':
+      return UNAVAILABLE_SOURCES[source] ?? 'Source indisponible.';
     case 'ok':
       return 'Rien à faire.';
     case 'vide':

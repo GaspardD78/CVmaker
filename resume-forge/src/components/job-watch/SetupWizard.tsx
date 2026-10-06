@@ -7,13 +7,12 @@ import { buildSearchProfileFromProfile } from '@/lib/watcher/scorer';
 import type { JobSource } from '@/types/job-watch';
 import { DEFAULT_SEARCH_PROFILE } from '@/types/job-watch';
 
-import { SOURCE_LABELS } from '@/lib/watcher/sources';
+import { SOURCE_LABELS, SETUP_WIZARD_SOURCES } from '@/lib/watcher/sources';
 import { APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
 const DEFAULT_SOURCES: JobSource[] = ['apec', 'wttj'];
-// Emploi Territorial n'est pas proposé ici (le site refuse les requêtes automatiques) :
-// il reste ajoutable à la main depuis la configuration.
-const ALL_SOURCES: JobSource[] = ['apec', 'wttj', 'linkedin', 'france_travail'];
+// Les sources indisponibles (Emploi Territorial) ne sont pas proposées.
+const ALL_SOURCES: JobSource[] = SETUP_WIZARD_SOURCES;
 
 type Step = 'profile' | 'intent' | 'sources';
 

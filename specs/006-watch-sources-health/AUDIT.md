@@ -15,14 +15,28 @@ Décision : le code reproduit un usage de navigateur ordinaire (une page ouverte
 
 ## Emploi Territorial
 
-| Essai | Résultat (rapporté) |
+Spec OpenAPI officielle v5.3 (source : https://www.emploi-territorial.fr/api/emploi-territorial.yml), copiée dans `specs/006-watch-sources-health/emploi-territorial-openapi-v5.3.yml` et relue dans ce dépôt.
+
+Constats vérifiés dans le fichier :
+
+- **Authentification obligatoire partout** : `security: tokenHeader` global, `apiKey` dans l'en-tête `X-API-Key`, « token d'authentification transmis par le support GIPCDG » ; la description générale renvoie au GIP Informatique des CDG pour l'accès.
+- **Aucun endpoint de recherche des offres publiées** : `/col/listoffres` ne renvoie que « les offres de la collectivité authentifiée » ; `/stats/offres` ne renvoie que des comptages (« nombre d'offres actuellement publiées par département, région, métier et/ou grade »). Les autres chemins sont des référentiels, des fiches collectivité/CDG, des demandeurs et des statistiques.
+- **Qui obtient un token** : le fichier dit seulement que le support du GIP le délivre ; la réservation aux collectivités, CDG et partenaires conventionnés, et l'absence de token pour un demandeur d'emploi, viennent du constat de l'utilisateur et ne sont pas écrites dans la spec.
+
+| Essai (rapporté, autre IP) | Résultat |
 |---|---|
 | `/rss/offres-emploi.rss` sans UA navigateur | **404** |
-| même URL avec UA navigateur | **200** + page HTML « Request Rejected » (pare-feu applicatif) |
+| même URL avec UA navigateur | **200** + page « Request Rejected » (pare-feu applicatif) |
 | flux filtré (`?q=...&lieu=...`) | 404 (logs de l'utilisateur) |
-| API officielle `https://www.emploi-territorial.fr/api/` | **documentation inaccessible** depuis l'environnement ; clé, endpoints et quotas inconnus |
 
-Décision : pas de migration vers l'API (aucune base vérifiable pour écrire un parser ; l'inventer serait pire que le statut honnête). La page « Request Rejected » est reconnue (`bloquee`), n'est jamais comptée comme 0 offre, le repli sur le flux global n'est plus tenté quand le site bloque (ni annoncé quand il échoue), la source est mise en pause 24 h, n'est plus proposée par l'assistant de configuration, et son ajout manuel demande confirmation. À reprendre : lire la page API depuis un poste qui y accède, puis écrire le parser (clé gratuite à saisir dans les Paramètres si nécessaire).
+**Décision finale** : l'API ne peut pas servir de source d'offres pour ResumeForge ; aucun parser API n'est écrit. Emploi Territorial est une source **indisponible** pour toutes les pistes :
+
+- migration 022 : `enabled = 0` pour `emploi_territorial` dans `job_watch_config`, sans supprimer la configuration (URL de flux et rattachement conservés) ;
+- `UNAVAILABLE_SOURCES` (`source-status.ts`) : statut « Indisponible » dans le tableau des collectes avec le message « Emploi Territorial bloque les accès automatiques et son API est réservée aux collectivités. Créez une alerte e-mail sur emploi-territorial.fr. », même si le dernier journal dit autre chose ;
+- le collecteur ne l'interroge jamais, même si une configuration est réactivée à la main ; l'assistant de configuration et la liste d'ajout ne la proposent plus ;
+- le parser RSS et sa détection de page de pare-feu sont conservés : retirer l'entrée de `UNAVAILABLE_SOURCES` (et réactiver les configurations) suffit si le flux revient.
+
+À suivre (hors périmètre) : une ingestion générique des alertes e-mail (APEC, Emploi Territorial) couvrirait les deux sources bloquées sans contournement.
 
 ## Indeed et HelloWork
 

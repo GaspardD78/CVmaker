@@ -29,6 +29,7 @@ import { LocationAutocomplete } from './LocationAutocomplete';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 import { SOURCE_LABELS, ANDROID_INCOMPATIBLE, addSourceWarning } from '@/lib/watcher/sources';
+import { UNAVAILABLE_SOURCES } from '@/lib/watcher/source-status';
 import { isAndroid } from '@/lib/platform';
 import { SessionManagerPanel } from './SessionManagerPanel';
 import { AlertList } from './AlertList';
@@ -355,11 +356,13 @@ export function JobWatchConfigView() {
   const platformSources = isAndroid()
     ? ALL_SOURCES.filter(s => !ANDROID_INCOMPATIBLE.has(s))
     : ALL_SOURCES;
+  // Les sources indisponibles ne sont plus proposées à l'ajout.
+  const addableSources = platformSources.filter(s => !(s in UNAVAILABLE_SOURCES));
   // Les sources appartiennent à la piste sélectionnée : chaque exploration
   // choisit les sites qui lui sont réellement pertinents.
   const currentAlert = activeAlert() ?? alerts[0] ?? null;
   const alertConfigs = configs.filter(c => c.alertId === (currentAlert?.id ?? null));
-  const unusedSources = platformSources.filter(s => !alertConfigs.some(c => c.source === s));
+  const unusedSources = addableSources.filter(s => !alertConfigs.some(c => c.source === s));
 
   const handleAddSource = async (source: JobSource) => {
     // Sources protégées par un contrôle anti-robot : on prévient avant d'ajouter.
@@ -1094,7 +1097,11 @@ function SourceRow({
             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
               {SOURCE_LABELS[config.source]}
             </span>
-            {SOURCE_DESCRIPTIONS[config.source] && (
+            {config.source in UNAVAILABLE_SOURCES ? (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                Indisponible. {UNAVAILABLE_SOURCES[config.source]} Cette source n'est plus interrogée ; sa configuration est conservée.
+              </p>
+            ) : SOURCE_DESCRIPTIONS[config.source] && (
               <p className="text-[10px] text-gray-400">{SOURCE_DESCRIPTIONS[config.source]}</p>
             )}
           </div>
