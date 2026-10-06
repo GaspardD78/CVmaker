@@ -847,6 +847,18 @@ pub fn run() {
             sql: include_str!("../migrations/021_watch_sources_health.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 22,
+            description: "offer_origin",
+            sql: include_str!("../migrations/022_offer_origin.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 23,
+            description: "source_metrics",
+            sql: include_str!("../migrations/023_source_metrics.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]

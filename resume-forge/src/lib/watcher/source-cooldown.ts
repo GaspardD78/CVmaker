@@ -16,6 +16,7 @@ const HOUR_MS = 3_600_000;
 export const COOLDOWN_MS: Partial<Record<JobSource, number>> = {
   apec:               24 * HOUR_MS,
   emploi_territorial: 24 * HOUR_MS,
+  choisir_service_public: 6 * HOUR_MS,
 };
 
 type Db = {

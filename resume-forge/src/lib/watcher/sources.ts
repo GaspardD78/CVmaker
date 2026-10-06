@@ -15,6 +15,7 @@ export const SOURCE_LABELS: Record<JobSource, string> = {
   jobicy:             'Jobicy',
   france_travail:     'France Travail',
   emploi_territorial: 'Emploi Territorial',
+  choisir_service_public: 'Choisir le service public',
   mantiks:            'Mantiks',
 };
 
@@ -55,6 +56,7 @@ export const ALL_SOURCES: JobSource[] = [
   'linkedin',
   'indeed',
   'hellowork',
+  'choisir_service_public',
   'emploi_territorial',
   'jobicy',
 ];
@@ -67,6 +69,18 @@ export const RECOMMENDED_SOURCES: JobSource[] = ALL_SOURCES;
  * (pare-feu applicatif). Elles restent ajoutables à la main, avec un avertissement.
  */
 export const DISABLED_BY_DEFAULT: Set<JobSource> = new Set(['emploi_territorial']);
+
+/**
+ * Sources dont l'accès direct est fermé (spec 007) : le parseur reste en place
+ * mais la source est désactivée. Emploi Territorial est couvert via
+ * « Choisir le service public », qui relaie ses offres.
+ */
+export const UNAVAILABLE_SOURCES: Set<JobSource> = DISABLED_BY_DEFAULT;
+
+/** Ce qui remplace une source indisponible, affiché dans le tableau des collectes. */
+export const COVERED_VIA: Partial<Record<JobSource, { by: JobSource; label: string }>> = {
+  emploi_territorial: { by: 'choisir_service_public', label: 'Couvert via Choisir le service public' },
+};
 
 /** Réglage où configurer une source depuis le tableau des collectes. */
 export type SourceSetupTarget = 'add-source' | 'france-travail' | 'none';
@@ -108,9 +122,15 @@ export const SOURCE_SETUP_HINTS: Partial<Record<JobSource, SourceSetupHint>> = {
   },
   emploi_territorial: {
     explanation:
-      'Désactivée par défaut : le site refuse les requêtes automatiques. Ajoutez-la seulement si vous avez une URL de flux qui fonctionne.',
+      'Désactivée : le site refuse les requêtes automatiques. Ses offres sont couvertes via « Choisir le service public ».',
     target: 'add-source',
-    actionLabel: 'Ajouter quand même',
+    actionLabel: 'Ajouter Choisir le service public',
+  },
+  choisir_service_public: {
+    explanation:
+      'Aucune clé requise : ajoutez « Choisir le service public » (site officiel de l\'emploi public, relaie Emploi Territorial) à la piste.',
+    target: 'add-source',
+    actionLabel: 'Ajouter la source',
   },
 };
 
@@ -118,6 +138,9 @@ export const SOURCE_SETUP_HINTS: Partial<Record<JobSource, SourceSetupHint>> = {
 export function addSourceWarning(source: JobSource): string | null {
   if (source === 'emploi_territorial') {
     return 'Emploi Territorial refuse les requêtes automatiques : sans URL de flux valide, cette source restera « Bloquée ».';
+  }
+  if (source === 'choisir_service_public') {
+    return 'Choisir le service public relaie les offres des trois versants de la fonction publique (dont Emploi Territorial). Collecte polie : une requête par seconde, 3 pages au plus par intitulé.';
   }
   if (source === 'indeed' || source === 'hellowork') {
     return `${SOURCE_LABELS[source]} est protégé par un contrôle anti-robot : si le site l'oppose, la collecte s'arrête (statut « Bloquée ») sans contournement.`;

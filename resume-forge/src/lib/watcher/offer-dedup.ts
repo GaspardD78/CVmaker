@@ -30,6 +30,9 @@ export interface DedupableOffer {
   isArchived: number;
   kanbanId: string | null;
   alerts: OfferAlertLink[];
+  /** Dates facultatives : à égalité de statut, la republication la plus récente représente le groupe. */
+  publishedAt?: string | null;
+  fetchedAt?: string | null;
 }
 
 function strip(text: string): string {
@@ -70,10 +73,21 @@ export type Deduped<T extends DedupableOffer> = T & {
 };
 
 function betterRepresentative(a: DedupableOffer, b: DedupableOffer): DedupableOffer {
-  // Une offre déjà importée au Kanban, puis non archivée, puis la mieux notée.
+  // Une offre déjà importée au Kanban, puis non archivée, puis la plus récente, puis la mieux notée.
   if ((a.kanbanId !== null) !== (b.kanbanId !== null)) return a.kanbanId !== null ? a : b;
   if (a.isArchived !== b.isArchived) return a.isArchived === 0 ? a : b;
+  // Annonce republiée sous une autre référence : on garde la plus récente.
+  const ta = recency(a);
+  const tb = recency(b);
+  if (ta !== null && tb !== null && ta !== tb) return tb > ta ? b : a;
   return b.score > a.score ? b : a;
+}
+
+function recency(o: DedupableOffer): number | null {
+  const stamp = o.publishedAt ?? o.fetchedAt;
+  if (!stamp) return null;
+  const t = new Date(/^\d{4}-\d{2}-\d{2} \d{2}:/.test(stamp) ? `${stamp.replace(' ', 'T')}Z` : stamp).getTime();
+  return Number.isNaN(t) ? null : t;
 }
 
 /** Fusionne les liens de pistes : un seul lien par piste, le meilleur score. */

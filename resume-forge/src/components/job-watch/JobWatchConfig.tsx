@@ -12,6 +12,8 @@ import type {
   JobWatchSettings,
   JobSource,
   SearchProfile,
+  CspVersant,
+  CspCategorie,
 } from '@/types/job-watch';
 import { summarizeSourceQuery } from '@/lib/watcher/profile-to-query';
 import { buildSearchProfileFromProfile, SCORING_WEIGHTS } from '@/lib/watcher/scorer';
@@ -37,7 +39,8 @@ import { AIFilterGenerator } from './AIFilterGenerator';
 import { APEC_FONCTIONS_HIERARCHY, APEC_SECTEURS, APEC_TELETRAVAIL, APEC_SALAIRES } from '@/lib/watcher/parsers/apec-ids';
 
 const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
-  emploi_territorial: 'Offres de la fonction publique territoriale (communes, métropoles, départements…)',
+  emploi_territorial: 'Offres de la fonction publique territoriale — accès direct fermé, couvert via « Choisir le service public »',
+  choisir_service_public: 'Site officiel de l\'emploi public (3 versants), relaie Emploi Territorial — aucune clé requise',
   linkedin:           'Scraping direct via session Chrome (login requis)',
   indeed:             'Scraping via WebView (contourne Cloudflare)',
   hellowork:          'Scraping via WebView (rendu JS)',
@@ -48,7 +51,7 @@ const SOURCE_DESCRIPTIONS: Partial<Record<JobSource, string>> = {
 // Non-deprecated sources eligible for adding a new config
 const ALL_SOURCES: JobSource[] = [
   'france_travail', 'apec', 'wttj', 'linkedin', 'indeed', 'hellowork',
-  'emploi_territorial', 'jobicy',
+  'choisir_service_public', 'emploi_territorial', 'jobicy',
 ];
 
 /** Sources that require an RSS URL (required) */
@@ -160,6 +163,8 @@ export function JobWatchConfigView() {
   const [apecSecteurs,     setApecSecteurs]     = useState<string[]>(sp.apecSecteurs ?? []);
   const [apecTeletravail,  setApecTeletravail]  = useState<string[]>(sp.apecTeletravail ?? []);
   const [apecSalaires,     setApecSalaires]     = useState<string[]>(sp.apecSalaires ?? []);
+  const [cspVersant,       setCspVersant]       = useState<CspVersant>(sp.cspVersant ?? 'all');
+  const [cspCategorie,     setCspCategorie]     = useState<CspCategorie>(sp.cspCategorie ?? 'all');
 
   // ── Settings draft ────────────────────────────────────────────────────────
 
@@ -188,6 +193,8 @@ export function JobWatchConfigView() {
     setApecSecteurs(sp2.apecSecteurs ?? []);
     setApecTeletravail(sp2.apecTeletravail ?? []);
     setApecSalaires(sp2.apecSalaires ?? []);
+    setCspVersant(sp2.cspVersant ?? 'all');
+    setCspCategorie(sp2.cspCategorie ?? 'all');
     setSettingsDraft(settings);
     // `alerts` et `activeAlertId` sont dans les dépendances : changer de piste
     // doit recharger le brouillon avec le profil de la piste sélectionnée.
@@ -226,6 +233,8 @@ export function JobWatchConfigView() {
     apecSecteurs,
     apecTeletravail,
     apecSalaires,
+    cspVersant,
+    cspCategorie,
   });
 
   // ── Save handlers ────────────────────────────────────────────────────────
@@ -671,6 +680,40 @@ export function JobWatchConfigView() {
           <Save className="w-4 h-4" />
           {saving ? 'Sauvegarde…' : 'Sauvegarder le profil de recherche'}
         </button>
+      </Section>
+
+      {/* ── 4a. Choisir le service public — Filtres ── */}
+      <Section title="Choisir le service public — Filtres (facultatif)" defaultOpen={false}>
+        <p className="text-xs text-gray-400 dark:text-gray-500 -mt-1">
+          Restreignent la recherche côté site. « Choisir le service public » relaie aussi les offres d'Emploi Territorial.
+          Laissez « Tous » pour ne pas restreindre.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+            Versant
+            <select
+              value={cspVersant}
+              onChange={e => setCspVersant(e.target.value as CspVersant)}
+              className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm"
+            >
+              <option value="all">Tous les versants</option>
+              <option value="fpt">Territorial (collectivités)</option>
+              <option value="etat">État</option>
+              <option value="fph">Hospitalier</option>
+            </select>
+          </label>
+          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+            Catégorie
+            <select
+              value={cspCategorie}
+              onChange={e => setCspCategorie(e.target.value as CspCategorie)}
+              className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm"
+            >
+              <option value="all">Toutes les catégories</option>
+              <option value="A">Catégorie A</option>
+            </select>
+          </label>
+        </div>
       </Section>
 
       {/* ── 4. APEC — Filtres spécifiques ── */}

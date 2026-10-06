@@ -28,7 +28,9 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-import { RECOMMENDED_SOURCES, SOURCE_LABELS, SOURCE_SETUP_HINTS } from '@/lib/watcher/sources';
+import { RECOMMENDED_SOURCES, SOURCE_LABELS, SOURCE_SETUP_HINTS, COVERED_VIA } from '@/lib/watcher/sources';
+import { describeSourceMetrics, parseSourceMetrics } from '@/lib/watcher/source-metrics';
+import { countTerritorialOffers, territorialCoverageText } from '@/lib/watcher/territorial-coverage';
 import { WEBVIEW_SOURCES } from '@/lib/watcher/selector-debug';
 import { SelectorDebugPanel } from './SelectorDebugPanel';
 
@@ -626,7 +628,18 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                     const status: SourceStatus = log
                       ? (log.sourceStatus ?? legacyToSourceStatus(log.status))
                       : isConfigured ? 'en_attente' : 'non_configuree';
-                    const setupHint = status === 'non_configuree' ? SOURCE_SETUP_HINTS[source] : undefined;
+                    const covered = COVERED_VIA[source];
+                    const coverage = covered
+                      ? (() => {
+                          const viaLog = lastLogBySource.get(covered.by);
+                          return territorialCoverageText(
+                            configuredSources.has(covered.by),
+                            viaLog?.fetchedAt ?? null,
+                            countTerritorialOffers(offers, viaLog?.fetchedAt ?? null),
+                          );
+                        })()
+                      : null;
+                    const setupHint = !covered && status === 'non_configuree' ? SOURCE_SETUP_HINTS[source] : undefined;
                     const history = historyBySource.get(source) ?? [];
                     const isExpanded = expandedSource === source;
 
@@ -641,9 +654,20 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                             {SOURCE_LABELS[source]}
                           </td>
                           <td className="px-3 py-2">
+                            {coverage ? (
+                              <>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-300">
+                                  {coverage.headline}
+                                </span>
+                                <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 max-w-xs whitespace-normal">
+                                  {coverage.detail}
+                                </p>
+                              </>
+                            ) : (
                             <span title={statusTooltip(status, source, log)}>
                               <StatusBadge status={status} />
                             </span>
+                            )}
                             {setupHint && (
                               <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 max-w-xs whitespace-normal">
                                 {setupHint.explanation}{' '}
@@ -655,7 +679,7 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                                 </button>
                               </p>
                             )}
-                            {FAILING.has(status) && (
+                            {!coverage && FAILING.has(status) && (
                               <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 max-w-xs whitespace-normal">
                                 {adviceFor(status, source)}
                               </p>
@@ -667,7 +691,9 @@ export function HealthDashboard({ alwaysExpanded = false }: { alwaysExpanded?: b
                               ? `Source → ${log.offersFetched} offres\n` +
                                 `${log.offersDuplicate} doublons déjà connus\n` +
                                 `${log.offersFiltered} sous le score minimum\n` +
-                                `${log.offersNew} enregistrées`
+                                `${log.offersNew} enregistrées` +
+                                (describeSourceMetrics(parseSourceMetrics(log.metrics))
+                                  ? `\n${describeSourceMetrics(parseSourceMetrics(log.metrics))}` : '')
                               : undefined}
                           >
                             {log ? log.offersFetched : '—'}

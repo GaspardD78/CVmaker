@@ -238,6 +238,23 @@ export async function getDb(): Promise<Database> {
       )
     `).catch(() => {/* already exists */});
 
+    // Fallback: ensure migration 023 schema exists (mesures par source, catégorie d'employeur).
+    for (const stmt of [
+      `ALTER TABLE job_watch_fetch_log ADD COLUMN metrics TEXT`,
+      `ALTER TABLE job_offers ADD COLUMN employer_type TEXT`,
+    ]) {
+      await db.execute(stmt).catch(() => {/* already exists */});
+    }
+
+    // Fallback: ensure migration 022 schema exists (origine et référence des offres relayées).
+    for (const stmt of [
+      `ALTER TABLE job_offers ADD COLUMN origin TEXT`,
+      `ALTER TABLE job_offers ADD COLUMN reference TEXT`,
+    ]) {
+      await db.execute(stmt).catch(() => {/* already exists */});
+    }
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_job_offers_reference ON job_offers(reference)`).catch(() => {/* already exists */});
+
     // Fallback: ensure migration 021 schema exists (santé des sources, version du scoring).
     for (const stmt of [
       `ALTER TABLE job_watch_fetch_log ADD COLUMN source_status TEXT`,

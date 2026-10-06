@@ -54,6 +54,7 @@ import { parseHellowork } from './parsers/hellowork';
 import { parseJobicy } from './parsers/jobicy';
 import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
+import { parseChoisirServicePublic, consumeCspMetrics } from './parsers/choisir-service-public';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
 import { 
   isPermissionGranted, 
@@ -95,6 +96,7 @@ export const SOURCE_THROTTLE_MS: Record<JobSource, number> = {
   wttj:               2000,
   apec:               1000,
   emploi_territorial: 1000,
+  choisir_service_public: 1000, // la cadence d'une requête par seconde est aussi imposée dans le parser
   france_travail:      500,
   jobicy:              500,
   linkedin_rss:        500,
@@ -217,8 +219,8 @@ async function writeFetchLog(
     await db.execute(
       `INSERT INTO job_watch_fetch_log
          (source, alert_id, offers_fetched, offers_new, offers_duplicate, offers_filtered, status, error_message, duration_ms,
-          source_status, http_status, error_url)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
+          source_status, http_status, error_url, metrics)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
       [
         entry.source,
         alertId,
@@ -232,6 +234,7 @@ async function writeFetchLog(
         entry.sourceStatus ?? null,
         entry.httpStatus ?? null,
         entry.errorUrl ?? null,
+        entry.metrics ?? null,
       ]
     );
     await db.execute(
@@ -274,6 +277,8 @@ export interface FetchResult {
   errors: string[];
   /** Durée de collecte (parsing uniquement) en ms */
   durationMs: number;
+  /** Mesures propres à la source, en JSON (journal de collecte). */
+  metrics?: string;
   /** Statut calculé : success si pas d'erreur et offres > 0, empty si 0 offre, error si erreur */
   status: 'success' | 'error' | 'empty';
   /**
@@ -325,6 +330,7 @@ async function runParser(
     case 'jobicy':             return parseJobicy(config, settings, profile);
     case 'france_travail':     return parseFranceTravail(config, settings, profile);
     case 'emploi_territorial': return parseEmploiTerritorial(config, settings, profile);
+    case 'choisir_service_public': return parseChoisirServicePublic(config, settings, profile);
     // Sources dépréciées — parsers supprimés. Les valeurs restent dans JobSource
     // pour l'affichage des offres historiques ; la migration 016 convertit les
     // configs linkedin_rss → linkedin.
@@ -509,8 +515,11 @@ export async function runFetch(
     }
 
     const durationMs = Date.now() - startTime;
+    // Mesure propre à la source (offres listées, retenues, enrichies…), journalisée avec la collecte.
+    const metrics = group.source === 'choisir_service_public' ? consumeCspMetrics() : null;
     for (const alert of group.alerts) {
       const result = resultFor(alert, group.source);
+      if (metrics) result.metrics = JSON.stringify(metrics);
       result.totalFetched += rawOffers.length;
       result.durationMs += durationMs;
     }
@@ -687,8 +696,8 @@ export async function runFetch(
              contract_type, description_snippet, published_at, score,
              commute_minutes, commute_status,
              salary_min, salary_max, salary_raw,
-             is_read, is_archived, kanban_id, profile_id, score_version)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18,?19)`,
+             is_read, is_archived, kanban_id, profile_id, score_version, origin, reference, employer_type)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0,0,NULL,?18,?19,?20,?21,?22)`,
           [
             entry.raw.source, entry.raw.url, entry.hash, entry.raw.title,
             entry.raw.company ?? null, entry.raw.location ?? null,
@@ -698,6 +707,7 @@ export async function runFetch(
             entry.commuteMinutes, entry.commuteStatus,
             entry.raw.salaryMin ?? null, entry.raw.salaryMax ?? null, entry.raw.salaryRaw ?? null,
             profileId ?? null, SCORER_VERSION,
+            entry.raw.origin ?? null, entry.raw.reference ?? null, entry.raw.employerType ?? null,
           ]
         );
         const rows = await db.select<{ id: string }[]>(
@@ -773,6 +783,7 @@ export async function runFetch(
       sourceStatus:    result.sourceStatus,
       httpStatus:      result.failure?.httpStatus ?? null,
       errorUrl:        result.failure?.url ?? null,
+      metrics:         result.metrics ?? null,
     });
   }
 

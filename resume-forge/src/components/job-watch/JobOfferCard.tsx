@@ -9,6 +9,7 @@ import { computeLightProfileMatch } from '@/lib/watcher/scorer';
 import { replayScore } from '@/lib/watcher/score-replay';
 import { formatBreakdown, formatScore } from '@/lib/watcher/score-display';
 import { SOURCE_LABELS } from '@/lib/watcher/sources';
+import { ORIGIN_LABELS } from '@/lib/watcher/parsers/csp-html';
 
 
 const SOURCE_COLORS: Record<JobSource, string> = {
@@ -21,6 +22,7 @@ const SOURCE_COLORS: Record<JobSource, string> = {
   jobicy:             'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300',
   france_travail:     'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
   emploi_territorial: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+  choisir_service_public: 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-300',
   mantiks:            'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
 };
 
@@ -296,6 +298,14 @@ export function JobOfferCard({ offer, commuteMaxMinutes, onImportKanban, onGener
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${SOURCE_COLORS[offer.source as JobSource]}`}>
             {SOURCE_LABELS[offer.source as JobSource] ?? offer.source}
           </span>
+          {offer.origin && ORIGIN_LABELS[offer.origin] && (
+            <span
+              title={offer.reference ? `Référence ${offer.reference}` : undefined}
+              className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"
+            >
+              {ORIGIN_LABELS[offer.origin]}
+            </span>
+          )}
           <ScoreBadge score={displayedScore} />
           {/* Pistes du portefeuille ayant capté cette offre. En vue filtrée on
               n'affiche que les autres : la piste consultée va de soi. */}

@@ -39,7 +39,8 @@ const SOURCE_GUIDE: Array<{ id: JobSource; note: string }> = [
   { id: 'indeed',             note: 'généraliste, gros volume, qualité inégale.' },
   { id: 'hellowork',          note: 'généraliste France, bon sur les profils non-cadres.' },
   { id: 'jobicy',             note: 'remote international, anglophone. Uniquement pour du remote.' },
-  { id: 'emploi_territorial', note: 'fonction publique territoriale UNIQUEMENT. Le site refuse les requêtes automatiques : ne pas proposer.' },
+  { id: 'choisir_service_public', note: 'emploi public (territorial, État, hospitalier), site officiel DGAFP ; relaie les offres d\'Emploi Territorial. À proposer pour une piste fonction publique.' },
+  { id: 'emploi_territorial', note: 'fonction publique territoriale UNIQUEMENT. Le site refuse les requêtes automatiques : ne pas proposer (utiliser choisir_service_public).' },
 ];
 
 const ALLOWED_SOURCES = new Set<string>(SOURCE_GUIDE.map(s => s.id));
