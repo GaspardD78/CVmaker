@@ -18,19 +18,26 @@ APEC (DataDome) et le flux RSS d'Emploi Territorial (pare-feu applicatif) resten
 
 ## CSP : constats et décisions
 
-Constats rapportés par l'utilisateur (à reconfirmer sur la machine de l'utilisateur, voir `fixtures/README.md`) : robots.txt n'interdit que `/wp-admin/` et `/wp-content/uploads/pdf-offers/` ; UA honnête accepté (200) ; recherche `…/nos-offres/filtres/mot-cles/<mots>/` ; filtres `versant/<id>/` (2458 FPT, 2456 État, 2457 hospitalière), `categorie/<id>/` (1805 = A), `page/<n>/` ; mot-clé obligatoirement en premier ; 302 à suivre ; page de liste ~4,5 Mo, 20 offres.
+Constats rapportés par l'utilisateur, **confirmés par captures réelles** (`parsers/__fixtures__/`) : robots.txt n'interdit que `/wp-admin/` et `/wp-content/uploads/pdf-offers/` ; UA honnête accepté ; recherche `…/nos-offres/filtres/mot-cles/<mots>/` ; mot-clé en premier ; `page/<n>/` ; chemin des offres `/offre-emploi/` ; 20 offres par page, page de ~4,5 Mo.
 
-| Décision | Raison |
+Corrections issues des captures réelles :
+
+| Constat réel | Décision |
 |---|---|
-| Parseur sans DOM (`parsers/csp-html.ts`) | testable sous bun, pas d'arbre DOM de 4,5 Mo en mémoire |
-| Liste lue par les liens `/offre-emploi/`, JSON-LD `JobPosting` pour le détail | seule structure non vérifiable sur le site réel : la liste ; le JSON-LD suit schema.org |
-| Offre de base conservée si l'enrichissement échoue ; un 403 arrête les enrichissements | pas de martèlement |
-| Offres déjà connues revues dans une page : renvoyées sans requête | le pipeline les rattache aux autres pistes ; sinon une collecte sans nouveauté s'afficherait « Vide » |
-| Page de résultats sans offre reconnue et sans « aucune offre » : `reponse_invalide` | jamais « 0 offre » sur un changement de structure |
-| Catégorie : `Toutes` ou `A` seulement | `A+` = deux identifiants (4327-4328), syntaxe combinée non vérifiée ; pas de défaut « cadre » (aucun signal « cadre » dans le profil de recherche) |
-| Lieu : post-filtre client (offre au lieu connu hors zone écartée, lieu inconnu conservé) | syntaxe de `localisation/` inconnue (renvoie 0 résultat) |
-| Pause 6 h après 403/429 (`source-cooldown.ts`) | pas de nouvelle tentative immédiate |
-| Poids de page non réduit (pas d'endpoint `admin-ajax.php` identifié) | non vérifiable sans accès au site ; 3 pages × 4,5 Mo au plus par intitulé |
+| Le filtre d'URL `versant/<id>/` est **ignoré** (mêmes offres avec ou sans) | segment retiré ; versant filtré côté client d'après « Fonction publique : … » de la carte (puis de la page d'offre) |
+| `localisation/<id>/` fonctionne avec un **identifiant interne** (Yvelines 289, Île-de-France 208), pas le code département | table `parsers/data/csp-localisations.json` (335 lieux) ; `csp-locations.ts` : un département si le rayon ≤ 40 km, sinon la ou les régions (≤ 2 recherches par intitulé) ; post-filtre client conservé |
+| `datePosted` en `jj/mm/aaaa` | `parseCspDate` : minuit UTC, sans décalage de fuseau ; ISO en repli |
+| Lien Emploi Territorial parfois en clair dans le texte, avec `?pk_campaign=ep` | `findOriginalUrl` lit `href` et texte, retire requête et ancre |
+| Références avec tiret bas (`DEF_15-00064919`) | acceptées dans l'adresse ; champ « Référence : » lu en priorité |
+| « Fonction publique : … » sur chaque page | source de l'origine et du versant (Territoriale → Emploi Territorial ; État / Hospitalière → Place de l'emploi public) ; référence `O0…` et lien en confirmation seulement |
+| `hiringOrganization` est une catégorie pour le territorial (« Conseils départementaux ») | employeur = suffixe du titre (« … - CONSEIL DÉPARTEMENTAL DU MORBIHAN ») pour le territorial ; sinon l'employeur affiché |
+| JSON-LD non schema.org strict (`Description`, lieu « Morbihan (56), France ») | lu tel quel ; « , France » retiré |
+| Une même annonce sous deux références | `offer-dedup` regroupe (source, employeur, titre, lieu) et garde la plus récente (`publishedAt`, `fetchedAt` en repli) |
+| Liste de 4,5 Mo | fixture réduite à `<title>` + cartes (~65 Ko) par `reduceCspList` ; capture complète ignorée par git (`*.full.html`) ; l'équivalence est testée quand elle est présente et vérifiée par le script de capture |
+
+Décisions inchangées : parseur sans DOM ; offre de base conservée si l'enrichissement échoue ; un 403 arrête les enrichissements ; offres connues revues renvoyées sans requête ; page non reconnue = `reponse_invalide` ; catégorie `Toutes` ou `A` seulement (`A+` non vérifié) ; pause 6 h après 403/429.
+
+Non vérifié : le filtre `categorie/<id>/` (1805 = A) n'a pas été testé sur le site ; poids de page non réduit (pas d'endpoint plus léger identifié).
 
 ## Données
 

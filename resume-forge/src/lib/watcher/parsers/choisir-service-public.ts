@@ -23,10 +23,11 @@ import { isExcludedByProfile } from '../profile-to-query';
 import { looksLikeBlockPage, SourceError } from '../source-status';
 import { normalizeLocation } from './common/location';
 import {
-  CSP_BASE, CSP_HOST, buildCspSearchUrl, detectOrigin, isEmptyResultPage,
+  CSP_BASE, CSP_HOST, buildCspSearchUrl, detectOrigin, employerName, isEmptyResultPage,
   parseCspList, parseCspOffer, referenceFromOfferUrl,
-  type CspListItem, type CspOfferDetail,
+  type CspListItem, type CspOfferDetail, type CspVersantValue,
 } from './csp-html';
+import { resolveCspLocationIds } from './csp-locations';
 
 export const CSP_USER_AGENT = `ResumeForge/${pkg.version} (veille emploi personnelle)`;
 export const CSP_MIN_INTERVAL_MS = 1000;
@@ -206,9 +207,14 @@ function locationMatches(location: string, depts: Set<string>, city: string | nu
 
 export function buildCspOffer(item: CspListItem, detail: CspOfferDetail | null): RawJobOffer {
   const reference = detail?.reference ?? referenceFromOfferUrl(item.url);
-  const origin = detail
-    ? detectOrigin(reference, detail.originalUrl)
+  // Le versant affiché par le site (page d'offre, sinon carte de la liste) fait
+  // foi ; sans lui, une référence O0… confirme Emploi Territorial, sinon rien.
+  const versant = detail?.versant ?? item.versant;
+  const origin = versant || detail
+    ? detectOrigin(reference, detail?.originalUrl ?? null, versant)
     : reference && /^O0/i.test(reference) ? 'emploi_territorial' : null;
+  const title = detail?.title ?? item.title;
+  const company = employerName(title, detail?.company ?? item.employer, versant);
   const location = normalizeLocation(detail?.location ?? item.location);
   const deadline = detail?.deadline ? `Date limite de candidature : ${detail.deadline.slice(0, 10)}. ` : '';
   const snippet = `${deadline}${detail?.description ?? ''}`.trim();
@@ -216,23 +222,28 @@ export function buildCspOffer(item: CspListItem, detail: CspOfferDetail | null):
   return {
     source: 'choisir_service_public',
     url: item.url,
-    title: detail?.title ?? item.title,
-    company: detail?.company ?? null,
+    title,
+    company,
     location,
     contractType: detail?.contractType ?? null,
     descriptionSnippet: snippet ? snippet.slice(0, 500) : null,
-    publishedAt: detail?.publishedAt ?? null,
+    publishedAt: detail?.publishedAt ?? item.publishedAt,
     origin,
     reference,
     extraction: {
       titleSource: detail?.title ? 'json_ld' : 'html_primary',
       titleConfidence: detail?.title ? 'high' : 'medium',
       locationSource: location ? (detail?.location ? 'json_ld' : 'html') : 'none',
-      locationConfidence: location ? (detail?.location ? 'high' : 'low') : 'none',
+      locationConfidence: location ? (detail?.location ? 'high' : 'medium') : 'none',
       contractSource: detail?.contractType ? 'json_ld' : 'none',
       contractConfidence: detail?.contractType ? 'medium' : 'none',
     },
   };
+}
+
+/** Versant de la piste : `all` ou absent n'écarte rien ; un versant inconnu de la carte n'écarte pas non plus. */
+export function versantWanted(wanted: CspVersantValue | 'all' | undefined, seen: CspVersantValue | null): boolean {
+  return !wanted || wanted === 'all' || !seen || seen === wanted;
 }
 
 // ── Point d'entrée ───────────────────────────────────────────────────────────
@@ -249,43 +260,56 @@ export async function parseChoisirServicePublic(
   const rules = await loadRobotsRules(deps);
   const known = await deps.knownUrls();
 
-  // Liste : par intitulé, 3 pages au plus, arrêt sur page entièrement connue.
+  // Lieux interrogés : identifiant interne du département ou de la région (un seul
+  // « sans filtre » quand le lieu n'est pas reconnu : le post-filtre client reste actif).
+  const locationIds: Array<number | null> = resolveCspLocationIds({
+    departmentCodes: profile.location.departmentCodes,
+    city: profile.location.city,
+    radiusKm: profile.location.radiusKm,
+  });
+  if (locationIds.length === 0) locationIds.push(null);
+
+  // Liste : par intitulé et par lieu, 3 pages au plus, arrêt sur page entièrement connue.
   const fresh = new Map<string, CspListItem>();
   // Offres déjà en base revues dans les pages lues : renvoyées sans enrichissement
   // (aucune requête) pour que le pipeline les rattache aux pistes concernées.
   const revisited = new Map<string, CspListItem>();
   const seen = new Set<string>();
   for (const keywords of titles) {
-    for (let page = 1; page <= CSP_MAX_PAGES; page++) {
-      const url = buildCspSearchUrl({
-        keywords, versant: profile.cspVersant, categorie: profile.cspCategorie, page,
-      });
-      let html: string;
-      try {
-        html = await getHtml(url, deps, rules);
-      } catch (err) {
-        // Au-delà de la première page, un 404 marque la fin des résultats.
-        if (page > 1 && err instanceof SourceError && err.kind === 'introuvable') break;
-        throw err;
-      }
-      const items = parseCspList(html);
-      if (items.length === 0) {
-        if (page === 1 && !isEmptyResultPage(html)) {
-          throw new SourceError(
-            'reponse_invalide',
-            'Page de résultats non reconnue (aucune offre repérée) : la structure du site a probablement changé',
-            { httpStatus: 200, url },
-          );
+    for (const locationId of locationIds) {
+      for (let page = 1; page <= CSP_MAX_PAGES; page++) {
+        const url = buildCspSearchUrl({ keywords, locationId, categorie: profile.cspCategorie, page });
+        let html: string;
+        try {
+          html = await getHtml(url, deps, rules);
+        } catch (err) {
+          // Au-delà de la première page, un 404 marque la fin des résultats.
+          if (page > 1 && err instanceof SourceError && err.kind === 'introuvable') break;
+          throw err;
         }
-        break;
+        const items = parseCspList(html);
+        if (items.length === 0) {
+          if (page === 1 && !isEmptyResultPage(html)) {
+            throw new SourceError(
+              'reponse_invalide',
+              'Page de résultats non reconnue (aucune offre repérée) : la structure du site a probablement changé',
+              { httpStatus: 200, url },
+            );
+          }
+          break;
+        }
+        // Le filtre de versant d'URL est ignoré par le site : on filtre ici.
+        const relevant = items.filter(item => versantWanted(profile.cspVersant, item.versant));
+        let unseen = 0;
+        for (const item of relevant) {
+          if (known.has(item.url)) { revisited.set(item.url, item); continue; }
+          unseen += 1;
+          if (!seen.has(item.url)) { seen.add(item.url); fresh.set(item.url, item); }
+        }
+        // Page entièrement connue : inutile d'aller plus loin. Une page sans offre
+        // du versant voulu n'est pas « connue » : on continue (dans la limite des pages).
+        if (relevant.length > 0 && unseen === 0) break;
       }
-      let unseen = 0;
-      for (const item of items) {
-        if (known.has(item.url)) { revisited.set(item.url, item); continue; }
-        unseen += 1;
-        if (!seen.has(item.url)) { seen.add(item.url); fresh.set(item.url, item); }
-      }
-      if (unseen === 0) break; // page entièrement connue : inutile d'aller plus loin
     }
   }
 
@@ -308,7 +332,10 @@ export async function parseChoisirServicePublic(
         console.debug(`[choisir-service-public] enrichissement ignoré (${item.url}):`, err);
       }
     }
-    offers.push(buildCspOffer(item, detail));
+    const offer = buildCspOffer(item, detail);
+    // Versant lu sur la page d'offre (plus fiable que la carte) : on écarte après coup.
+    if (detail?.versant && !versantWanted(profile.cspVersant, detail.versant)) continue;
+    offers.push(offer);
   }
 
   for (const item of revisited.values()) offers.push(buildCspOffer(item, null));

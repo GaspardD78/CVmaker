@@ -2,15 +2,9 @@
 
 ## Choisir le service public (HTML)
 
-Les fichiers `*-synthetic.html` de `src/lib/watcher/parsers/__fixtures__/` sont **reconstitués** à partir des constats de la spec, pas capturés : ils prouvent la logique, pas la structure réelle du site.
+Captures **réelles** dans `src/lib/watcher/parsers/__fixtures__/` : `csp-list.html` (liste réduite à son `<title>` et aux 20 cartes), `csp-offer-et.html` (offre territoriale, Morbihan), `csp-offer-pep.html` (offre de l'État, Défense). Les `*-synthetic.html` ne servent qu'aux tests de cas limites. `csp-localisations.json` (ici) est la table nom → identifiant interne des 335 lieux ; `src/lib/watcher/parsers/data/` en porte la copie utilisée par le code (un test vérifie qu'elles sont identiques).
 
-Depuis une machine ordinaire (le bac à sable de développement n'a pas accès au site) :
-
-```
-bun run tools/capture-csp-fixtures.ts "chargé de recrutement"
-```
-
-Le script (UA honnête, 1 requête/s, aucun contournement) écrit `csp-list.html`, `csp-offer-et.html`, `csp-offer-pep.html` dans `__fixtures__/`. Les tests les préfèrent automatiquement aux fixtures synthétiques. Si `parseCspList` ne trouve plus d'offres sur la capture réelle, ajuster `csp-html.ts` (la liste est le point non vérifié).
+Pour recapturer : `bun run tools/capture-csp-fixtures.ts "chargé de recrutement"` (UA honnête, 1 requête/s, aucun contournement). Le script écrit aussi `csp-list.full.html` (4,5 Mo, ignoré par git) et refuse d'écrire si la version réduite ne donne pas le même résultat.
 
 ## E-mails d'alerte (`.eml`)
 

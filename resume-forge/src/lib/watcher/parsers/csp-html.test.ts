@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildCspSearchUrl, parseCspList, parseCspOffer, detectOrigin, isEmptyResultPage,
@@ -7,31 +7,28 @@ import {
 } from './csp-html';
 
 const fx = (name: string) => readFileSync(join(import.meta.dir, '__fixtures__', name), 'utf8');
-/** Les captures réelles (tools/capture-csp-fixtures.ts) priment sur les fixtures synthétiques. */
-const real = (name: string, fallback: string) =>
-  existsSync(join(import.meta.dir, '__fixtures__', name)) ? fx(name) : fx(fallback);
+/** Ce fichier ne lit QUE les fixtures synthétiques ; les captures réelles sont dans csp-html.real.test.ts. */
 
 describe('buildCspSearchUrl', () => {
   test('mot-clé en premier, encodé', () => {
     expect(buildCspSearchUrl({ keywords: 'chargé de recrutement' }))
       .toBe('https://choisirleservicepublic.gouv.fr/nos-offres/filtres/mot-cles/charg%C3%A9%20de%20recrutement/');
   });
-  test('versant, catégorie et pagination après le mot-clé', () => {
-    const url = buildCspSearchUrl({ keywords: 'rh', versant: 'fpt', categorie: 'A', page: 2 });
-    expect(url).toEndWith('/mot-cles/rh/versant/2458/categorie/1805/page/2/');
+  test('lieu (identifiant interne), catégorie et pagination après le mot-clé', () => {
+    const url = buildCspSearchUrl({ keywords: 'rh', locationId: 289, categorie: 'A', page: 2 });
+    expect(url).toEndWith('/mot-cles/rh/localisation/289/categorie/1805/page/2/');
   });
-  test('identifiants de versant', () => {
-    expect(buildCspSearchUrl({ keywords: 'rh', versant: 'etat' })).toContain('/versant/2456/');
-    expect(buildCspSearchUrl({ keywords: 'rh', versant: 'fph' })).toContain('/versant/2457/');
+  test('plus de segment versant (ignoré par le site)', () => {
+    expect(buildCspSearchUrl({ keywords: 'rh', page: 1 })).not.toContain('versant');
   });
-  test('« tous » et page 1 n\'ajoutent rien', () => {
-    expect(buildCspSearchUrl({ keywords: 'rh', versant: 'all', categorie: 'all', page: 1 }))
+  test('« toutes » et page 1 n\'ajoutent rien', () => {
+    expect(buildCspSearchUrl({ keywords: 'rh', locationId: null, categorie: 'all', page: 1 }))
       .toEndWith('/mot-cles/rh/');
   });
 });
 
 describe('parseCspList', () => {
-  const items = parseCspList(real('csp-list.html', 'csp-list-synthetic.html'));
+  const items = parseCspList(fx('csp-list-synthetic.html'));
   test('une entrée par offre, sans doublon ni lien de navigation', () => {
     expect(items.length).toBeGreaterThanOrEqual(3);
     expect(new Set(items.map(i => i.url)).size).toBe(items.length);
@@ -65,7 +62,7 @@ describe('parseCspList', () => {
 
 describe('parseCspOffer', () => {
   const url = 'https://choisirleservicepublic.gouv.fr/offre-emploi/charge-de-recrutement-reference-o094261002000713/';
-  const et = parseCspOffer(real('csp-offer-et.html', 'csp-offer-et-synthetic.html'), url);
+  const et = parseCspOffer(fx('csp-offer-et-synthetic.html'), url);
 
   test('JSON-LD JobPosting', () => {
     expect(et.title).toBeTruthy();

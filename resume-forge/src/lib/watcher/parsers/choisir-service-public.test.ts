@@ -238,10 +238,44 @@ describe('collecte', () => {
     expect(searchCalls(calls)).toHaveLength(0);
   });
 
-  test('versant et catégorie de la piste dans l\'URL', async () => {
+  test('catégorie et lieu (identifiant interne) de la piste dans l\'URL, jamais de segment versant', async () => {
     const { deps, calls } = harness(url => (isSearch(url) ? html('<p>Aucune offre</p>') : html('')));
-    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile({ cspVersant: 'fpt', cspCategorie: 'A' }), deps);
-    expect(searchCalls(calls)[0].url).toEndWith('/mot-cles/Charg%C3%A9%20de%20recrutement/versant/2458/categorie/1805/');
+    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile({
+      cspVersant: 'fpt', cspCategorie: 'A',
+      location: { ...DEFAULT_SEARCH_PROFILE.location, departmentCodes: ['78'], radiusKm: 30 },
+    }), deps);
+    expect(searchCalls(calls)[0].url)
+      .toEndWith('/mot-cles/Charg%C3%A9%20de%20recrutement/localisation/289/categorie/1805/');
+    expect(searchCalls(calls).every(c => !c.url.includes('versant'))).toBe(true);
+  });
+
+  test('rayon large : recherche sur la région (Île-de-France = 208)', async () => {
+    const { deps, calls } = harness(url => (isSearch(url) ? html('<p>Aucune offre</p>') : html('')));
+    await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile({
+      location: { ...DEFAULT_SEARCH_PROFILE.location, departmentCodes: ['78'], radiusKm: 80 },
+    }), deps);
+    expect(searchCalls(calls)[0].url).toContain('/localisation/208/');
+  });
+
+  test('versant filtré côté client sur la carte (le filtre d\'URL est ignoré par le site)', async () => {
+    const card = (slug: string, vers: string) =>
+      `<li><a href="/offre-emploi/${slug}/">Poste ${slug}</a><ul><li>Fonction publique : ${vers}</li><li>Employeur : X</li></ul></li>`;
+    const page = `<ul>${card('a-reference-O0001', 'Fonction publique Territoriale')}${card('b-reference-DEF_1-2', "Fonction publique de l'État")}</ul>`;
+    const run = (cspVersant?: 'all' | 'fpt' | 'etat') => parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS,
+      profile({ cspVersant }), harness(url => (isSearch(url) ? html(page) : html('', 500))).deps);
+    expect((await run('fpt')).map(o => o.reference)).toEqual(['O0001']);
+    expect((await run('etat')).map(o => o.reference)).toEqual(['DEF_1-2']);
+    expect(await run('all')).toHaveLength(2);
+    expect(await run()).toHaveLength(2);
+  });
+
+  test('une page sans offre du versant voulu n\'arrête pas la pagination', async () => {
+    const card = (n: number) =>
+      `<ul><li><a href="/offre-emploi/p${n}-reference-DEF_${n}-1/">P${n}</a><ul><li>Fonction publique : Fonction publique de l'État</li></ul></li></ul>`;
+    const { deps, calls } = harness(url => (isSearch(url) ? html(card(Number(/\/page\/(\d+)\//.exec(url)?.[1] ?? 1))) : html('', 500)));
+    const offers = await parseChoisirServicePublic(config, DEFAULT_JOB_WATCH_SETTINGS, profile({ cspVersant: 'fpt' }), deps);
+    expect(offers).toEqual([]);
+    expect(searchCalls(calls)).toHaveLength(CSP_MAX_PAGES);
   });
 
   test('post-filtre : exclusions du profil et lieu connu hors zone', async () => {
@@ -261,13 +295,19 @@ describe('collecte', () => {
 });
 
 describe('buildCspOffer', () => {
-  test('sans enrichissement : pas d\'origine inventée', () => {
-    const o = buildCspOffer({ url: 'https://choisirleservicepublic.gouv.fr/offre-emploi/x-reference-2026-5/', title: 'X', location: null }, null);
+  const base = { title: 'X', location: null, employer: null, versant: null, publishedAt: null };
+  test('sans enrichissement ni versant : pas d\'origine inventée', () => {
+    const o = buildCspOffer({ ...base, url: 'https://choisirleservicepublic.gouv.fr/offre-emploi/x-reference-2026-5/' }, null);
     expect(o.origin).toBeNull();
     expect(o.reference).toBe('2026-5');
   });
   test('sans enrichissement mais référence O0… dans l\'adresse : Emploi Territorial', () => {
-    const o = buildCspOffer({ url: 'https://choisirleservicepublic.gouv.fr/offre-emploi/x-reference-o0942610020/', title: 'X', location: null }, null);
+    const o = buildCspOffer({ ...base, url: 'https://choisirleservicepublic.gouv.fr/offre-emploi/x-reference-o0942610020/' }, null);
     expect(o.origin).toBe('emploi_territorial');
+  });
+  test('sans enrichissement, le versant de la carte donne l\'origine', () => {
+    const url = 'https://choisirleservicepublic.gouv.fr/offre-emploi/x-reference-DEF_1-2/';
+    expect(buildCspOffer({ ...base, url, versant: 'etat' }, null).origin).toBe('place_emploi_public');
+    expect(buildCspOffer({ ...base, url, versant: 'fpt' }, null).origin).toBe('emploi_territorial');
   });
 });

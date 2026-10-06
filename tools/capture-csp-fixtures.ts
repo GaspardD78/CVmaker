@@ -7,7 +7,8 @@
  *   bun run tools/capture-csp-fixtures.ts "chargé de recrutement"
  *
  * Écrit dans resume-forge/src/lib/watcher/parsers/__fixtures__/ :
- *   csp-list.html            page de liste (versant FPT)
+ *   csp-list.html            page de liste réduite à son <title> et aux cartes d'offre (~65 Ko)
+ *   csp-list.full.html       page complète (4,5 Mo), ignorée par git : sert au test d'équivalence
  *   csp-offer-et.html        première offre d'origine Emploi Territorial rencontrée (réf. O0…)
  *   csp-offer-pep.html       première offre d'origine Place de l'emploi public
  *
@@ -17,6 +18,7 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseCspList, reduceCspList } from '../resume-forge/src/lib/watcher/parsers/csp-html';
 
 const HOST = 'https://choisirleservicepublic.gouv.fr';
 const UA = 'ResumeForge/1.3 (veille emploi personnelle)';
@@ -32,18 +34,25 @@ async function get(url: string): Promise<string> {
 }
 
 mkdirSync(OUT, { recursive: true });
-const listUrl = `${HOST}/nos-offres/filtres/mot-cles/${encodeURIComponent(keywords)}/versant/2458/`;
+// Le filtre d'URL `versant/<id>/` est ignoré par le site : on ne l'envoie pas.
+const listUrl = `${HOST}/nos-offres/filtres/mot-cles/${encodeURIComponent(keywords)}/`;
 const list = await get(listUrl);
-writeFileSync(join(OUT, 'csp-list.html'), list);
-console.log(`liste : ${list.length} octets`);
+const reduced = reduceCspList(list);
+if (JSON.stringify(parseCspList(reduced)) !== JSON.stringify(parseCspList(list))) {
+  throw new Error('La page réduite ne donne pas le même résultat que la page complète — arrêt, rien écrit.');
+}
+writeFileSync(join(OUT, 'csp-list.full.html'), list);
+writeFileSync(join(OUT, 'csp-list.html'), reduced);
+console.log(`liste : ${list.length} octets → ${reduced.length} octets réduits (même résultat vérifié)`);
 
-const links = [...new Set([...list.matchAll(/href="([^"]*\/offre-emploi\/[^"]+)"/g)].map(m => new URL(m[1], HOST).pathname))];
+const links = parseCspList(list).map(i => new URL(i.url).pathname);
 console.log(`${links.length} liens /offre-emploi/ trouvés`);
 let et = false, pep = false;
 for (const path of links.slice(0, 12)) {
   if (et && pep) break;
   const html = await get(`${HOST}${path}`);
-  const isEt = /emploi-territorial\.fr\/offre\//i.test(html) || /\bO0\d{10,}/.test(html);
+  // Origine lue dans « Fonction publique : Fonction publique Territoriale » (champ officiel).
+  const isEt = /Fonction publique\s*:\s*(?:<[^>]+>\s*)*Fonction publique\s+Territoriale/i.test(html);
   if (isEt && !et) { writeFileSync(join(OUT, 'csp-offer-et.html'), html); et = true; console.log('offre ET :', path); }
   if (!isEt && !pep) { writeFileSync(join(OUT, 'csp-offer-pep.html'), html); pep = true; console.log('offre PEP :', path); }
 }
