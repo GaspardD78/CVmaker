@@ -42,6 +42,7 @@
  */
 
 import { isTitleExcluded } from './title-exclusion';
+import { findTitleMatch } from './title-match';
 import type { RawJobOffer, SearchProfile } from '@/types/job-watch';
 import type { LearnedDictionary } from './learning-engine';
 import type { Profile, MasterEntry } from '@/types/profile';
@@ -194,8 +195,9 @@ export interface ScoreBreakdown {
  *
  *   1 — tous les scores antérieurs à la spec 006 (échelles décimales mêlées)
  *   2 — entiers de 0 à 100
+ *   3 — intitulés reconnus par mots significatifs (title-match.ts), comme CSP
  */
-export const SCORER_VERSION = 2;
+export const SCORER_VERSION = 3;
 
 export function computeScore(
   offer: ScorerOffer,
@@ -275,7 +277,7 @@ export function computeScoreWithBreakdown(
   let titleMatchedTerm: string | undefined;
 
   if (profile.jobTitles.length > 0) {
-    const matchInTitle = findMatch(profile.jobTitles, title);
+    const matchInTitle = findTitleMatch(profile.jobTitles, title);
     if (matchInTitle) {
       const conf = offer.extraction.titleConfidence;
       titleMatchScore = conf === 'high' ? SCORING_WEIGHTS.titleHigh : SCORING_WEIGHTS.titleOther;

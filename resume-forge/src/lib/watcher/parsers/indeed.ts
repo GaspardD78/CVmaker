@@ -18,7 +18,7 @@
 import type { RawJobOffer, JobWatchConfig, JobWatchSettings, SearchProfile } from '@/types/job-watch';
 import { scrapeWithSession } from '../session-manager';
 import { isExcludedByProfile } from '../profile-to-query';
-import { assertNotChallengePage } from '../source-status';
+import { assertNotChallengePage, scrapeSourceError } from '../source-status';
 import { normalizeLocation } from './common/location';
 import { extractContractFromText, normalizeContractType } from './common/contract-type';
 import { extractSalaryFromText } from './common/salary';
@@ -38,10 +38,15 @@ export async function parseIndeed(
   profileId?: string | null,
 ): Promise<RawJobOffer[]> {
   const url = buildIndeedUrl(profile);
-  const html = await scrapeWithSession('indeed', url, {
-    waitSelector: '#mosaic-provider-jobcards, .jobsearch-ResultsList, [data-testid="jobListing"]',
-    timeoutSecs:  25,
-  }, profileId);
+  let html: string;
+  try {
+    html = await scrapeWithSession('indeed', url, {
+      waitSelector: '#mosaic-provider-jobcards, .jobsearch-ResultsList, [data-testid="jobListing"]',
+      timeoutSecs:  25,
+    }, profileId);
+  } catch (err) {
+    throw scrapeSourceError(err, { url });
+  }
 
   // Contrôle anti-robot : on s'arrête et on le dit, sans tenter de le franchir.
   assertNotChallengePage(html, { url });

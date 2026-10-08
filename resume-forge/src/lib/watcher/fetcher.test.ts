@@ -396,23 +396,32 @@ describe('runFetch', () => {
     failingWith.apec = new SourceError('bloquee', 'Page de pare-feu reçue (Request Rejected) au lieu de XML', {
       httpStatus: 200, url: 'https://www.emploi-territorial.fr/rss/offres-emploi.rss?token=SECRET',
     });
-    failingWith.emploi_territorial = new Error('HTTP 404 pour https://www.emploi-territorial.fr/rss/offres-emploi.rss');
+    failingWith.jobicy = new Error('HTTP 404 pour https://jobicy.com/api/v2/remote-jobs');
     failingWith.hellowork = new SourceError('reponse_invalide', 'HTML reçu au lieu de JSON');
     parserOutput.wttj = [];
 
     const { results } = await runFetch(
       [a],
-      [config('A', 'apec'), config('A', 'emploi_territorial'), config('A', 'hellowork'), config('A', 'wttj')],
+      [config('A', 'apec'), config('A', 'jobicy'), config('A', 'hellowork'), config('A', 'wttj')],
       settings, undefined, null, deps,
     );
     const statusOf = (s: string) => results.find(r => r.source === s)?.sourceStatus;
     expect(statusOf('apec')).toBe('bloquee');
-    expect(statusOf('emploi_territorial')).toBe('introuvable');
+    expect(statusOf('jobicy')).toBe('introuvable');
     expect(statusOf('hellowork')).toBe('reponse_invalide');
     expect(statusOf('wttj')).toBe('vide');
     // L'URL journalisée ne contient pas de secret.
     const apec = results.find(r => r.source === 'apec')!;
     expect(apec.failure?.url).not.toContain('SECRET');
+  });
+
+  test('Emploi Territorial indisponible : jamais interrogée, même si sa configuration est réactivée', async () => {
+    const a = alert('A');
+    parserOutput.emploi_territorial = [offer('poste', 'emploi_territorial')];
+    scoreTable.poste = { A: 80 };
+    await runFetch([a], [config('A', 'emploi_territorial'), config('A', 'wttj')], settings, undefined, null, deps);
+    expect(parserCalls).toEqual(['wttj']);
+    expect(dbState.offers).toHaveLength(0);
   });
 
   test('APEC bloquée : pause de 24 h, aucune nouvelle tentative au cycle suivant', async () => {

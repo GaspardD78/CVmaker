@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cspLocationId, departmentLocationId, regionLocationIdOf, resolveCspLocationIds, DEPARTMENT_PLACE,
-  MAX_LOCATION_SEARCHES, normalizePlaceName,
+  MAX_LOCATION_SEARCHES, normalizePlaceName, resolveCspLocations, departmentsOfRegionId,
 } from './csp-locations';
 import { buildCspSearchUrl } from './csp-html';
 
@@ -67,5 +67,23 @@ describe('resolveCspLocationIds', () => {
       .toBe('https://choisirleservicepublic.gouv.fr/nos-offres/filtres/mot-cles/recrutement/localisation/289/');
     const [region] = resolveCspLocationIds(q(['78'], 80));
     expect(buildCspSearchUrl({ keywords: 'recrutement', locationId: region })).toContain('/localisation/208/');
+  });
+});
+
+describe('resolveCspLocations : départements couverts par la requête', () => {
+  const q = (departmentCodes: string[], radiusKm = 30) => ({ departmentCodes, city: '', radiusKm });
+  test('département seul : ce département', () => {
+    expect([...resolveCspLocations(q(['78'])).departments]).toEqual(['78']);
+  });
+  test('rayon large : tous les départements d\'Île-de-France', () => {
+    const { ids, departments } = resolveCspLocations(q(['78'], 60));
+    expect(ids).toEqual([208]);
+    expect([...departments].sort()).toEqual(['75', '77', '78', '91', '92', '93', '94', '95']);
+    expect(departmentsOfRegionId(208)).toHaveLength(8);
+    expect(departments.has('38')).toBe(false);
+  });
+  test('lieu inconnu : seulement les codes de la piste', () => {
+    expect(resolveCspLocations(q(['99'])).ids).toEqual([]);
+    expect([...resolveCspLocations(q(['99'])).departments]).toEqual(['99']);
   });
 });
