@@ -397,3 +397,21 @@ describe('migration de la portée des exclusions (spec 005)', () => {
     expect(computeScore(makeOffer({ title: 'Recruteur' }), stored)).toBeGreaterThan(0);
   });
 });
+
+describe('correspondance des intitulés (logique partagée avec CSP)', () => {
+  const profile = makeProfile({ jobTitles: ['Talent Acquisition Partner'] });
+  const offer = (title: string) => ({
+    title, company: 'ACME', url: 'https://x', source: 'wttj' as const,
+    description: '', extraction: DEFAULT_EXTRACTION,
+  });
+
+  test('« Talent Acquisition Business Partner » reconnu', () => {
+    const r = computeScoreWithBreakdown(offer('Talent Acquisition Business Partner') as never, profile);
+    expect(r.titleMatchScore).toBeGreaterThan(0);
+  });
+
+  test('« Talent Manager Logistique » : faux positif écarté', () => {
+    const r = computeScoreWithBreakdown(offer('Talent Manager Logistique') as never, profile);
+    expect(r.titleMatchScore).toBe(0);
+  });
+});

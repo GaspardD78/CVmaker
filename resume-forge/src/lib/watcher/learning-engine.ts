@@ -16,8 +16,29 @@ export interface LearnedDictionary {
 
 /** Partie du profil de piste qui définit son vocabulaire « cible ». */
 export type ProfileVocabularySource = Partial<
-  Pick<SearchProfile, 'jobTitles' | 'skills' | 'domains' | 'requiredDomains' | 'apecFonctions'>
+  Pick<SearchProfile, 'jobTitles' | 'skills' | 'domains' | 'requiredDomains' | 'apecFonctions' | 'location'>
 >;
+
+/** Contrats et lieux génériques : décrivent l'offre, pas le métier, donc jamais appris en négatif. */
+const NEVER_NEGATIVE_TERMS = [
+  'cdi', 'cdd', 'interim', 'intérim', 'freelance', 'alternance', 'stage', 'temps plein', 'temps partiel',
+  'paris', 'france', 'ile-de-france', 'île-de-france', 'idf', 'remote', 'hybride', 'télétravail', 'teletravail',
+];
+
+/** Contrats + lieux de la piste, mots isolés (un bigramme qui en contient un est lui aussi protégé). */
+function nonJobTerms(profile?: ProfileVocabularySource | null): Set<string> {
+  const out = new Set<string>();
+  for (const t of NEVER_NEGATIVE_TERMS) for (const w of extractSignificantTerms(t)) out.add(w);
+  if (profile) for (const text of zoneTexts(profile)) for (const w of extractSignificantTerms(text)) out.add(w);
+  return out;
+}
+
+/** Textes de la zone de la piste : libellé, ville, départements. */
+function zoneTexts(profile: ProfileVocabularySource): string[] {
+  const loc = profile.location;
+  if (!loc) return [];
+  return [loc.label, loc.city, ...(loc.departmentCodes ?? [])].filter((t): t is string => !!t && t.trim().length > 0);
+}
 
 const STOP_WORDS = new Set([
   // French
@@ -66,6 +87,7 @@ export function extractSignificantTerms(text: string, includeBigrams = false): s
 export function profileVocabulary(profile?: ProfileVocabularySource | null): Set<string> {
   const out = new Set<string>();
   if (!profile) return out;
+  for (const term of nonJobTerms(profile)) out.add(term);
   const sources = [
     ...(profile.jobTitles ?? []), ...(profile.skills ?? []), ...(profile.domains ?? []),
     ...(profile.requiredDomains ?? []), ...(profile.apecFonctions ?? []),
@@ -98,13 +120,16 @@ export function processFeedback(
   const allTerms = extractSignificantTerms(offerTitle, true); // include bigrams
   if (allTerms.length === 0) return currentDict;
   const vocabulary = profileVocabulary(profile);
+  const nonJob = nonJobTerms(profile);
+  const isProtected = (term: string) =>
+    vocabulary.has(term) || term.split(' ').some(w => nonJob.has(w));
 
   const positive = { ...currentDict.positive };
   const negative = { ...currentDict.negative };
 
   const increment = (dict: Record<string, number>, weight: number, skipProtected = false) => {
     for (const term of allTerms) {
-      if (skipProtected && vocabulary.has(term)) continue;
+      if (skipProtected && isProtected(term)) continue;
       dict[term] = (dict[term] ?? 0) + weight;
     }
   };

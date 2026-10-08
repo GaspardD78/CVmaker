@@ -129,6 +129,32 @@ export function assertNotChallengePage(html: string, ctx: { url: string }): void
   }
 }
 
+/**
+ * Erreur d'une source scrapée via le navigateur intégré (commande Rust
+ * `scrape_with_session`, dont les messages sont « Navigation: … », « Lancement
+ * Chrome: … », « Chrome/Chromium introuvable: … »). Sans cela, tout finissait en
+ * « erreur réseau » sans URL ni explication. On garde le message d'origine, on
+ * ajoute l'URL (sans secret) et on classe : un contrôle anti-robot est `bloquee`
+ * (on s'arrête, sans contournement), le reste reste `erreur_reseau` avec la cause.
+ */
+export function scrapeSourceError(err: unknown, ctx: { url: string }): SourceError {
+  if (err instanceof SourceError) return err;
+  const raw = err instanceof Error ? err.message : String(err);
+  const detail = classifyFailureMessage(raw);
+  if (detail.kind === 'bloquee') {
+    return new SourceError('bloquee', `Site inaccessible (refus ou contrôle anti-robot) : ${raw}`, {
+      httpStatus: detail.httpStatus, url: ctx.url,
+    });
+  }
+  const m = raw.toLowerCase();
+  const cause = m.includes('chrome') && (m.includes('introuvable') || m.includes('lancement'))
+    ? 'navigateur Chrome/Chromium indisponible sur cette machine'
+    : m.includes('navigation') || m.includes('attente navigation')
+      ? 'la page n\'a pas pu être chargée (connexion, DNS ou délai dépassé)'
+      : 'échec du navigateur intégré';
+  return new SourceError('erreur_reseau', `${cause} : ${raw}`, { httpStatus: detail.httpStatus, url: ctx.url });
+}
+
 // ── Classification ───────────────────────────────────────────────────────────
 
 /**

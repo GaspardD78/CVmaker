@@ -112,3 +112,22 @@ describe('contrôle anti-robot des sources scrapées', () => {
     expect(() => assertNotChallengePage('<html><body><div data-testid="jobListing"></div></body></html>', { url: 'u' })).not.toThrow();
   });
 });
+
+describe('scrapeSourceError', () => {
+  const url = 'https://fr.indeed.com/emplois?q=ta&l=Paris&token=abc';
+  it('garde le message d\'origine, l\'URL sans secret et la cause', async () => {
+    const { scrapeSourceError } = await import('./source-status');
+    const e = scrapeSourceError('Navigation: net::ERR_NAME_NOT_RESOLVED', { url });
+    expect(e.kind).toBe('erreur_reseau');
+    expect(e.message).toContain('ERR_NAME_NOT_RESOLVED');
+    expect(e.url).toContain('token=***');
+  });
+  it('Chrome absent : cause explicite', async () => {
+    const { scrapeSourceError } = await import('./source-status');
+    expect(scrapeSourceError('Chrome/Chromium introuvable: x', { url }).message).toContain('Chrome/Chromium indisponible');
+  });
+  it('403 : bloquée, pas de contournement', async () => {
+    const { scrapeSourceError } = await import('./source-status');
+    expect(scrapeSourceError('HTTP 403', { url }).kind).toBe('bloquee');
+  });
+});
