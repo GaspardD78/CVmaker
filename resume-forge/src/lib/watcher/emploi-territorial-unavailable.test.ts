@@ -73,6 +73,7 @@ describe('statut « Indisponible »', () => {
     });
     expect(c.rows.find(r => r.source === 'emploi_territorial')!.status).toBe('indisponible');
     expect(c.toFix.map(f => f.label)).not.toContain('Emploi Territorial');
-    expect(renderCoverageSection(c)).toContain('hors d\'atteinte');
+    // Intégration avec la spec 007 : une source indisponible mais couverte est présentée comme telle.
+    expect(renderCoverageSection(c)).toContain('couvert via Choisir le service public');
   });
 });

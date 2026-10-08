@@ -73,11 +73,10 @@ export const RECOMMENDED_SOURCES: JobSource[] = ALL_SOURCES;
 export const DISABLED_BY_DEFAULT: Set<JobSource> = new Set(['emploi_territorial']);
 
 /**
- * Sources dont l'accès direct est fermé (spec 007) : le parseur reste en place
- * mais la source est désactivée. Emploi Territorial est couvert via
- * « Choisir le service public », qui relaie ses offres.
+ * Sources dont l'accès direct est fermé : voir `UNAVAILABLE_SOURCES` dans
+ * `source-status.ts` (statut « Indisponible », jamais interrogées). Emploi Territorial
+ * est couvert via « Choisir le service public », qui relaie ses offres (`COVERED_VIA`).
  */
-export const UNAVAILABLE_SOURCES: Set<JobSource> = DISABLED_BY_DEFAULT;
 
 /** Ce qui remplace une source indisponible, affiché dans le tableau des collectes. */
 export const COVERED_VIA: Partial<Record<JobSource, { by: JobSource; label: string }>> = {
