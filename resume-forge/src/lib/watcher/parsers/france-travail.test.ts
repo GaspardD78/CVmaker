@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { parseSalary } from './france-travail';
+import { parseSalary, tallyPartners, MAX_PAGES_PER_TITLE } from './france-travail';
 
 describe('parseSalary', () => {
   it('parses plain annual amounts', () => {
@@ -31,5 +31,26 @@ describe('parseSalary', () => {
   it('returns nulls without input', () => {
     expect(parseSalary(undefined).salaryMin).toBeNull();
     expect(parseSalary({}).salaryMin).toBeNull();
+  });
+});
+
+describe('journal par origine', () => {
+  const offers = [
+    { id: 'a', origineOffre: { origine: '1' } },
+    { id: 'b', origineOffre: { origine: '2', partenaires: [{ nom: 'Talentplug' }] } },
+    { id: 'c', origineOffre: { origine: '2', partenaires: [{ nom: 'Talentplug' }, { nom: 'Direct Emploi' }] } },
+    { id: 'd', origineOffre: { origine: '2' } },
+  ];
+
+  it('classe France Travail, partenaires nommés et partenaire sans nom', () => {
+    const t = tallyPartners(offers, new Set(['a', 'c']));
+    expect(t['France Travail']).toEqual({ received: 1, retained: 1 });
+    expect(t.Talentplug).toEqual({ received: 2, retained: 1 });
+    expect(t['Direct Emploi']).toEqual({ received: 1, retained: 1 });
+    expect(t['(partenaire sans nom)']).toEqual({ received: 1, retained: 0 });
+  });
+
+  it('plafond de 3 pages par intitulé', () => {
+    expect(MAX_PAGES_PER_TITLE).toBe(3);
   });
 });

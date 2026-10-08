@@ -19,8 +19,15 @@
  *   - `typeContrat` est CSV — on envoie tous les types souhaités en un coup.
  *   - `publieeDepuis=7` limite au flux récent (mode veille).
  *   - `sort=1` (date décroissante) — on veut les plus fraîches en premier.
- *   - 4 pages max par titre (600 offres/titre) ; arrêt anticipé si Content-Range
+ *   - 3 pages max par titre (450 offres/titre) ; arrêt dès que Content-Range
  *     indique qu'on a tout ramené.
+ *   - Pas de paramètre `origineOffre` : absent, l'API renvoie les offres France
+ *     Travail (origine 1) ET partenaires (origine 2). C'est voulu : les
+ *     multidiffuseurs (Talentplug, Broadbean, Beetween, Direct Emploi…) relaient
+ *     des offres publiées aussi ailleurs. Ne jamais le fixer à 1.
+ *   - Post-filtre d'intitulés commun (`title-match.ts`) avant le scoring : motsCles
+ *     cherche aussi dans la description, le titre doit porter l'intitulé.
+ *   - Journal : offres reçues / retenues, par origine et par partenaire.
  *
  * Qualité d'extraction : HIGH — données structurées + coordonnées GPS natives.
  */
@@ -31,14 +38,16 @@ import { NO_FRENCH_TITLE_MESSAGE } from '../french-titles';
 import { SourceError } from '../source-status';
 import { resolveProfileGeo } from '../geo';
 import { tauriFetch } from '../http';
+import { titleMatches } from '../title-match';
+import type { SourceMetrics, PartnerCount } from '../source-metrics';
 
 const FT_TOKEN_URL  = 'https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire';
 const FT_SEARCH_URL = 'https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search';
 
 /** Taille de page max imposée par l'API. */
 const PAGE_SIZE     = 150;
-/** Pages max par titre — `range` ne peut pas dépasser 1149 (8 pages × 150). */
-const MAX_PAGES_PER_TITLE = 4;
+/** Pages max par titre (plafond de 3 appels ; `range` ne peut de toute façon pas dépasser 1149). */
+export const MAX_PAGES_PER_TITLE = 3;
 /** Index de fin maximal autorisé par l'API (`range=...-1149`). */
 const FT_MAX_END_INDEX = 1149;
 /** Throttle ~3 req/s = 350 ms entre requêtes pour rester sous la limite. */
@@ -153,13 +162,53 @@ interface FtOffer {
     nom?: string;
   };
   origineOffre?: {
+    /** « 1 » = France Travail, « 2 » = partenaire. */
+    origine?:    string;
     urlOrigine?: string;
+    partenaires?: Array<{ nom?: string }>;
   };
   salaire?: FtSalaire;
 }
 
 interface FtSearchResponse {
   resultats?: FtOffer[];
+}
+
+// ── Origine et mesures ───────────────────────────────────────────────────────
+
+/** Libellé de l'origine d'une offre dans le journal : « France Travail » ou le(s) partenaire(s). */
+export const FT_OWN_LABEL = 'France Travail';
+
+export function partnerLabels(origine: FtOffer['origineOffre']): string[] {
+  const names = (origine?.partenaires ?? []).map(p => p.nom?.trim()).filter((n): n is string => !!n);
+  if (names.length > 0) return names;
+  // Partenaire sans nom connu : on ne l'attribue pas à France Travail.
+  return origine?.origine === '2' ? ['(partenaire sans nom)'] : [FT_OWN_LABEL];
+}
+
+/** Comptes reçues / retenues par origine ; une offre citant plusieurs partenaires compte pour chacun. */
+export function tallyPartners(
+  received: ReadonlyArray<FtOffer>,
+  retainedIds: ReadonlySet<string>,
+): Record<string, PartnerCount> {
+  const out: Record<string, PartnerCount> = {};
+  for (const o of received) {
+    for (const label of partnerLabels(o.origineOffre)) {
+      const row = (out[label] ??= { received: 0, retained: 0 });
+      row.received += 1;
+      if (o.id && retainedIds.has(o.id)) row.retained += 1;
+    }
+  }
+  return out;
+}
+
+let lastMetrics: SourceMetrics | null = null;
+
+/** Mesure de la dernière collecte, une seule fois (lue par le pipeline après `parseFranceTravail`). */
+export function consumeFranceTravailMetrics(): SourceMetrics | null {
+  const m = lastMetrics;
+  lastMetrics = null;
+  return m;
 }
 
 // ── Main parser ──────────────────────────────────────────────────────────────
@@ -219,6 +268,7 @@ export async function parseFranceTravail(
   profile: SearchProfile,
 ): Promise<RawJobOffer[]> {
   const { ftClientId, ftClientSecret } = settings;
+  lastMetrics = null;
 
   // Missing credentials = source needs configuration, not a runtime error.
   // Returning [] makes the source appear as "empty" in the fetch log (instead
@@ -277,6 +327,9 @@ export async function parseFranceTravail(
   // définitivement sur `departement` pour toutes les requêtes suivantes.
   let communeDisabled = false;
   const offersById = new Map<string, RawJobOffer>();
+  /** Offres reçues (dédupliquées par id), brutes, pour le journal par partenaire. */
+  const receivedById = new Map<string, FtOffer>();
+  let pagesFetched = 0;
 
   // Construit la base de paramètres communs (location, contrat, fenêtre de
   // fraîcheur, tri date). Recalculé pour chaque requête car `commune` peut
@@ -356,6 +409,7 @@ export async function parseFranceTravail(
         throw new Error(`France Travail search error ${res.status}: ${text.slice(0, 200)}`);
       }
 
+      pagesFetched += 1;
       const data = await res.json() as FtSearchResponse;
       const resultats = data.resultats ?? [];
       const total = parseContentRangeTotal(res.headers.get('Content-Range'));
@@ -367,6 +421,7 @@ export async function parseFranceTravail(
         // offres ont une `urlOrigine` partenaire qui peut varier en cours de
         // diffusion alors que l'`id` reste constant.
         if (offersById.has(o.id)) continue;
+        receivedById.set(o.id, o);
 
         const url = o.origineOffre?.urlOrigine
           ?? `https://candidat.francetravail.fr/offres/recherche/detail/${o.id}`;
@@ -409,11 +464,22 @@ export async function parseFranceTravail(
     }
   }
 
-  // FT doesn't support server-side exclusion operators — apply post-filter locally
-  const offers = Array.from(offersById.values()).filter(o => {
+  // FT doesn't support server-side exclusion operators — apply post-filter locally.
+  // Le titre doit porter un des intitulés interrogés (logique commune de `title-match.ts`) :
+  // `motsCles` cherche aussi dans la description et ramène du bruit.
+  const retained = [...offersById.entries()].filter(([, o]) => {
+    if (!titleMatches(o.title, query.titles)) return false;
     const text = `${o.title} ${o.company ?? ''} ${o.descriptionSnippet ?? ''}`;
     return !isExcludedByProfile(text, profile);
   });
+  const offers = retained.map(([, o]) => o);
+  const retainedIds = new Set(retained.map(([id]) => id));
+  lastMetrics = {
+    listed:     receivedById.size,
+    retained:   offers.length,
+    listPages:  pagesFetched,
+    byPartner:  tallyPartners([...receivedById.values()], retainedIds),
+  };
 
   return offers;
 }

@@ -52,7 +52,7 @@ import { parseLinkedinXray } from './parsers/linkedin-xray';
 import { parseIndeed } from './parsers/indeed';
 import { parseHellowork } from './parsers/hellowork';
 import { parseJobicy } from './parsers/jobicy';
-import { parseFranceTravail, getTokenCache } from './parsers/france-travail';
+import { parseFranceTravail, getTokenCache, consumeFranceTravailMetrics } from './parsers/france-travail';
 import { parseEmploiTerritorial } from './parsers/emploi-territorial';
 import { parseChoisirServicePublic, consumeCspMetrics, resetCspCollectionBudget } from './parsers/choisir-service-public';
 import { useJobWatchStore } from '@/stores/jobWatchStore';
@@ -523,7 +523,8 @@ export async function runFetch(
 
     const durationMs = Date.now() - startTime;
     // Mesure propre à la source (offres listées, retenues, enrichies…), journalisée avec la collecte.
-    const metrics = group.source === 'choisir_service_public' ? consumeCspMetrics() : null;
+    const metrics = group.source === 'choisir_service_public' ? consumeCspMetrics()
+      : group.source === 'france_travail' ? consumeFranceTravailMetrics() : null;
     for (const alert of group.alerts) {
       const result = resultFor(alert, group.source);
       if (metrics) result.metrics = JSON.stringify(metrics);
