@@ -82,7 +82,7 @@ export const DEFAULT_ANGLES: readonly CvAngleFields[] = [
     slug: 'evaluation-formation',
     label: 'Évaluation et formation',
     titleRule: 'profile',
-    summaryStructure: '{intitulé} depuis {année}, {évaluation des candidats}, {formation des managers à l\'entretien}, {preuve de formation}, {formation académique}',
+    summaryStructure: '{intitulé} depuis {année}, {évaluation des candidats}, {formation des managers à l\'entretien}, {périmètre}, {formation académique}',
     skillCategoryOrder: ['Formation & projets RH', 'Conseil & évaluation', 'Recrutement'],
     vocabulary: 'Vocabulaire neutre : « profils techniques » au lieu des sigles de métier.',
     olderPolicy: 'one-line',

@@ -4,6 +4,8 @@ import { resolvePrompt, ResolverContext } from '@/lib/prompt-resolver';
 import { PROMPT_TEMPLATES } from '@/lib/prompt-templates';
 import { DEFAULT_TARGET_PAGES, normalizeTargetPages } from '@/lib/cv-experience';
 import { personalRulesKey } from '@/lib/cv-prompt';
+import { BULLET_FOCUS_SETTING, normalizeBulletFocus, type BulletFocus } from '@/lib/cv-focus-rules';
+import { loadProfileSetting, saveProfileSetting } from '@/lib/profile-settings';
 
 interface PromptState {
   jobOffer: string;
@@ -26,6 +28,11 @@ interface PromptState {
   personalRulesProfileId: string | null;
   loadPersonalRules: (profileId: string) => Promise<void>;
   savePersonalRules: (profileId: string, value: string) => Promise<void>;
+  /** Orientation des puces du profil chargé (`undefined` : jamais réglée, défaut « missions »). */
+  bulletFocus: BulletFocus | undefined;
+  bulletFocusProfileId: string | null;
+  loadBulletFocus: (profileId: string) => Promise<void>;
+  saveBulletFocus: (profileId: string, value: BulletFocus) => Promise<void>;
 }
 
 export const usePromptStore = create<PromptState>((set, get) => ({
@@ -37,6 +44,8 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   targetPages: DEFAULT_TARGET_PAGES,
   personalRules: '',
   personalRulesProfileId: null,
+  bulletFocus: undefined,
+  bulletFocusProfileId: null,
 
   setJobOffer: (value) => set({ jobOffer: value }),
 
@@ -85,6 +94,19 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   savePersonalRules: async (profileId, value) => {
     await setSetting(personalRulesKey(profileId), value);
     set({ personalRules: value, personalRulesProfileId: profileId });
+  },
+
+  loadBulletFocus: async (profileId) => {
+    try {
+      set({ bulletFocus: normalizeBulletFocus(await loadProfileSetting(BULLET_FOCUS_SETTING, profileId)), bulletFocusProfileId: profileId });
+    } catch {
+      set({ bulletFocus: undefined, bulletFocusProfileId: profileId });
+    }
+  },
+
+  saveBulletFocus: async (profileId, value) => {
+    await saveProfileSetting(BULLET_FOCUS_SETTING, profileId, value);
+    set({ bulletFocus: value, bulletFocusProfileId: profileId });
   },
 
   saveTargetPages: async (value) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { bulletTense, extractNumbers, extractTechnicalTerms, guardAiCv, titleForRule, type GuardContext } from './ai-cv-guard';
+import { bulletTense, countableNumbers, extractNumbers, extractTechnicalTerms, guardAiCv, titleForRule, type GuardContext } from './ai-cv-guard';
 import { SOC_ANGLE, makeAngleEntries } from './test-helpers/angle-fixtures';
 import type { AiCvResponse } from './ai-cv-response';
 import { TEST_PROFILE, makeEntries, makeEntry } from './test-helpers/cv-fixtures';
@@ -475,5 +475,89 @@ describe('titleForRule', () => {
   });
   it('sans titre de profil : inchangé', () => {
     expect(titleForRule('Ingénieur', 'profile', null)).toBe('Ingénieur');
+  });
+});
+
+describe('orientation « missions » : sobriété des chiffres et du gras', () => {
+  const NOW_ = new Date(Date.UTC(2026, 5, 15));
+  const base = (e: ReturnType<typeof makeEntries>) => ({ entries: e, profile: TEST_PROFILE, now: NOW_ });
+  const rich = [
+    makeEntry('m1', 'experience', 'Chargé de recrutement', {
+      subtitle: 'ACME', startDate: '2019-01', endDate: '2022-01',
+      description: '- Recruter 26 consultants en 12 mois\n- Suivre 4 agences\n- Piloter 60 % de sourcing\n- Animer 8 réunions',
+    }),
+  ];
+  const resp_ = (extra: Partial<AiCvResponse> = {}): AiCvResponse => ({
+    entries: [{ id: 'm1', visible: true }], suggestedEntries: [], ...extra,
+  });
+
+  it('compte les chiffres hors années, dates et durées', () => {
+    expect(countableNumbers('Poste de 2019 à 2022, 06/2021, 3 mois, 2 ans, 24 à 48 h, 1 h 30', NOW_)).toEqual([]);
+    expect(countableNumbers('26 recrutements en 12 mois pour 4 agences', NOW_)).toEqual(['26', '4']);
+    expect(countableNumbers('7 années d\'expérience, 10 ans', NOW_)).toEqual([]);
+    expect(countableNumbers('1949 postes', NOW_)).toEqual(['1949']);
+    expect(countableNumbers('2031 postes', NOW_)).toEqual(['2031']);
+  });
+
+  it('too-many-numbers : plus de 3 chiffres distincts, avec les puces concernées', () => {
+    const r = guardAiCv(resp_(), { ...base(rich), focus: 'missions' });
+    const w = r.report.warnings.find(x => x.code === 'too-many-numbers');
+    expect(w).toBeDefined();
+    expect(w!.message).toContain('4 chiffres distincts');
+    expect(w!.message).toContain('Recruter 26 consultants');
+    expect(w!.message).toContain('Animer 8 réunions');
+    expect(r.report.errors).toEqual([]);
+  });
+
+  it('pas de too-many-numbers à 3 chiffres ou moins', () => {
+    const few = [makeEntry('m1', 'experience', 'Chargé de recrutement', { description: '- Recruter 26 consultants\n- Suivre 4 agences\n- Animer 8 réunions\n- Piloter les entretiens (3 mois)' })];
+    const r = guardAiCv(resp_(), { ...base(few), focus: 'missions' });
+    expect(codes(r)).not.toContain('too-many-numbers');
+  });
+
+  it('retire le gras et le signale', () => {
+    const e = [makeEntry('m1', 'experience', 'Chargé de recrutement', { description: '- Piloter le recrutement' })];
+    const r = guardAiCv(
+      resp_({
+        entries: [{ id: 'm1', visible: true, description: '- Piloter le **recrutement** de profils **IAM**' }],
+        summary: 'Chargé de **recrutement**',
+      }),
+      { ...base(e), focus: 'missions' },
+    );
+    expect(r.data.entries[0].description).toBe('- Piloter le recrutement de profils IAM');
+    expect(r.data.summary).toBe('Chargé de recrutement');
+    const w = r.report.warnings.find(x => x.code === 'bold-in-missions-mode');
+    expect(w?.message).toContain('3 passage(s)');
+  });
+
+  it('summary-has-numbers : un chiffre hors années d\'expérience dans l\'accroche', () => {
+    const e = [makeEntry('m1', 'experience', 'Chargé de recrutement', { description: '- Recruter 26 consultants' })];
+    const withNumber = guardAiCv(resp_({ summary: 'Chargé de recrutement, 26 recrutements par an' }), { ...base(e), focus: 'missions' });
+    expect(codes(withNumber)).toContain('summary-has-numbers');
+    const onlyYears = guardAiCv(resp_({ summary: 'Chargé de recrutement depuis 2015, 11 ans d\'expérience' }), { ...base(e), focus: 'missions' });
+    expect(codes(onlyYears)).not.toContain('summary-has-numbers');
+  });
+
+  it('l\'anti-invention des chiffres reste bloquant dans les deux modes', () => {
+    for (const focus of ['missions', 'resultats'] as const) {
+      const r = guardAiCv(resp_({ entries: [{ id: 'm1', visible: true, description: '- Recruter 999 consultants' }] }), { ...base(rich), focus });
+      expect(r.report.errors.map(x => x.code)).toContain('invented-number');
+    }
+  });
+
+  it('resultats ou absent : aucun de ces avertissements, gras conservé', () => {
+    const e = [makeEntry('m1', 'experience', 'Chargé de recrutement', { description: '- Recruter 26 consultants\n- Suivre 4 agences\n- Piloter 60 % de sourcing\n- Animer 8 réunions' })];
+    for (const focus of ['resultats', undefined] as const) {
+      const r = guardAiCv(
+        resp_({ entries: [{ id: 'm1', visible: true, description: '- Recruter **26** consultants\n- Suivre 4 agences\n- Piloter 60 % de sourcing\n- Animer 8 réunions' }], summary: 'Recruteur, 26 recrutements' }),
+        { ...base(e), focus },
+      );
+      const c = codes(r);
+      expect(c).not.toContain('too-many-numbers');
+      expect(c).not.toContain('bold-in-missions-mode');
+      expect(c).not.toContain('summary-has-numbers');
+      expect(r.data.entries[0].description).toContain('**26**');
+      expect(r.report.focus).toBe(focus);
+    }
   });
 });

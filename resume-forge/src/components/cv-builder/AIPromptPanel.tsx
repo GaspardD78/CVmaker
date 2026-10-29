@@ -6,6 +6,8 @@ import { useCvStore } from '@/stores/cvStore';
 import { PROMPT_TEMPLATES, generateFullCVMatchPrompt } from '@/lib/prompt-templates';
 import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
 import { AiCvGuardReport } from './AiCvGuardReport';
+import { resolveBulletFocus } from '@/lib/cv-focus-rules';
+import { readCvLanguage } from '@/lib/cv-language';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import { CVBlock, CVDocument } from '@/types/cv';
 import { toast } from 'sonner';
@@ -26,7 +28,10 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     isLoaded,
     targetPages, loadTargetPages,
     personalRules, personalRulesProfileId, loadPersonalRules,
+    bulletFocus, bulletFocusProfileId, loadBulletFocus,
   } = usePromptStore();
+  // Orientation des puces : réglage du CV > réglage du profil > « missions ».
+  const focus = resolveBulletFocus(currentCv?.settings, profile && bulletFocusProfileId === profile.id ? bulletFocus : undefined);
 
   const [selectedBlockId, setSelectedBlockId] = useState<string>('');
   const [contactName, setContactName] = useState('');
@@ -43,13 +48,13 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
   }, [isLoaded, loadDifferentiator, loadTargetPages]);
 
   useEffect(() => {
-    if (profile) loadPersonalRules(profile.id);
-  }, [profile?.id, loadPersonalRules]);
+    if (profile) { loadPersonalRules(profile.id); loadBulletFocus(profile.id); }
+  }, [profile?.id, loadPersonalRules, loadBulletFocus]);
 
   // Parse + garde-fou du JSON collé (rapport affiché avant l'application).
   const analysis = useMemo(
-    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages }) : null),
-    [jsonInput, entries, profile, targetPages],
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus }) : null),
+    [jsonInput, entries, profile, targetPages, focus],
   );
   const hasBlockingIssues = analysis !== null && analysis.ok && analysis.report.errors.length > 0;
 
@@ -117,6 +122,8 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
       const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer, undefined, undefined, clarify, {
         pageBudget: targetPages,
         personalRules: personalRulesProfileId === profile.id ? personalRules : '',
+        bulletFocus: focus,
+        cvLanguage: readCvLanguage(currentCv?.settings),
       });
       await navigator.clipboard.writeText(prompt);
       setFullPromptCopied(true);
@@ -135,7 +142,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     }
     if (!currentCv) return;
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus });
     if (!result.ok) {
       toast.error("Erreur de parsing JSON. Vérifiez le format.");
       return;

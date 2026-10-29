@@ -175,6 +175,8 @@ describe('sauvegarde à plusieurs profils', () => {
         { key: 'theme', value: 'dark' },
         { key: 'cv_personal_rules:p-autre', value: 'Règles A' },
         { key: 'cv_personal_rules:p-actif', value: 'Règles B' },
+        { key: 'cv_bullet_focus:p-autre', value: 'resultats' },
+        { key: 'cv_bullet_focus:p-actif', value: 'missions' },
       ],
     },
   });
@@ -198,7 +200,7 @@ describe('sauvegarde à plusieurs profils', () => {
     expect(out.modules.application_events).toEqual([]);
     // Réglages globaux conservés ; réglages par profil : seulement ceux du profil restauré.
     expect(out.modules.job_watch_settings!.map(r => r.key)).toEqual(['cle_globale']);
-    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-actif']);
+    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-actif', 'cv_bullet_focus:p-actif']);
   });
 
   it('aucun profil ne correspond à l\'utilisateur actif : choix obligatoire', () => {
@@ -217,7 +219,7 @@ describe('sauvegarde à plusieurs profils', () => {
     expect(out.modules.master_entries).toEqual([{ id: 'e-autre', profile_id: 'p-nouveau', entry_type: 'skill', title: 'Compétence A' }]);
     expect(out.modules.application_events!.map(r => r.id)).toEqual(['ev-autre']);
     expect(out.modules.job_watch_settings!.map(r => [r.key, r.profile_id])).toEqual([['cle_globale', ''], ['cle_profil', 'p-nouveau']]);
-    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-nouveau']);
+    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-nouveau', 'cv_bullet_focus:p-nouveau']);
     expect(() => resolveSourceProfileId(backup, 'p-nouveau', 'absent')).toThrow('absent de la sauvegarde');
   });
 

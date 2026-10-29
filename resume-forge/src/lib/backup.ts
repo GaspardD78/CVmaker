@@ -9,6 +9,7 @@ import { save, open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { getDb } from '@/lib/db';
 import { filterAllowedColumns } from './validation';
+import { PROFILE_SETTING_NAMES } from './profile-settings';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -341,7 +342,7 @@ export function defaultSourceProfileId(profiles: readonly BackupProfile[], curre
 }
 
 /** Préfixe des réglages propres à un profil dans la table globale `settings` (clé `<préfixe><profileId>`). */
-const PROFILE_SETTING_PREFIXES = ['cv_personal_rules:'];
+const PROFILE_SETTING_PREFIXES = PROFILE_SETTING_NAMES.map(name => `${name}:`);
 
 /**
  * Sauvegarde réduite au profil `sourceId`, remappé sur `targetId` (copie, la
@@ -350,7 +351,7 @@ const PROFILE_SETTING_PREFIXES = ['cv_personal_rules:'];
  *   (les lignes globales, `profile_id` vide ou absent, sont conservées) ;
  * - tables filles filtrées par leur parent (blocs par CV, événements et
  *   pièces jointes par candidature, retours par offre) ;
- * - réglages par profil (`cv_personal_rules:<id>`) : ceux du profil source,
+ * - réglages par profil (`cv_personal_rules:<id>`, `cv_bullet_focus:<id>`) : ceux du profil source,
  *   renommés pour le profil cible ; ceux des autres profils sont écartés.
  */
 export function selectBackupProfile(backup: BackupData, sourceId: string, targetId: string): BackupData {

@@ -42,7 +42,8 @@ function senior(): MasterEntry[] {
 }
 
 function input(entries: MasterEntry[], job: string, extra: Partial<CvPromptInput> = {}): CvPromptInput {
-  return { profile: TEST_PROFILE, entries, jobOfferText: job, options: { now: NOW }, ...extra };
+  // Orientation « résultats » : texte historique, garde-fou de non-régression des instantanés.
+  return { profile: TEST_PROFILE, entries, jobOfferText: job, ...extra, options: { now: NOW, bulletFocus: 'resultats', ...(extra.options ?? {}) } };
 }
 
 describe('blocs du prompt CV v2', () => {

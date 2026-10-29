@@ -4,6 +4,7 @@ import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from 
 import { ImportConflictModal } from './ImportConflictModal';
 import { GoogleDriveSync } from './GoogleDriveSync';
 import { CvAnglesSettings } from './CvAnglesSettings';
+import { BulletFocusSelect } from '@/components/cv-builder/BulletFocusSelect';
 import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { PERSONAL_RULES_TEMPLATE } from '@/lib/cv-prompt';
@@ -35,13 +36,13 @@ export function SettingsPage() {
 
   // ── Règles personnelles (par profil) ──────────────────────────────────────
   const { profile } = useProfileStore();
-  const { personalRules, personalRulesProfileId, loadPersonalRules, savePersonalRules } = usePromptStore();
+  const { personalRules, personalRulesProfileId, loadPersonalRules, savePersonalRules, bulletFocus, bulletFocusProfileId, loadBulletFocus, saveBulletFocus } = usePromptStore();
   const [localRules, setLocalRules] = useState('');
   const [rulesSaved, setRulesSaved] = useState(false);
 
   useEffect(() => {
-    if (profile) loadPersonalRules(profile.id);
-  }, [profile?.id, loadPersonalRules]);
+    if (profile) { loadPersonalRules(profile.id); loadBulletFocus(profile.id); }
+  }, [profile?.id, loadPersonalRules, loadBulletFocus]);
 
   useEffect(() => {
     if (profile && personalRulesProfileId === profile.id) setLocalRules(personalRules);
@@ -276,6 +277,23 @@ export function SettingsPage() {
               </button>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* ── Orientation des puces (par profil) ── */}
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
+          <h2 className="text-base font-semibold dark:text-gray-100">Orientation du CV</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Ce que les puces mettent en avant par défaut. Modifiable pour chaque CV dans « Paramètres de ce CV ».
+          </p>
+        </div>
+        <div className="p-6">
+          <BulletFocusSelect
+            id="bullet-focus"
+            value={profile && bulletFocusProfileId === profile.id ? (bulletFocus ?? 'missions') : 'missions'}
+            onChange={v => { if (profile && v) void saveBulletFocus(profile.id, v); }}
+          />
         </div>
       </section>
 

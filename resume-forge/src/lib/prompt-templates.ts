@@ -1,4 +1,5 @@
 import { PromptTemplate } from '@/types/ai-prompt';
+import { DEFAULT_BULLET_FOCUS, enrichPrecisionRule, enrichStepRule, textBoldRule, type BulletFocus } from './cv-focus-rules';
 
 /**
  * Default differentiator text, used when no custom value is set in settings.
@@ -12,13 +13,17 @@ export const DEFAULT_DIFFERENTIATOR =
  * templates and ensures consistent LLM behaviour.
  * Positioned AFTER data sections in the final prompt for better LLM attention.
  */
-export const TEXT_RULES = `## Règles
+export function buildTextRules(focus: BulletFocus = DEFAULT_BULLET_FOCUS): string {
+  return `## Règles
 - Factuel uniquement : ne jamais inventer de compétence, certification, expérience ou chiffre absent du profil fourni
 - Ton naturel et direct, comme un professionnel expérimenté — pas comme une IA
 - Phrases courtes, zéro remplissage, pas de superlatifs ("expert reconnu", "passionné", "dynamique")
-- Mettre en **gras** les termes-clés (technologies, certifications, métriques chiffrées)
+${textBoldRule(focus)}
 - Tirets simples " - " ou virgules, jamais de tiret cadratin "—"
 - Formulations interdites : "en effet", "il convient de noter", "force est de constater", "dans le cadre de", "il est important de souligner", "n'hésitez pas", "je me permets"`;
+}
+
+export const TEXT_RULES = buildTextRules();
 
 /**
  * Alias historique de `TEXT_RULES`. Règles de rédaction libre (lettres, messages,
@@ -283,7 +288,7 @@ import { Profile, MasterEntry } from '@/types/profile';
 // Prompt « CV ciblé » v2 : blocs composables dans ./cv-prompt (règles texte / JSON séparées).
 export { generateFullCVMatchPrompt } from './cv-prompt';
 
-export function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], jobPosting?: string): string {
+export function generateEnrichPrompt(profile: Profile, entries: MasterEntry[], jobPosting?: string, focus: BulletFocus = DEFAULT_BULLET_FOCUS): string {
   const byType = (type: MasterEntry['entryType']) => entries.filter(e => e.entryType === type);
 
   const fmtDates = (e: MasterEntry) =>
@@ -343,11 +348,11 @@ ${volunteerList || '(aucun)'}
 
 ${jobPosting ? `## Offre visée (Cible)\n${jobPosting.trim()}\n` : ''}
 
-${SYSTEM_RULES}
+${buildTextRules(focus)}
 - **COACHING ACTIF** : Ne te contente pas de poser des questions. Analyse les données fournies, identifie les forces et propose des pistes d'amélioration (ex: "Je vois que tu as géré des budgets, pourrais-tu préciser l'ordre de grandeur ?").
 - **DISCUSSION** : Discute des choix de mots-clés, propose des reformulations percutantes sans les imposer. Laisse l'utilisateur valider.
 - **INTERACTION** : Pose une seule question à la fois pour garder le dialogue fluide.
-- **PRÉCISION** : Cherche toujours le "Combien ?" (chiffres), le "Comment ?" (méthodes) et le "Avec quoi ?" (outils).
+${enrichPrecisionRule(focus)}
 - **CLÉ DE RAPPROCHEMENT (CRITIQUE)** : Dans le JSON final, pour MODIFIER une entrée existante, recopie EXACTEMENT son \`title\` et son \`entryType\` tels qu'ils apparaissent ci-dessus — c'est la clé qui permet à l'application de mettre à jour l'entrée au lieu d'en créer une nouvelle. Un titre différent créera une NOUVELLE entrée. Si un intitulé mérite d'être corrigé (faute, casse…), signale-le dans la discussion pour que l'utilisateur le corrige à la main, et garde le titre d'origine dans le JSON.
 - **JAMAIS DE SUPPRESSION** : Tu ne peux pas supprimer ni fusionner des entrées. Si tu repères des doublons ou des entrées à retirer, signale-les explicitement dans la discussion (l'application dispose d'un outil dédié "Scanner les doublons").
 
@@ -356,7 +361,7 @@ ${SYSTEM_RULES}
 2. **NETTOYAGE** : Repère fautes d'orthographe, incohérences de casse, formats de dates hétérogènes, puces mal formatées, jargon creux et formulations faibles. Propose les corrections.
 3. **COHÉRENCE** : Vérifie la chronologie (trous ou chevauchements inexpliqués → pose la question), l'alignement entre le titre, le résumé et les expériences, la normalisation des niveaux de langue (CECRL : A1-C2), et que les compétences listées sont étayées par les expériences, projets ou certifications.
 4. **CONSOLIDATION** : Repère les redondances intra et inter-sections (compétence en double, projet déjà décrit dans une expérience, certification listée aussi en formation…). Propose une version consolidée ou signale le doublon selon la règle ci-dessus.
-5. **ENRICHISSEMENT** : Identifie les entrées qui manquent de "preuves" (résultats concrets, chiffres, outils) et enrichis-les via le dialogue, en commençant par l'expérience la plus stratégique.
+${enrichStepRule(focus)}
 6. **IMPORTANT : CLÔTURE** : Une fois la discussion terminée, génère la synthèse JSON.
 
 Entame la discussion en saluant l'utilisateur, en présentant ton audit global (points 1 à 4 de manière synthétique), puis en proposant une première piste d'action.
