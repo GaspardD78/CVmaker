@@ -1,3 +1,5 @@
+import { applyWording, type Wording } from './cv-wording';
+
 /**
  * Orientation du CV : « missions et périmètre » (défaut) ou « volumes et résultats ».
  *
@@ -37,18 +39,13 @@ export function resolveBulletFocus(
     ?? DEFAULT_BULLET_FOCUS;
 }
 
-/** Démarche : réponse à une annonce, ou candidature sans annonce (la « cible » remplace l'annonce). */
-export type FocusMode = 'annonce' | 'cible';
-
 export interface FocusRuleOptions {
   onePage?: boolean;
   /** Langue du CV (`cv.settings.cvLanguage`) : le bloc « missions » est rédigé en anglais pour `en`. */
   language?: string;
-  mode?: FocusMode;
+  mode?: Wording;
 }
 
-const wording = (text: string, mode: FocusMode | undefined): string =>
-  mode === 'cible' ? text.replace(/l'annonce/g, 'la cible') : text;
 
 // ── Fragments utilisés par cv-prompt.ts, prompt-templates.ts et les modèles ──
 
@@ -171,5 +168,5 @@ export function buildFocusRules(focus: BulletFocus, opts: FocusRuleOptions = {})
   const en = opts.language === 'en';
   const base = en ? MISSIONS_EN : MISSIONS_FR;
   const text = opts.onePage ? `${base}\n${en ? ONE_PAGE_EN : ONE_PAGE_FR}` : base;
-  return wording(text, opts.mode);
+  return applyWording(text, opts.mode);
 }

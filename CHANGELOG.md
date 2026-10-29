@@ -7,6 +7,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : ciblage, étape 2 (bloc de prompt)
+
+- **Ajout** : section « Cible et intention » du prompt (`lib/cv-target-prompt.ts`) : attentes, éléments à mettre en avant, à éviter (consignes et termes), vocabulaire et équivalences de la fiche, démarche (annonce, spontanée, recommandation, mobilité interne, approche de chasseur), formulaire de cible (entreprise, activité, contexte RH, postes envisagés, atouts, personne qui transmet le CV) et premier lecteur avec « ce que valorise ce lecteur » (jamais cité dans le CV). Option `target` de `CvPromptOptions`.
+- **Ajout** : règle des mots-clés à trois niveaux (`atsLevelFor`) : `strict` (texte historique), `leger` (candidature spontanée avec fiche ATS : intitulés et compétences standards du métier visé, une fois chacun) et `off` (recommandation, mobilité interne, approche de chasseur, fiche sans ATS). Le premier lecteur garde la priorité.
+- **Ajout** : dictionnaire annonce / cible centralisé (`lib/cv-wording.ts`) : sans texte d'annonce, tout le texte d'instruction parle de « cible » ; données et règles personnelles jamais réécrites ; clé JSON `langue_annonce` inchangée.
+- **Ajout** : règle de titre par fiche, dont `equivalence` (titre du profil traduit via les équivalences de la fiche, sinon intitulé exact d'une expérience, sinon titre du profil avec remarque dans `warnings`) ; orientation par défaut de la fiche quand aucun réglage n'est fourni.
+- **Compatibilité** : tout en `auto` sans détection, le prompt est identique à l'existant (instantanés inchangés).
+
+---
+
 ### Moteur de CV IA : ciblage, étape 1 (fiches et résolution)
 
 - **Ajout** : `lib/cv-targets.ts` : types `TargetType` / `Intent` / `FirstReader`, sept fiches de départ génériques (`DEFAULT_TARGET_SHEETS`), `resolveTarget` (choix explicite > détection > défaut), `defaultFocusFor`, `atsEnabledFor`, `titleRuleFor` (règle de titre `equivalence` ajoutée). Fiches personnalisables par profil (`cv_target_sheets:{profileId}`, seuls les champs modifiés, reprise par la sauvegarde). Aucun effet visible : le prompt n'utilise pas encore ces données. Voir `specs/008-cv-targeting/`.
