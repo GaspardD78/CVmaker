@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'bun:test';
-import { bulletTense, countableNumbers, extractNumbers, extractTechnicalTerms, guardAiCv, titleForRule, type GuardContext } from './ai-cv-guard';
+import { bulletLead, bulletTense, countableNumbers, extractNumbers, extractTechnicalTerms, guardAiCv, titleForRule, type GuardContext } from './ai-cv-guard';
 import { SOC_ANGLE, makeAngleEntries } from './test-helpers/angle-fixtures';
 import type { AiCvResponse } from './ai-cv-response';
 import { TEST_PROFILE, makeEntries, makeEntry } from './test-helpers/cv-fixtures';
+import { resolveTarget } from './cv-targets';
 import { makeCategoryEntries } from './test-helpers/skill-fixtures';
 
 const NOW = new Date(Date.UTC(2026, 5, 15));
@@ -559,5 +560,104 @@ describe('orientation « missions » : sobriété des chiffres et du gras', () =
       expect(r.data.entries[0].description).toContain('**26**');
       expect(r.report.focus).toBe(focus);
     }
+  });
+});
+
+describe('forme du premier mot des puces (réglage cv_verb_tense)', () => {
+  const NOW2 = new Date(Date.UTC(2026, 5, 15));
+  const exp2 = (description: string) => [makeEntry('m1', 'experience', 'Chargé de recrutement', { subtitle: 'ACME', startDate: '2019-01', endDate: '2022-01', description })];
+  const run = (description: string, verbTense?: 'infinitif' | 'passe-present' | 'nominal', language = 'fr') =>
+    guardAiCv(
+      { entries: [{ id: 'm1', visible: true }], suggestedEntries: [], analyse: { langueAnnonce: language, indispensables: [], importants: [], correspondances: [], ecarts: [] } },
+      { entries: exp2(description), profile: TEST_PROFILE, now: NOW2, ...(verbTense ? { verbTense } : {}) },
+    );
+  const tenseWarnings = (r: ReturnType<typeof run>) => r.report.warnings.filter(w => w.code === 'tense');
+
+  it('bulletLead : infinitif, participe, nom d\'action, présent', () => {
+    expect(bulletLead('Recruter des profils', 'fr')).toBe('infinitive');
+    expect(bulletLead('Conclure des accords', 'fr')).toBe('infinitive');
+    expect(bulletLead('Piloté le recrutement', 'fr')).toBe('past');
+    expect(bulletLead('Recrutement de profils', 'fr')).toBe('noun');
+    expect(bulletLead('Pilotage des entretiens', 'fr')).toBe('noun');
+    expect(bulletLead('Pilote les entretiens', 'fr')).toBe('present');
+    expect(bulletLead('Led a team', 'en')).toBe('past');
+    expect(bulletLead('Leading a team', 'en')).toBe('noun');
+    expect(bulletLead('Recruitment of engineers', 'en')).toBe('noun');
+    expect(bulletLead('Lead a team', 'en')).toBe('unknown');
+  });
+
+  it('infinitif : signale participes passés et noms d\'action en tête de puce', () => {
+    const past = run('- Recruté 12 profils\n- Piloté les entretiens\n- Suivre les candidats', 'infinitif');
+    expect(tenseWarnings(past)).toHaveLength(1);
+    expect(tenseWarnings(past)[0].message).toContain("ne commencent pas par un verbe à l'infinitif");
+    const noun = run('- Recrutement de profils\n- Gestion des entretiens\n- Piloter le suivi', 'infinitif');
+    expect(tenseWarnings(noun)).toHaveLength(1);
+  });
+
+  it('infinitif : aucun avertissement quand les puces sont à l\'infinitif', () => {
+    expect(tenseWarnings(run('- Recruter des profils\n- Piloter les entretiens\n- Conclure les accords', 'infinitif'))).toEqual([]);
+  });
+
+  it('infinitif est le comportement du réglage, absent ou passe-present : cohérence passé / présent', () => {
+    // Poste terminé avec verbes au présent : avertissement historique.
+    const present = run('- Recrute des profils\n- Pilote les entretiens', undefined);
+    expect(tenseWarnings(present)[0].message).toContain('présent sur un poste terminé');
+    // Infinitifs sur un poste terminé : rien en passe-present.
+    expect(tenseWarnings(run('- Recruter des profils\n- Piloter les entretiens', 'passe-present'))).toEqual([]);
+  });
+
+  it('nominal : signale les verbes', () => {
+    const verbs = run('- Recruter des profils\n- Piloté les entretiens\n- Recrutement de profils', 'nominal');
+    expect(tenseWarnings(verbs)[0].message).toContain("ne commencent pas par un nom d'action");
+    expect(tenseWarnings(run('- Recrutement de profils\n- Pilotage des entretiens', 'nominal'))).toEqual([]);
+  });
+
+  it('anglais : gérondif et passé signalés en infinitif', () => {
+    expect(tenseWarnings(run('- Led a team\n- Built a process\n- Lead the hiring', 'infinitif', 'en'))).toHaveLength(1);
+    expect(tenseWarnings(run('- Lead a team\n- Build a process', 'infinitif', 'en'))).toEqual([]);
+  });
+
+  it('une seule puce : pas de contrôle (seuil de deux)', () => {
+    expect(tenseWarnings(run('- Recruté 12 profils', 'infinitif'))).toEqual([]);
+  });
+});
+
+describe('accroche : ne répète pas le titre du CV', () => {
+  const entries2 = [makeEntry('m1', 'experience', 'Chargé de recrutement', { subtitle: 'ACME', startDate: '2019-01', endDate: '2022-01', description: '- Recruter' })];
+  const run = (title: string, summary: string) => guardAiCv(
+    { entries: [{ id: 'm1', visible: true }], suggestedEntries: [], title, summary },
+    { entries: entries2, profile: { ...TEST_PROFILE, title: 'Chargé de recrutement' }, now: new Date(Date.UTC(2026, 5, 15)) },
+  );
+  it('signale une accroche qui commence par le titre', () => {
+    const r = run('Chargé de recrutement', 'Chargé de recrutement depuis 2015, spécialisé dans les profils techniques.');
+    expect(r.report.warnings.map(w => w.code)).toContain('summary-starts-with-title');
+  });
+  it('titre avec séparateur : seule la première partie compte', () => {
+    expect(run('Chargé de recrutement · Évaluation et conseil', 'Chargé de recrutement depuis 2015.').report.warnings.map(w => w.code)).toContain('summary-starts-with-title');
+    expect(run('Chargé de recrutement - ESN', 'chargé de recrutement depuis 2015.').report.warnings.map(w => w.code)).toContain('summary-starts-with-title');
+  });
+  it('une accroche qui ne commence pas par le titre : rien', () => {
+    expect(run('Chargé de recrutement', 'Onze ans d\'expérience en recrutement de profils techniques.').report.warnings.map(w => w.code)).not.toContain('summary-starts-with-title');
+    expect(run('Chargé de recrutement', 'Recruteur depuis 2015.').report.warnings.map(w => w.code)).not.toContain('summary-starts-with-title');
+  });
+});
+
+describe('titre libre (choix manuel) : prioritaire sur l\'angle', () => {
+  const free = resolveTarget({ titleRule: 'free' });
+  const base2 = (titleRuleTarget?: ReturnType<typeof resolveTarget>) => guardAiCv(
+    { entries: [{ id: 'x1', visible: true }], suggestedEntries: [], title: 'Chargé de recrutement · Évaluation et conseil aux encadrants', analyse: { langueAnnonce: 'fr', indispensables: ['SOC'], importants: [], correspondances: [], ecarts: [] } },
+    { entries, profile: TEST_PROFILE, now: NOW, angle: SOC_ANGLE, ...(titleRuleTarget ? { target: titleRuleTarget } : {}) },
+  );
+  it('sans choix manuel, la règle de l\'angle corrige le titre', () => {
+    const r = base2();
+    expect(r.report.warnings.map(w => w.code)).toContain('angle-title-corrected');
+    expect(r.data.title).toBe(TEST_PROFILE.title ?? undefined);
+  });
+  it('titre libre : conservé tel quel, ni correction d\'angle ni unsupported-title', () => {
+    const r = base2(free);
+    expect(r.data.title).toBe('Chargé de recrutement · Évaluation et conseil aux encadrants');
+    const codes2 = r.report.warnings.map(w => w.code);
+    expect(codes2).not.toContain('angle-title-corrected');
+    expect(codes2).not.toContain('unsupported-title');
   });
 });

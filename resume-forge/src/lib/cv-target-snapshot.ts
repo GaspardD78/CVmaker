@@ -4,7 +4,7 @@
  * explicite ni un type détecté par l'application : un désaccord est signalé, pas appliqué.
  */
 import {
-  FIRST_READERS, INTENTS, TARGET_TYPES, parseSheetOverrides, sheetFor,
+  FIRST_READERS, INTENTS, TARGET_TITLE_RULES, TARGET_TYPES, parseSheetOverrides, sheetFor,
   type AxisSource, type FirstReader, type Intent, type ResolvedTarget, type TargetBrief, type TargetChoice, type TargetSheet, type TargetType,
 } from './cv-targets';
 
@@ -93,6 +93,7 @@ export interface TargetSnapshot {
   sources: ResolvedTarget['sources'];
   sheet: TargetSheet | null;
   readerNote?: string;
+  titleRule?: ResolvedTarget['titleRule'];
   readerName?: string;
   readerRole?: string;
   referrerName?: string;
@@ -106,6 +107,7 @@ export function buildTargetSnapshot(target: ResolvedTarget): TargetSnapshot {
     sources: { ...target.sources }, sheet: target.sheet,
   };
   if (target.readerNote) snap.readerNote = target.readerNote;
+  if (target.titleRule) snap.titleRule = target.titleRule;
   if (target.readerName) snap.readerName = target.readerName;
   if (target.readerRole) snap.readerRole = target.readerRole;
   if (target.referrerName) snap.referrerName = target.referrerName;
@@ -136,6 +138,8 @@ export function readTargetSnapshot(settings: Record<string, unknown> | null | un
   }
   const out: ResolvedTarget = { type, intent, firstReader, sheet, sources: { type: sources.type, intent: sources.intent, firstReader: sources.firstReader } };
   if (typeof r.readerNote === 'string' && r.readerNote.trim()) out.readerNote = r.readerNote;
+  const titleRule = TARGET_TITLE_RULES.find(t => t === r.titleRule);
+  if (titleRule) out.titleRule = titleRule;
   for (const k of ['readerName', 'readerRole', 'referrerName'] as const) {
     if (typeof r[k] === 'string' && (r[k] as string).trim()) out[k] = r[k] as string;
   }

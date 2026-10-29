@@ -4,7 +4,7 @@ import { resolvePrompt, ResolverContext } from '@/lib/prompt-resolver';
 import { PROMPT_TEMPLATES } from '@/lib/prompt-templates';
 import { DEFAULT_TARGET_PAGES, normalizeTargetPages } from '@/lib/cv-experience';
 import { personalRulesKey } from '@/lib/cv-prompt';
-import { BULLET_FOCUS_SETTING, normalizeBulletFocus, type BulletFocus } from '@/lib/cv-focus-rules';
+import { BULLET_FOCUS_SETTING, VERB_TENSE_SETTING, normalizeBulletFocus, normalizeVerbTense, type BulletFocus, type VerbTense } from '@/lib/cv-focus-rules';
 import { loadProfileSetting, loadTargetSheetOverrides, saveProfileSetting, saveTargetSheetOverrides } from '@/lib/profile-settings';
 import type { SheetOverrides } from '@/lib/cv-targets';
 
@@ -34,6 +34,11 @@ interface PromptState {
   bulletFocusProfileId: string | null;
   loadBulletFocus: (profileId: string) => Promise<void>;
   saveBulletFocus: (profileId: string, value: BulletFocus) => Promise<void>;
+  /** Forme du premier mot des puces du profil chargé (`undefined` : jamais réglée, défaut infinitif). */
+  verbTense: VerbTense | undefined;
+  verbTenseProfileId: string | null;
+  loadVerbTense: (profileId: string) => Promise<void>;
+  saveVerbTense: (profileId: string, value: VerbTense) => Promise<void>;
   /** Fiches de ciblage personnalisées du profil chargé (seuls les champs modifiés). */
   targetSheets: SheetOverrides;
   targetSheetsProfileId: string | null;
@@ -52,6 +57,8 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   personalRulesProfileId: null,
   bulletFocus: undefined,
   bulletFocusProfileId: null,
+  verbTense: undefined,
+  verbTenseProfileId: null,
   targetSheets: {},
   targetSheetsProfileId: null,
 
@@ -115,6 +122,19 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   saveBulletFocus: async (profileId, value) => {
     await saveProfileSetting(BULLET_FOCUS_SETTING, profileId, value);
     set({ bulletFocus: value, bulletFocusProfileId: profileId });
+  },
+
+  loadVerbTense: async (profileId) => {
+    try {
+      set({ verbTense: normalizeVerbTense(await loadProfileSetting(VERB_TENSE_SETTING, profileId)), verbTenseProfileId: profileId });
+    } catch {
+      set({ verbTense: undefined, verbTenseProfileId: profileId });
+    }
+  },
+
+  saveVerbTense: async (profileId, value) => {
+    await saveProfileSetting(VERB_TENSE_SETTING, profileId, value);
+    set({ verbTense: value, verbTenseProfileId: profileId });
   },
 
   loadTargetSheets: async (profileId) => {

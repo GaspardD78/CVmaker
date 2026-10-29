@@ -6,6 +6,8 @@ import { GoogleDriveSync } from './GoogleDriveSync';
 import { CvAnglesSettings } from './CvAnglesSettings';
 import { TargetSheetsSettings } from './TargetSheetsSettings';
 import { BulletFocusSelect } from '@/components/cv-builder/BulletFocusSelect';
+import { VerbTenseSelect } from '@/components/cv-builder/VerbTenseSelect';
+import { resolveVerbTense } from '@/lib/cv-focus-rules';
 import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { PERSONAL_RULES_TEMPLATE } from '@/lib/cv-prompt';
@@ -37,13 +39,13 @@ export function SettingsPage() {
 
   // ── Règles personnelles (par profil) ──────────────────────────────────────
   const { profile } = useProfileStore();
-  const { personalRules, personalRulesProfileId, loadPersonalRules, savePersonalRules, bulletFocus, bulletFocusProfileId, loadBulletFocus, saveBulletFocus } = usePromptStore();
+  const { personalRules, personalRulesProfileId, loadPersonalRules, savePersonalRules, bulletFocus, bulletFocusProfileId, loadBulletFocus, saveBulletFocus, verbTense, verbTenseProfileId, loadVerbTense, saveVerbTense } = usePromptStore();
   const [localRules, setLocalRules] = useState('');
   const [rulesSaved, setRulesSaved] = useState(false);
 
   useEffect(() => {
-    if (profile) { loadPersonalRules(profile.id); loadBulletFocus(profile.id); }
-  }, [profile?.id, loadPersonalRules, loadBulletFocus]);
+    if (profile) { loadPersonalRules(profile.id); loadBulletFocus(profile.id); loadVerbTense(profile.id); }
+  }, [profile?.id, loadPersonalRules, loadBulletFocus, loadVerbTense]);
 
   useEffect(() => {
     if (profile && personalRulesProfileId === profile.id) setLocalRules(personalRules);
@@ -295,6 +297,14 @@ export function SettingsPage() {
             value={profile && bulletFocusProfileId === profile.id ? (bulletFocus ?? 'missions') : 'missions'}
             onChange={v => { if (profile && v) void saveBulletFocus(profile.id, v); }}
           />
+          <div className="mt-4">
+            <label htmlFor="verb-tense" className="block text-sm font-medium dark:text-gray-200 mb-1">Début des puces</label>
+            <VerbTenseSelect
+              id="verb-tense"
+              value={profile && verbTenseProfileId === profile.id ? resolveVerbTense(verbTense) : resolveVerbTense(undefined)}
+              onChange={v => { if (profile) void saveVerbTense(profile.id, v); }}
+            />
+          </div>
         </div>
       </section>
 

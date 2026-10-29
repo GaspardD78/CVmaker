@@ -41,19 +41,76 @@ export function resolveBulletFocus(
 
 export interface FocusRuleOptions {
   onePage?: boolean;
+  /** Temps des verbes : compose la ligne « PUCE = … » du bloc. */
+  tense?: VerbTense;
   /** Langue du CV (`cv.settings.cvLanguage`) : le bloc « missions » est rédigé en anglais pour `en`. */
   language?: string;
   mode?: Wording;
 }
 
 
+/**
+ * Forme du premier mot des puces, réglage par profil (`cv_verb_tense:{profileId}`) :
+ * - `infinitif` (défaut) : « Recruter », « Piloter » ;
+ * - `passe-present` : poste terminé au passé, poste actuel au présent ;
+ * - `nominal` : « Recrutement de… », « Pilotage de… ».
+ * Indépendante de l'orientation (`BulletFocus`) ; les deux se composent dans `bulletForm`.
+ */
+export type VerbTense = 'infinitif' | 'passe-present' | 'nominal';
+
+export const DEFAULT_VERB_TENSE: VerbTense = 'infinitif';
+
+export const VERB_TENSE_SETTING = 'cv_verb_tense';
+
+export const VERB_TENSE_OPTIONS: readonly { value: VerbTense; label: string; help: string }[] = [
+  { value: 'infinitif', label: 'Infinitif', help: 'Les puces commencent par un verbe à l\'infinitif : « Recruter », « Piloter ».' },
+  { value: 'passe-present', label: 'Passé / présent', help: 'Passé pour un poste terminé, présent pour le poste actuel.' },
+  { value: 'nominal', label: 'Nominal', help: 'Les puces commencent par un nom d\'action : « Recrutement de… », « Pilotage de… ».' },
+];
+
+export function normalizeVerbTense(raw: unknown): VerbTense | undefined {
+  return raw === 'infinitif' || raw === 'passe-present' || raw === 'nominal' ? raw : undefined;
+}
+
+/** Réglage du profil, sinon `infinitif`. */
+export function resolveVerbTense(profileSetting: string | null | undefined): VerbTense {
+  return normalizeVerbTense(profileSetting) ?? DEFAULT_VERB_TENSE;
+}
+
+const VERB_PHRASE: Record<VerbTense, { fr: string; en: string }> = {
+  infinitif: { fr: "verbe d'action à l'infinitif", en: 'action verb in the base form' },
+  'passe-present': { fr: "verbe d'action", en: 'action verb' },
+  nominal: { fr: "nom d'action", en: 'action noun' },
+};
+
+/**
+ * Forme d'une puce, orientation et temps composés en une seule définition :
+ * « verbe d'action à l'infinitif + quoi + pour qui ou sur quel périmètre + comment ».
+ */
+export function bulletForm(focus: BulletFocus, tense: VerbTense = DEFAULT_VERB_TENSE): string {
+  return `${VERB_PHRASE[tense].fr} + quoi + ${focus === 'missions' ? 'pour qui ou sur quel périmètre + comment' : 'outil ou méthode + résultat'}`;
+}
+
+const resultNote = (focus: BulletFocus): string =>
+  focus === 'missions' ? "Un résultat n'est ajouté que s'il éclaire la mission." : "Le résultat n'apparaît que s'il figure dans la source.";
+
+/** Règle du premier mot des puces selon le temps choisi. */
+export function tenseRule(tense: VerbTense = DEFAULT_VERB_TENSE): string {
+  switch (tense) {
+    case 'infinitif':
+      return "Toutes les puces commencent par un verbe d'action à l'infinitif (« Recruter », « Piloter »), y compris sur un poste terminé ; en anglais, la forme de base (« Recruit », « Lead »).";
+    case 'nominal':
+      return "Toutes les puces commencent par un nom d'action (« Recrutement de… », « Pilotage de… »), sans verbe conjugué.";
+    default:
+      return 'Postes terminés : verbes au passé ; poste actuel : verbes au présent.';
+  }
+}
+
 // ── Fragments utilisés par cv-prompt.ts, prompt-templates.ts et les modèles ──
 
-/** Forme d'une puce (le temps des verbes est une règle indépendante). */
-export function bulletShape(focus: BulletFocus): string {
-  return focus === 'missions'
-    ? "Puce = verbe d'action + quoi + pour qui ou sur quel périmètre + comment. Un résultat n'est ajouté que s'il éclaire la mission."
-    : "Puce = verbe d'action + quoi + outil ou méthode + résultat. Le résultat n'apparaît que s'il figure dans la source.";
+/** Définition de la puce (forme + remarque sur le résultat), composée avec le temps des verbes. */
+export function bulletShape(focus: BulletFocus, tense: VerbTense = DEFAULT_VERB_TENSE): string {
+  return `Puce = ${bulletForm(focus, tense)}. ${resultNote(focus)}`;
 }
 
 /** Règle du gras dans les descriptions du CV. */
@@ -99,10 +156,11 @@ export function warningsRule(focus: BulletFocus): string {
 }
 
 /** Exemple de description du schéma JSON (les `\n` sont littéraux : le JSON les attend échappés). */
-export function schemaDescriptionExample(focus: BulletFocus): string {
+export function schemaDescriptionExample(focus: BulletFocus, tense: VerbTense = DEFAULT_VERB_TENSE): string {
+  const lead = tense === 'infinitif' ? "verbe à l'infinitif" : tense === 'nominal' ? "nom d'action" : "verbe d'action";
   return focus === 'missions'
-    ? "- verbe d'action + quoi + périmètre + méthode\\n- puce suivante"
-    : "- verbe d'action + quoi + outil + résultat sourcé\\n- puce suivante";
+    ? `- ${lead} + quoi + périmètre + méthode\\n- puce suivante`
+    : `- ${lead} + quoi + outil + résultat sourcé\\n- puce suivante`;
 }
 
 /** Description du champ `warnings` du schéma JSON. */
@@ -166,7 +224,17 @@ const ONE_PAGE_EN = '- ONE PAGE: the scope fits in the first bullet; the followi
 export function buildFocusRules(focus: BulletFocus, opts: FocusRuleOptions = {}): string {
   if (focus !== 'missions') return '';
   const en = opts.language === 'en';
-  const base = en ? MISSIONS_EN : MISSIONS_FR;
+  const tense = opts.tense ?? DEFAULT_VERB_TENSE;
+  let base = en ? MISSIONS_EN : MISSIONS_FR;
+  base = en
+    ? base.replace(
+      "- BULLET = action verb + what + for whom or on what scope + how.",
+      `- BULLET = ${VERB_PHRASE[tense].en} + what + for whom or on what scope + how.`,
+    )
+    : base.replace(
+      "- PUCE = verbe d'action + quoi + pour qui ou sur quel périmètre + comment.",
+      `- PUCE = ${bulletForm('missions', tense)}.`,
+    );
   const text = opts.onePage ? `${base}\n${en ? ONE_PAGE_EN : ONE_PAGE_FR}` : base;
   return applyWording(text, opts.mode);
 }

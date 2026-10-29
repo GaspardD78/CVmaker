@@ -269,3 +269,15 @@ describe('édition des fiches : seuls les champs modifiés sont stockés', () =>
     expect(equivalenceLines([{ from: 'a', to: 'b' }])).toBe('a → b');
   });
 });
+
+describe('règle de titre choisie pour ce CV', () => {
+  it('le choix manuel l\'emporte sur la fiche', () => {
+    expect(titleRuleFor(resolveTarget({ type: 'public', titleRule: 'free' }))).toBe('free');
+    expect(titleRuleFor(resolveTarget({ type: 'public' }))).toBe('equivalence');
+    expect(titleRuleFor(resolveTarget({ titleRule: 'profile' }))).toBe('profile');
+    expect(titleRuleFor(resolveTarget({}))).toBe('profile+keyword');
+  });
+  it('règle inconnue ignorée', () => {
+    expect(resolveTarget({ titleRule: 'zzz' as never }).titleRule).toBeUndefined();
+  });
+});

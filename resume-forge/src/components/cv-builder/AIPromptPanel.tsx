@@ -35,7 +35,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
   } = usePromptStore();
   // Ciblage (tout en « Auto » au départ) ; orientation : réglage du CV > profil > défaut de la fiche > « missions ».
   const {
-    choice, setChoice, detected, target, sheetOverrides, focus, focusFor, proposalFor, applyProposal, expandSignal, requestEdit,
+    choice, setChoice, dirty, markCopied, verbTense, detected, target, sheetOverrides, focus, focusFor, proposalFor, applyProposal, expandSignal, requestEdit,
   } = useCvTarget({ profileId: profile?.id, jobOfferText: jobOffer, company: currentCv?.targetCompany, cvSettings: currentCv?.settings });
 
   const [selectedBlockId, setSelectedBlockId] = useState<string>('');
@@ -58,8 +58,8 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
 
   // Parse + garde-fou du JSON collé (rapport affiché avant l'application).
   const analysis = useMemo(
-    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus, target }) : null),
-    [jsonInput, entries, profile, targetPages, focus, target],
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus, verbTense, target }) : null),
+    [jsonInput, entries, profile, targetPages, focus, verbTense, target],
   );
   const hasBlockingIssues = analysis !== null && analysis.ok && analysis.report.errors.length > 0;
 
@@ -125,6 +125,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
       pageBudget: targetPages,
       personalRules: personalRulesProfileId === profile!.id ? personalRules : '',
       bulletFocus: focusFor(t),
+      verbTense,
       cvLanguage: readCvLanguage(currentCv?.settings),
       target: t,
     });
@@ -144,6 +145,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
       const prompt = buildFullPrompt(t);
       await navigator.clipboard.writeText(prompt);
       setFullPromptCopied(true);
+      markCopied();
       toast.success("Prompt copié dans le presse-papier");
       setTimeout(() => setFullPromptCopied(false), 2000);
       setError('');
@@ -159,7 +161,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     }
     if (!currentCv) return;
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus, target });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus, verbTense, target });
     if (!result.ok) {
       toast.error("Erreur de parsing JSON. Vérifiez le format.");
       return;
@@ -358,6 +360,8 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
               detected={detected}
               effectiveType={target.type}
               effectiveIntent={target.intent}
+              dirty={dirty}
+              onCopyPrompt={() => handleCopyFullPrompt()}
               expandSignal={expandSignal}
             />
 

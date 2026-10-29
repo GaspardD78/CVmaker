@@ -2,9 +2,10 @@ import { describe, expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BULLET_FOCUS_OPTIONS, buildFocusRules, normalizeBulletFocus, resolveBulletFocus, warningsLabel,
+  BULLET_FOCUS_OPTIONS, VERB_TENSE_OPTIONS, bulletForm, bulletShape, buildFocusRules, normalizeBulletFocus, normalizeVerbTense, resolveBulletFocus,
+  resolveVerbTense, schemaDescriptionExample, tenseRule, warningsLabel,
 } from './cv-focus-rules';
-import { buildOutputSchema, buildRules, type CvPromptInput } from './cv-prompt';
+import { buildCvPrompt, buildOutputSchema, buildRules, buildWritingRules, type CvPromptInput } from './cv-prompt';
 import { buildTextRules, generateEnrichPrompt } from './prompt-templates';
 import { TEST_PROFILE, makeEntries } from './test-helpers/cv-fixtures';
 import { profileSettingKey, PROFILE_SETTING_NAMES } from './profile-settings';
@@ -71,14 +72,14 @@ describe('buildFocusRules', () => {
 describe('instantanés des règles et du schéma, par orientation', () => {
   const input = (job: string, pages: 1 | 2, focus: 'missions' | 'resultats', lang: string): CvPromptInput => ({
     profile: TEST_PROFILE, entries: makeEntries(), jobOfferText: job,
-    options: { now: NOW, pageBudget: pages, bulletFocus: focus, cvLanguage: lang },
+    options: { now: NOW, pageBudget: pages, bulletFocus: focus, verbTense: 'passe-present', cvLanguage: lang },
   });
   for (const focus of ['missions', 'resultats'] as const) {
     for (const [lang, job] of [['fr', JOB_FR], ['en', JOB_EN]] as const) {
       for (const pages of [1, 2] as const) {
         it(`${focus} · ${lang} · ${pages} page(s)`, () => {
           const i = input(job, pages, focus, lang);
-          expect(`${buildRules(i)}\n\n${buildOutputSchema({ bulletFocus: focus })}`).toMatchSnapshot();
+          expect(`${buildRules(i)}\n\n${buildOutputSchema({ bulletFocus: focus, verbTense: 'passe-present' })}`).toMatchSnapshot();
         });
       }
     }
@@ -90,8 +91,8 @@ describe('instantanés des règles et du schéma, par orientation', () => {
     expect(rules).not.toContain("Conserve tous les chiffres de la source");
     expect(rules).toContain('2 éléments de périmètre ou de mission reliés aux indispensables');
     expect(rules).toContain('- Pas de gras (**).');
-    expect(buildOutputSchema({ bulletFocus: 'missions' })).toContain('"- verbe d\'action + quoi + périmètre + méthode\\n- puce suivante"');
-    expect(buildOutputSchema({ bulletFocus: 'missions' })).toContain('(optionnel) périmètres à préciser, points à vérifier');
+    expect(buildOutputSchema({ bulletFocus: 'missions', verbTense: 'passe-present' })).toContain('"- verbe d\'action + quoi + périmètre + méthode\\n- puce suivante"');
+    expect(buildOutputSchema({ bulletFocus: 'missions', verbTense: 'passe-present' })).toContain('(optionnel) périmètres à préciser, points à vérifier');
   });
   it('resultats : consignes historiques', () => {
     const rules = buildRules(input(JOB_FR, 2, 'resultats', 'fr'));
@@ -134,11 +135,82 @@ describe('aucune consigne de quantification en dur hors de cv-focus-rules.ts', (
     'cv-prompt.ts', 'prompt-templates.ts', 'cv-angle-prompt.ts', 'cv-angles.ts', 'ai-angle-response.ts',
     'prompt-resolver.ts', 'templates/default-markdown.ts', 'cv-target-prompt.ts', 'cv-wording.ts', 'cv-targets.ts',
   ];
-  const FORBIDDEN = [/quantification/i, /résultats? chiffrés?/i, /combien/i, /quantifiez/i];
+  const FORBIDDEN = [/quantification/i, /résultats? chiffrés?/i, /combien/i, /quantifiez/i, /verbes? au passé/i, /verbes? au présent/i];
   for (const file of FILES) {
     it(file, () => {
       const source = readFileSync(join(__dirname, file), 'utf8');
       for (const re of FORBIDDEN) expect(source).not.toMatch(re);
     });
   }
+});
+
+describe('temps des verbes : une seule définition de la puce, composée avec l\'orientation', () => {
+  it('défaut : infinitif ; réglage inconnu ignoré', () => {
+    expect(resolveVerbTense(undefined)).toBe('infinitif');
+    expect(resolveVerbTense('nominal')).toBe('nominal');
+    expect(resolveVerbTense('autre')).toBe('infinitif');
+    expect(normalizeVerbTense('passe-present')).toBe('passe-present');
+    expect(VERB_TENSE_OPTIONS.map(o => o.value)).toEqual(['infinitif', 'passe-present', 'nominal']);
+  });
+
+  it('bulletForm : orientation × temps', () => {
+    expect(bulletForm('missions', 'infinitif')).toBe("verbe d'action à l'infinitif + quoi + pour qui ou sur quel périmètre + comment");
+    expect(bulletForm('resultats', 'infinitif')).toBe("verbe d'action à l'infinitif + quoi + outil ou méthode + résultat");
+    expect(bulletForm('missions', 'passe-present')).toBe("verbe d'action + quoi + pour qui ou sur quel périmètre + comment");
+    expect(bulletForm('missions', 'nominal')).toBe("nom d'action + quoi + pour qui ou sur quel périmètre + comment");
+  });
+
+  it('passé / présent : texte historique conservé', () => {
+    expect(bulletShape('resultats', 'passe-present')).toBe("Puce = verbe d'action + quoi + outil ou méthode + résultat. Le résultat n'apparaît que s'il figure dans la source.");
+    expect(tenseRule('passe-present')).toBe('Postes terminés : verbes au passé ; poste actuel : verbes au présent.');
+  });
+
+  it('règles de rédaction : définition + règle du premier mot, sans second énoncé ailleurs', () => {
+    const inf = buildWritingRules('missions', 'infinitif');
+    expect(inf).toContain("- Puce = verbe d'action à l'infinitif + quoi + pour qui ou sur quel périmètre + comment. Un résultat n'est ajouté que s'il éclaire la mission. Toutes les puces commencent par un verbe d'action à l'infinitif (« Recruter », « Piloter »)");
+    expect(inf).not.toContain('verbes au passé');
+    const nom = buildWritingRules('resultats', 'nominal');
+    expect(nom).toContain("Puce = nom d'action + quoi + outil ou méthode + résultat.");
+    expect(nom).toContain('« Recrutement de… »');
+    expect(buildWritingRules('resultats', 'passe-present')).toContain('Postes terminés : verbes au passé ; poste actuel : verbes au présent.');
+  });
+
+  it('le bloc « missions » reprend la définition composée (FR et EN)', () => {
+    expect(buildFocusRules('missions', { tense: 'infinitif' })).toContain("- PUCE = verbe d'action à l'infinitif + quoi + pour qui ou sur quel périmètre + comment. Un résultat n'est ajouté que s'il éclaire la mission.");
+    expect(buildFocusRules('missions', { tense: 'nominal' })).toContain("- PUCE = nom d'action + quoi + pour qui");
+    expect(buildFocusRules('missions', { tense: 'passe-present' })).toContain("- PUCE = verbe d'action + quoi + pour qui");
+    expect(buildFocusRules('missions', { tense: 'infinitif', language: 'en' })).toContain('- BULLET = action verb in the base form + what + for whom or on what scope + how.');
+    expect(buildFocusRules('missions', { tense: 'nominal', language: 'en' })).toContain('- BULLET = action noun + what');
+  });
+
+  it('exemple du schéma', () => {
+    expect(schemaDescriptionExample('missions', 'infinitif')).toBe("- verbe à l'infinitif + quoi + périmètre + méthode\\n- puce suivante");
+    expect(schemaDescriptionExample('resultats', 'nominal')).toBe("- nom d'action + quoi + outil + résultat sourcé\\n- puce suivante");
+    expect(schemaDescriptionExample('missions', 'passe-present')).toBe("- verbe d'action + quoi + périmètre + méthode\\n- puce suivante");
+  });
+
+  const promptWith = (verbTense?: 'infinitif' | 'passe-present' | 'nominal'): string => buildCvPrompt({
+    profile: TEST_PROFILE, entries: makeEntries(), jobOfferText: JOB_FR,
+    options: { now: NOW, pageBudget: 1, bulletFocus: 'resultats', ...(verbTense ? { verbTense } : {}) },
+  });
+
+  it('prompt complet : infinitif par défaut, une seule définition de la puce', () => {
+    const p = promptWith();
+    expect(p).toContain("Toutes les puces commencent par un verbe d'action à l'infinitif");
+    expect(p).not.toContain('Postes terminés : verbes au passé');
+    expect((p.match(/Puce = /g) ?? []).length).toBe(1);
+    expect(promptWith('infinitif')).toBe(p);
+    expect(promptWith('passe-present')).toContain('Postes terminés : verbes au passé ; poste actuel : verbes au présent.');
+    expect(promptWith('nominal')).toContain("Toutes les puces commencent par un nom d'action");
+    expect(promptWith('nominal')).toContain('"description": "- nom d\'action + quoi + outil + résultat sourcé');
+  });
+
+  it('infinitif et nominal : instantanés des règles de rédaction', () => {
+    expect(buildWritingRules('missions', 'infinitif')).toMatchSnapshot();
+    expect(buildWritingRules('resultats', 'nominal')).toMatchSnapshot();
+  });
+
+  it('accroche : ne répète pas le titre du CV', () => {
+    expect(promptWith()).toContain("Ne répète pas le titre du CV en début d'accroche.");
+  });
 });
