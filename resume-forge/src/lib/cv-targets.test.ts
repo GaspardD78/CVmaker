@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  DEFAULT_TARGET_SHEETS, FIRST_READERS, INTENTS, TARGET_TYPES, atsEnabledFor, defaultFocusFor, parseSheetOverrides,
+  DEFAULT_TARGET_SHEETS, FIRST_READERS, TARGET_TYPES, atsEnabledFor, atsLevelFor, wordingModeFor, defaultFocusFor, parseSheetOverrides,
   resetSheet, resolveTarget, serializeSheetOverrides, sheetFor, titleRuleFor,
 } from './cv-targets';
 import { resolveBulletFocus } from './cv-focus-rules';
@@ -143,24 +143,46 @@ describe('défauts dérivés de la cible', () => {
     expect(titleRuleFor(resolveTarget({}))).toBe('profile+keyword');
   });
 
-  it('atsEnabledFor : fiche en annonce, jamais hors annonce', () => {
+  it('atsLevelFor : trois niveaux selon l\'intention et la fiche', () => {
     for (const type of TARGET_TYPES) {
-      const sheetAts = DEFAULT_TARGET_SHEETS[type].ats;
-      expect(atsEnabledFor(resolveTarget({ type, intent: 'annonce' }))).toBe(sheetAts);
-      for (const intent of INTENTS.filter(i => i !== 'annonce')) {
-        expect(atsEnabledFor(resolveTarget({ type, intent }))).toBe(false);
+      const ats = DEFAULT_TARGET_SHEETS[type].ats;
+      expect(atsLevelFor(resolveTarget({ type, intent: 'annonce' }))).toBe(ats ? 'strict' : 'off');
+      expect(atsLevelFor(resolveTarget({ type, intent: 'spontanee' }))).toBe(ats ? 'leger' : 'off');
+      for (const intent of ['recommandation', 'mobilite-interne', 'chasseur'] as const) {
+        expect(atsLevelFor(resolveTarget({ type, intent }))).toBe('off');
       }
     }
   });
 
-  it('atsEnabledFor : sans fiche, actif (historique) ; lecteur', () => {
-    expect(atsEnabledFor(resolveTarget({}))).toBe(true);
-    expect(atsEnabledFor(resolveTarget({ type: 'public', firstReader: 'ats' }))).toBe(true);
-    expect(atsEnabledFor(resolveTarget({ type: 'esn', firstReader: 'operationnel' }))).toBe(false);
-    expect(atsEnabledFor(resolveTarget({ type: 'esn', firstReader: 'direction' }))).toBe(false);
-    expect(atsEnabledFor(resolveTarget({ type: 'esn', firstReader: 'rh' }))).toBe(true);
-    expect(atsEnabledFor(resolveTarget({ type: 'esn', firstReader: 'ats', intent: 'recommandation' }))).toBe(false);
+  it('atsLevelFor : sans fiche, strict en annonce (historique), off en spontanée', () => {
+    expect(atsLevelFor(resolveTarget({}))).toBe('strict');
+    expect(atsLevelFor(resolveTarget({ intent: 'spontanee' }))).toBe('off');
+  });
+
+  it('atsLevelFor : le lecteur garde la priorité', () => {
+    expect(atsLevelFor(resolveTarget({ type: 'public', firstReader: 'ats' }))).toBe('strict');
+    expect(atsLevelFor(resolveTarget({ type: 'public', intent: 'spontanee', firstReader: 'ats' }))).toBe('leger');
+    expect(atsLevelFor(resolveTarget({ type: 'esn', firstReader: 'operationnel' }))).toBe('off');
+    expect(atsLevelFor(resolveTarget({ type: 'esn', intent: 'spontanee', firstReader: 'direction' }))).toBe('off');
+    expect(atsLevelFor(resolveTarget({ type: 'esn', firstReader: 'rh' }))).toBe('strict');
+    expect(atsLevelFor(resolveTarget({ type: 'esn', intent: 'recommandation', firstReader: 'ats' }))).toBe('off');
+    expect(atsEnabledFor(resolveTarget({ type: 'esn', intent: 'spontanee' }))).toBe(true);
+    expect(atsEnabledFor(resolveTarget({ type: 'esn', intent: 'recommandation' }))).toBe(false);
     expect(FIRST_READERS).toHaveLength(4);
+  });
+
+  it('wordingModeFor : annonce / cible', () => {
+    expect(wordingModeFor(resolveTarget({}), 'texte')).toBe('annonce');
+    expect(wordingModeFor(resolveTarget({ intent: 'spontanee' }), 'texte')).toBe('cible');
+    expect(wordingModeFor(resolveTarget({ intent: 'recommandation' }), '')).toBe('cible');
+    expect(wordingModeFor(resolveTarget({ intent: 'chasseur' }), 'poste décrit')).toBe('annonce');
+    expect(wordingModeFor(resolveTarget({ intent: 'mobilite-interne' }), '  ')).toBe('cible');
+  });
+
+  it('le formulaire de cible est nettoyé', () => {
+    const r = resolveTarget({ brief: { company: ' Orga ', positions: ['A', ' ', 'B'], strengths: [], referrer: '' } });
+    expect(r.brief).toEqual({ company: 'Orga', positions: ['A', 'B'] });
+    expect(resolveTarget({ brief: { company: ' ' } }).brief).toBeUndefined();
   });
 });
 

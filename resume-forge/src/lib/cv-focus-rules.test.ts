@@ -132,7 +132,7 @@ describe('réglages par profil', () => {
 describe('aucune consigne de quantification en dur hors de cv-focus-rules.ts', () => {
   const FILES = [
     'cv-prompt.ts', 'prompt-templates.ts', 'cv-angle-prompt.ts', 'cv-angles.ts', 'ai-angle-response.ts',
-    'prompt-resolver.ts', 'templates/default-markdown.ts',
+    'prompt-resolver.ts', 'templates/default-markdown.ts', 'cv-target-prompt.ts', 'cv-wording.ts', 'cv-targets.ts',
   ];
   const FORBIDDEN = [/quantification/i, /résultats? chiffrés?/i, /combien/i, /quantifiez/i];
   for (const file of FILES) {

@@ -329,6 +329,22 @@ export function resetSheet(overrides: SheetOverrides, type: TargetType): SheetOv
 
 // ── Résolution ───────────────────────────────────────────────────────────────
 
+/** Formulaire de cible (candidature spontanée, recommandation, mobilité interne, approche) : champs distincts. */
+export interface TargetBrief {
+  company?: string;
+  activity?: string;
+  /** Contexte RH connu de l'entreprise. */
+  hrContext?: string;
+  /** Postes envisagés, par ordre de priorité. */
+  positions?: string[];
+  /** Atouts à mettre en avant. */
+  strengths?: string[];
+  /** Autre contexte connu. */
+  context?: string;
+  /** Personne qui transmet le CV (recommandation) : n'apparaît jamais dans le CV. */
+  referrer?: string;
+}
+
 /** Choix explicite de l'utilisateur sur ce CV (`auto` ou absent : pas de choix). */
 export interface TargetChoice {
   type?: Auto<TargetType>;
@@ -336,6 +352,7 @@ export interface TargetChoice {
   firstReader?: Auto<FirstReader>;
   /** « Ce que valorise ce lecteur » : jamais cité dans le CV. */
   readerNote?: string;
+  brief?: TargetBrief;
   /** Types `public` seulement, repris de l'annonce, jamais déduits pour le candidat. */
   publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
 }
@@ -358,7 +375,22 @@ export interface ResolvedTarget {
   sheet: TargetSheet | null;
   sources: { type: AxisSource; intent: AxisSource; firstReader: AxisSource };
   readerNote?: string;
+  brief?: TargetBrief;
   publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
+}
+
+function cleanBrief(brief: TargetBrief | undefined): TargetBrief | undefined {
+  if (!brief) return undefined;
+  const out: TargetBrief = {};
+  for (const key of ['company', 'activity', 'hrContext', 'context', 'referrer'] as const) {
+    const v = brief[key]?.trim();
+    if (v) out[key] = v;
+  }
+  for (const key of ['positions', 'strengths'] as const) {
+    const list = brief[key]?.map(x => x.trim()).filter(Boolean);
+    if (list && list.length > 0) out[key] = list;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 const oneOf = <T extends string>(list: readonly T[], v: unknown): T | undefined =>
@@ -397,6 +429,8 @@ export function resolveTarget(
   };
   const note = choice?.readerNote?.trim();
   if (note) resolved.readerNote = note;
+  const brief = cleanBrief(choice?.brief);
+  if (brief) resolved.brief = brief;
   if (type.value === 'public' && choice?.publicDetails) {
     const { categorie, filiere } = choice.publicDetails;
     const details: NonNullable<ResolvedTarget['publicDetails']> = {};
@@ -413,15 +447,42 @@ export function defaultFocusFor(target: ResolvedTarget): BulletFocus | undefined
 }
 
 /**
- * Règle « MOTS-CLÉS ATS » active ? Jamais hors réponse à une annonce (spontanée,
- * recommandation, mobilité interne, chasseur). Pour une annonce : lecteur `ats` = oui,
- * lecteur opérationnel ou direction = non, sinon la fiche ; sans fiche, oui (historique).
+ * Niveau de la règle « mots-clés ATS » :
+ * - `strict` : mots-clés exacts de l'annonce (annonce + fiche `ats`, ou sans fiche) ;
+ * - `leger` : intitulés et compétences standards du métier visé, une fois chacun
+ *   (candidature spontanée + fiche `ats` : le CV est retrouvé plus tard dans le vivier) ;
+ * - `off` : recommandation, mobilité interne, approche de chasseur, fiche sans ATS.
+ * Le premier lecteur garde la priorité : `ats` = au moins `leger` (`strict` en annonce),
+ * `operationnel` ou `direction` = `off`.
  */
+export type AtsLevel = 'strict' | 'leger' | 'off';
+
+export function atsLevelFor(target: ResolvedTarget): AtsLevel {
+  const reader = target.firstReader;
+  if (reader === 'operationnel' || reader === 'direction') return 'off';
+  if (target.intent === 'annonce') {
+    if (reader === 'ats') return 'strict';
+    return target.sheet ? (target.sheet.ats ? 'strict' : 'off') : 'strict';
+  }
+  if (target.intent === 'spontanee') {
+    return reader === 'ats' || target.sheet?.ats ? 'leger' : 'off';
+  }
+  return 'off';
+}
+
+/** Une règle de mots-clés ATS (stricte ou légère) est-elle active ? */
 export function atsEnabledFor(target: ResolvedTarget): boolean {
-  if (target.intent !== 'annonce') return false;
-  if (target.firstReader === 'ats') return true;
-  if (target.firstReader === 'operationnel' || target.firstReader === 'direction') return false;
-  return target.sheet?.ats ?? true;
+  return atsLevelFor(target) !== 'off';
+}
+
+/**
+ * Le prompt parle-t-il d'« annonce » ou de « cible » ? Sans texte d'annonce (spontanée,
+ * recommandation, et mobilité interne ou approche sans texte), c'est la cible.
+ */
+export function wordingModeFor(target: ResolvedTarget, jobOfferText: string): 'annonce' | 'cible' {
+  if (target.intent === 'annonce') return 'annonce';
+  if (target.intent === 'spontanee' || target.intent === 'recommandation') return 'cible';
+  return jobOfferText.trim() ? 'annonce' : 'cible';
 }
 
 /** Règle de titre par défaut ; sans fiche, la règle historique (`profile+keyword`). */

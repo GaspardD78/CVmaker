@@ -1,6 +1,6 @@
 # 008 - Ciblage du CV : type de structure, intention, premier lecteur
 
-Statut : étape 1 (données et résolution) livrée ; les étapes 2 à 5 sont décrites ci-dessous.
+Statut : étapes 1 (données et résolution) et 2 (bloc de prompt) livrées ; les étapes 2 à 5 sont décrites ci-dessous.
 
 ## Principe
 
@@ -17,7 +17,8 @@ Les fiches (`lib/cv-targets.ts`, `DEFAULT_TARGET_SHEETS`) sont des données de r
 ## Règles de résolution
 
 - `defaultFocusFor(target)` : 3e paramètre de `resolveBulletFocus` (réglage CV > réglage profil > défaut de la cible > `missions`).
-- `atsEnabledFor(target)` : faux hors `annonce` (spontanée, recommandation, mobilité interne, chasseur) ; en annonce, lecteur `ats` = vrai, `operationnel` / `direction` = faux, sinon la fiche ; sans fiche, vrai (historique).
+- `atsLevelFor(target)` : `strict` (mots-clés exacts de l'annonce : annonce + fiche `ats`, ou sans fiche), `leger` (candidature spontanée + fiche `ats` : intitulés et compétences standards du métier visé, une fois chacun, sans répétition forcée), `off` (recommandation, mobilité interne, approche de chasseur, fiche sans ATS). Le lecteur garde la priorité : `ats` = au moins `leger` (`strict` en annonce), `operationnel` / `direction` = `off`. `atsEnabledFor` = niveau différent de `off`.
+- `wordingModeFor(target, texte)` : « annonce » ou « cible » (spontanée et recommandation : toujours cible ; mobilité interne et approche : cible sans texte). Le dictionnaire est dans `lib/cv-wording.ts`.
 - `titleRuleFor(target)` : `profile`, `profile+keyword`, `equivalence` (titre du profil traduit via les équivalences de la fiche, à défaut l'intitulé exact d'une expérience du profil, à défaut le titre du profil avec avertissement) ou `free` (choix manuel uniquement).
 
 ## Personnalisation
