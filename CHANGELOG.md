@@ -5,6 +5,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [Non publié] - 2026-10-29
+
+### Moteur de CV IA : mentions d'en-tête (lot 1)
+
+- **Ajout** : permis de conduire et mentions libres d'en-tête sur le profil (migration 025 `driving_license`, `header_extras`, avec fallback `db.ts`). Formulaire du profil : champ permis et liste éditable de mentions.
+- **Ajout** : affichage dans l'en-tête de tous les templates (variantes sidebar comprises) et dans l'export DOCX, après la ville. Réglages par CV `showDrivingLicense` et `hiddenHeaderExtras` (cases à cocher dans « Paramètres de ce CV »).
+- **Ajout** : champ optionnel `header` du JSON IA (`showDrivingLicense`, `extras`). Le garde-fou ne garde que les mentions présentes dans le profil (`header-extra-invented`) ; l'application n'écrit que `cv.settings`, jamais le profil. Un JSON v2 sans `header` s'applique à l'identique.
+
+---
+
 ## [Non publié] - 2026-10-05
 
 ### Veille emploi : refonte de l'analyse IA (spec 005)

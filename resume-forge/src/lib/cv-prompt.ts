@@ -14,6 +14,7 @@
 import type { MasterEntry, Profile } from '@/types/profile';
 import { DEFAULT_TARGET_PAGES, experienceYears } from './cv-experience';
 import { displayTitle } from './entry-display';
+import { parseHeaderExtras } from './header-extras';
 import { bulletItems, isSkillCategory } from './skill-lines';
 import { buildAngle, buildAngleChoice } from './cv-angle-prompt';
 import type { AngleSpec } from './cv-angles';
@@ -248,6 +249,18 @@ function buildTrajectory(profile?: Profile): string {
   return lines.length > 0 ? `### Trajectoire du profil (source du ton de l'accroche)\n${lines.join('\n')}\n\n` : '';
 }
 
+/** Permis et mentions d'en-tête du profil (source du champ `header`) ; vide si le profil n'en a pas. */
+export function buildHeaderMentions(profile?: Profile): string {
+  const extras = parseHeaderExtras(profile?.headerExtras);
+  const license = profile?.drivingLicense?.trim();
+  if (!license && extras.length === 0) return '';
+  const lines = [
+    license ? `- Permis : ${license}` : '',
+    ...extras.map(e => `- Mention : ${e}`),
+  ].filter(Boolean);
+  return `### Mentions d'en-tête du profil (affichées après la ville)\n${lines.join('\n')}\nChamp "header" : choisis celles qui servent la cible (le permis si le poste implique des déplacements). Recopie chaque mention à l'identique ; une mention absente de cette liste est ignorée. N'en invente jamais.`;
+}
+
 export function buildExtraContext(extraContext?: string): string {
   const trimmed = extraContext?.trim();
   return `## Contexte additionnel (source UNIQUE des entrées suggérées)
@@ -339,6 +352,8 @@ export interface OutputSchemaOptions {
   angleChoice?: boolean;
   /** Ajoute analyse.alertes_cap (règles personnelles renseignées). */
   alertesCap?: boolean;
+  /** Ajoute le champ `header` (le profil a un permis ou des mentions d'en-tête). */
+  header?: boolean;
 }
 
 export function buildOutputSchema(opts: OutputSchemaOptions = {}): string {
@@ -347,6 +362,9 @@ export function buildOutputSchema(opts: OutputSchemaOptions = {}): string {
     : '';
   const angleField = opts.angleChoice
     ? ',\n    "angle": { "slug": "(slug de l\'angle choisi dans la bibliothèque)", "raison": "(une phrase, liée à des indispensables)" }'
+    : '';
+  const headerField = opts.header
+    ? '\n  "header": { "showDrivingLicense": true, "extras": ["(optionnel) mention d\'en-tête du profil à afficher, recopiée à l\'identique"] },'
     : '';
   return `## Format de sortie OBLIGATOIRE
 ${JSON_RULES}
@@ -377,7 +395,7 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
   "entryOrder": ["(optionnel) id de l'entrée la plus pertinente", "id suivante"],
   "sectionOrder": ["(optionnel) Compétences", "Expériences Professionnelles"],
   "sectionLabels": { "(optionnel) Compétences": "(libellé dans la langue de l'annonce)" },
-  "skillGroups": [{ "category": "(optionnel) libellé de catégorie", "entryIds": ["id_skill_1", "id_skill_2"] }],
+  "skillGroups": [{ "category": "(optionnel) libellé de catégorie", "entryIds": ["id_skill_1", "id_skill_2"] }],${headerField}
   "suggestedEntries": [
     {
       "entryType": "experience|education|skill|certification|language|project|interest|volunteer",
@@ -393,6 +411,9 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
   "warnings": ["(optionnel) questions de quantification, points à vérifier"]
 }`;
 }
+
+const hasHeaderMentions = (profile?: Profile): boolean =>
+  Boolean(profile?.drivingLicense?.trim()) || parseHeaderExtras(profile?.headerExtras).length > 0;
 
 const hasPersonalRules = (input: CvPromptInput): boolean => Boolean(input.options?.personalRules?.trim());
 
@@ -411,6 +432,7 @@ export function buildCvPrompt(input: CvPromptInput): string {
     buildObjective(),
     buildContext(input),
     buildMasterProfile(input.entries, input.profile),
+    buildHeaderMentions(input.profile),
     buildExtraContext(input.extraContext),
     buildAnalysisStep({ alertesCap: hasPersonalRules(input) }),
     buildAngleBlock(input),
@@ -419,6 +441,7 @@ export function buildCvPrompt(input: CvPromptInput): string {
     buildOutputSchema({
       angleChoice: !input.options?.angle && (input.options?.angleChoices?.length ?? 0) > 0,
       alertesCap: hasPersonalRules(input),
+      header: hasHeaderMentions(input.profile),
     }),
   ].filter(Boolean).join('\n\n');
 }

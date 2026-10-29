@@ -112,6 +112,13 @@ export interface AiCvAngleChoice {
   raison?: string;
 }
 
+/** Mentions d'en-tête choisies par l'IA (champ additif) : permis et mentions libres du profil. */
+export interface AiCvHeader {
+  showDrivingLicense?: boolean;
+  /** Mentions du profil à afficher (libellés existants) ; les autres sont masquées pour ce CV. */
+  extras?: string[];
+}
+
 export interface AiCvResponse {
   /** Version du schéma (2 = analyse + sectionLabels + warnings). Absente pour l'ancien schéma. */
   schemaVersion?: number;
@@ -145,6 +152,8 @@ export interface AiCvResponse {
   sectionLabels?: Record<string, string>;
   /** Avertissements et questions de quantification de l'IA (affichés, jamais appliqués). */
   warnings?: string[];
+  /** Permis et mentions d'en-tête à afficher (champ additif ; absent : réglages du CV inchangés). */
+  header?: AiCvHeader;
 }
 
 /** Returns a trimmed non-empty string, or `undefined`. */
@@ -243,6 +252,15 @@ function parseSkillGroups(raw: unknown): AiSkillGroup[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const groups = raw.map(parseSkillGroup).filter((g): g is AiSkillGroup => g !== null);
   return groups.length > 0 ? groups : undefined;
+}
+
+function parseHeader(raw: unknown): AiCvHeader | undefined {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const r = raw as Record<string, unknown>;
+  const header: AiCvHeader = {};
+  if (typeof r.showDrivingLicense === 'boolean') header.showDrivingLicense = r.showDrivingLicense;
+  if (Array.isArray(r.extras)) header.extras = parseStringList(r.extras) ?? [];
+  return Object.keys(header).length > 0 ? header : undefined;
 }
 
 /** `analyse.angle` : objet { slug, raison } ou slug seul. */
@@ -404,6 +422,9 @@ export function parseAiCvResponse(raw: string): AiCvResponse {
 
   const warnings = parseStringList(obj.warnings);
   if (warnings) response.warnings = warnings;
+
+  const header = parseHeader(obj.header);
+  if (header) response.header = header;
 
   return response;
 }

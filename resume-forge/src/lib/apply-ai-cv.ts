@@ -12,7 +12,8 @@ import {
 import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import type { CVBlock } from '@/types/cv';
-import type { MasterEntry } from '@/types/profile';
+import type { MasterEntry, Profile } from '@/types/profile';
+import { headerSettingsPatch } from './header-extras';
 
 /** Sous-ensemble du store CV utilisé ici (injectable pour les tests, sans base de données). */
 export interface CvBlockPort {
@@ -54,6 +55,8 @@ export interface ApplyAiCvOptions {
   store?: () => CvBlockPort;
   /** Entrées du profil maître ; défaut : le store du profil. */
   entries?: MasterEntry[];
+  /** Profil maître (mentions d'en-tête) ; défaut : le store du profil. */
+  profile?: Pick<Profile, 'drivingLicense' | 'headerExtras'> | null;
 }
 
 export interface ApplyReport {
@@ -205,6 +208,12 @@ export async function applyAiCvToBlocks(
       skillGroups: groupPlans.length > 0 ? groupPlans : undefined,
     });
     await store().reorderCvBlocks(cvId, order);
+  }
+
+  // 4b. En-tête : permis et mentions du profil affichés pour CE CV (cv.settings, profil intact).
+  if (data.header) {
+    const patch = headerSettingsPatch(data.header, opts.profile ?? useProfileStore.getState().profile);
+    if (Object.keys(patch).length > 0) await store().updateCvSettings(cvId, patch);
   }
 
   // 5. Section labels (after the reorder, which matches on both names) and CV language.

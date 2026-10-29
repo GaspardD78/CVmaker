@@ -1,4 +1,12 @@
+import { parseHeaderExtras, readHeaderSettings } from '@/lib/header-extras';
+import type { Profile } from '@/types/profile';
+
 interface SettingsPanelProps {
+  /** Profil maître (permis et mentions d'en-tête proposés en cases à cocher). */
+  profile?: Profile | null;
+  /** Réglages (`cv.settings`) du CV courant. */
+  cvSettings?: Record<string, unknown>;
+  onCvSettingsChange?: (patch: Record<string, unknown>) => void;
   targetJob: string;
   setTargetJob: (v: string) => void;
   targetCompany: string;
@@ -8,10 +16,21 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({
+  profile, cvSettings, onCvSettingsChange,
   targetJob, setTargetJob,
   targetCompany, setTargetCompany,
   customSummary, setCustomSummary,
 }: SettingsPanelProps) {
+  const license = profile?.drivingLicense?.trim();
+  const extras = parseHeaderExtras(profile?.headerExtras);
+  const header = readHeaderSettings(cvSettings);
+  const hidden = new Set(header.hiddenHeaderExtras ?? []);
+  const toggleExtra = (extra: string, shown: boolean) => {
+    const next = new Set(hidden);
+    if (shown) next.delete(extra); else next.add(extra);
+    onCvSettingsChange?.({ hiddenHeaderExtras: [...next] });
+  };
+
   return (
     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm text-sm text-gray-900">
       <h3 className="font-semibold text-blue-900 mb-2">Paramètres de ce CV</h3>
@@ -45,6 +64,27 @@ export function SettingsPanel({
             placeholder="Accroche spécifique à ce CV..."
           />
         </div>
+        {onCvSettingsChange && (license || extras.length > 0) && (
+          <div>
+            <span className="block text-xs text-gray-700 mb-1">Mentions d'en-tête</span>
+            {license && (
+              <label className="flex items-center gap-2 text-xs text-gray-800">
+                <input
+                  type="checkbox"
+                  checked={header.showDrivingLicense !== false}
+                  onChange={e => onCvSettingsChange({ showDrivingLicense: e.target.checked })}
+                />
+                {license}
+              </label>
+            )}
+            {extras.map(extra => (
+              <label key={extra} className="flex items-center gap-2 text-xs text-gray-800">
+                <input type="checkbox" checked={!hidden.has(extra)} onChange={e => toggleExtra(extra, e.target.checked)} />
+                {extra}
+              </label>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

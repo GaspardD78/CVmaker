@@ -1,11 +1,13 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProfileStore } from '@/stores/profileStore';
-import { EntryType, MasterEntry } from '@/types/profile';
+import { EntryType, MasterEntry, Profile } from '@/types/profile';
 import { toast } from 'sonner';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { PhotoCropModal } from './PhotoCropModal';
 import { AiEnrichModal } from './AiEnrichModal';
+import { HeaderExtrasEditor } from './HeaderExtrasEditor';
+import { parseHeaderExtras } from '@/lib/header-extras';
 import { VariantHistoryPanel } from './VariantHistoryPanel';
 import { DuplicateScanModal } from './DuplicateScanModal';
 
@@ -254,8 +256,13 @@ export function ProfilePage() {
       if (!updates.firstName?.trim()) updates.firstName = 'Prénom';
       if (!updates.lastName?.trim()) updates.lastName = 'Nom';
     }
+    const payload: Partial<Profile> = {
+      ...updates,
+      drivingLicense: updates.drivingLicense?.trim() || null,
+      headerExtras: parseHeaderExtras(updates.headerExtras),
+    };
     try {
-      await updateProfile(updates);
+      await updateProfile(payload);
       setIsEditingProfile(false);
       toast.success(profile ? 'Profil mis à jour' : 'Profil créé');
     } catch (err) {
@@ -397,6 +404,8 @@ export function ProfilePage() {
                   <div><label style={labelStyle}>Titre professionnel</label><RfInput name="title" defaultValue={profile?.title || ''} /></div>
                   <div><label style={labelStyle}>LinkedIn URL</label><RfInput name="linkedinUrl" type="url" defaultValue={profile?.linkedinUrl || ''} /></div>
                   <div><label style={labelStyle}>GitHub URL</label><RfInput name="githubUrl" type="url" defaultValue={profile?.githubUrl || ''} /></div>
+                  <div><label style={labelStyle}>Permis de conduire</label><RfInput name="drivingLicense" defaultValue={profile?.drivingLicense || ''} placeholder="Ex : Permis B" /></div>
+                  <div style={{ gridColumn: 'span 2' }}><label style={labelStyle}>Mentions d'en-tête</label><HeaderExtrasEditor name="headerExtras" initial={profile?.headerExtras} /></div>
                   <div style={{ gridColumn: 'span 2' }}><label style={labelStyle}>Portfolio URL</label><RfInput name="portfolioUrl" type="url" defaultValue={profile?.portfolioUrl || ''} /></div>
                   <div style={{ gridColumn: 'span 2' }}><label style={labelStyle}>Résumé</label><RfTextarea name="summary" rows={3} defaultValue={profile?.summary || ''} /></div>
                   <div style={{ gridColumn: 'span 2' }}>
@@ -447,6 +456,8 @@ export function ProfilePage() {
                     { label: 'LinkedIn', value: profile?.linkedinUrl },
                     { label: 'GitHub', value: profile?.githubUrl },
                     { label: 'Portfolio', value: profile?.portfolioUrl },
+                    { label: 'Permis', value: profile?.drivingLicense },
+                    { label: "Mentions d'en-tête", value: parseHeaderExtras(profile?.headerExtras).join(' · ') },
                   ].map(f => (
                     <div key={f.label}>
                       <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, color: 'var(--rf-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-body)' }}>{f.label}</p>

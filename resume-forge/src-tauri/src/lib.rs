@@ -865,6 +865,12 @@ pub fn run() {
             sql: include_str!("../migrations/024_emploi_territorial_unavailable.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 25,
+            description: "profile_header_extras",
+            sql: include_str!("../migrations/025_profile_header_extras.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     #[allow(unused_mut)]

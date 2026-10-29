@@ -28,6 +28,7 @@ export function LeftPanel({
   onRequestTabChange: (tab: SidebarTab | null) => void;
 }) {
   const { currentCv, currentCvBlocks, createCvBlock, updateCv } = useCvStore();
+  const masterProfile = useProfileStore(s => s.profile);
 
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [promptingSection, setPromptingSection] = useState(false);
@@ -499,6 +500,13 @@ export function LeftPanel({
         <div className="flex-1 overflow-auto custom-scrollbar flex flex-col gap-4">
           <h2 className="text-lg font-bold text-gray-900 mb-2">Résumé & Objectifs</h2>
           <SettingsPanel
+            profile={masterProfile}
+            cvSettings={currentCv?.settings}
+            onCvSettingsChange={patch => {
+              if (!cvId) return;
+              const settings = useCvStore.getState().currentCv?.settings ?? {};
+              void updateCv(cvId, { settings: { ...settings, ...patch } });
+            }}
             targetJob={targetJob} setTargetJob={setTargetJob}
             targetCompany={targetCompany} setTargetCompany={setTargetCompany}
             customSummary={customSummary} setCustomSummary={setCustomSummary}
