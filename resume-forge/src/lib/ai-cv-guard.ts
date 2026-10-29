@@ -26,6 +26,7 @@ import { bulletItems, isSkillCategory } from './skill-lines';
 import { matchProfileExtras, parseHeaderExtras } from './header-extras';
 import type { BulletFocus, VerbTense } from './cv-focus-rules';
 import { checkTarget, type TargetTextField } from './cv-target-guard';
+import { resolveMergedGroup, type ResolvedMerge } from './merged-entries';
 import type { ResolvedTarget } from './cv-targets';
 import type { AngleSpec, TitleRule } from './cv-angles';
 
@@ -36,7 +37,8 @@ export type GuardCode =
   | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented'
   | 'too-many-numbers' | 'bold-in-missions-mode' | 'summary-has-numbers'
   | 'target-forbidden-term' | 'target-equivalence-applied' | 'target-photo' | 'target-reader-mentioned'
-  | 'summary-starts-with-title' | 'skill-line-no-source' | 'skill-line-unsourced' | 'skill-lines-too-few';
+  | 'summary-starts-with-title' | 'skill-line-no-source' | 'skill-line-unsourced' | 'skill-lines-too-few'
+  | 'merge-ignored' | 'merge-dates-ignored';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -453,6 +455,49 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     if (skillGroups.length === 0) skillGroups = undefined;
   }
 
+  // ── Fusions d'expériences : groupes valides seulement (≥ 2 entrées existantes du même type, un seul groupe par entrée) ──
+  const merges: ResolvedMerge[] = [];
+  let mergedEntries = input.mergedEntries;
+  if (mergedEntries) {
+    const taken = new Set<string>();
+    const kept: NonNullable<AiCvResponse['mergedEntries']> = [];
+    for (const g of mergedEntries) {
+      const group = {
+        ...g,
+        ...(g.titleOverride !== undefined ? { titleOverride: normalizeTypography(g.titleOverride, language) } : {}),
+        ...(g.subtitleOverride !== undefined ? { subtitleOverride: normalizeTypography(g.subtitleOverride, language) } : {}),
+        ...(g.description !== undefined ? { description: normalizeDescription(g.description, language) } : {}),
+      };
+      const res = resolveMergedGroup(group, entryById, taken);
+      if (!res.ok) {
+        warn({ code: 'merge-ignored', message: `Fusion ignorée (${res.reason}) : ${g.ids.join(', ')}.` });
+        continue;
+      }
+      res.merge.ids.forEach(id => taken.add(id));
+      merges.push(res.merge);
+      kept.push({ ...group, ids: res.merge.ids });
+      // Source des chiffres d'une fusion : l'union des entrées fusionnées.
+      const unionNumbers = new Set(extractNumbers(res.merge.sourceText));
+      const invented = [...new Set(extractNumbers(group.description ?? ''))].filter(n => !unionNumbers.has(n));
+      if (invented.length > 0) {
+        errors.push({
+          code: 'invented-number',
+          message: `Nombre absent des entrées fusionnées (fusion « ${group.titleOverride ?? label(res.merge.carrierId)} ») : ${invented.join(', ')}. À confirmer ou à retirer.`,
+          entryId: res.merge.carrierId,
+        });
+      }
+    }
+    mergedEntries = kept.length > 0 ? kept : undefined;
+  }
+  // Les dates d'une fusion sont calculées : un `datesOverride` de l'IA sur une entrée fusionnée est ignoré.
+  const mergedIds = new Set(merges.flatMap(m => m.ids));
+  for (const e of entries) {
+    if (e.datesOverride !== undefined && mergedIds.has(e.id)) {
+      delete e.datesOverride;
+      warn({ code: 'merge-dates-ignored', message: `« ${label(e.id)} » est fusionnée : les dates sont calculées, datesOverride ignoré.`, entryId: e.id });
+    }
+  }
+
   // ── Lignes de compétences reformulées : chaque ligne cite au moins une entrée source valide ──
   let skillLines = input.cvSkillLines;
   if (skillLines) {
@@ -576,6 +621,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   };
   if (header !== undefined) data.header = header; else delete data.header;
   if (skillLines !== undefined) data.cvSkillLines = skillLines; else delete data.cvSkillLines;
+  if (mergedEntries !== undefined) data.mergedEntries = mergedEntries; else delete data.mergedEntries;
   if (data.entryOrder === undefined) delete data.entryOrder;
   if (data.skillGroups === undefined) delete data.skillGroups;
 
@@ -585,8 +631,18 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   // ── Vue « CV final » : entrées visibles, texte effectif ──
   const aiById = new Map(entries.map(e => [e.id, e] as const));
   interface Effective { entry: MasterEntry; visible: boolean; title: string; subtitle: string; description: string }
+  const mergeOf = new Map<string, ResolvedMerge>();
+  for (const m of merges) for (const id of m.ids) mergeOf.set(id, m);
   const effective: Effective[] = ctx.entries.map(entry => {
     const ai = aiById.get(entry.id);
+    const merge = mergeOf.get(entry.id);
+    if (merge) {
+      // Le porteur affiche la ligne fusionnée ; les autres entrées du groupe sont masquées.
+      const groupVisible = merge.ids.some(id => aiById.get(id)?.visible !== false);
+      return entry.id === merge.carrierId
+        ? { entry, visible: groupVisible, title: merge.titleOverride ?? ai?.titleOverride ?? entry.title, subtitle: merge.subtitle, description: merge.description }
+        : { entry, visible: false, title: entry.title, subtitle: entry.subtitle ?? '', description: entry.description ?? '' };
+    }
     return {
       entry,
       visible: ai ? ai.visible : true,
@@ -635,6 +691,13 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   if (summary) fields.push({ where: 'résumé', kind: 'summary', text: summary });
   for (const l of skillLines ?? []) fields.push({ where: `ligne de compétences « ${l.text.slice(0, 40)} »`, kind: 'description', text: l.text });
   for (const e of visible) {
+    const merge = mergeOf.get(e.entry.id);
+    if (merge) {
+      // Ligne fusionnée : texte de la fusion (les surcharges individuelles du porteur sont remplacées).
+      if (merge.description) fields.push({ where: `fusion « ${e.title} »`, entryId: e.entry.id, kind: 'description', text: merge.description });
+      if (merge.titleOverride) fields.push({ where: `fusion « ${e.title} »`, entryId: e.entry.id, kind: 'override', text: merge.titleOverride });
+      continue;
+    }
     if (!aiById.has(e.entry.id)) continue; // entrée non touchée par l'IA : source telle quelle
     const ai = aiById.get(e.entry.id) as AiCvEntry;
     if (ai.description !== undefined) fields.push({ where: label(e.entry.id), entryId: e.entry.id, kind: 'description', text: ai.description });

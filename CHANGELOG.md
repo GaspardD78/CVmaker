@@ -7,6 +7,15 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : fusion d'expériences (lot 2)
+
+- **Ajout** : champ optionnel additif `mergedEntries: [{ ids, titleOverride, subtitleOverride?, description? }]`. Garde-fou : au moins 2 identifiants existants du même `entryType`, un identifiant dans un seul groupe, sinon le groupe est ignoré avec un avertissement (`merge-ignored`). Les dates ne viennent jamais de l'IA : début le plus ancien, fin la plus récente ou « Présent » si une entrée est en cours, affichées au format du CV ; un `datesOverride` de l'IA sur une entrée fusionnée est ignoré (`merge-dates-ignored`). Sans `subtitleOverride`, les employeurs distincts sont joints par « , », du plus récent au plus ancien. La description suit les règles habituelles (puces, typographie) avec pour source l'union des entrées fusionnées : un chiffre hors de cette union est bloquant.
+- **Ajout** : application : le bloc de l'entrée la plus récente porte les surcharges (`mergedFrom`), les autres passent `is_visible = false` (`mergedInto`). Idempotent ; une application sans fusion défait proprement la précédente (surcharges et visibilité d'origine rétablies) ; `entryOrder` peut citer n'importe quel identifiant du groupe et s'applique au bloc porteur. Une `cvSkillLine` (lot 3) peut citer en source une entrée fusionnée : la source reste valide même si son bloc est masqué.
+- **Ajout** : CV builder : badge « Fusion de N postes » avec « Défaire » (visibilité et surcharges rétablies en un clic), « Fusionné » sur les blocs masqués. `entry-display.ts` ne double pas l'employeur dans le titre d'une ligne fusionnée.
+- **Prompt** : règle et champ du schéma documentés (tous les instantanés gagnent deux lignes).
+
+---
+
 ### Moteur de CV IA : compétences reformulées propres au CV (lot 3)
 
 - **Ajout** : champ optionnel additif `cvSkillLines: [{ text, sources }]`. Le garde-fou retire les lignes sans entrée source valide (expérience ou compétence existante, `skill-line-no-source`), les doublons, et signale les chiffres et termes techniques absents des sources citées (`skill-line-unsourced`) ; un chiffre absent de tout le profil reste bloquant (`invented-number`). Moins de 3 lignes valides : `skill-lines-too-few`, catégories du profil conservées.
