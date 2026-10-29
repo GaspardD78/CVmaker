@@ -1,5 +1,7 @@
 import { parseHeaderExtras, readHeaderSettings } from '@/lib/header-extras';
 import type { Profile } from '@/types/profile';
+import { normalizeBulletFocus, resolveBulletFocus, type BulletFocus } from '@/lib/cv-focus-rules';
+import { BulletFocusSelect } from './BulletFocusSelect';
 
 interface SettingsPanelProps {
   /** Profil maître (permis et mentions d'en-tête proposés en cases à cocher). */
@@ -7,6 +9,8 @@ interface SettingsPanelProps {
   /** Réglages (`cv.settings`) du CV courant. */
   cvSettings?: Record<string, unknown>;
   onCvSettingsChange?: (patch: Record<string, unknown>) => void;
+  /** Orientation du profil (hérité quand le CV n'a pas de réglage propre). */
+  profileBulletFocus?: BulletFocus;
   targetJob: string;
   setTargetJob: (v: string) => void;
   targetCompany: string;
@@ -16,7 +20,7 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({
-  profile, cvSettings, onCvSettingsChange,
+  profile, cvSettings, onCvSettingsChange, profileBulletFocus,
   targetJob, setTargetJob,
   targetCompany, setTargetCompany,
   customSummary, setCustomSummary,
@@ -64,6 +68,17 @@ export function SettingsPanel({
             placeholder="Accroche spécifique à ce CV..."
           />
         </div>
+        {onCvSettingsChange && (
+          <div>
+            <label className="block text-xs text-gray-700 mb-1" htmlFor="cv-bullet-focus">Orientation des puces</label>
+            <BulletFocusSelect
+              id="cv-bullet-focus"
+              value={normalizeBulletFocus(cvSettings?.bulletFocus) ?? ''}
+              inheritFrom={resolveBulletFocus(null, profileBulletFocus)}
+              onChange={v => onCvSettingsChange({ bulletFocus: v || undefined })}
+            />
+          </div>
+        )}
         {onCvSettingsChange && (license || extras.length > 0) && (
           <div>
             <span className="block text-xs text-gray-700 mb-1">Mentions d'en-tête</span>

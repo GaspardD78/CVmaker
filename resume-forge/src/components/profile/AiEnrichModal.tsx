@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Copy, ArrowLeft, ArrowRight, X, AlertTriangle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -7,6 +7,8 @@ import { parseImportJson } from '@/lib/import/json-validator';
 import { Profile, MasterEntry } from '@/types/profile';
 import { ProfileFieldDiff, SelectableEntry } from '@/lib/import/types';
 import { generateEnrichPrompt } from '@/lib/prompt-templates';
+import { resolveBulletFocus } from '@/lib/cv-focus-rules';
+import { usePromptStore } from '@/stores/promptStore';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -169,7 +171,9 @@ function Step2Prompt({
   onBack: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const prompt = generateEnrichPrompt(profile, entries, jobPosting);
+  const { bulletFocus, bulletFocusProfileId, loadBulletFocus } = usePromptStore();
+  useEffect(() => { void loadBulletFocus(profile.id); }, [profile.id, loadBulletFocus]);
+  const prompt = generateEnrichPrompt(profile, entries, jobPosting, resolveBulletFocus(null, bulletFocusProfileId === profile.id ? bulletFocus : undefined));
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(prompt);

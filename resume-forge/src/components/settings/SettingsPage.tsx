@@ -4,6 +4,10 @@ import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from 
 import { ImportConflictModal } from './ImportConflictModal';
 import { GoogleDriveSync } from './GoogleDriveSync';
 import { CvAnglesSettings } from './CvAnglesSettings';
+import { TargetSheetsSettings } from './TargetSheetsSettings';
+import { BulletFocusSelect } from '@/components/cv-builder/BulletFocusSelect';
+import { VerbTenseSelect } from '@/components/cv-builder/VerbTenseSelect';
+import { resolveVerbTense } from '@/lib/cv-focus-rules';
 import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { PERSONAL_RULES_TEMPLATE } from '@/lib/cv-prompt';
@@ -35,13 +39,13 @@ export function SettingsPage() {
 
   // ── Règles personnelles (par profil) ──────────────────────────────────────
   const { profile } = useProfileStore();
-  const { personalRules, personalRulesProfileId, loadPersonalRules, savePersonalRules } = usePromptStore();
+  const { personalRules, personalRulesProfileId, loadPersonalRules, savePersonalRules, bulletFocus, bulletFocusProfileId, loadBulletFocus, saveBulletFocus, verbTense, verbTenseProfileId, loadVerbTense, saveVerbTense } = usePromptStore();
   const [localRules, setLocalRules] = useState('');
   const [rulesSaved, setRulesSaved] = useState(false);
 
   useEffect(() => {
-    if (profile) loadPersonalRules(profile.id);
-  }, [profile?.id, loadPersonalRules]);
+    if (profile) { loadPersonalRules(profile.id); loadBulletFocus(profile.id); loadVerbTense(profile.id); }
+  }, [profile?.id, loadPersonalRules, loadBulletFocus, loadVerbTense]);
 
   useEffect(() => {
     if (profile && personalRulesProfileId === profile.id) setLocalRules(personalRules);
@@ -279,8 +283,36 @@ export function SettingsPage() {
         </div>
       </section>
 
+      {/* ── Orientation des puces (par profil) ── */}
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+        <div className="p-6 border-b dark:border-gray-700">
+          <h2 className="text-base font-semibold dark:text-gray-100">Orientation du CV</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Ce que les puces mettent en avant par défaut. Modifiable pour chaque CV dans « Paramètres de ce CV ».
+          </p>
+        </div>
+        <div className="p-6">
+          <BulletFocusSelect
+            id="bullet-focus"
+            value={profile && bulletFocusProfileId === profile.id ? (bulletFocus ?? 'missions') : 'missions'}
+            onChange={v => { if (profile && v) void saveBulletFocus(profile.id, v); }}
+          />
+          <div className="mt-4">
+            <label htmlFor="verb-tense" className="block text-sm font-medium dark:text-gray-200 mb-1">Début des puces</label>
+            <VerbTenseSelect
+              id="verb-tense"
+              value={profile && verbTenseProfileId === profile.id ? resolveVerbTense(verbTense) : resolveVerbTense(undefined)}
+              onChange={v => { if (profile) void saveVerbTense(profile.id, v); }}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* ── Angles de CV (bibliothèque + matrice d'affinité) ── */}
       <CvAnglesSettings />
+
+      {/* ── Fiches de ciblage (type de structure) ── */}
+      <TargetSheetsSettings />
 
       {/* ── Google Drive Sync ── */}
       <GoogleDriveSync />

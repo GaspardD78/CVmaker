@@ -43,7 +43,7 @@ export function AngleFieldsForm({ value, onChange, categoryHints = [] }: AngleFi
         <textarea
           className={`${fieldClass} h-16 resize-y`}
           value={value.summaryStructure}
-          placeholder="{intitulé} depuis {année}, {spécialités}, {preuve 1}"
+          placeholder="{intitulé} depuis {année}, {spécialités}, {périmètre}"
           onChange={e => set('summaryStructure', e.target.value)}
         />
       </div>

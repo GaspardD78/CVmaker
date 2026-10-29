@@ -9,6 +9,7 @@ import { BlockList } from './BlockList';
 import { getTemplate } from '@/templates';
 import { DENSITY_PRESETS, type DensityId } from '@/theme/tokens';
 import { useProfileStore } from '@/stores/profileStore';
+import { usePromptStore } from '@/stores/promptStore';
 import { isAndroid, isTauri } from '@/lib/platform';
 import { fitToPage, readEffectiveValues, type FitSettingKey } from '@/lib/fit-to-page';
 import { overflowStatus } from '@/lib/print-overflow';
@@ -29,6 +30,9 @@ export function LeftPanel({
 }) {
   const { currentCv, currentCvBlocks, createCvBlock, updateCv } = useCvStore();
   const masterProfile = useProfileStore(s => s.profile);
+  const profileBulletFocus = usePromptStore(s => (masterProfile && s.bulletFocusProfileId === masterProfile.id ? s.bulletFocus : undefined));
+  const loadBulletFocus = usePromptStore(s => s.loadBulletFocus);
+  useEffect(() => { if (masterProfile) void loadBulletFocus(masterProfile.id); }, [masterProfile?.id, loadBulletFocus]);
 
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [promptingSection, setPromptingSection] = useState(false);
@@ -502,6 +506,7 @@ export function LeftPanel({
           <SettingsPanel
             profile={masterProfile}
             cvSettings={currentCv?.settings}
+            profileBulletFocus={profileBulletFocus}
             onCvSettingsChange={patch => {
               if (!cvId) return;
               const settings = useCvStore.getState().currentCv?.settings ?? {};

@@ -1,6 +1,8 @@
 import type { EntryType } from '@/types/profile';
 import { isSectionHeader, isSubHeader, normalizeLabel } from './cv-sections';
 import { normalizeLanguageCode } from './cv-language';
+import { FIRST_READERS, INTENTS, TARGET_TYPES } from './cv-targets';
+import type { AiCvCible } from './cv-target-snapshot';
 
 /**
  * Shared types + validator for the JSON returned by the "CV ciblé" LLM prompt
@@ -105,6 +107,8 @@ export interface AiCvAnalyse {
   angle?: AiCvAngleChoice;
   /** Critères éliminatoires du candidat contredits par l'annonce (champ additif, non bloquant). */
   alertesCap?: string[];
+  /** Ciblage proposé par l'IA pour les axes laissés en auto (champ additif ; jamais appliqué sur un choix explicite). */
+  cible?: AiCvCible;
 }
 
 export interface AiCvAngleChoice {
@@ -263,6 +267,24 @@ function parseHeader(raw: unknown): AiCvHeader | undefined {
   return Object.keys(header).length > 0 ? header : undefined;
 }
 
+const norm = (v: unknown): string => (typeof v === 'string' ? v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/[_\s]+/g, '-') : '');
+
+/** `analyse.cible` : { type, intention, premierLecteur, raison } ; toute valeur hors liste est ignorée. */
+function parseCible(raw: unknown): AiCvCible | undefined {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: AiCvCible = {};
+  const type = TARGET_TYPES.find(t => t === norm(r.type));
+  if (type) out.type = type;
+  const intent = INTENTS.find(i => i === norm(r.intention ?? r.intent));
+  if (intent) out.intent = intent;
+  const reader = FIRST_READERS.find(f => f === norm(r.premierLecteur ?? r.premier_lecteur ?? r.firstReader));
+  if (reader) out.firstReader = reader;
+  const raison = cleanString(r.raison ?? r.reason);
+  if (raison && Object.keys(out).length > 0) out.raison = raison;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** `analyse.angle` : objet { slug, raison } ou slug seul. */
 function parseAngleChoice(raw: unknown): AiCvAngleChoice | undefined {
   if (typeof raw === 'string') return raw.trim() ? { slug: raw.trim() } : undefined;
@@ -301,10 +323,12 @@ export function parseAnalyse(raw: unknown): AiCvAnalyse | undefined {
   if (angle) analyse.angle = angle;
   const alertesCap = parseStringList(record.alertes_cap ?? record.alertesCap);
   if (alertesCap) analyse.alertesCap = alertesCap;
+  const cible = parseCible(record.cible);
+  if (cible) analyse.cible = cible;
   const hasContent =
     analyse.langueAnnonce !== undefined || analyse.indispensables.length > 0 || analyse.importants.length > 0 ||
     analyse.correspondances.length > 0 || analyse.ecarts.length > 0 || analyse.angle !== undefined ||
-    analyse.alertesCap !== undefined;
+    analyse.alertesCap !== undefined || analyse.cible !== undefined;
   return hasContent ? analyse : undefined;
 }
 

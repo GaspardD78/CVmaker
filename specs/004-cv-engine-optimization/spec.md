@@ -25,3 +25,18 @@ Rendre le CV produit par le flux « prompt externe → JSON collé → `parseAiC
 
 ## Critères d'acceptation
 Voir §Phase 6 du brief : compétences conservées + sous-en-têtes sans doublon, aucune section vide (principal, sidebar, DOCX), langues pertinentes, annonce EN supportée (consigne, `sectionLabels`, « Present »), ancien schéma accepté, JSON bruité accepté, nombre inventé détecté, invariant `planCvBlockOrder`, snapshots de prompt, `bunx tsc --noEmit` et `bun test` verts.
+
+## Addendum : orientation des puces (`missions` / `resultats`)
+
+Les consignes qui poussent vers les chiffres (définition de la puce, gras sur les résultats, « conserve tous les chiffres », questions de quantification) sont regroupées dans `lib/cv-focus-rules.ts` et dépendent d'un réglage :
+
+- `missions` (défaut) : le CV explique le périmètre et les missions ; 3 chiffres au maximum hors années, aucun gras, `warnings` = périmètres à préciser.
+- `resultats` : texte historique, identique octet pour octet (instantanés de `cv-prompt.test.ts`).
+
+Réglage par profil (`settings`, `cv_bullet_focus:{profileId}`) et par CV (`cv.settings.bulletFocus`) ; priorité CV > profil > défaut de la cible > `missions` (`resolveBulletFocus`). Le garde-fou ajoute `too-many-numbers`, `bold-in-missions-mode` (gras retiré) et `summary-has-numbers`, sans toucher à l'anti-invention des chiffres. Schéma JSON inchangé.
+
+## Addendum : temps des verbes, titre libre, accroche (lot 4)
+
+- Temps des verbes : réglage par profil `cv_verb_tense:{profileId}` (`infinitif` par défaut, `passe-present`, `nominal`), composé avec l'orientation dans `lib/cv-focus-rules.ts` : une seule définition de la puce (`bulletForm`) et une règle du premier mot (`tenseRule`). Le garde-fou adapte `tense` (`bulletLead`) : infinitif = signale participe passé, nom d'action et verbe conjugué ; nominal = signale les verbes ; passé / présent = cohérence historique.
+- Titre libre : `TargetChoice.titleRule = 'free'`, choix manuel pour un CV, prioritaire sur l'angle et la fiche ; le titre proposé est conservé tel quel.
+- Accroche : le prompt interdit de répéter le titre du CV en début d'accroche ; `summary-starts-with-title` côté garde-fou.

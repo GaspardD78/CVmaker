@@ -6,6 +6,11 @@ import { useCvStore } from '@/stores/cvStore';
 import { PROMPT_TEMPLATES, generateFullCVMatchPrompt } from '@/lib/prompt-templates';
 import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
 import { AiCvGuardReport } from './AiCvGuardReport';
+import { useCvTarget } from '@/hooks/useCvTarget';
+import { TargetPanel } from './TargetPanel';
+import { TargetStatusLine } from './TargetStatusLine';
+import type { ResolvedTarget } from '@/lib/cv-targets';
+import { readCvLanguage } from '@/lib/cv-language';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import { CVBlock, CVDocument } from '@/types/cv';
 import { toast } from 'sonner';
@@ -26,7 +31,12 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     isLoaded,
     targetPages, loadTargetPages,
     personalRules, personalRulesProfileId, loadPersonalRules,
+    loadBulletFocus,
   } = usePromptStore();
+  // Ciblage (tout en « Auto » au départ) ; orientation : réglage du CV > profil > défaut de la fiche > « missions ».
+  const {
+    choice, setChoice, dirty, markCopied, verbTense, detected, target, sheetOverrides, focus, focusFor, proposalFor, applyProposal, expandSignal, requestEdit,
+  } = useCvTarget({ profileId: profile?.id, jobOfferText: jobOffer, company: currentCv?.targetCompany, cvSettings: currentCv?.settings });
 
   const [selectedBlockId, setSelectedBlockId] = useState<string>('');
   const [contactName, setContactName] = useState('');
@@ -43,13 +53,13 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
   }, [isLoaded, loadDifferentiator, loadTargetPages]);
 
   useEffect(() => {
-    if (profile) loadPersonalRules(profile.id);
-  }, [profile?.id, loadPersonalRules]);
+    if (profile) { loadPersonalRules(profile.id); loadBulletFocus(profile.id); }
+  }, [profile?.id, loadPersonalRules, loadBulletFocus]);
 
   // Parse + garde-fou du JSON collé (rapport affiché avant l'application).
   const analysis = useMemo(
-    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages }) : null),
-    [jsonInput, entries, profile, targetPages],
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus, verbTense, target }) : null),
+    [jsonInput, entries, profile, targetPages, focus, verbTense, target],
   );
   const hasBlockingIssues = analysis !== null && analysis.ok && analysis.report.errors.length > 0;
 
@@ -106,20 +116,36 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     }
   };
 
-  const handleCopyFullPrompt = async () => {
-    if (!jobOffer.trim()) {
+  // Sans annonce (candidature spontanée, recommandation), la cible décrite remplace le texte de l'annonce.
+  const hasOfferField = (t: ResolvedTarget): boolean => t.intent !== 'spontanee' && t.intent !== 'recommandation';
+  const offerFieldShown = hasOfferField(target);
+
+  const buildFullPrompt = (t: ResolvedTarget): string =>
+    generateFullCVMatchPrompt(profile!, entries, hasOfferField(t) ? jobOffer : '', undefined, undefined, clarify, {
+      pageBudget: targetPages,
+      personalRules: personalRulesProfileId === profile!.id ? personalRules : '',
+      bulletFocus: focusFor(t),
+      verbTense,
+      cvLanguage: readCvLanguage(currentCv?.settings),
+      target: t,
+    });
+
+  const handleCopyFullPrompt = async (t: ResolvedTarget = target) => {
+    if (t.intent === 'annonce' && !jobOffer.trim()) {
       setError("Collez d'abord le texte de l'annonce");
+      return;
+    }
+    if (!hasOfferField(t) && !t.brief?.company && !t.brief?.positions?.length) {
+      setError('Décrivez au moins l\'entreprise ou un poste envisagé (Préciser la cible)');
       return;
     }
     if (!profile) return;
 
     try {
-      const prompt = generateFullCVMatchPrompt(profile, entries, jobOffer, undefined, undefined, clarify, {
-        pageBudget: targetPages,
-        personalRules: personalRulesProfileId === profile.id ? personalRules : '',
-      });
+      const prompt = buildFullPrompt(t);
       await navigator.clipboard.writeText(prompt);
       setFullPromptCopied(true);
+      markCopied();
       toast.success("Prompt copié dans le presse-papier");
       setTimeout(() => setFullPromptCopied(false), 2000);
       setError('');
@@ -135,7 +161,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     }
     if (!currentCv) return;
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, pageBudget: targetPages, focus, verbTense, target });
     if (!result.ok) {
       toast.error("Erreur de parsing JSON. Vérifiez le format.");
       return;
@@ -155,7 +181,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
       // the CV's blocks — non destructively. The master profile is untouched.
       // Note: suggestedEntries are intentionally ignored here — that review flow lives in
       // the job-watch CV generator drawer for now.
-      await applyAiCvToBlocks(currentCv.id, data);
+      await applyAiCvToBlocks(currentCv.id, data, { target, sheetOverrides });
 
       toast.success("CV sur-mesure appliqué avec succès !");
       setJsonInput('');
@@ -328,17 +354,30 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
           </>
         ) : (
           <>
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                1. Coller l'annonce
-              </label>
-              <textarea
-                value={jobOffer}
-                onChange={e => { setJobOffer(e.target.value); setError(''); }}
-                placeholder="Collez ici le texte de l'annonce..."
-                className="w-full p-2 border border-gray-300 rounded-md text-xs resize-y h-28 focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
-              />
-            </div>
+            <TargetPanel
+              choice={choice}
+              onChange={c => { setChoice(c); setError(''); }}
+              detected={detected}
+              effectiveType={target.type}
+              effectiveIntent={target.intent}
+              dirty={dirty}
+              onCopyPrompt={() => handleCopyFullPrompt()}
+              expandSignal={expandSignal}
+            />
+
+            {offerFieldShown && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  1. Coller l'annonce
+                </label>
+                <textarea
+                  value={jobOffer}
+                  onChange={e => { setJobOffer(e.target.value); setError(''); }}
+                  placeholder="Collez ici le texte de l'annonce..."
+                  className="w-full p-2 border border-gray-300 rounded-md text-xs resize-y h-28 focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+                />
+              </div>
+            )}
 
             {error && (
               <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md p-2">
@@ -359,7 +398,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
             </label>
 
             <button
-              onClick={handleCopyFullPrompt}
+              onClick={() => handleCopyFullPrompt()}
               className={`w-full py-2 flex items-center justify-center gap-2 text-sm font-semibold rounded-md transition-colors border ${
                 fullPromptCopied
                   ? 'bg-green-50 text-green-700 border-green-300'
@@ -382,6 +421,20 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
               />
             </div>
 
+            {analysis && analysis.ok && (
+              <TargetStatusLine
+                retained={target}
+                proposal={proposalFor(analysis.data.analyse?.cible)}
+                onEdit={() => { setJsonInput(''); requestEdit(); toast.message('Modifiez le ciblage, puis recopiez le prompt.'); }}
+                onApplyProposal={() => {
+                  const outcome = proposalFor(analysis.data.analyse?.cible);
+                  if (!outcome) return;
+                  const next = applyProposal(outcome);
+                  setJsonInput('');
+                  void handleCopyFullPrompt(next);
+                }}
+              />
+            )}
             {analysis && analysis.ok && <AiCvGuardReport report={analysis.report} />}
 
             <button

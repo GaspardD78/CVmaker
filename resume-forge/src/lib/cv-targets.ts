@@ -1,0 +1,609 @@
+import { normalizeBulletFocus, type BulletFocus } from './cv-focus-rules';
+
+/**
+ * Ciblage du CV : type de structure, intention de la démarche, premier lecteur.
+ *
+ * Les fiches par type sont des DONNÉES de rédaction (ce que ce lecteur cherche, le
+ * vocabulaire attendu), jamais des faits de CV : l'anti-invention ne change pas.
+ * Ce module est pur (aucune base, aucun prompt) ; le texte du prompt est dans
+ * `cv-target-prompt.ts`.
+ */
+
+export const TARGET_TYPES = ['esn', 'cabinet', 'grand-groupe', 'eti-pme', 'startup', 'public', 'associatif'] as const;
+export type TargetType = (typeof TARGET_TYPES)[number];
+
+export const INTENTS = ['annonce', 'spontanee', 'recommandation', 'mobilite-interne', 'chasseur'] as const;
+export type Intent = (typeof INTENTS)[number];
+
+export const FIRST_READERS = ['rh', 'operationnel', 'direction', 'ats'] as const;
+export type FirstReader = (typeof FIRST_READERS)[number];
+
+export type Auto<T> = T | 'auto';
+
+/**
+ * Règle de titre :
+ * - `profile` : titre du profil tel quel ;
+ * - `profile+keyword` : titre du profil, éventuellement suivi d'un mot-clé de la cible ;
+ * - `equivalence` : titre du profil traduit via les équivalences de la fiche, à défaut
+ *   l'intitulé exact d'une expérience du profil, à défaut le titre du profil (avec avertissement) ;
+ * - `free` : titre proposé conservé tel quel (choix manuel, hors positionnement habituel).
+ */
+export type TargetTitleRule = 'profile' | 'profile+keyword' | 'equivalence' | 'free';
+
+export const TARGET_TITLE_RULES: readonly TargetTitleRule[] = ['profile', 'profile+keyword', 'equivalence', 'free'];
+
+export const TITLE_RULE_LABELS: Readonly<Record<TargetTitleRule, string>> = {
+  profile: 'Titre du profil tel quel',
+  'profile+keyword': 'Titre du profil, éventuellement suivi d\'un mot-clé',
+  equivalence: 'Titre traduit via les équivalences',
+  free: 'Titre libre (conservé tel quel)',
+};
+
+export interface Equivalence {
+  from: string;
+  to: string;
+}
+
+export interface TargetSheet {
+  type: TargetType;
+  label: string;
+  /** Ce que ce lecteur cherche à vérifier. */
+  attentes: string[];
+  /** Ce qu'il faut mettre en avant. */
+  valorise: string[];
+  /** Ce qui dessert (consignes en texte libre). */
+  eviter: string[];
+  /** Termes détectables par le garde-fou (mots, pas des phrases). */
+  avoidTerms: string[];
+  vocabulaire: {
+    registre: string;
+    privilegier: string[];
+    /** Équivalences autorisées d'un terme vers le terme attendu par ce lecteur. */
+    equivalences: Equivalence[];
+  };
+  focusParDefaut: BulletFocus;
+  titreParDefaut: TargetTitleRule;
+  /** Active la règle des mots-clés ATS (sous réserve de l'intention et du lecteur). */
+  ats: boolean;
+  /** Suggestions de rendu. */
+  affichage: {
+    photo: 'oui' | 'non' | 'indifferent';
+    longueur: string;
+    sections: string;
+  };
+  /** `public` seulement. Catégorie et filière ne sont jamais déduites : reprises de l'annonce (voir `TargetChoice`). */
+  publicFields?: { frenchOnly: boolean; savoirs: boolean };
+}
+
+const PUBLIC_EQUIVALENCES: Equivalence[] = [
+  { from: 'Talent Acquisition Manager', to: 'Responsable recrutement' },
+  { from: 'Talent Acquisition Partner', to: 'Chargé de recrutement' },
+  { from: 'hiring manager', to: 'manager opérationnel' },
+  { from: 'practice lead', to: 'responsable de pôle' },
+  { from: 'sourcing', to: 'recherche de candidats' },
+  { from: 'pipeline', to: 'vivier de candidats' },
+  { from: 'candidate experience', to: 'accueil et suivi des candidats' },
+  { from: 'expérience candidat', to: 'accueil et suivi des candidats' },
+  { from: 'staffing', to: 'affectation sur les projets' },
+  { from: 'cooptation', to: 'recommandation interne' },
+];
+
+/** Fiches de départ : génériques, sans donnée personnelle. */
+export const DEFAULT_TARGET_SHEETS: Readonly<Record<TargetType, TargetSheet>> = {
+  esn: {
+    type: 'esn',
+    label: 'ESN / société de conseil',
+    attentes: [
+      'réactivité', 'volumes et délais de recrutement', 'compréhension des métiers techniques',
+      'relation avec les commerciaux et les managers', 'staffing des projets', 'rétention des consultants',
+      'connaissance des technologies et des niveaux d\'expertise', 'gestion de l\'intercontrat',
+    ],
+    valorise: [
+      'réactivité et rythme de recrutement', 'délais de recrutement', 'recrutement pour des projets au forfait',
+      'relation avec les commerciaux et les managers', 'staffing de projets', 'fidélisation des consultants',
+    ],
+    eviter: ['jargon RH abstrait', 'processus longs'],
+    avoidTerms: [],
+    vocabulaire: {
+      registre: 'direct, orienté projets, délais et profils techniques',
+      privilegier: ['consultants', 'profils techniques', 'projets', 'délais', 'staffing'],
+      equivalences: [],
+    },
+    focusParDefaut: 'resultats',
+    titreParDefaut: 'profile+keyword',
+    ats: true,
+    affichage: { photo: 'indifferent', longueur: '1 page, 2 si le parcours le justifie', sections: 'expériences en premier, compétences techniques comprises' },
+  },
+  cabinet: {
+    type: 'cabinet',
+    label: 'Cabinet de recrutement, chasse, intérim',
+    attentes: [
+      'chasse et approche directe', 'connaissance d\'un marché', 'relation client et candidat',
+      'portefeuille de postes', 'autonomie commerciale',
+    ],
+    valorise: [
+      'approche directe et connaissance du marché', 'portefeuille de postes', 'présentation de shortlists',
+      'relation avec les clients donneurs d\'ordre', 'suivi des candidats après embauche', 'autonomie commerciale',
+    ],
+    eviter: ['vocabulaire purement interne d\'entreprise'],
+    avoidTerms: [],
+    vocabulaire: {
+      registre: 'commercial et relationnel, orienté marché, clients et candidats',
+      privilegier: ['clients', 'candidats', 'marché', 'mandats', 'shortlist'],
+      equivalences: [],
+    },
+    focusParDefaut: 'resultats',
+    titreParDefaut: 'profile+keyword',
+    ats: true,
+    affichage: { photo: 'indifferent', longueur: '1 à 2 pages', sections: 'expériences en premier, marchés et clients traités visibles' },
+  },
+  'grand-groupe': {
+    type: 'grand-groupe',
+    label: 'Grand groupe',
+    attentes: [
+      'process structurés', 'travail en transverse', 'maîtrise des outils (ATS, SIRH)',
+      'conformité et non-discrimination', 'marque employeur', 'conduite de projets RH',
+    ],
+    valorise: [
+      'volumes d\'alternance', 'relations écoles et alternance', 'travail avec les RRH et HRBP', 'mobilité interne',
+      'outils (ATS, SIRH)', 'conformité et non-discrimination', 'marque employeur', 'conduite de projets RH',
+    ],
+    eviter: ['posture « couteau suisse » sans cadre'],
+    avoidTerms: [],
+    vocabulaire: {
+      registre: 'structuré et organisé, orienté process, transverse et parties prenantes',
+      privilegier: ['process', 'parties prenantes', 'transverse', 'RRH', 'projets RH'],
+      equivalences: [],
+    },
+    focusParDefaut: 'missions',
+    titreParDefaut: 'profile',
+    ats: true,
+    affichage: { photo: 'indifferent', longueur: '1 à 2 pages', sections: 'expériences, puis outils et projets RH' },
+  },
+  'eti-pme': {
+    type: 'eti-pme',
+    label: 'ETI / PME',
+    attentes: [
+      'polyvalence', 'recrutement de bout en bout', 'proximité avec la direction',
+      'mise en place d\'outils et de procédures',
+    ],
+    valorise: ['recrutement de bout en bout', 'autonomie', 'proximité avec la direction', 'outils et procédures mis en place'],
+    eviter: ['hyper-spécialisation', 'sigles de grand groupe'],
+    avoidTerms: [],
+    vocabulaire: {
+      registre: 'concret et polyvalent, orienté terrain et autonomie',
+      privilegier: ['de bout en bout', 'direction', 'autonomie', 'mise en place'],
+      equivalences: [],
+    },
+    focusParDefaut: 'missions',
+    titreParDefaut: 'profile+keyword',
+    ats: false,
+    affichage: { photo: 'indifferent', longueur: '1 page', sections: 'expériences en premier' },
+  },
+  startup: {
+    type: 'startup',
+    label: 'Start-up',
+    attentes: ['construction d\'une fonction', 'autonomie', 'vitesse', 'marque employeur', 'outils modernes'],
+    valorise: ['construction d\'une fonction recrutement', 'autonomie', 'rythme de recrutement', 'marque employeur', 'outils modernes'],
+    eviter: ['formalisme', 'process lourds'],
+    avoidTerms: [],
+    vocabulaire: {
+      registre: 'direct, concret, orienté action et résultats',
+      privilegier: ['construire', 'lancer', 'autonomie', 'outils'],
+      equivalences: [],
+    },
+    focusParDefaut: 'resultats',
+    titreParDefaut: 'profile+keyword',
+    ats: false,
+    affichage: { photo: 'indifferent', longueur: '1 page', sections: 'expériences en premier, outils visibles' },
+  },
+  public: {
+    type: 'public',
+    label: 'Fonction publique (État, territoriale, hospitalière)',
+    attentes: [
+      'missions et périmètre', 'cadre réglementaire', 'égalité de traitement et prévention des discriminations',
+      'travail avec les encadrants', 'procédures', 'rigueur', 'service rendu',
+    ],
+    valorise: [
+      'missions et périmètre', 'cadre réglementaire et procédures', 'recrutements collectifs et concours',
+      'accompagnement des encadrants', 'prévention des discriminations et égalité de traitement', 'service rendu',
+    ],
+    eviter: ['anglicismes', 'vocabulaire commercial', 'chiffres de performance individuelle', 'photo'],
+    avoidTerms: [
+      'business', 'placement', 'chasse', 'chasseur', 'sourcing', 'talent acquisition', 'hiring manager',
+      'practice lead', 'KPI', 'deal', 'pipeline', 'TJM', 'intercontrat', 'staffing',
+    ],
+    vocabulaire: {
+      registre: 'administratif et sobre, en français, orienté missions, cadre et service rendu',
+      privilegier: ['missions', 'agents', 'encadrants', 'procédure', 'service', 'recrutement'],
+      equivalences: PUBLIC_EQUIVALENCES,
+    },
+    focusParDefaut: 'missions',
+    titreParDefaut: 'equivalence',
+    ats: false,
+    affichage: { photo: 'non', longueur: '1 à 2 pages', sections: 'formation et concours visibles, expériences par missions' },
+    publicFields: { frenchOnly: true, savoirs: true },
+  },
+  associatif: {
+    type: 'associatif',
+    label: 'Association, ESS, fondation',
+    attentes: ['sens et valeurs', 'polyvalence', 'travail avec bénévoles et partenaires', 'sobriété des moyens'],
+    valorise: ['adhésion aux valeurs', 'polyvalence', 'travail avec les bénévoles et les partenaires', 'sobriété des moyens'],
+    eviter: ['registre commercial agressif'],
+    avoidTerms: ['business', 'deal', 'KPI', 'chasse'],
+    vocabulaire: {
+      registre: 'sobre et engagé, orienté sens, partenaires et collectif',
+      privilegier: ['partenaires', 'bénévoles', 'collectif', 'projet associatif'],
+      equivalences: [
+        { from: 'KPI', to: 'indicateurs de suivi' },
+        { from: 'business', to: 'activité' },
+      ],
+    },
+    focusParDefaut: 'missions',
+    titreParDefaut: 'equivalence',
+    ats: false,
+    affichage: { photo: 'indifferent', longueur: '1 page', sections: 'expériences, engagements et bénévolat visibles' },
+  },
+};
+
+// ── Personnalisation par profil (`cv_target_sheets:{profileId}`) ─────────────
+
+/** Champs modifiés d'une fiche (seuls ceux-ci sont enregistrés). */
+export type SheetOverride = {
+  [K in keyof TargetSheet]?: TargetSheet[K] extends object | undefined ? Partial<NonNullable<TargetSheet[K]>> | TargetSheet[K] : TargetSheet[K];
+};
+export type SheetOverrides = Partial<Record<TargetType, SheetOverride>>;
+
+const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+const stringList = (v: unknown): string[] | undefined =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map(x => x.trim()) : undefined;
+const TITLE_RULES: readonly TargetTitleRule[] = ['profile', 'profile+keyword', 'equivalence', 'free'];
+
+function parseEquivalences(v: unknown): Equivalence[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  return v.filter(isRecord)
+    .map(e => ({ from: typeof e.from === 'string' ? e.from.trim() : '', to: typeof e.to === 'string' ? e.to.trim() : '' }))
+    .filter(e => e.from && e.to);
+}
+
+function parseOverride(raw: unknown): SheetOverride | undefined {
+  if (!isRecord(raw)) return undefined;
+  const o: SheetOverride = {};
+  for (const key of ['attentes', 'valorise', 'eviter', 'avoidTerms'] as const) {
+    const list = stringList(raw[key]);
+    if (list) o[key] = list;
+  }
+  if (typeof raw.label === 'string' && raw.label.trim()) o.label = raw.label.trim();
+  const focus = normalizeBulletFocus(raw.focusParDefaut);
+  if (focus) o.focusParDefaut = focus;
+  if (TITLE_RULES.includes(raw.titreParDefaut as TargetTitleRule)) o.titreParDefaut = raw.titreParDefaut as TargetTitleRule;
+  if (typeof raw.ats === 'boolean') o.ats = raw.ats;
+  if (isRecord(raw.vocabulaire)) {
+    const v: Partial<TargetSheet['vocabulaire']> = {};
+    if (typeof raw.vocabulaire.registre === 'string') v.registre = raw.vocabulaire.registre;
+    const priv = stringList(raw.vocabulaire.privilegier);
+    if (priv) v.privilegier = priv;
+    const eq = parseEquivalences(raw.vocabulaire.equivalences);
+    if (eq) v.equivalences = eq;
+    if (Object.keys(v).length > 0) o.vocabulaire = v;
+  }
+  if (isRecord(raw.affichage)) {
+    const a: Partial<TargetSheet['affichage']> = {};
+    if (['oui', 'non', 'indifferent'].includes(raw.affichage.photo as string)) a.photo = raw.affichage.photo as 'oui' | 'non' | 'indifferent';
+    if (typeof raw.affichage.longueur === 'string') a.longueur = raw.affichage.longueur;
+    if (typeof raw.affichage.sections === 'string') a.sections = raw.affichage.sections;
+    if (Object.keys(a).length > 0) o.affichage = a;
+  }
+  return Object.keys(o).length > 0 ? o : undefined;
+}
+
+/** Lit `cv_target_sheets:{profileId}` (JSON) ; toute valeur illisible est ignorée, jamais d'exception. */
+export function parseSheetOverrides(raw: string | null | undefined): SheetOverrides {
+  if (!raw) return {};
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { return {}; }
+  if (!isRecord(parsed)) return {};
+  const out: SheetOverrides = {};
+  for (const type of TARGET_TYPES) {
+    const o = parseOverride(parsed[type]);
+    if (o) out[type] = o;
+  }
+  return out;
+}
+
+export function serializeSheetOverrides(overrides: SheetOverrides): string {
+  return JSON.stringify(overrides);
+}
+
+/** Fiche par défaut du type, surchargée champ par champ (les sous-objets sont fusionnés). */
+export function sheetFor(type: TargetType, overrides: SheetOverrides = {}): TargetSheet {
+  const base = DEFAULT_TARGET_SHEETS[type];
+  const o = overrides[type] as Partial<TargetSheet> | undefined;
+  if (!o) return base;
+  return {
+    ...base,
+    ...o,
+    type,
+    vocabulaire: { ...base.vocabulaire, ...(o.vocabulaire ?? {}) },
+    affichage: { ...base.affichage, ...(o.affichage ?? {}) },
+    ...(base.publicFields ? { publicFields: base.publicFields } : {}),
+  };
+}
+
+/** Surcharges sans la fiche `type` : « Revenir aux valeurs par défaut ». */
+export function resetSheet(overrides: SheetOverrides, type: TargetType): SheetOverrides {
+  const { [type]: _removed, ...rest } = overrides;
+  return rest;
+}
+
+// ── Résolution ───────────────────────────────────────────────────────────────
+
+/** Formulaire de cible (candidature spontanée, recommandation, mobilité interne, approche) : champs distincts. */
+export interface TargetBrief {
+  company?: string;
+  activity?: string;
+  /** Contexte RH connu de l'entreprise. */
+  hrContext?: string;
+  /** Postes envisagés, par ordre de priorité. */
+  positions?: string[];
+  /** Atouts à mettre en avant. */
+  strengths?: string[];
+  /** Autre contexte connu. */
+  context?: string;
+}
+
+/** Choix explicite de l'utilisateur sur ce CV (`auto` ou absent : pas de choix). */
+export interface TargetChoice {
+  type?: Auto<TargetType>;
+  intent?: Auto<Intent>;
+  firstReader?: Auto<FirstReader>;
+  /** « Ce que valorise ce lecteur » : jamais cité dans le CV. */
+  readerNote?: string;
+  /**
+   * Règle de titre choisie pour ce CV : prioritaire sur la fiche et sur la règle d'un angle.
+   * `free` (titre proposé conservé tel quel) n'existe que par ce choix manuel.
+   */
+  titleRule?: TargetTitleRule;
+  /** Nom du premier lecteur : reste dans `cv.settings.target`, jamais dans le prompt ni dans l'export. */
+  readerName?: string;
+  /** Fonction du premier lecteur : transmise au prompt (sans le nom), jamais citée dans le CV. */
+  readerRole?: string;
+  /** « Transmis par » (recommandation) : nom de la personne, jamais dans le prompt ni dans l'export. */
+  referrerName?: string;
+  brief?: TargetBrief;
+  /** Types `public` seulement, repris de l'annonce, jamais déduits pour le candidat. */
+  publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
+}
+
+/** Axes détectés par l'application (texte de l'annonce, nom de l'entreprise) ou par l'IA. */
+export interface DetectedTarget {
+  type?: TargetType;
+  intent?: Intent;
+  firstReader?: FirstReader;
+}
+
+export type AxisSource = 'explicit' | 'detected' | 'default';
+
+export interface ResolvedTarget {
+  /** `null` : aucun type connu, donc aucune fiche (prompt inchangé). */
+  type: TargetType | null;
+  intent: Intent;
+  /** `null` : premier lecteur inconnu. */
+  firstReader: FirstReader | null;
+  sheet: TargetSheet | null;
+  sources: { type: AxisSource; intent: AxisSource; firstReader: AxisSource };
+  readerNote?: string;
+  /** Règle de titre choisie manuellement pour ce CV (absente : celle de la fiche). */
+  titleRule?: TargetTitleRule;
+  readerName?: string;
+  readerRole?: string;
+  referrerName?: string;
+  brief?: TargetBrief;
+  publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
+}
+
+function cleanBrief(brief: TargetBrief | undefined): TargetBrief | undefined {
+  if (!brief) return undefined;
+  const out: TargetBrief = {};
+  for (const key of ['company', 'activity', 'hrContext', 'context'] as const) {
+    const v = brief[key]?.trim();
+    if (v) out[key] = v;
+  }
+  for (const key of ['positions', 'strengths'] as const) {
+    const list = brief[key]?.map(x => x.trim()).filter(Boolean);
+    if (list && list.length > 0) out[key] = list;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+const oneOf = <T extends string>(list: readonly T[], v: unknown): T | undefined =>
+  typeof v === 'string' && (list as readonly string[]).includes(v) ? (v as T) : undefined;
+
+function pick<T extends string>(
+  list: readonly T[],
+  explicit: unknown,
+  detected: unknown,
+): { value: T | undefined; source: AxisSource } {
+  const e = oneOf(list, explicit);
+  if (e) return { value: e, source: 'explicit' };
+  const d = oneOf(list, detected);
+  if (d) return { value: d, source: 'detected' };
+  return { value: undefined, source: 'default' };
+}
+
+/**
+ * Ciblage effectif d'un CV : choix explicite > détection > défaut. Sans type connu, pas de
+ * fiche ; sans intention connue, `annonce` (comportement historique).
+ */
+export function resolveTarget(
+  choice: TargetChoice | null | undefined,
+  profileOverrides: SheetOverrides = {},
+  detected: DetectedTarget | null | undefined = undefined,
+): ResolvedTarget {
+  const type = pick(TARGET_TYPES, choice?.type, detected?.type);
+  const intent = pick(INTENTS, choice?.intent, detected?.intent);
+  const reader = pick(FIRST_READERS, choice?.firstReader, detected?.firstReader);
+  const resolved: ResolvedTarget = {
+    type: type.value ?? null,
+    intent: intent.value ?? 'annonce',
+    firstReader: reader.value ?? null,
+    sheet: type.value ? sheetFor(type.value, profileOverrides) : null,
+    sources: { type: type.source, intent: intent.source, firstReader: reader.source },
+  };
+  if (choice?.titleRule && TARGET_TITLE_RULES.includes(choice.titleRule)) resolved.titleRule = choice.titleRule;
+  const note = choice?.readerNote?.trim();
+  if (note) resolved.readerNote = note;
+  for (const key of ['readerName', 'readerRole'] as const) {
+    const v = choice?.[key]?.trim();
+    if (v) resolved[key] = v;
+  }
+  // « Transmis par » n'a de sens que pour une recommandation.
+  const referrer = choice?.referrerName?.trim();
+  if (referrer && resolved.intent === 'recommandation') resolved.referrerName = referrer;
+  const brief = cleanBrief(choice?.brief);
+  if (brief) resolved.brief = brief;
+  if (type.value === 'public' && choice?.publicDetails) {
+    const { categorie, filiere } = choice.publicDetails;
+    const details: NonNullable<ResolvedTarget['publicDetails']> = {};
+    if (categorie === 'A' || categorie === 'B' || categorie === 'C') details.categorie = categorie;
+    if (filiere?.trim()) details.filiere = filiere.trim();
+    if (Object.keys(details).length > 0) resolved.publicDetails = details;
+  }
+  return resolved;
+}
+
+/** Orientation par défaut de la cible (3e paramètre de `resolveBulletFocus`) ; `undefined` sans fiche. */
+export function defaultFocusFor(target: ResolvedTarget): BulletFocus | undefined {
+  return target.sheet?.focusParDefaut;
+}
+
+/**
+ * Niveau de la règle « mots-clés ATS » :
+ * - `strict` : mots-clés exacts de l'annonce (annonce + fiche `ats`, ou sans fiche) ;
+ * - `leger` : intitulés et compétences standards du métier visé, une fois chacun
+ *   (candidature spontanée + fiche `ats` : le CV est retrouvé plus tard dans le vivier) ;
+ * - `off` : recommandation, mobilité interne, approche de chasseur, fiche sans ATS.
+ * Le premier lecteur garde la priorité : `ats` = au moins `leger` (`strict` en annonce),
+ * `operationnel` ou `direction` = `off`.
+ */
+export type AtsLevel = 'strict' | 'leger' | 'off';
+
+export function atsLevelFor(target: ResolvedTarget): AtsLevel {
+  const reader = target.firstReader;
+  if (reader === 'operationnel' || reader === 'direction') return 'off';
+  if (target.intent === 'annonce') {
+    if (reader === 'ats') return 'strict';
+    return target.sheet ? (target.sheet.ats ? 'strict' : 'off') : 'strict';
+  }
+  if (target.intent === 'spontanee') {
+    return reader === 'ats' || target.sheet?.ats ? 'leger' : 'off';
+  }
+  return 'off';
+}
+
+/** Une règle de mots-clés ATS (stricte ou légère) est-elle active ? */
+export function atsEnabledFor(target: ResolvedTarget): boolean {
+  return atsLevelFor(target) !== 'off';
+}
+
+/**
+ * Le prompt parle-t-il d'« annonce » ou de « cible » ? Sans texte d'annonce (spontanée,
+ * recommandation, et mobilité interne ou approche sans texte), c'est la cible.
+ */
+export function wordingModeFor(target: ResolvedTarget, jobOfferText: string): 'annonce' | 'cible' {
+  if (target.intent === 'annonce') return 'annonce';
+  if (target.intent === 'spontanee' || target.intent === 'recommandation') return 'cible';
+  return jobOfferText.trim() ? 'annonce' : 'cible';
+}
+
+/** Règle de titre : choix manuel du CV, sinon celle de la fiche, sinon la règle historique (`profile+keyword`). */
+export function titleRuleFor(target: ResolvedTarget): TargetTitleRule {
+  return target.titleRule ?? target.sheet?.titreParDefaut ?? 'profile+keyword';
+}
+
+// ── Libellés d'affichage ─────────────────────────────────────────────────────
+
+export const TARGET_TYPE_LABELS: Readonly<Record<TargetType, string>> = {
+  esn: 'ESN / conseil', cabinet: 'Cabinet', 'grand-groupe': 'Grand groupe', 'eti-pme': 'ETI / PME',
+  startup: 'Start-up', public: 'Fonction publique', associatif: 'Associatif',
+};
+export const INTENT_LABELS: Readonly<Record<Intent, string>> = {
+  annonce: 'Annonce', spontanee: 'Candidature spontanée', recommandation: 'Recommandation',
+  'mobilite-interne': 'Mobilité interne', chasseur: 'Approche de chasseur',
+};
+export const FIRST_READER_LABELS: Readonly<Record<FirstReader, string>> = {
+  rh: 'RH', operationnel: 'Opérationnel', direction: 'Direction', ats: 'Tri automatique',
+};
+
+/** « Fonction publique · Annonce · RH » ; un axe non résolu s'affiche « auto ». */
+export function describeTarget(target: ResolvedTarget): string {
+  return [
+    target.type ? TARGET_TYPE_LABELS[target.type] : 'type auto',
+    INTENT_LABELS[target.intent],
+    target.firstReader ? FIRST_READER_LABELS[target.firstReader] : 'lecteur auto',
+  ].join(' · ');
+}
+
+// ── Édition des fiches (écran des Paramètres) ────────────────────────────────
+
+/** Une valeur par ligne, lignes vides ignorées. */
+export function splitLines(text: string): string[] {
+  return text.split('\n').map(l => l.trim()).filter(Boolean);
+}
+
+/** « from → to » par ligne (« -> » accepté) ; les lignes incomplètes sont ignorées. */
+export function parseEquivalenceLines(text: string): Equivalence[] {
+  return splitLines(text)
+    .map(l => l.split(/\s*(?:→|->)\s*/))
+    .filter(parts => parts.length === 2 && parts[0] && parts[1])
+    .map(([from, to]) => ({ from, to }));
+}
+
+export function equivalenceLines(eq: readonly Equivalence[]): string {
+  return eq.map(e => `${e.from} → ${e.to}`).join('\n');
+}
+
+const sameList = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+const sameEq = (a: readonly Equivalence[], b: readonly Equivalence[]): boolean =>
+  a.length === b.length && a.every((v, i) => v.from === b[i].from && v.to === b[i].to);
+
+/**
+ * Surcharge à enregistrer pour un type : uniquement les champs qui diffèrent de la fiche par défaut
+ * (`draft` est une fiche partielle ; une valeur identique au défaut n'est pas stockée).
+ */
+export function buildSheetOverride(type: TargetType, draft: Partial<TargetSheet>): SheetOverride | undefined {
+  const base = DEFAULT_TARGET_SHEETS[type];
+  const o: SheetOverride = {};
+  for (const key of ['attentes', 'valorise', 'eviter', 'avoidTerms'] as const) {
+    const v = draft[key];
+    if (v && !sameList(v, base[key])) o[key] = v;
+  }
+  if (draft.label !== undefined && draft.label.trim() && draft.label !== base.label) o.label = draft.label.trim();
+  if (draft.focusParDefaut && draft.focusParDefaut !== base.focusParDefaut) o.focusParDefaut = draft.focusParDefaut;
+  if (draft.titreParDefaut && draft.titreParDefaut !== base.titreParDefaut) o.titreParDefaut = draft.titreParDefaut;
+  if (draft.ats !== undefined && draft.ats !== base.ats) o.ats = draft.ats;
+  const v = draft.vocabulaire;
+  if (v) {
+    const out: Partial<TargetSheet['vocabulaire']> = {};
+    if (v.registre !== undefined && v.registre !== base.vocabulaire.registre) out.registre = v.registre;
+    if (v.privilegier && !sameList(v.privilegier, base.vocabulaire.privilegier)) out.privilegier = v.privilegier;
+    if (v.equivalences && !sameEq(v.equivalences, base.vocabulaire.equivalences)) out.equivalences = v.equivalences;
+    if (Object.keys(out).length > 0) o.vocabulaire = out;
+  }
+  const a = draft.affichage;
+  if (a) {
+    const out: Partial<TargetSheet['affichage']> = {};
+    if (a.photo && a.photo !== base.affichage.photo) out.photo = a.photo;
+    if (a.longueur !== undefined && a.longueur !== base.affichage.longueur) out.longueur = a.longueur;
+    if (a.sections !== undefined && a.sections !== base.affichage.sections) out.sections = a.sections;
+    if (Object.keys(out).length > 0) o.affichage = out;
+  }
+  return Object.keys(o).length > 0 ? o : undefined;
+}
+
+/** Remplace (ou retire, si rien ne diffère) la surcharge d'un type. */
+export function setSheetOverride(overrides: SheetOverrides, type: TargetType, draft: Partial<TargetSheet>): SheetOverrides {
+  const next = buildSheetOverride(type, draft);
+  const rest = resetSheet(overrides, type);
+  return next ? { ...rest, [type]: next } : rest;
+}

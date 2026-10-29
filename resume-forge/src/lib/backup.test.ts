@@ -28,7 +28,7 @@ mock.module('./validation', () => ({
 // Now import applyRows
 import {
   applyRows, buildBackupData, importBackup, listBackupProfiles, resolveSourceProfileId, selectBackupProfile,
-  BackupProfileChoiceRequired, DELETE_ORDER, INSERT_ORDER, MODULES, TABLES_WITH_PROFILE_ID, type BackupData,
+  BackupProfileChoiceRequired, DELETE_ORDER, INSERT_ORDER, MODULES, TABLES_WITH_PROFILE_ID, redactTargetPeople, type BackupData,
 } from './backup';
 
 describe('applyRows logic', () => {
@@ -175,6 +175,8 @@ describe('sauvegarde à plusieurs profils', () => {
         { key: 'theme', value: 'dark' },
         { key: 'cv_personal_rules:p-autre', value: 'Règles A' },
         { key: 'cv_personal_rules:p-actif', value: 'Règles B' },
+        { key: 'cv_bullet_focus:p-autre', value: 'resultats' },
+        { key: 'cv_bullet_focus:p-actif', value: 'missions' },
       ],
     },
   });
@@ -198,7 +200,7 @@ describe('sauvegarde à plusieurs profils', () => {
     expect(out.modules.application_events).toEqual([]);
     // Réglages globaux conservés ; réglages par profil : seulement ceux du profil restauré.
     expect(out.modules.job_watch_settings!.map(r => r.key)).toEqual(['cle_globale']);
-    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-actif']);
+    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-actif', 'cv_bullet_focus:p-actif']);
   });
 
   it('aucun profil ne correspond à l\'utilisateur actif : choix obligatoire', () => {
@@ -217,7 +219,7 @@ describe('sauvegarde à plusieurs profils', () => {
     expect(out.modules.master_entries).toEqual([{ id: 'e-autre', profile_id: 'p-nouveau', entry_type: 'skill', title: 'Compétence A' }]);
     expect(out.modules.application_events!.map(r => r.id)).toEqual(['ev-autre']);
     expect(out.modules.job_watch_settings!.map(r => [r.key, r.profile_id])).toEqual([['cle_globale', ''], ['cle_profil', 'p-nouveau']]);
-    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-nouveau']);
+    expect(out.modules.settings!.map(r => r.key)).toEqual(['theme', 'cv_personal_rules:p-nouveau', 'cv_bullet_focus:p-nouveau']);
     expect(() => resolveSourceProfileId(backup, 'p-nouveau', 'absent')).toThrow('absent de la sauvegarde');
   });
 
@@ -257,5 +259,43 @@ describe('sauvegarde à plusieurs profils', () => {
     expect(insert.values).not.toContain('e-actif');
     fakeDb = {};
     currentUserId = null;
+  });
+});
+
+describe('redactTargetPeople : envoi vers Google Drive', () => {
+  const target = { type: 'esn', intent: 'recommandation', readerName: 'Camille Fictif', readerRole: 'directeur', readerNote: 'délais', referrerName: 'Alex Fictif', brief: { company: 'Orga' }, sheet: { type: 'esn' } };
+  const backup = (settings: unknown): BackupData => ({
+    __cvmaker_backup: true, version: '1', exportDate: '', counts: {},
+    modules: { cv_documents: [{ id: 'cv1', name: 'CV', settings }], settings: [{ key: 'theme', value: 'dark' }] },
+  });
+
+  it('retire noms, fonction et note du lecteur (réglages en JSON texte), garde le reste', () => {
+    const out = redactTargetPeople(backup(JSON.stringify({ fontFamily: 'Arial', target })));
+    const settings = JSON.parse(out.modules.cv_documents![0].settings as string);
+    expect(settings.fontFamily).toBe('Arial');
+    expect(settings.target).toEqual({ type: 'esn', intent: 'recommandation', brief: { company: 'Orga' }, sheet: { type: 'esn' } });
+    expect(JSON.stringify(out)).not.toContain('Camille');
+    expect(JSON.stringify(out)).not.toContain('Alex');
+    expect(out.modules.settings).toEqual([{ key: 'theme', value: 'dark' }]);
+  });
+
+  it('réglages déjà en objet, sans ciblage ou illisibles : inchangés', () => {
+    const asObject = redactTargetPeople(backup({ target }));
+    expect((asObject.modules.cv_documents![0].settings as { target: Record<string, unknown> }).target.readerName).toBeUndefined();
+    const none = backup(JSON.stringify({ fontFamily: 'Arial' }));
+    expect(redactTargetPeople(none).modules.cv_documents).toEqual(none.modules.cv_documents);
+    const broken = backup('{pas du json');
+    expect(redactTargetPeople(broken).modules.cv_documents).toEqual(broken.modules.cv_documents);
+  });
+
+  it('ne modifie pas la sauvegarde d\'origine (la copie locale garde les champs)', () => {
+    const original = backup(JSON.stringify({ target }));
+    redactTargetPeople(original);
+    expect(original.modules.cv_documents![0].settings as string).toContain('Camille Fictif');
+  });
+
+  it('sans cv_documents : renvoyée telle quelle', () => {
+    const b: BackupData = { __cvmaker_backup: true, version: '1', exportDate: '', counts: {}, modules: {} };
+    expect(redactTargetPeople(b)).toBe(b);
   });
 });

@@ -7,11 +7,74 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : lot 4 (temps des verbes, titre libre, accroche)
+
+- **Ajout** : réglage par profil `cv_verb_tense:{profileId}` : `infinitif` (défaut, « Recruter », « Piloter »), `passe-present` (comportement précédent) ou `nominal` (« Recrutement de… »), dans Paramètres > « Orientation du CV ». La définition de la puce compose orientation et temps en un seul endroit (`bulletForm` dans `lib/cv-focus-rules.ts`) : « verbe d'action à l'infinitif + quoi + pour qui ou sur quel périmètre + comment ». Le test « pas de consigne en dur » couvre aussi « verbes au passé » et « verbes au présent ».
+- **Changé** : le contrôle `tense` du garde-fou suit le réglage : en `infinitif`, signale participe passé, nom d'action ou verbe conjugué en tête de puce ; en `nominal`, signale les verbes ; en `passe-present`, cohérence passé / présent comme avant. Le prompt par défaut change (infinitif) ; le texte « passé / présent » est conservé à l'identique pour ce réglage.
+- **Ajout** : règle de titre `free` (titre proposé conservé tel quel), choisie manuellement pour un CV (« Préciser la cible » > « Règle de titre pour ce CV »). Prioritaire sur la règle d'un angle et sur la fiche ; le garde-fou ne corrige alors plus le titre et n'émet pas `unsupported-title`. Enregistrée dans l'instantané `cv.settings.target`.
+- **Ajout** : accroche : le prompt demande de ne pas répéter le titre du CV en début d'accroche (tous les prompts gagnent cette phrase) et le garde-fou avertit (`summary-starts-with-title`).
+- **Ergonomie** : « Copier le nouveau prompt » apparaît dès qu'un champ du ciblage change (CV builder et Veille), copie le prompt avec le ciblage courant puis disparaît.
+- **Reste** : la documentation du schéma pour `mergedEntries` et `cvSkillLines` arrive avec les lots 2 et 3, qui ajoutent ces champs.
+
+---
+
+### Moteur de CV IA : ciblage, étape 5 (interface)
+
+- **Ajout** : panneau de ciblage (`TargetPanel`) dans le générateur du CV builder et dans celui de la Veille : trois sélecteurs sur une ligne (type de structure, intention, premier lecteur), en « Auto » par défaut avec info-bulle et détection affichée ; formulaire de cible (entreprise, activité, contexte RH, postes envisagés, atouts, contexte) et champs du lecteur repliés sous « Préciser la cible ». Sans annonce (spontanée, recommandation), le formulaire de cible remplace le champ « Annonce ». Catégorie et filière seulement pour le type public.
+- **Ajout** : ligne « Ciblage retenu » (et « Ciblage proposé » avec « Appliquer et régénérer ») au-dessus du rapport du garde-fou, bouton « Modifier et régénérer ». La proposition de l'IA n'est appliquée que sur action de l'utilisateur.
+- **Ajout** : champs dédiés « Premier lecteur : nom », « Premier lecteur : fonction », « Transmis par : nom » (recommandation seulement) et « Ce que valorise ce lecteur ». Les noms restent dans `cv.settings.target` : jamais dans le prompt (qui reçoit la fonction et la note), jamais dans l'export, retirés de la sauvegarde Google Drive (`redactTargetPeople`). Le repérage heuristique de la fonction dans la note est supprimé.
+- **Ajout** : écran « Fiches de ciblage » dans les Paramètres : valeurs par défaut en grisé, seuls les champs modifiés sont enregistrés, « Revenir aux valeurs par défaut » par fiche.
+- **Changé** : l'orientation effective tient compte du défaut de la fiche (CV > profil > fiche > missions) ; le prompt n'inclut plus le nom de la personne qui transmet le CV (instantané `grand-groupe · recommandation · operationnel` mis à jour).
+
+---
+
+### Moteur de CV IA : ciblage, étape 4 (garde-fou)
+
+- **Ajout** : avertissements du garde-fou liés au ciblage (`lib/cv-target-guard.ts`), jamais bloquants, absents sans ciblage :
+  - `target-forbidden-term` : terme de `avoidTerms` de la fiche dans le titre, l'accroche, une puce ou un override (mots entiers, entrées visibles), avec l'équivalence de la fiche quand elle existe ;
+  - `target-equivalence-applied` : un titre ou un `titleOverride` traduit via la table d'équivalences de la fiche ; hors de la table, l'avertissement `unsupported-title` existant (le titre du CV traduit par équivalence n'en déclenche plus) ; CV non français : traductions fidèles hors contrôle ;
+  - `target-photo` : photo présente alors que la fiche la déconseille (public) ;
+  - `target-reader-mentioned` : nom ou fonction du premier lecteur, ou personne qui transmet le CV, présents dans le CV (une expression du profil du candidat lui-même est ignorée).
+- **Ajout** : `readerName` (nom du premier lecteur) dans le ciblage. L'anti-invention reste identique quel que soit le ciblage (test).
+
+---
+
+### Moteur de CV IA : ciblage, étape 3 (détection et `analyse.cible`)
+
+- **Ajout** : détection automatique côté application (`lib/cv-target-detect.ts`) à partir du texte de l'annonce et du nom de l'entreprise : `public` (via `isPublicSectorText`, sans les faux positifs « administration système »), `esn`, `cabinet`, et `annonce` dès qu'un texte est fourni. Un signal absent ou contradictoire ne détecte rien.
+- **Ajout** : champ additif `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), lu avec tolérance (casse, accents, variantes de clés). Le prompt le demande pour les axes encore par défaut (type, intention, premier lecteur), y compris quand tout est en auto et rien n'est détecté : c'est alors la seule différence avec le prompt d'avant, sans fiche ni changement de règles, et le CV produit reste identique. La proposition n'est jamais appliquée à ce CV : elle est rapportée (`ApplyReport.target`) pour « Ciblage proposé » / « Appliquer et régénérer » (interface à l'étape 5). Un choix explicite ou un type détecté par l'application n'est jamais remplacé en silence.
+- **Ajout** : instantané `cv.settings.target` (ciblage effectif, fiche comprise) écrit à l'application quand le ciblage est fourni (le ciblage réellement utilisé, pas la proposition de l'IA) ; relecture validée (`readTargetSnapshot`). L'historique d'un CV ne bouge pas si les fiches changent.
+
+---
+
+### Moteur de CV IA : ciblage, étape 2 (bloc de prompt)
+
+- **Ajout** : section « Cible et intention » du prompt (`lib/cv-target-prompt.ts`) : attentes, éléments à mettre en avant, à éviter (consignes et termes), vocabulaire et équivalences de la fiche, démarche (annonce, spontanée, recommandation, mobilité interne, approche de chasseur), formulaire de cible (entreprise, activité, contexte RH, postes envisagés, atouts, personne qui transmet le CV) et premier lecteur avec « ce que valorise ce lecteur » (jamais cité dans le CV). Option `target` de `CvPromptOptions`.
+- **Ajout** : règle des mots-clés à trois niveaux (`atsLevelFor`) : `strict` (texte historique), `leger` (candidature spontanée avec fiche ATS : intitulés et compétences standards du métier visé, une fois chacun) et `off` (recommandation, mobilité interne, approche de chasseur, fiche sans ATS). Le premier lecteur garde la priorité.
+- **Ajout** : dictionnaire annonce / cible centralisé (`lib/cv-wording.ts`) : sans texte d'annonce, tout le texte d'instruction parle de « cible » ; données et règles personnelles jamais réécrites ; clé JSON `langue_annonce` inchangée.
+- **Ajout** : règle de titre par fiche, dont `equivalence` (titre du profil traduit via les équivalences de la fiche, sinon intitulé exact d'une expérience, sinon titre du profil avec remarque dans `warnings`) ; orientation par défaut de la fiche quand aucun réglage n'est fourni.
+- **Compatibilité** : tout en `auto` sans détection, le prompt est identique à l'existant (instantanés inchangés).
+
+---
+
+### Moteur de CV IA : ciblage, étape 1 (fiches et résolution)
+
+- **Ajout** : `lib/cv-targets.ts` : types `TargetType` / `Intent` / `FirstReader`, sept fiches de départ génériques (`DEFAULT_TARGET_SHEETS`), `resolveTarget` (choix explicite > détection > défaut), `defaultFocusFor`, `atsEnabledFor`, `titleRuleFor` (règle de titre `equivalence` ajoutée). Fiches personnalisables par profil (`cv_target_sheets:{profileId}`, seuls les champs modifiés, reprise par la sauvegarde). Aucun effet visible : le prompt n'utilise pas encore ces données. Voir `specs/008-cv-targeting/`.
+
+---
+
 ### Moteur de CV IA : mentions d'en-tête (lot 1)
 
 - **Ajout** : permis de conduire et mentions libres d'en-tête sur le profil (migration 025 `driving_license`, `header_extras`, avec fallback `db.ts`). Formulaire du profil : champ permis et liste éditable de mentions.
 - **Ajout** : affichage dans l'en-tête de tous les templates (variantes sidebar comprises) et dans l'export DOCX, après la ville. Réglages par CV `showDrivingLicense` et `hiddenHeaderExtras` (cases à cocher dans « Paramètres de ce CV »).
 - **Ajout** : champ optionnel `header` du JSON IA (`showDrivingLicense`, `extras`). Le garde-fou ne garde que les mentions présentes dans le profil (`header-extra-invented`) ; l'application n'écrit que `cv.settings`, jamais le profil. Un JSON v2 sans `header` s'applique à l'identique.
+
+### Moteur de CV IA : orientation « missions et périmètre » (`cv_bullet_focus`)
+
+- **Ajout** : réglage d'orientation des puces, `missions` (défaut) ou `resultats`. Par profil (`settings`, clé `cv_bullet_focus:{profileId}`, Paramètres > « Orientation du CV »), avec surcharge par CV (`cv.settings.bulletFocus`, « Paramètres de ce CV » et générateur de la Veille). Priorité : CV > profil > défaut de la cible (`resolveBulletFocus`, 3e paramètre prêt pour le ciblage) > `missions`. Le réglage suit la sauvegarde par profil.
+- **Changé** : tout le texte de prompt qui dépend de l'orientation est centralisé dans `lib/cv-focus-rules.ts` (définition de la puce, gras, accroche, règle des chiffres, consigne `warnings`, exemple du schéma, prompt d'enrichissement du profil, exemple du modèle Markdown). En `missions` : bloc « Orientation : périmètre et missions » (français ou anglais selon la langue du CV), 3 chiffres au maximum hors années, aucun gras, `warnings` = périmètres à préciser. En `resultats` : texte historique à l'identique (instantanés inchangés). Schéma JSON inchangé.
+- **Ajout** : garde-fou en `missions` : `too-many-numbers` (plus de 3 chiffres distincts, hors années 1950 à aujourd'hui, dates et durées), `bold-in-missions-mode` (gras retiré), `summary-has-numbers`. L'anti-invention (`invented-number`, bloquant) est identique dans les deux modes. Le rapport titre les questions de l'IA « Périmètres à préciser ».
+- **Changé** : structure d'accroche par défaut de l'angle « Évaluation et formation » : `{périmètre}` remplace `{preuve de formation}` (les angles déjà enregistrés ne sont pas modifiés) ; exemple du modèle Markdown neutre.
 
 ---
 

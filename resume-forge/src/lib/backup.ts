@@ -9,6 +9,7 @@ import { save, open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { getDb } from '@/lib/db';
 import { filterAllowedColumns } from './validation';
+import { PROFILE_SETTING_NAMES } from './profile-settings';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,36 @@ export interface BackupData {
   modules: Partial<Record<string, Record<string, unknown>[]>>;
   /** Record count per module for display */
   counts: Partial<Record<ModuleId, number>>;
+}
+
+// ─── Données de ciblage à ne pas envoyer hors de l'appareil ──────────────────
+
+/** Champs de `cv.settings.target` qui désignent des personnes (lecteur, personne qui transmet le CV). */
+export const PRIVATE_TARGET_FIELDS = ['readerName', 'readerRole', 'readerNote', 'referrerName'] as const;
+
+/**
+ * Copie de la sauvegarde sans les champs de ciblage qui désignent des personnes
+ * (`cv_documents.settings.target`). Utilisée pour l'envoi vers Google Drive ; la
+ * sauvegarde locale, qui reste sur l'appareil, les conserve.
+ */
+export function redactTargetPeople(backup: BackupData): BackupData {
+  const rows = backup.modules['cv_documents'];
+  if (!rows) return backup;
+  const redacted = rows.map(row => {
+    const raw = row.settings;
+    let settings: unknown = raw;
+    if (typeof raw === 'string') {
+      try { settings = JSON.parse(raw); } catch { return row; }
+    }
+    if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return row;
+    const target = (settings as Record<string, unknown>).target;
+    if (target === null || typeof target !== 'object' || Array.isArray(target)) return row;
+    const cleaned = { ...(target as Record<string, unknown>) };
+    for (const field of PRIVATE_TARGET_FIELDS) delete cleaned[field];
+    const next = { ...(settings as Record<string, unknown>), target: cleaned };
+    return { ...row, settings: typeof raw === 'string' ? JSON.stringify(next) : next };
+  });
+  return { ...backup, modules: { ...backup.modules, cv_documents: redacted } };
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
@@ -341,7 +372,7 @@ export function defaultSourceProfileId(profiles: readonly BackupProfile[], curre
 }
 
 /** Préfixe des réglages propres à un profil dans la table globale `settings` (clé `<préfixe><profileId>`). */
-const PROFILE_SETTING_PREFIXES = ['cv_personal_rules:'];
+const PROFILE_SETTING_PREFIXES = PROFILE_SETTING_NAMES.map(name => `${name}:`);
 
 /**
  * Sauvegarde réduite au profil `sourceId`, remappé sur `targetId` (copie, la
@@ -350,7 +381,7 @@ const PROFILE_SETTING_PREFIXES = ['cv_personal_rules:'];
  *   (les lignes globales, `profile_id` vide ou absent, sont conservées) ;
  * - tables filles filtrées par leur parent (blocs par CV, événements et
  *   pièces jointes par candidature, retours par offre) ;
- * - réglages par profil (`cv_personal_rules:<id>`) : ceux du profil source,
+ * - réglages par profil (`cv_personal_rules:<id>`, `cv_bullet_focus:<id>`) : ceux du profil source,
  *   renommés pour le profil cible ; ceux des autres profils sont écartés.
  */
 export function selectBackupProfile(backup: BackupData, sourceId: string, targetId: string): BackupData {

@@ -24,13 +24,19 @@ import { normalizeLabel } from './cv-sections';
 import { normalizeDescription, normalizeTypography } from './cv-typography';
 import { bulletItems, isSkillCategory } from './skill-lines';
 import { matchProfileExtras, parseHeaderExtras } from './header-extras';
+import type { BulletFocus, VerbTense } from './cv-focus-rules';
+import { checkTarget, type TargetTextField } from './cv-target-guard';
+import type { ResolvedTarget } from './cv-targets';
 import type { AngleSpec, TitleRule } from './cv-angles';
 
 export type GuardCode =
   | 'unknown-id' | 'invented-number' | 'unsourced-term' | 'unsupported-title' | 'suggestion-rejected'
   | 'duplicate-skill' | 'skill-in-several-groups' | 'long-bullet' | 'too-many-bullets' | 'empty-description'
   | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume'
-  | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented';
+  | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented'
+  | 'too-many-numbers' | 'bold-in-missions-mode' | 'summary-has-numbers'
+  | 'target-forbidden-term' | 'target-equivalence-applied' | 'target-photo' | 'target-reader-mentioned'
+  | 'summary-starts-with-title';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -86,13 +92,15 @@ export interface GuardReport {
   aiWarnings: string[];
   /** Angle appliqué (imposé, ou choisi par l'IA dans la bibliothèque) ; absent sans angle. */
   angle?: AngleSpec;
+  /** Orientation des puces contrôlée (absente : aucun contrôle d'orientation). */
+  focus?: BulletFocus;
   metrics: GuardMetrics;
 }
 
 export interface GuardContext {
   /** Entrées du profil maître. */
   entries: readonly MasterEntry[];
-  profile?: Pick<Profile, 'title' | 'summary' | 'drivingLicense' | 'headerExtras'> | null;
+  profile?: Pick<Profile, 'title' | 'summary' | 'drivingLicense' | 'headerExtras' | 'photoPath'> | null;
   /** « Contexte additionnel » saisi par l'utilisateur : seule source des suggestions. */
   extraContext?: string;
   /** Pages cibles (réglage « Pages cibles ») ; défaut : 1, comme le prompt. */
@@ -102,6 +110,22 @@ export interface GuardContext {
   angle?: AngleSpec;
   /** Bibliothèque proposée au LLM : l'angle est celui de `analyse.angle.slug`. */
   angleChoices?: AngleSpec[];
+  /**
+   * Orientation des puces. `missions` ajoute les contrôles de sobriété (chiffres, gras) ;
+   * absente ou `resultats` : comportement historique, aucun contrôle de ce type.
+   */
+  focus?: BulletFocus;
+  /**
+   * Forme du premier mot des puces. Absente ou `passe-present` : cohérence passé / présent selon le
+   * poste (comportement historique) ; `infinitif` : signale participes passés et noms d'action ;
+   * `nominal` : signale les verbes.
+   */
+  verbTense?: VerbTense;
+  /**
+   * Ciblage résolu : ajoute des avertissements propres à la fiche (termes à éviter, équivalences de
+   * titre, photo, mention du premier lecteur). Absent : aucun. L'anti-invention ne change jamais.
+   */
+  target?: ResolvedTarget;
 }
 
 /** Lignes par page A4 à 11 px (titres de section et espacements compris), approximation prudente. */
@@ -138,6 +162,37 @@ export function extractNumbers(text: string): string[] {
     if (Number.isFinite(canonical)) out.push(String(canonical));
   }
   return out;
+}
+
+/** Mode « missions » : nombre maximal de chiffres distincts sur tout le CV (hors années et durées). */
+export const MAX_MISSION_NUMBERS = 3;
+
+const DURATION_UNIT = '(?:mois|ans?|ann[ée]es?|semaines?|jours?|heures?|h|years?|months?|weeks?|days?|hours?)';
+const NUM = '\\d+(?:[.,]\\d+)?';
+const DURATION_RANGE_RE = new RegExp(`${NUM}\\s*(?:à|a|-|–|to)\\s*${NUM}\\s*${DURATION_UNIT}(?![\\p{L}\\d])`, 'giu');
+const DURATION_RE = new RegExp(`${NUM}\\s*${DURATION_UNIT}(?![\\p{L}\\d])`, 'giu');
+
+/**
+ * Chiffres d'un texte qui comptent pour la sobriété du mode « missions » : sont écartés
+ * les années (1950 à l'année courante), les dates (« 06/2021 ») et les durées (« 3 mois »,
+ * « 2 ans », « 24 à 48 h »), qui sont des repères et non des volumes.
+ */
+export function countableNumbers(text: string, now: Date = new Date()): string[] {
+  const maxYear = now.getUTCFullYear();
+  const cleaned = text
+    .replace(/\d+\s*h\s*\d{2}\b/gi, ' ')
+    .replace(DURATION_RANGE_RE, ' ')
+    .replace(DURATION_RE, ' ')
+    .replace(/\b\d{1,2}\/(?:19|20)\d{2}\b/g, ' ')
+    .replace(/\b(19[5-9]\d|20\d{2})\b/g, (m, y: string) => (Number(y) <= maxYear ? ' ' : m));
+  return extractNumbers(cleaned);
+}
+
+/** `**x**` devient `x` ; renvoie aussi le nombre de passages retirés. */
+export function stripBold(text: string): { text: string; count: number } {
+  let count = 0;
+  const out = text.replace(/\*\*([^*]+)\*\*/g, (_m, inner: string) => { count++; return inner; }).replace(/\*\*/g, '');
+  return { text: out, count };
 }
 
 const TERM_STOPLIST = new Set(['cv', 'ats', 'ia', 'ai', 'fr', 'en', 'ue', 'cdi', 'cdd', 'pdf', 'ok', 'tva', 'rh', 'it', 'us']);
@@ -210,6 +265,28 @@ export function bulletTense(bullet: string, language: string): Tense {
   if (/(é|ée|és|ées)$/.test(w) || IRREGULAR_PAST_FR.has(w)) return 'past';
   // Infinitif (-er, -ir, -oir, -ire, consonne + -re) ou nom (-tion, -ment, -age…) : on ne juge pas.
   if (/(er|ir|oir|ire|tion|sion|ment|age|isme|ance|ence|ité|eur|ure|ent)$/.test(w) || /[^aeiouyàâéèêëîïôûù]re$/.test(w)) return 'unknown';
+  if (/(e|it)$/.test(w) && !/^(conduit|construit|produit|écrit|fait)$/.test(w)) return 'present';
+  return 'unknown';
+}
+
+/** Forme du premier mot d'une puce : base verbale (infinitif), participe passé, présent conjugué, nom d'action. */
+export type BulletLead = 'infinitive' | 'past' | 'present' | 'noun' | 'unknown';
+
+const FR_INFINITIVE_IN_URE = new Set(['conclure', 'exclure', 'inclure', 'réclure']);
+
+export function bulletLead(bullet: string, language: string): BulletLead {
+  const w = firstWord(bullet);
+  if (w.length < 3) return 'unknown';
+  if (language === 'en') {
+    if (/ed$/.test(w) || IRREGULAR_PAST_EN.has(w)) return 'past';
+    if (/(ing|tion|sion|ment|ance|ence|ity|ship)$/.test(w)) return 'noun';
+    if (/[^s]s$/.test(w) && !/ss$/.test(w)) return 'present';
+    return 'unknown';
+  }
+  if (/(é|ée|és|ées)$/.test(w) || IRREGULAR_PAST_FR.has(w)) return 'past';
+  if (FR_INFINITIVE_IN_URE.has(w)) return 'infinitive';
+  if (/(tion|sion|ment|age|isme|ance|ence|ité|eur|ure)$/.test(w)) return 'noun';
+  if (/(er|ir|oir|ire)$/.test(w) || /[^aeiouyàâéèêëîïôûù]re$/.test(w)) return 'infinitive';
   if (/(e|it)$/.test(w) && !/^(conduit|construit|produit|écrit|fait)$/.test(w)) return 'present';
   return 'unknown';
 }
@@ -301,6 +378,16 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   const source = buildSource(ctx);
   const label = (id: string) => entryById.get(id)?.title ?? id;
 
+  const missions = ctx.focus === 'missions';
+  let boldStripped = 0;
+  /** Mode « missions » : le gras est retiré (et compté pour le rapport). */
+  const noBold = (text: string): string => {
+    if (!missions) return text;
+    const r = stripBold(text);
+    boldStripped += r.count;
+    return r.text;
+  };
+
   // ── Nettoyage structurel ──
   const seenIds = new Set<string>();
   const unknownIds = new Set<string>();
@@ -328,8 +415,9 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
     for (const key of ['titleOverride', 'companyOverride', 'subtitleOverride'] as const) {
       const v = cleaned[key];
-      if (v !== undefined) cleaned[key] = normalizeTypography(v, language);
+      if (v !== undefined) cleaned[key] = noBold(normalizeTypography(v, language));
     }
+    if (cleaned.description !== undefined) cleaned.description = noBold(cleaned.description);
     entries.push(cleaned);
   }
 
@@ -381,7 +469,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
   }
 
-  let title = input.title !== undefined ? normalizeTypography(input.title, language) : undefined;
+  let title = input.title !== undefined ? noBold(normalizeTypography(input.title, language)) : undefined;
 
   // ── Angle : entrées masquées, entrées en tête, règle de titre ──
   const angle = ctx.angle ?? ctx.angleChoices?.find(a => a.slug !== null && a.slug === input.analyse?.angle?.slug);
@@ -405,13 +493,14 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       e.visible = true;
       warn({ code: 'angle-lead-entry-hidden', message: `« ${label(id)} » est en tête de l'angle « ${angle.label} » et étaye un indispensable : réaffichée.`, entryId: id });
     }
-    const fixed = title !== undefined ? titleForRule(title, angle.titleRule, ctx.profile?.title) : undefined;
+    // Titre libre choisi pour ce CV : prioritaire sur la règle de l'angle.
+    const fixed = title !== undefined && ctx.target?.titleRule !== 'free' ? titleForRule(title, angle.titleRule, ctx.profile?.title) : undefined;
     if (fixed !== undefined && fixed !== title) {
       warn({ code: 'angle-title-corrected', message: `Titre « ${title} » hors de la règle de l'angle : remplacé par « ${fixed} ».` });
       title = fixed;
     }
   }
-  const summary = input.summary !== undefined ? normalizeTypography(input.summary, language) : undefined;
+  const summary = input.summary !== undefined ? noBold(normalizeTypography(input.summary, language)) : undefined;
 
   // ── En-tête : seules les mentions qui existent dans le profil ──
   let header = input.header;
@@ -523,6 +612,76 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
   }
 
+  // ── Accroche : ne répète pas le titre du CV en début de texte ──
+  if (title && summary) {
+    const key = (t: string) => normalizeApostrophes(normalizeLabel(t));
+    const head = key(title.split(/\s[-–|:·]\s/)[0]);
+    if (head.length >= 4 && key(summary).startsWith(head)) {
+      warn({ code: 'summary-starts-with-title', message: `L'accroche commence par le titre du CV (« ${title.split(/\s[-–|:·]\s/)[0].trim()} ») : à retirer du début de l'accroche.` });
+    }
+  }
+
+  // ── Mode « missions » : sobriété des chiffres et du gras (avertissements, jamais bloquants) ──
+  if (missions) {
+    if (boldStripped > 0) {
+      warn({ code: 'bold-in-missions-mode', message: `Mode missions : ${boldStripped} passage(s) en gras retiré(s) (aucun gras dans ce mode).` });
+    }
+    const cvYear = ctx.now ?? new Date();
+    if (summary) {
+      const inSummary = [...new Set(countableNumbers(summary, cvYear))];
+      if (inSummary.length > 0) {
+        warn({ code: 'summary-has-numbers', message: `Mode missions : l'accroche contient un chiffre (${inSummary.join(', ')}) autre que les années d'expérience.` });
+      }
+    }
+    const distinct = new Set<string>();
+    const concerned: string[] = [];
+    for (const e of visible) {
+      if (BADGE_TYPES.has(e.entry.entryType)) continue;
+      for (const bullet of bulletItems(e.description)) {
+        const nums = countableNumbers(bullet, cvYear);
+        if (nums.length === 0) continue;
+        nums.forEach(n => distinct.add(n));
+        concerned.push(`« ${bullet.length > 70 ? `${bullet.slice(0, 67)}…` : bullet} » (${e.title})`);
+      }
+    }
+    if (distinct.size > MAX_MISSION_NUMBERS) {
+      const shown = concerned.slice(0, 6).join(' ; ');
+      warn({
+        code: 'too-many-numbers',
+        message: `Mode missions : ${distinct.size} chiffres distincts (${MAX_MISSION_NUMBERS} au maximum, hors années et durées). Puces concernées : ${shown}${concerned.length > 6 ? ` et ${concerned.length - 6} autre(s)` : ''}.`,
+      });
+    }
+  }
+
+  // ── Ciblage : vocabulaire, équivalences de titre, photo, mention du premier lecteur ──
+  let titleAcceptedByEquivalence = false;
+  const target = ctx.target;
+  if (target && (target.sheet || target.readerName || target.readerRole || target.referrerName)) {
+    const fields: TargetTextField[] = [];
+    if (title) fields.push({ where: 'titre', text: title });
+    if (summary) fields.push({ where: 'accroche', text: summary });
+    for (const e of visible) fields.push({ where: label(e.entry.id), entryId: e.entry.id, text: `${e.title}\n${e.subtitle}\n${e.description}` });
+    const heldTitles = [
+      ...ctx.entries.filter(e => e.entryType === 'experience').map(e => e.title),
+      ctx.profile?.title ?? '',
+    ].filter(Boolean);
+    const titleOverrides = visible
+      .filter(e => e.entry.entryType === 'experience' && (aiById.get(e.entry.id)?.titleOverride ?? undefined) !== undefined)
+      .map(e => ({ entryId: e.entry.id, source: e.entry.title, override: aiById.get(e.entry.id)?.titleOverride as string }));
+    const ownText = [
+      ...ctx.entries.flatMap(e => [e.title, e.subtitle ?? '', e.description ?? '']),
+      ctx.profile?.title ?? '', ctx.profile?.summary ?? '',
+    ].join('\n');
+    const issues = checkTarget({
+      target, fields, ownText, heldTitles, title, titleOverrides,
+      photoShown: Boolean(ctx.profile?.photoPath), french: language === 'fr',
+    });
+    for (const issue of issues) {
+      warn({ code: issue.code, message: issue.message, entryId: issue.entryId });
+      if (issue.code === 'target-equivalence-applied' && !issue.entryId) titleAcceptedByEquivalence = true;
+    }
+  }
+
   // Titre : l'intitulé réel doit figurer parmi les postes tenus.
   if (title) {
     const head = normalizeLabel(title.split(/\s[-|:]\s/)[0]);
@@ -531,7 +690,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       ...effective.filter(e => e.entry.entryType === 'experience').map(e => e.title),
       ctx.profile?.title ?? '',
     ].map(normalizeLabel).filter(Boolean);
-    if (head && !held.some(h => h.includes(head) || head.includes(h))) {
+    if (head && !titleAcceptedByEquivalence && ctx.target?.titleRule !== 'free' && !held.some(h => h.includes(head) || head.includes(h))) {
       warn({ code: 'unsupported-title', message: `Titre « ${title} » : l'intitulé ne correspond à aucun poste tenu dans le profil.` });
     }
   }
@@ -576,17 +735,35 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     if (!strict && type === 'experience' && bullets.length > MAX_BULLETS_PER_EXPERIENCE) {
       warn({ code: 'too-many-bullets', message: `« ${e.title} » : ${bullets.length} puces (maximum ${MAX_BULLETS_PER_EXPERIENCE}).`, entryId: e.entry.id });
     }
-    // Cohérence des temps (poste terminé = passé, poste actuel = présent).
+    // Forme du premier mot des puces, selon le réglage du profil.
     if (type === 'experience' && bullets.length >= 2) {
-      const current = e.entry.isCurrent || !e.entry.endDate;
-      const tenses = bullets.map(b => bulletTense(b, language));
-      const wrong = tenses.filter(t => (current ? t === 'past' : t === 'present')).length;
-      if (wrong >= 2 && wrong / bullets.length >= 0.5) {
-        warn({
-          code: 'tense',
-          message: `« ${e.title} » : ${wrong} puce(s) au ${current ? 'passé sur un poste actuel' : 'présent sur un poste terminé'}.`,
-          entryId: e.entry.id,
-        });
+      const verbTense = ctx.verbTense ?? 'passe-present';
+      if (verbTense === 'passe-present') {
+        // Cohérence des temps (poste terminé = passé, poste actuel = présent).
+        const current = e.entry.isCurrent || !e.entry.endDate;
+        const tenses = bullets.map(b => bulletTense(b, language));
+        const wrong = tenses.filter(t => (current ? t === 'past' : t === 'present')).length;
+        if (wrong >= 2 && wrong / bullets.length >= 0.5) {
+          warn({
+            code: 'tense',
+            message: `« ${e.title} » : ${wrong} puce(s) au ${current ? 'passé sur un poste actuel' : 'présent sur un poste terminé'}.`,
+            entryId: e.entry.id,
+          });
+        }
+      } else {
+        const leads = bullets.map(b => bulletLead(b, language));
+        const offending = verbTense === 'infinitif'
+          ? leads.filter(l => l === 'past' || l === 'noun' || l === 'present').length
+          : leads.filter(l => l === 'infinitive' || l === 'past' || l === 'present').length;
+        if (offending >= 2 && offending / bullets.length >= 0.5) {
+          warn({
+            code: 'tense',
+            message: verbTense === 'infinitif'
+              ? `« ${e.title} » : ${offending} puce(s) ne commencent pas par un verbe à l'infinitif (participe passé, nom d'action ou verbe conjugué).`
+              : `« ${e.title} » : ${offending} puce(s) ne commencent pas par un nom d'action (verbe à l'infinitif, participe passé ou verbe conjugué).`,
+            entryId: e.entry.id,
+          });
+        }
       }
     }
   }
@@ -736,6 +913,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     data,
     report: {
       ...(angle ? { angle } : {}),
+      ...(ctx.focus ? { focus: ctx.focus } : {}),
       errors,
       warnings,
       aiWarnings: input.warnings ?? [],
