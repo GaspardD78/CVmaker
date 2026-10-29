@@ -125,3 +125,27 @@ describe('les noms du ciblage ne sortent jamais dans l\'export', () => {
     for (const secret of ['Camille Fictif', 'Alex Fictif', 'directeur des opérations']) expect(xml).not.toContain(secret);
   });
 });
+
+describe('TargetPanel : régénération et titre', () => {
+  const render = (props: { dirty?: boolean; onCopyPrompt?: () => void }) => {
+    const choice = {};
+    const target = resolveTarget(choice);
+    return renderToStaticMarkup(
+      <TargetPanel choice={choice} onChange={() => {}} detected={{}} effectiveType={target.type} effectiveIntent={target.intent} {...props} />,
+    );
+  };
+  it('« Copier le nouveau prompt » apparaît dès qu\'un champ a changé', () => {
+    expect(render({})).not.toContain('Copier le nouveau prompt');
+    expect(render({ dirty: false, onCopyPrompt: () => {} })).not.toContain('Copier le nouveau prompt');
+    expect(render({ dirty: true, onCopyPrompt: () => {} })).toContain('Copier le nouveau prompt');
+    expect(render({ dirty: true })).not.toContain('Copier le nouveau prompt');
+  });
+  it('règle de titre par CV, dont « Titre libre »', () => {
+    const html = renderToStaticMarkup(
+      <TargetPanel choice={{ titleRule: 'free' }} onChange={() => {}} detected={{}} effectiveType={null} effectiveIntent="spontanee" />,
+    );
+    expect(html).toContain('Règle de titre pour ce CV');
+    expect(html).toContain('Titre libre (conservé tel quel)');
+    expect(html).toContain('Le titre proposé par l&#x27;IA est conservé tel quel, même avec un angle actif.');
+  });
+});

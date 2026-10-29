@@ -11,7 +11,7 @@ const JOB = 'Chargé de recrutement (H/F). Vous pilotez le recrutement de profil
 
 const input = (choice: TargetChoice | undefined, extra: Partial<CvPromptOptions> = {}, job = JOB, profile = TEST_PROFILE): CvPromptInput => ({
   profile, entries: makeEntries(), jobOfferText: job,
-  options: { now: NOW, pageBudget: 1, ...(choice ? { target: resolveTarget(choice) } : {}), ...extra },
+  options: { now: NOW, pageBudget: 1, verbTense: 'passe-present', ...(choice ? { target: resolveTarget(choice) } : {}), ...extra },
 });
 
 describe('tout en auto : prompt identique à l\'existant', () => {
@@ -197,5 +197,24 @@ describe('dictionnaire annonce / cible', () => {
   it('cible : remplacements ordonnés, clé JSON conservée', () => {
     expect(applyWording("Tu optimises un CV pour UNE annonce ; langue_annonce de l'annonce, cette annonce", 'cible'))
       .toBe('Tu optimises un CV pour UNE cible ; langue_annonce de la cible, cette cible');
+  });
+});
+
+describe('titre libre : prioritaire sur l\'angle et sur la fiche', () => {
+  const own = { title: 'Chargé de recrutement' };
+  const free = resolveTarget({ type: 'public', titleRule: 'free' });
+  it('conservé tel quel, même avec un angle « profile » et une fiche à équivalences', () => {
+    const t = buildTitleRule(own, { titleRule: 'profile' }, free);
+    expect(t).toContain('intitulé libre, conservé tel quel par l\'application');
+    expect(t).not.toContain('équivalences');
+    expect(t).not.toContain('règle de l\'angle');
+    expect(buildTitleRule(own, SOC_ANGLE, free)).toContain('intitulé libre');
+  });
+  it('sans titre de profil aussi, sans fiche aussi', () => {
+    expect(buildTitleRule(null, undefined, resolveTarget({ titleRule: 'free' }))).toContain('intitulé libre');
+  });
+  it('le prompt complet applique la règle', () => {
+    const prompt = buildCvPrompt(input({ type: 'esn', titleRule: 'free' }));
+    expect(prompt).toContain('intitulé libre, conservé tel quel');
   });
 });

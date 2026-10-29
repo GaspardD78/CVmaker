@@ -43,7 +43,7 @@ function senior(): MasterEntry[] {
 
 function input(entries: MasterEntry[], job: string, extra: Partial<CvPromptInput> = {}): CvPromptInput {
   // Orientation « résultats » : texte historique, garde-fou de non-régression des instantanés.
-  return { profile: TEST_PROFILE, entries, jobOfferText: job, ...extra, options: { now: NOW, bulletFocus: 'resultats', cibleAxes: [], ...(extra.options ?? {}) } };
+  return { profile: TEST_PROFILE, entries, jobOfferText: job, ...extra, options: { now: NOW, bulletFocus: 'resultats', verbTense: 'passe-present', cibleAxes: [], ...(extra.options ?? {}) } };
 }
 
 describe('blocs du prompt CV v2', () => {
@@ -248,7 +248,7 @@ describe('instantanés « tout en auto » (avec la demande de proposition analys
   // couvrent le prompt réellement produit quand rien n'est fixé ni détecté.
   for (const [name, job] of [['annonce FR', JOB_FR], ['annonce EN', JOB_EN]] as const) {
     it(name, () => {
-      expect(buildCvPrompt(input(confirmed(), job, { options: { now: NOW, bulletFocus: 'resultats', cibleAxes: undefined } }))).toMatchSnapshot();
+      expect(buildCvPrompt(input(confirmed(), job, { options: { now: NOW, bulletFocus: 'resultats', verbTense: 'passe-present', cibleAxes: undefined } }))).toMatchSnapshot();
     });
   }
 });

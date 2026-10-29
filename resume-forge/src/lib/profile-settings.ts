@@ -8,7 +8,7 @@ import { parseSheetOverrides, serializeSheetOverrides, type SheetOverrides } fro
  */
 
 /** Noms de réglages par profil (préfixes de `settings.key`, sans le `:`), repris par la sauvegarde. */
-export const PROFILE_SETTING_NAMES = ['cv_personal_rules', 'cv_bullet_focus', 'cv_target_sheets'] as const;
+export const PROFILE_SETTING_NAMES = ['cv_personal_rules', 'cv_bullet_focus', 'cv_verb_tense', 'cv_target_sheets'] as const;
 
 export function profileSettingKey(name: string, profileId: string): string {
   return `${name}:${profileId}`;

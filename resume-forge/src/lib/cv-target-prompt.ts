@@ -26,17 +26,19 @@ export function atsRule(level: AtsLevel): string {
 // ── Règle de titre ───────────────────────────────────────────────────────────
 
 /** Règle TITRE d'une fiche. Requiert un titre de profil ; sans titre, la règle historique s'applique ailleurs. */
-export function targetTitleRule(rule: TargetTitleRule, own: string, equivalences: readonly Equivalence[]): string | null {
+export function targetTitleRule(rule: TargetTitleRule, own: string | undefined, equivalences: readonly Equivalence[]): string | null {
   const tail = "Ne modifie jamais l'intitulé d'une expérience pour coller à l'annonce.";
   switch (rule) {
     case 'profile':
+      if (!own) return null;
       return `- TITRE ("title") : « ${own} » tel quel (positionnement choisi par le candidat). Aucun autre intitulé. ${tail}`;
     case 'equivalence': {
+      if (!own) return null;
       const eq = equivalences.length > 0 ? ` à l'aide des équivalences suivantes : ${arrows(equivalences)}` : '';
       return `- TITRE ("title") : « ${own} » tel quel, ou traduit${eq}. À défaut, l'intitulé exact d'une expérience du profil ; à défaut, « ${own} » tel quel avec une remarque dans "warnings". Aucun autre intitulé. ${tail}`;
     }
     case 'free':
-      return `- TITRE ("title") : intitulé libre, conservé tel quel par l'application. Il décrit la fonction visée sans prétendre à un poste que le profil n'a pas occupé (profil : « ${own} »). ${tail}`;
+      return `- TITRE ("title") : intitulé libre, conservé tel quel par l'application : il décrit la fonction visée par ce CV${own ? ` (profil : « ${own} »)` : ''} sans prétendre à un poste que le profil n'a pas occupé. ${tail}`;
     default:
       return null; // profile+keyword : règle historique de buildTitleRule
   }

@@ -30,6 +30,15 @@ export type Auto<T> = T | 'auto';
  */
 export type TargetTitleRule = 'profile' | 'profile+keyword' | 'equivalence' | 'free';
 
+export const TARGET_TITLE_RULES: readonly TargetTitleRule[] = ['profile', 'profile+keyword', 'equivalence', 'free'];
+
+export const TITLE_RULE_LABELS: Readonly<Record<TargetTitleRule, string>> = {
+  profile: 'Titre du profil tel quel',
+  'profile+keyword': 'Titre du profil, éventuellement suivi d\'un mot-clé',
+  equivalence: 'Titre traduit via les équivalences',
+  free: 'Titre libre (conservé tel quel)',
+};
+
 export interface Equivalence {
   from: string;
   to: string;
@@ -350,6 +359,11 @@ export interface TargetChoice {
   firstReader?: Auto<FirstReader>;
   /** « Ce que valorise ce lecteur » : jamais cité dans le CV. */
   readerNote?: string;
+  /**
+   * Règle de titre choisie pour ce CV : prioritaire sur la fiche et sur la règle d'un angle.
+   * `free` (titre proposé conservé tel quel) n'existe que par ce choix manuel.
+   */
+  titleRule?: TargetTitleRule;
   /** Nom du premier lecteur : reste dans `cv.settings.target`, jamais dans le prompt ni dans l'export. */
   readerName?: string;
   /** Fonction du premier lecteur : transmise au prompt (sans le nom), jamais citée dans le CV. */
@@ -379,6 +393,8 @@ export interface ResolvedTarget {
   sheet: TargetSheet | null;
   sources: { type: AxisSource; intent: AxisSource; firstReader: AxisSource };
   readerNote?: string;
+  /** Règle de titre choisie manuellement pour ce CV (absente : celle de la fiche). */
+  titleRule?: TargetTitleRule;
   readerName?: string;
   readerRole?: string;
   referrerName?: string;
@@ -434,6 +450,7 @@ export function resolveTarget(
     sheet: type.value ? sheetFor(type.value, profileOverrides) : null,
     sources: { type: type.source, intent: intent.source, firstReader: reader.source },
   };
+  if (choice?.titleRule && TARGET_TITLE_RULES.includes(choice.titleRule)) resolved.titleRule = choice.titleRule;
   const note = choice?.readerNote?.trim();
   if (note) resolved.readerNote = note;
   for (const key of ['readerName', 'readerRole'] as const) {
@@ -499,9 +516,9 @@ export function wordingModeFor(target: ResolvedTarget, jobOfferText: string): 'a
   return jobOfferText.trim() ? 'annonce' : 'cible';
 }
 
-/** Règle de titre par défaut ; sans fiche, la règle historique (`profile+keyword`). */
+/** Règle de titre : choix manuel du CV, sinon celle de la fiche, sinon la règle historique (`profile+keyword`). */
 export function titleRuleFor(target: ResolvedTarget): TargetTitleRule {
-  return target.sheet?.titreParDefaut ?? 'profile+keyword';
+  return target.titleRule ?? target.sheet?.titreParDefaut ?? 'profile+keyword';
 }
 
 // ── Libellés d'affichage ─────────────────────────────────────────────────────

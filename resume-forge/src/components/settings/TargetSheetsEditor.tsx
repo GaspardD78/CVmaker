@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { BULLET_FOCUS_OPTIONS, normalizeBulletFocus } from '@/lib/cv-focus-rules';
 import {
-  DEFAULT_TARGET_SHEETS, TARGET_TYPES, TARGET_TYPE_LABELS, equivalenceLines, parseEquivalenceLines, resetSheet,
+  DEFAULT_TARGET_SHEETS, TARGET_TYPES, TARGET_TYPE_LABELS, TITLE_RULE_LABELS, equivalenceLines, parseEquivalenceLines, resetSheet,
   setSheetOverride, sheetFor, splitLines,
   type SheetOverrides, type TargetSheet, type TargetTitleRule, type TargetType,
 } from '@/lib/cv-targets';
@@ -15,12 +15,6 @@ interface TargetSheetsEditorProps {
 const fieldCls = 'w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 placeholder:italic focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400';
 const labelCls = 'block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1';
 
-const TITLE_RULE_LABELS: Record<TargetTitleRule, string> = {
-  profile: 'Titre du profil tel quel',
-  'profile+keyword': 'Titre du profil, éventuellement suivi d\'un mot-clé',
-  equivalence: 'Titre traduit via les équivalences',
-  free: 'Titre libre',
-};
 const PHOTO_LABELS = { oui: 'Photo conseillée', non: 'Photo déconseillée', indifferent: 'Photo indifférente' } as const;
 
 const canonEquivalences = (text: string): string => equivalenceLines(parseEquivalenceLines(text));

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import {
-  FIRST_READERS, FIRST_READER_LABELS, INTENTS, INTENT_LABELS, TARGET_TYPES, TARGET_TYPE_LABELS, splitLines,
-  type DetectedTarget, type FirstReader, type Intent, type TargetBrief, type TargetChoice, type TargetType,
+  FIRST_READERS, FIRST_READER_LABELS, INTENTS, INTENT_LABELS, TARGET_TITLE_RULES, TARGET_TYPES, TARGET_TYPE_LABELS, TITLE_RULE_LABELS, splitLines,
+  type DetectedTarget, type FirstReader, type Intent, type TargetBrief, type TargetTitleRule, type TargetChoice, type TargetType,
 } from '@/lib/cv-targets';
 
 interface TargetPanelProps {
@@ -13,6 +13,9 @@ interface TargetPanelProps {
   /** Type et intention effectifs (choix, sinon détection) : pilotent les champs affichés. */
   effectiveType: TargetType | null;
   effectiveIntent: Intent;
+  /** Un champ du ciblage a changé depuis la dernière copie : affiche « Copier le nouveau prompt ». */
+  dirty?: boolean;
+  onCopyPrompt?: () => void;
   /** Change à chaque demande « Modifier et régénérer » : ouvre « Préciser la cible ». */
   expandSignal?: number;
 }
@@ -50,7 +53,7 @@ function AxisSelect<T extends string>({ id, label, tip, values, labels, value, d
  * Ciblage du CV : type de structure, intention, premier lecteur (tous en « Auto » par défaut) sur une
  * ligne ; formulaire de cible et champs du lecteur repliés sous « Préciser la cible ».
  */
-export function TargetPanel({ choice, onChange, detected, effectiveType, effectiveIntent, expandSignal }: TargetPanelProps) {
+export function TargetPanel({ choice, onChange, detected, effectiveType, effectiveIntent, dirty, onCopyPrompt, expandSignal }: TargetPanelProps) {
   const needsBrief = effectiveIntent !== 'annonce';
   const [open, setOpen] = useState(effectiveIntent === 'spontanee' || effectiveIntent === 'recommandation');
   const [positionsText, setPositionsText] = useState((choice.brief?.positions ?? []).join('\n'));
@@ -81,6 +84,16 @@ export function TargetPanel({ choice, onChange, detected, effectiveType, effecti
           value={choice.firstReader} onChange={(v: FirstReader | 'auto') => set({ firstReader: v })}
         />
       </div>
+
+      {dirty && onCopyPrompt && (
+        <button
+          type="button"
+          onClick={onCopyPrompt}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors"
+        >
+          <Copy className="w-3.5 h-3.5" /> Copier le nouveau prompt
+        </button>
+      )}
 
       <button
         type="button"
@@ -131,6 +144,20 @@ export function TargetPanel({ choice, onChange, detected, effectiveType, effecti
               </div>
             </fieldset>
           )}
+
+          <div>
+            <label htmlFor="title-rule" className={labelCls}>Règle de titre pour ce CV</label>
+            <select
+              id="title-rule" className={inputCls} value={choice.titleRule ?? ''}
+              onChange={e => set({ titleRule: (e.target.value || undefined) as TargetTitleRule | undefined })}
+            >
+              <option value="">Selon la fiche</option>
+              {TARGET_TITLE_RULES.map(r => <option key={r} value={r}>{TITLE_RULE_LABELS[r]}</option>)}
+            </select>
+            {choice.titleRule === 'free' && (
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Le titre proposé par l'IA est conservé tel quel, même avec un angle actif.</p>
+            )}
+          </div>
 
           <fieldset className="space-y-2">
             <legend className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1">Premier lecteur</legend>

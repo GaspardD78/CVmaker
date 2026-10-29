@@ -7,6 +7,17 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : lot 4 (temps des verbes, titre libre, accroche)
+
+- **Ajout** : réglage par profil `cv_verb_tense:{profileId}` : `infinitif` (défaut, « Recruter », « Piloter »), `passe-present` (comportement précédent) ou `nominal` (« Recrutement de… »), dans Paramètres > « Orientation du CV ». La définition de la puce compose orientation et temps en un seul endroit (`bulletForm` dans `lib/cv-focus-rules.ts`) : « verbe d'action à l'infinitif + quoi + pour qui ou sur quel périmètre + comment ». Le test « pas de consigne en dur » couvre aussi « verbes au passé » et « verbes au présent ».
+- **Changé** : le contrôle `tense` du garde-fou suit le réglage : en `infinitif`, signale participe passé, nom d'action ou verbe conjugué en tête de puce ; en `nominal`, signale les verbes ; en `passe-present`, cohérence passé / présent comme avant. Le prompt par défaut change (infinitif) ; le texte « passé / présent » est conservé à l'identique pour ce réglage.
+- **Ajout** : règle de titre `free` (titre proposé conservé tel quel), choisie manuellement pour un CV (« Préciser la cible » > « Règle de titre pour ce CV »). Prioritaire sur la règle d'un angle et sur la fiche ; le garde-fou ne corrige alors plus le titre et n'émet pas `unsupported-title`. Enregistrée dans l'instantané `cv.settings.target`.
+- **Ajout** : accroche : le prompt demande de ne pas répéter le titre du CV en début d'accroche (tous les prompts gagnent cette phrase) et le garde-fou avertit (`summary-starts-with-title`).
+- **Ergonomie** : « Copier le nouveau prompt » apparaît dès qu'un champ du ciblage change (CV builder et Veille), copie le prompt avec le ciblage courant puis disparaît.
+- **Reste** : la documentation du schéma pour `mergedEntries` et `cvSkillLines` arrive avec les lots 2 et 3, qui ajoutent ces champs.
+
+---
+
 ### Moteur de CV IA : ciblage, étape 5 (interface)
 
 - **Ajout** : panneau de ciblage (`TargetPanel`) dans le générateur du CV builder et dans celui de la Veille : trois sélecteurs sur une ligne (type de structure, intention, premier lecteur), en « Auto » par défaut avec info-bulle et détection affichée ; formulaire de cible (entreprise, activité, contexte RH, postes envisagés, atouts, contexte) et champs du lecteur repliés sous « Préciser la cible ». Sans annonce (spontanée, recommandation), le formulaire de cible remplace le champ « Annonce ». Catégorie et filière seulement pour le type public.

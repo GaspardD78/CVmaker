@@ -24,7 +24,7 @@ import { normalizeLabel } from './cv-sections';
 import { normalizeDescription, normalizeTypography } from './cv-typography';
 import { bulletItems, isSkillCategory } from './skill-lines';
 import { matchProfileExtras, parseHeaderExtras } from './header-extras';
-import type { BulletFocus } from './cv-focus-rules';
+import type { BulletFocus, VerbTense } from './cv-focus-rules';
 import { checkTarget, type TargetTextField } from './cv-target-guard';
 import type { ResolvedTarget } from './cv-targets';
 import type { AngleSpec, TitleRule } from './cv-angles';
@@ -35,7 +35,8 @@ export type GuardCode =
   | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume'
   | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented'
   | 'too-many-numbers' | 'bold-in-missions-mode' | 'summary-has-numbers'
-  | 'target-forbidden-term' | 'target-equivalence-applied' | 'target-photo' | 'target-reader-mentioned';
+  | 'target-forbidden-term' | 'target-equivalence-applied' | 'target-photo' | 'target-reader-mentioned'
+  | 'summary-starts-with-title';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -114,6 +115,12 @@ export interface GuardContext {
    * absente ou `resultats` : comportement historique, aucun contrôle de ce type.
    */
   focus?: BulletFocus;
+  /**
+   * Forme du premier mot des puces. Absente ou `passe-present` : cohérence passé / présent selon le
+   * poste (comportement historique) ; `infinitif` : signale participes passés et noms d'action ;
+   * `nominal` : signale les verbes.
+   */
+  verbTense?: VerbTense;
   /**
    * Ciblage résolu : ajoute des avertissements propres à la fiche (termes à éviter, équivalences de
    * titre, photo, mention du premier lecteur). Absent : aucun. L'anti-invention ne change jamais.
@@ -258,6 +265,28 @@ export function bulletTense(bullet: string, language: string): Tense {
   if (/(é|ée|és|ées)$/.test(w) || IRREGULAR_PAST_FR.has(w)) return 'past';
   // Infinitif (-er, -ir, -oir, -ire, consonne + -re) ou nom (-tion, -ment, -age…) : on ne juge pas.
   if (/(er|ir|oir|ire|tion|sion|ment|age|isme|ance|ence|ité|eur|ure|ent)$/.test(w) || /[^aeiouyàâéèêëîïôûù]re$/.test(w)) return 'unknown';
+  if (/(e|it)$/.test(w) && !/^(conduit|construit|produit|écrit|fait)$/.test(w)) return 'present';
+  return 'unknown';
+}
+
+/** Forme du premier mot d'une puce : base verbale (infinitif), participe passé, présent conjugué, nom d'action. */
+export type BulletLead = 'infinitive' | 'past' | 'present' | 'noun' | 'unknown';
+
+const FR_INFINITIVE_IN_URE = new Set(['conclure', 'exclure', 'inclure', 'réclure']);
+
+export function bulletLead(bullet: string, language: string): BulletLead {
+  const w = firstWord(bullet);
+  if (w.length < 3) return 'unknown';
+  if (language === 'en') {
+    if (/ed$/.test(w) || IRREGULAR_PAST_EN.has(w)) return 'past';
+    if (/(ing|tion|sion|ment|ance|ence|ity|ship)$/.test(w)) return 'noun';
+    if (/[^s]s$/.test(w) && !/ss$/.test(w)) return 'present';
+    return 'unknown';
+  }
+  if (/(é|ée|és|ées)$/.test(w) || IRREGULAR_PAST_FR.has(w)) return 'past';
+  if (FR_INFINITIVE_IN_URE.has(w)) return 'infinitive';
+  if (/(tion|sion|ment|age|isme|ance|ence|ité|eur|ure)$/.test(w)) return 'noun';
+  if (/(er|ir|oir|ire)$/.test(w) || /[^aeiouyàâéèêëîïôûù]re$/.test(w)) return 'infinitive';
   if (/(e|it)$/.test(w) && !/^(conduit|construit|produit|écrit|fait)$/.test(w)) return 'present';
   return 'unknown';
 }
@@ -464,7 +493,8 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       e.visible = true;
       warn({ code: 'angle-lead-entry-hidden', message: `« ${label(id)} » est en tête de l'angle « ${angle.label} » et étaye un indispensable : réaffichée.`, entryId: id });
     }
-    const fixed = title !== undefined ? titleForRule(title, angle.titleRule, ctx.profile?.title) : undefined;
+    // Titre libre choisi pour ce CV : prioritaire sur la règle de l'angle.
+    const fixed = title !== undefined && ctx.target?.titleRule !== 'free' ? titleForRule(title, angle.titleRule, ctx.profile?.title) : undefined;
     if (fixed !== undefined && fixed !== title) {
       warn({ code: 'angle-title-corrected', message: `Titre « ${title} » hors de la règle de l'angle : remplacé par « ${fixed} ».` });
       title = fixed;
@@ -582,6 +612,15 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
   }
 
+  // ── Accroche : ne répète pas le titre du CV en début de texte ──
+  if (title && summary) {
+    const key = (t: string) => normalizeApostrophes(normalizeLabel(t));
+    const head = key(title.split(/\s[-–|:·]\s/)[0]);
+    if (head.length >= 4 && key(summary).startsWith(head)) {
+      warn({ code: 'summary-starts-with-title', message: `L'accroche commence par le titre du CV (« ${title.split(/\s[-–|:·]\s/)[0].trim()} ») : à retirer du début de l'accroche.` });
+    }
+  }
+
   // ── Mode « missions » : sobriété des chiffres et du gras (avertissements, jamais bloquants) ──
   if (missions) {
     if (boldStripped > 0) {
@@ -651,7 +690,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       ...effective.filter(e => e.entry.entryType === 'experience').map(e => e.title),
       ctx.profile?.title ?? '',
     ].map(normalizeLabel).filter(Boolean);
-    if (head && !titleAcceptedByEquivalence && !held.some(h => h.includes(head) || head.includes(h))) {
+    if (head && !titleAcceptedByEquivalence && ctx.target?.titleRule !== 'free' && !held.some(h => h.includes(head) || head.includes(h))) {
       warn({ code: 'unsupported-title', message: `Titre « ${title} » : l'intitulé ne correspond à aucun poste tenu dans le profil.` });
     }
   }
@@ -696,17 +735,35 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     if (!strict && type === 'experience' && bullets.length > MAX_BULLETS_PER_EXPERIENCE) {
       warn({ code: 'too-many-bullets', message: `« ${e.title} » : ${bullets.length} puces (maximum ${MAX_BULLETS_PER_EXPERIENCE}).`, entryId: e.entry.id });
     }
-    // Cohérence des temps (poste terminé = passé, poste actuel = présent).
+    // Forme du premier mot des puces, selon le réglage du profil.
     if (type === 'experience' && bullets.length >= 2) {
-      const current = e.entry.isCurrent || !e.entry.endDate;
-      const tenses = bullets.map(b => bulletTense(b, language));
-      const wrong = tenses.filter(t => (current ? t === 'past' : t === 'present')).length;
-      if (wrong >= 2 && wrong / bullets.length >= 0.5) {
-        warn({
-          code: 'tense',
-          message: `« ${e.title} » : ${wrong} puce(s) au ${current ? 'passé sur un poste actuel' : 'présent sur un poste terminé'}.`,
-          entryId: e.entry.id,
-        });
+      const verbTense = ctx.verbTense ?? 'passe-present';
+      if (verbTense === 'passe-present') {
+        // Cohérence des temps (poste terminé = passé, poste actuel = présent).
+        const current = e.entry.isCurrent || !e.entry.endDate;
+        const tenses = bullets.map(b => bulletTense(b, language));
+        const wrong = tenses.filter(t => (current ? t === 'past' : t === 'present')).length;
+        if (wrong >= 2 && wrong / bullets.length >= 0.5) {
+          warn({
+            code: 'tense',
+            message: `« ${e.title} » : ${wrong} puce(s) au ${current ? 'passé sur un poste actuel' : 'présent sur un poste terminé'}.`,
+            entryId: e.entry.id,
+          });
+        }
+      } else {
+        const leads = bullets.map(b => bulletLead(b, language));
+        const offending = verbTense === 'infinitif'
+          ? leads.filter(l => l === 'past' || l === 'noun' || l === 'present').length
+          : leads.filter(l => l === 'infinitive' || l === 'past' || l === 'present').length;
+        if (offending >= 2 && offending / bullets.length >= 0.5) {
+          warn({
+            code: 'tense',
+            message: verbTense === 'infinitif'
+              ? `« ${e.title} » : ${offending} puce(s) ne commencent pas par un verbe à l'infinitif (participe passé, nom d'action ou verbe conjugué).`
+              : `« ${e.title} » : ${offending} puce(s) ne commencent pas par un nom d'action (verbe à l'infinitif, participe passé ou verbe conjugué).`,
+            entryId: e.entry.id,
+          });
+        }
       }
     }
   }
