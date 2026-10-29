@@ -7,6 +7,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : ciblage, étape 1 (fiches et résolution)
+
+- **Ajout** : `lib/cv-targets.ts` : types `TargetType` / `Intent` / `FirstReader`, sept fiches de départ génériques (`DEFAULT_TARGET_SHEETS`), `resolveTarget` (choix explicite > détection > défaut), `defaultFocusFor`, `atsEnabledFor`, `titleRuleFor` (règle de titre `equivalence` ajoutée). Fiches personnalisables par profil (`cv_target_sheets:{profileId}`, seuls les champs modifiés, reprise par la sauvegarde). Aucun effet visible : le prompt n'utilise pas encore ces données. Voir `specs/008-cv-targeting/`.
+
+---
+
 ### Moteur de CV IA : mentions d'en-tête (lot 1)
 
 - **Ajout** : permis de conduire et mentions libres d'en-tête sur le profil (migration 025 `driving_license`, `header_extras`, avec fallback `db.ts`). Formulaire du profil : champ permis et liste éditable de mentions.

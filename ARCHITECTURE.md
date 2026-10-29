@@ -312,6 +312,10 @@ cv.settings.cvAngle = instantané (lib/cv-angle-selection.ts) : liste des CV, fi
 
 ---
 
+## 8 bis. Ciblage du CV (spec 008)
+
+`lib/cv-targets.ts` (pur) définit trois axes de ciblage (type de structure, intention, premier lecteur), les fiches par type (`DEFAULT_TARGET_SHEETS`) et `resolveTarget` (choix explicite > détection > défaut). Les fiches sont des données de rédaction, jamais des faits de CV. Personnalisation par profil : `settings`, clé `cv_target_sheets:{profileId}` (champs modifiés seulement). Les fiches donnent une valeur par défaut à l'orientation des puces (3e paramètre de `resolveBulletFocus`), à la règle de titre et à la règle ATS. Étape 1 : données et résolution seulement, pas encore branchées au prompt.
+
 ## 9. Veille emploi : analyse IA (spec 005)
 
 Les deux boutons du `HealthDashboard` (« Optimiser » et « Diagnostic ») partagent un seul pipeline, testable sans IA ni base :
