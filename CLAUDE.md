@@ -31,6 +31,7 @@ La CI (`.github/workflows/ci.yml`) exécute ces commandes sur chaque PR. Plan d'
 TypeScript strict ≥ 5.x (frontend) + Rust edition 2021 (Tauri 2 backend): Follow standard conventions
 
 ## Recent Changes
+- ciblage du CV, étape 4 (branche claude/pensive-turing-82lmks-targeting-4) : garde-fou de ciblage (`lib/cv-target-guard.ts`) : `target-forbidden-term`, `target-equivalence-applied`, `target-photo`, `target-reader-mentioned` (avertissements, `GuardContext.target`). Voir `specs/008-cv-targeting/`.
 - ciblage du CV, étape 3 (branche claude/pensive-turing-82lmks-targeting-3) : détection (`lib/cv-target-detect.ts`), champ IA `analyse.cible`, `reconcileAiTarget` (jamais de remplacement silencieux), instantané `cv.settings.target` (`lib/cv-target-snapshot.ts`). Voir `specs/008-cv-targeting/`.
 - ciblage du CV, étape 2 (branche claude/pensive-turing-82lmks-targeting-2) : section « Cible et intention » (`lib/cv-target-prompt.ts`), ATS à trois niveaux (`atsLevelFor` : strict / leger / off), dictionnaire annonce/cible (`lib/cv-wording.ts`), règle de titre `equivalence`, orientation par défaut de la fiche. Tout en `auto` = prompt inchangé. Voir `specs/008-cv-targeting/`.
 - ciblage du CV, étape 1 (branche claude/pensive-turing-82lmks-targeting-1) : `lib/cv-targets.ts` (types, sept fiches `DEFAULT_TARGET_SHEETS`, `resolveTarget`, `atsEnabledFor`, `titleRuleFor`, `defaultFocusFor`), fiches par profil `cv_target_sheets:{profileId}`. Pas encore branché au prompt. Voir `specs/008-cv-targeting/`.

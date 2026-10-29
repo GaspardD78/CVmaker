@@ -1,6 +1,6 @@
 # 008 - Ciblage du CV : type de structure, intention, premier lecteur
 
-Statut : étapes 1 (données et résolution), 2 (bloc de prompt) et 3 (détection, `analyse.cible`, instantané) livrées ; les étapes 2 à 5 sont décrites ci-dessous.
+Statut : étapes 1 (données et résolution), 2 (bloc de prompt), 3 (détection, `analyse.cible`, instantané) et 4 (garde-fou) livrées ; les étapes 2 à 5 sont décrites ci-dessous.
 
 ## Principe
 
@@ -39,3 +39,7 @@ Les fiches (`lib/cv-targets.ts`, `DEFAULT_TARGET_SHEETS`) sont des données de r
 - IA : `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), demandé pour les axes encore par défaut, y compris quand tout est en auto. C'est la seule différence du prompt « tout en auto » : sans fiche, sans autre changement de règles, le CV produit est identique. La proposition n'est jamais appliquée à ce CV : l'écran affiche « Ciblage proposé » et le bouton « Appliquer et régénérer » (étape 5).
 - Priorité : choix explicite > type détecté par l'application > proposition de l'IA > défaut. Un désaccord n'est jamais appliqué : il est rapporté pour correction et régénération.
 - Instantané `cv.settings.target` : ciblage effectif et fiche utilisée (`readTargetSnapshot`).
+
+## Garde-fou (étape 4)
+
+`GuardContext.target` active des avertissements (jamais bloquants) : `target-forbidden-term` (termes de la fiche, avec l'équivalence), `target-equivalence-applied` (titre ou `titleOverride` traduit via la table de la fiche ; sinon `unsupported-title`), `target-photo`, `target-reader-mentioned` (nom ou fonction du premier lecteur, personne qui transmet le CV ; une expression du profil du candidat lui-même est ignorée). L'anti-invention est identique quel que soit le ciblage.

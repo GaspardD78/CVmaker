@@ -352,6 +352,8 @@ export interface TargetChoice {
   firstReader?: Auto<FirstReader>;
   /** « Ce que valorise ce lecteur » : jamais cité dans le CV. */
   readerNote?: string;
+  /** Nom du premier lecteur, s'il est connu : n'apparaît jamais dans le CV. */
+  readerName?: string;
   brief?: TargetBrief;
   /** Types `public` seulement, repris de l'annonce, jamais déduits pour le candidat. */
   publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
@@ -375,6 +377,7 @@ export interface ResolvedTarget {
   sheet: TargetSheet | null;
   sources: { type: AxisSource; intent: AxisSource; firstReader: AxisSource };
   readerNote?: string;
+  readerName?: string;
   brief?: TargetBrief;
   publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
 }
@@ -429,6 +432,8 @@ export function resolveTarget(
   };
   const note = choice?.readerNote?.trim();
   if (note) resolved.readerNote = note;
+  const readerName = choice?.readerName?.trim();
+  if (readerName) resolved.readerName = readerName;
   const brief = cleanBrief(choice?.brief);
   if (brief) resolved.brief = brief;
   if (type.value === 'public' && choice?.publicDetails) {

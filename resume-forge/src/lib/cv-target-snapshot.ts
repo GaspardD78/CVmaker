@@ -82,6 +82,7 @@ export interface TargetSnapshot {
   sources: ResolvedTarget['sources'];
   sheet: TargetSheet | null;
   readerNote?: string;
+  readerName?: string;
   brief?: TargetBrief;
   publicDetails?: ResolvedTarget['publicDetails'];
 }
@@ -92,6 +93,7 @@ export function buildTargetSnapshot(target: ResolvedTarget): TargetSnapshot {
     sources: { ...target.sources }, sheet: target.sheet,
   };
   if (target.readerNote) snap.readerNote = target.readerNote;
+  if (target.readerName) snap.readerName = target.readerName;
   if (target.brief) snap.brief = target.brief;
   if (target.publicDetails) snap.publicDetails = target.publicDetails;
   return snap;
@@ -119,6 +121,7 @@ export function readTargetSnapshot(settings: Record<string, unknown> | null | un
   }
   const out: ResolvedTarget = { type, intent, firstReader, sheet, sources: { type: sources.type, intent: sources.intent, firstReader: sources.firstReader } };
   if (typeof r.readerNote === 'string' && r.readerNote.trim()) out.readerNote = r.readerNote;
+  if (typeof r.readerName === 'string' && r.readerName.trim()) out.readerName = r.readerName;
   if (r.brief && typeof r.brief === 'object') out.brief = r.brief as TargetBrief;
   if (r.publicDetails && typeof r.publicDetails === 'object') out.publicDetails = r.publicDetails as ResolvedTarget['publicDetails'];
   return out;
