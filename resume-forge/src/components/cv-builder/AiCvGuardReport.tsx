@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, HelpCircle, OctagonAlert } from 'lucide-react';
 import type { GuardReport } from '@/lib/ai-cv-guard';
+import { warningsLabel } from '@/lib/cv-focus-rules';
 
 interface AiCvGuardReportProps {
   report: GuardReport;
@@ -97,11 +98,14 @@ export function AiCvGuardReport({ report }: AiCvGuardReportProps) {
       )}
 
       {report.aiWarnings.length > 0 && (
-        <ul className="space-y-1 text-sky-700 dark:text-sky-300">
-          {report.aiWarnings.map((w, i) => (
-            <li key={i} className="flex gap-1.5"><HelpCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />{w}</li>
-          ))}
-        </ul>
+        <div className="text-sky-700 dark:text-sky-300">
+          {warningsLabel(report.focus) && <p className="font-semibold mb-1">{warningsLabel(report.focus)}</p>}
+          <ul className="space-y-1">
+            {report.aiWarnings.map((w, i) => (
+              <li key={i} className="flex gap-1.5"><HelpCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />{w}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {report.warnings.length > 0 && (

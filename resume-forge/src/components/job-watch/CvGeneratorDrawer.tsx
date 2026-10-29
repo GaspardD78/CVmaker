@@ -9,6 +9,8 @@ import { generateFullCVMatchPrompt, generateCoverLetterPrompt } from '@/lib/prom
 import type { AiCvSuggestedEntry } from '@/lib/ai-cv-response';
 import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
 import { AiCvGuardReport } from '@/components/cv-builder/AiCvGuardReport';
+import { BulletFocusSelect } from '@/components/cv-builder/BulletFocusSelect';
+import { resolveBulletFocus, type BulletFocus } from '@/lib/cv-focus-rules';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
 import type { JobOffer } from '@/types/job-watch';
 import { useAngleStore } from '@/stores/angleStore';
@@ -43,7 +45,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
 export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const { profile, entries } = useProfileStore();
   const { cvs, fetchCvs, duplicateCv } = useCvStore();
-  const { targetPages, loadTargetPages, personalRules, personalRulesProfileId, loadPersonalRules } = usePromptStore();
+  const { targetPages, loadTargetPages, personalRules, personalRulesProfileId, loadPersonalRules, bulletFocus, bulletFocusProfileId, loadBulletFocus } = usePromptStore();
   // Règles personnelles du profil courant (jamais celles d'un autre profil).
   const ownRules = profile && personalRulesProfileId === profile.id ? personalRules : '';
 
@@ -61,6 +63,10 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const [promptCopied, setPromptCopied] = useState(false);
   const [cvPromptCopied, setCvPromptCopied] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  // Orientation des puces : surcharge propre à ce CV (`''` : réglage du profil).
+  const [focusOverride, setFocusOverride] = useState<BulletFocus | ''>('');
+  const profileFocus = profile && bulletFocusProfileId === profile.id ? bulletFocus : undefined;
+  const focus = resolveBulletFocus({ bulletFocus: focusOverride || undefined }, profileFocus);
   const [angleSelection, setAngleSelection] = useState<AngleSelection>(NO_ANGLE);
   const { angles: angleLibrary, profileId: angleProfileId } = useAngleStore();
   const library = profile && angleProfileId === profile.id ? angleLibrary : NO_ANGLES;
@@ -75,7 +81,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (open) {
       fetchCvs();
       loadTargetPages();
-      if (profile) loadPersonalRules(profile.id);
+      if (profile) { loadPersonalRules(profile.id); loadBulletFocus(profile.id); }
       // Reset state on each new offer
       setActiveTab('master');
       setJsonInput('');
@@ -89,13 +95,13 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setCvPromptCopied(false);
       setAngleSelection(NO_ANGLE);
     }
-  }, [open, offer?.id, fetchCvs, loadTargetPages, loadPersonalRules, profile?.id]);
+  }, [open, offer?.id, fetchCvs, loadTargetPages, loadPersonalRules, loadBulletFocus, profile?.id]);
 
   // Parse + garde-fou du JSON collé : alimente le rapport, la revue des suggestions et le récapitulatif.
   // Les erreurs de format sont ignorées ici (signalées à l'application).
   const analysis = useMemo(
-    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, ...angleOpts }) : null),
-    [jsonInput, entries, profile, extraContext, targetPages, angleOpts],
+    () => (jsonInput.trim() ? analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, focus, ...angleOpts }) : null),
+    [jsonInput, entries, profile, extraContext, targetPages, focus, angleOpts],
   );
 
   useEffect(() => {
@@ -146,12 +152,12 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
 
   // ── Prompt generators ────────────────────────────────────────────────────
 
-  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules, ...angleOpts });
+  const getMasterPrompt = () => generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules, bulletFocus: focus, ...angleOpts });
 
   const getExistingCvPrompt = () => {
     // Same prompt as master but scoped to entries visible in the selected CV
     // (we still use the master entries — the AI will handle selection from the CV)
-    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules, ...angleOpts });
+    return generateFullCVMatchPrompt(profile, entries, offerText, offer.company || undefined, extraContext, clarify, { pageBudget: targetPages, personalRules: ownRules, bulletFocus: focus, ...angleOpts });
   };
 
   // ── Suggested-entry helpers (off-profile, opt-in) ─────────────────────────
@@ -205,6 +211,18 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       selection={angleSelection}
       onSelectionChange={setAngleSelection}
     />
+  );
+
+  const renderFocusSelect = () => (
+    <div className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
+      <label htmlFor="drawer-bullet-focus" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Orientation des puces</label>
+      <BulletFocusSelect
+        id="drawer-bullet-focus"
+        value={focusOverride}
+        onChange={setFocusOverride}
+        inheritFrom={resolveBulletFocus(null, profileFocus)}
+      />
+    </div>
   );
 
   const renderClarifyToggle = () => (
@@ -310,7 +328,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const handleApplyMasterJson = async () => {
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, ...angleOpts });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, focus, ...angleOpts });
     if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
@@ -335,7 +353,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
         targetJob: data.title ?? offer.title,
         targetCompany: offer.company ?? null,
         customSummary: data.summary ?? null,
-        settings: cvAngle ? { cvAngle } : {},
+        settings: { ...(cvAngle ? { cvAngle } : {}), ...(focusOverride ? { bulletFocus: focusOverride } : {}) },
         isFavorite: false,
         lastExported: null,
         markdownContent: null,
@@ -371,7 +389,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!selectedCvId) { toast.error('Sélectionnez un CV à dupliquer'); return; }
     if (!jsonInput.trim()) { toast.error('Collez le JSON généré par l\'IA'); return; }
 
-    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, ...angleOpts });
+    const result = analyzeAiCvJson(jsonInput, { entries, profile, extraContext, pageBudget: targetPages, focus, ...angleOpts });
     if (!result.ok) {
       toast.error('JSON invalide. Vérifiez le format.');
       return;
@@ -396,7 +414,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
         targetJob: data.title ?? offer.title,
         customSummary: data.summary ?? null,
         // Instantané de l'angle (remplace celui du CV dupliqué, retiré sans angle).
-        settings: { ...Object.fromEntries(Object.entries(newCv.settings ?? {}).filter(([k]) => k !== 'cvAngle')), ...(cvAngle ? { cvAngle } : {}) },
+        settings: { ...Object.fromEntries(Object.entries(newCv.settings ?? {}).filter(([k]) => k !== 'cvAngle' && k !== 'bulletFocus')), ...(cvAngle ? { cvAngle } : {}), ...(focusOverride ? { bulletFocus: focusOverride } : {}) },
       });
 
       // 3. Apply entry overrides, skill grouping and re-ordering (non destructive)
@@ -583,6 +601,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               <div className="space-y-2">
                 <StepLabel n={1} label="Copier le prompt d'analyse" />
                 {renderAnglePanel()}
+                {renderFocusSelect()}
                 {renderClarifyToggle()}
                 <CopyBtn
                   copied={promptCopied}
@@ -689,6 +708,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
               <div className="space-y-2">
                 <StepLabel n={2} label="Copier le prompt d'analyse" />
                 {renderAnglePanel()}
+                {renderFocusSelect()}
                 {renderClarifyToggle()}
                 <CopyBtn
                   copied={cvPromptCopied}

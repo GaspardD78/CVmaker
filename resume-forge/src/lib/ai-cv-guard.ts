@@ -24,13 +24,15 @@ import { normalizeLabel } from './cv-sections';
 import { normalizeDescription, normalizeTypography } from './cv-typography';
 import { bulletItems, isSkillCategory } from './skill-lines';
 import { matchProfileExtras, parseHeaderExtras } from './header-extras';
+import type { BulletFocus } from './cv-focus-rules';
 import type { AngleSpec, TitleRule } from './cv-angles';
 
 export type GuardCode =
   | 'unknown-id' | 'invented-number' | 'unsourced-term' | 'unsupported-title' | 'suggestion-rejected'
   | 'duplicate-skill' | 'skill-in-several-groups' | 'long-bullet' | 'too-many-bullets' | 'empty-description'
   | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume'
-  | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented';
+  | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented'
+  | 'too-many-numbers' | 'bold-in-missions-mode' | 'summary-has-numbers';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -86,6 +88,8 @@ export interface GuardReport {
   aiWarnings: string[];
   /** Angle appliqué (imposé, ou choisi par l'IA dans la bibliothèque) ; absent sans angle. */
   angle?: AngleSpec;
+  /** Orientation des puces contrôlée (absente : aucun contrôle d'orientation). */
+  focus?: BulletFocus;
   metrics: GuardMetrics;
 }
 
@@ -102,6 +106,11 @@ export interface GuardContext {
   angle?: AngleSpec;
   /** Bibliothèque proposée au LLM : l'angle est celui de `analyse.angle.slug`. */
   angleChoices?: AngleSpec[];
+  /**
+   * Orientation des puces. `missions` ajoute les contrôles de sobriété (chiffres, gras) ;
+   * absente ou `resultats` : comportement historique, aucun contrôle de ce type.
+   */
+  focus?: BulletFocus;
 }
 
 /** Lignes par page A4 à 11 px (titres de section et espacements compris), approximation prudente. */
@@ -138,6 +147,37 @@ export function extractNumbers(text: string): string[] {
     if (Number.isFinite(canonical)) out.push(String(canonical));
   }
   return out;
+}
+
+/** Mode « missions » : nombre maximal de chiffres distincts sur tout le CV (hors années et durées). */
+export const MAX_MISSION_NUMBERS = 3;
+
+const DURATION_UNIT = '(?:mois|ans?|ann[ée]es?|semaines?|jours?|heures?|h|years?|months?|weeks?|days?|hours?)';
+const NUM = '\\d+(?:[.,]\\d+)?';
+const DURATION_RANGE_RE = new RegExp(`${NUM}\\s*(?:à|a|-|–|to)\\s*${NUM}\\s*${DURATION_UNIT}(?![\\p{L}\\d])`, 'giu');
+const DURATION_RE = new RegExp(`${NUM}\\s*${DURATION_UNIT}(?![\\p{L}\\d])`, 'giu');
+
+/**
+ * Chiffres d'un texte qui comptent pour la sobriété du mode « missions » : sont écartés
+ * les années (1950 à l'année courante), les dates (« 06/2021 ») et les durées (« 3 mois »,
+ * « 2 ans », « 24 à 48 h »), qui sont des repères et non des volumes.
+ */
+export function countableNumbers(text: string, now: Date = new Date()): string[] {
+  const maxYear = now.getUTCFullYear();
+  const cleaned = text
+    .replace(/\d+\s*h\s*\d{2}\b/gi, ' ')
+    .replace(DURATION_RANGE_RE, ' ')
+    .replace(DURATION_RE, ' ')
+    .replace(/\b\d{1,2}\/(?:19|20)\d{2}\b/g, ' ')
+    .replace(/\b(19[5-9]\d|20\d{2})\b/g, (m, y: string) => (Number(y) <= maxYear ? ' ' : m));
+  return extractNumbers(cleaned);
+}
+
+/** `**x**` devient `x` ; renvoie aussi le nombre de passages retirés. */
+export function stripBold(text: string): { text: string; count: number } {
+  let count = 0;
+  const out = text.replace(/\*\*([^*]+)\*\*/g, (_m, inner: string) => { count++; return inner; }).replace(/\*\*/g, '');
+  return { text: out, count };
 }
 
 const TERM_STOPLIST = new Set(['cv', 'ats', 'ia', 'ai', 'fr', 'en', 'ue', 'cdi', 'cdd', 'pdf', 'ok', 'tva', 'rh', 'it', 'us']);
@@ -301,6 +341,16 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   const source = buildSource(ctx);
   const label = (id: string) => entryById.get(id)?.title ?? id;
 
+  const missions = ctx.focus === 'missions';
+  let boldStripped = 0;
+  /** Mode « missions » : le gras est retiré (et compté pour le rapport). */
+  const noBold = (text: string): string => {
+    if (!missions) return text;
+    const r = stripBold(text);
+    boldStripped += r.count;
+    return r.text;
+  };
+
   // ── Nettoyage structurel ──
   const seenIds = new Set<string>();
   const unknownIds = new Set<string>();
@@ -328,8 +378,9 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
     for (const key of ['titleOverride', 'companyOverride', 'subtitleOverride'] as const) {
       const v = cleaned[key];
-      if (v !== undefined) cleaned[key] = normalizeTypography(v, language);
+      if (v !== undefined) cleaned[key] = noBold(normalizeTypography(v, language));
     }
+    if (cleaned.description !== undefined) cleaned.description = noBold(cleaned.description);
     entries.push(cleaned);
   }
 
@@ -381,7 +432,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
   }
 
-  let title = input.title !== undefined ? normalizeTypography(input.title, language) : undefined;
+  let title = input.title !== undefined ? noBold(normalizeTypography(input.title, language)) : undefined;
 
   // ── Angle : entrées masquées, entrées en tête, règle de titre ──
   const angle = ctx.angle ?? ctx.angleChoices?.find(a => a.slug !== null && a.slug === input.analyse?.angle?.slug);
@@ -411,7 +462,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       title = fixed;
     }
   }
-  const summary = input.summary !== undefined ? normalizeTypography(input.summary, language) : undefined;
+  const summary = input.summary !== undefined ? noBold(normalizeTypography(input.summary, language)) : undefined;
 
   // ── En-tête : seules les mentions qui existent dans le profil ──
   let header = input.header;
@@ -520,6 +571,38 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     const unsourced = extractTechnicalTerms(f.text, { properNouns: language === 'fr' }).filter(t => !containsWord(source.text, t));
     if (unsourced.length > 0) {
       warn({ code: 'unsourced-term', message: `Terme absent de la source (${f.where}) : ${unsourced.join(', ')}.`, entryId: f.entryId });
+    }
+  }
+
+  // ── Mode « missions » : sobriété des chiffres et du gras (avertissements, jamais bloquants) ──
+  if (missions) {
+    if (boldStripped > 0) {
+      warn({ code: 'bold-in-missions-mode', message: `Mode missions : ${boldStripped} passage(s) en gras retiré(s) (aucun gras dans ce mode).` });
+    }
+    const cvYear = ctx.now ?? new Date();
+    if (summary) {
+      const inSummary = [...new Set(countableNumbers(summary, cvYear))];
+      if (inSummary.length > 0) {
+        warn({ code: 'summary-has-numbers', message: `Mode missions : l'accroche contient un chiffre (${inSummary.join(', ')}) autre que les années d'expérience.` });
+      }
+    }
+    const distinct = new Set<string>();
+    const concerned: string[] = [];
+    for (const e of visible) {
+      if (BADGE_TYPES.has(e.entry.entryType)) continue;
+      for (const bullet of bulletItems(e.description)) {
+        const nums = countableNumbers(bullet, cvYear);
+        if (nums.length === 0) continue;
+        nums.forEach(n => distinct.add(n));
+        concerned.push(`« ${bullet.length > 70 ? `${bullet.slice(0, 67)}…` : bullet} » (${e.title})`);
+      }
+    }
+    if (distinct.size > MAX_MISSION_NUMBERS) {
+      const shown = concerned.slice(0, 6).join(' ; ');
+      warn({
+        code: 'too-many-numbers',
+        message: `Mode missions : ${distinct.size} chiffres distincts (${MAX_MISSION_NUMBERS} au maximum, hors années et durées). Puces concernées : ${shown}${concerned.length > 6 ? ` et ${concerned.length - 6} autre(s)` : ''}.`,
+      });
     }
   }
 
@@ -736,6 +819,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     data,
     report: {
       ...(angle ? { angle } : {}),
+      ...(ctx.focus ? { focus: ctx.focus } : {}),
       errors,
       warnings,
       aiWarnings: input.warnings ?? [],

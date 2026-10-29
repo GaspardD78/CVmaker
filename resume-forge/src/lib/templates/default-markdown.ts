@@ -1,3 +1,5 @@
+import { MARKDOWN_BULLET_EXAMPLE } from '../cv-focus-rules';
+
 /**
  * Modèle de départ Markdown pour un nouveau CV.
  * Injecté dans markdown_content lors de la création d'un document en mode Markdown
@@ -23,7 +25,7 @@ export const DEFAULT_MARKDOWN_TEMPLATE = `# [Votre Prénom Nom]
 ### [Intitulé de poste] — [Nom de l'entreprise]
 *[Mois Année] – [Mois Année ou Présent] · [Ville]*
 
-- [Responsabilité ou réalisation clé — quantifiez si possible (ex. : augmentation de X % des performances)]
+- ${MARKDOWN_BULLET_EXAMPLE}
 - [Responsabilité ou réalisation clé]
 - [Responsabilité ou réalisation clé]
 

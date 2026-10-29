@@ -13,6 +13,13 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Ajout** : affichage dans l'en-tête de tous les templates (variantes sidebar comprises) et dans l'export DOCX, après la ville. Réglages par CV `showDrivingLicense` et `hiddenHeaderExtras` (cases à cocher dans « Paramètres de ce CV »).
 - **Ajout** : champ optionnel `header` du JSON IA (`showDrivingLicense`, `extras`). Le garde-fou ne garde que les mentions présentes dans le profil (`header-extra-invented`) ; l'application n'écrit que `cv.settings`, jamais le profil. Un JSON v2 sans `header` s'applique à l'identique.
 
+### Moteur de CV IA : orientation « missions et périmètre » (`cv_bullet_focus`)
+
+- **Ajout** : réglage d'orientation des puces, `missions` (défaut) ou `resultats`. Par profil (`settings`, clé `cv_bullet_focus:{profileId}`, Paramètres > « Orientation du CV »), avec surcharge par CV (`cv.settings.bulletFocus`, « Paramètres de ce CV » et générateur de la Veille). Priorité : CV > profil > défaut de la cible (`resolveBulletFocus`, 3e paramètre prêt pour le ciblage) > `missions`. Le réglage suit la sauvegarde par profil.
+- **Changé** : tout le texte de prompt qui dépend de l'orientation est centralisé dans `lib/cv-focus-rules.ts` (définition de la puce, gras, accroche, règle des chiffres, consigne `warnings`, exemple du schéma, prompt d'enrichissement du profil, exemple du modèle Markdown). En `missions` : bloc « Orientation : périmètre et missions » (français ou anglais selon la langue du CV), 3 chiffres au maximum hors années, aucun gras, `warnings` = périmètres à préciser. En `resultats` : texte historique à l'identique (instantanés inchangés). Schéma JSON inchangé.
+- **Ajout** : garde-fou en `missions` : `too-many-numbers` (plus de 3 chiffres distincts, hors années 1950 à aujourd'hui, dates et durées), `bold-in-missions-mode` (gras retiré), `summary-has-numbers`. L'anti-invention (`invented-number`, bloquant) est identique dans les deux modes. Le rapport titre les questions de l'IA « Périmètres à préciser ».
+- **Changé** : structure d'accroche par défaut de l'angle « Évaluation et formation » : `{périmètre}` remplace `{preuve de formation}` (les angles déjà enregistrés ne sont pas modifiés) ; exemple du modèle Markdown neutre.
+
 ---
 
 ## [Non publié] - 2026-10-05
