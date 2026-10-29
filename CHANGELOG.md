@@ -7,6 +7,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : ciblage, étape 5 (interface)
+
+- **Ajout** : panneau de ciblage (`TargetPanel`) dans le générateur du CV builder et dans celui de la Veille : trois sélecteurs sur une ligne (type de structure, intention, premier lecteur), en « Auto » par défaut avec info-bulle et détection affichée ; formulaire de cible (entreprise, activité, contexte RH, postes envisagés, atouts, contexte) et champs du lecteur repliés sous « Préciser la cible ». Sans annonce (spontanée, recommandation), le formulaire de cible remplace le champ « Annonce ». Catégorie et filière seulement pour le type public.
+- **Ajout** : ligne « Ciblage retenu » (et « Ciblage proposé » avec « Appliquer et régénérer ») au-dessus du rapport du garde-fou, bouton « Modifier et régénérer ». La proposition de l'IA n'est appliquée que sur action de l'utilisateur.
+- **Ajout** : champs dédiés « Premier lecteur : nom », « Premier lecteur : fonction », « Transmis par : nom » (recommandation seulement) et « Ce que valorise ce lecteur ». Les noms restent dans `cv.settings.target` : jamais dans le prompt (qui reçoit la fonction et la note), jamais dans l'export, retirés de la sauvegarde Google Drive (`redactTargetPeople`). Le repérage heuristique de la fonction dans la note est supprimé.
+- **Ajout** : écran « Fiches de ciblage » dans les Paramètres : valeurs par défaut en grisé, seuls les champs modifiés sont enregistrés, « Revenir aux valeurs par défaut » par fiche.
+- **Changé** : l'orientation effective tient compte du défaut de la fiche (CV > profil > fiche > missions) ; le prompt n'inclut plus le nom de la personne qui transmet le CV (instantané `grand-groupe · recommandation · operationnel` mis à jour).
+
+---
+
 ### Moteur de CV IA : ciblage, étape 4 (garde-fou)
 
 - **Ajout** : avertissements du garde-fou liés au ciblage (`lib/cv-target-guard.ts`), jamais bloquants, absents sans ciblage :

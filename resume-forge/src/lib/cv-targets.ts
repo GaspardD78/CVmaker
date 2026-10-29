@@ -341,8 +341,6 @@ export interface TargetBrief {
   strengths?: string[];
   /** Autre contexte connu. */
   context?: string;
-  /** Personne qui transmet le CV (recommandation) : n'apparaît jamais dans le CV. */
-  referrer?: string;
 }
 
 /** Choix explicite de l'utilisateur sur ce CV (`auto` ou absent : pas de choix). */
@@ -352,8 +350,12 @@ export interface TargetChoice {
   firstReader?: Auto<FirstReader>;
   /** « Ce que valorise ce lecteur » : jamais cité dans le CV. */
   readerNote?: string;
-  /** Nom du premier lecteur, s'il est connu : n'apparaît jamais dans le CV. */
+  /** Nom du premier lecteur : reste dans `cv.settings.target`, jamais dans le prompt ni dans l'export. */
   readerName?: string;
+  /** Fonction du premier lecteur : transmise au prompt (sans le nom), jamais citée dans le CV. */
+  readerRole?: string;
+  /** « Transmis par » (recommandation) : nom de la personne, jamais dans le prompt ni dans l'export. */
+  referrerName?: string;
   brief?: TargetBrief;
   /** Types `public` seulement, repris de l'annonce, jamais déduits pour le candidat. */
   publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
@@ -378,6 +380,8 @@ export interface ResolvedTarget {
   sources: { type: AxisSource; intent: AxisSource; firstReader: AxisSource };
   readerNote?: string;
   readerName?: string;
+  readerRole?: string;
+  referrerName?: string;
   brief?: TargetBrief;
   publicDetails?: { categorie?: 'A' | 'B' | 'C'; filiere?: string };
 }
@@ -385,7 +389,7 @@ export interface ResolvedTarget {
 function cleanBrief(brief: TargetBrief | undefined): TargetBrief | undefined {
   if (!brief) return undefined;
   const out: TargetBrief = {};
-  for (const key of ['company', 'activity', 'hrContext', 'context', 'referrer'] as const) {
+  for (const key of ['company', 'activity', 'hrContext', 'context'] as const) {
     const v = brief[key]?.trim();
     if (v) out[key] = v;
   }
@@ -432,8 +436,13 @@ export function resolveTarget(
   };
   const note = choice?.readerNote?.trim();
   if (note) resolved.readerNote = note;
-  const readerName = choice?.readerName?.trim();
-  if (readerName) resolved.readerName = readerName;
+  for (const key of ['readerName', 'readerRole'] as const) {
+    const v = choice?.[key]?.trim();
+    if (v) resolved[key] = v;
+  }
+  // « Transmis par » n'a de sens que pour une recommandation.
+  const referrer = choice?.referrerName?.trim();
+  if (referrer && resolved.intent === 'recommandation') resolved.referrerName = referrer;
   const brief = cleanBrief(choice?.brief);
   if (brief) resolved.brief = brief;
   if (type.value === 'public' && choice?.publicDetails) {
@@ -493,4 +502,91 @@ export function wordingModeFor(target: ResolvedTarget, jobOfferText: string): 'a
 /** Règle de titre par défaut ; sans fiche, la règle historique (`profile+keyword`). */
 export function titleRuleFor(target: ResolvedTarget): TargetTitleRule {
   return target.sheet?.titreParDefaut ?? 'profile+keyword';
+}
+
+// ── Libellés d'affichage ─────────────────────────────────────────────────────
+
+export const TARGET_TYPE_LABELS: Readonly<Record<TargetType, string>> = {
+  esn: 'ESN / conseil', cabinet: 'Cabinet', 'grand-groupe': 'Grand groupe', 'eti-pme': 'ETI / PME',
+  startup: 'Start-up', public: 'Fonction publique', associatif: 'Associatif',
+};
+export const INTENT_LABELS: Readonly<Record<Intent, string>> = {
+  annonce: 'Annonce', spontanee: 'Candidature spontanée', recommandation: 'Recommandation',
+  'mobilite-interne': 'Mobilité interne', chasseur: 'Approche de chasseur',
+};
+export const FIRST_READER_LABELS: Readonly<Record<FirstReader, string>> = {
+  rh: 'RH', operationnel: 'Opérationnel', direction: 'Direction', ats: 'Tri automatique',
+};
+
+/** « Fonction publique · Annonce · RH » ; un axe non résolu s'affiche « auto ». */
+export function describeTarget(target: ResolvedTarget): string {
+  return [
+    target.type ? TARGET_TYPE_LABELS[target.type] : 'type auto',
+    INTENT_LABELS[target.intent],
+    target.firstReader ? FIRST_READER_LABELS[target.firstReader] : 'lecteur auto',
+  ].join(' · ');
+}
+
+// ── Édition des fiches (écran des Paramètres) ────────────────────────────────
+
+/** Une valeur par ligne, lignes vides ignorées. */
+export function splitLines(text: string): string[] {
+  return text.split('\n').map(l => l.trim()).filter(Boolean);
+}
+
+/** « from → to » par ligne (« -> » accepté) ; les lignes incomplètes sont ignorées. */
+export function parseEquivalenceLines(text: string): Equivalence[] {
+  return splitLines(text)
+    .map(l => l.split(/\s*(?:→|->)\s*/))
+    .filter(parts => parts.length === 2 && parts[0] && parts[1])
+    .map(([from, to]) => ({ from, to }));
+}
+
+export function equivalenceLines(eq: readonly Equivalence[]): string {
+  return eq.map(e => `${e.from} → ${e.to}`).join('\n');
+}
+
+const sameList = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+const sameEq = (a: readonly Equivalence[], b: readonly Equivalence[]): boolean =>
+  a.length === b.length && a.every((v, i) => v.from === b[i].from && v.to === b[i].to);
+
+/**
+ * Surcharge à enregistrer pour un type : uniquement les champs qui diffèrent de la fiche par défaut
+ * (`draft` est une fiche partielle ; une valeur identique au défaut n'est pas stockée).
+ */
+export function buildSheetOverride(type: TargetType, draft: Partial<TargetSheet>): SheetOverride | undefined {
+  const base = DEFAULT_TARGET_SHEETS[type];
+  const o: SheetOverride = {};
+  for (const key of ['attentes', 'valorise', 'eviter', 'avoidTerms'] as const) {
+    const v = draft[key];
+    if (v && !sameList(v, base[key])) o[key] = v;
+  }
+  if (draft.label !== undefined && draft.label.trim() && draft.label !== base.label) o.label = draft.label.trim();
+  if (draft.focusParDefaut && draft.focusParDefaut !== base.focusParDefaut) o.focusParDefaut = draft.focusParDefaut;
+  if (draft.titreParDefaut && draft.titreParDefaut !== base.titreParDefaut) o.titreParDefaut = draft.titreParDefaut;
+  if (draft.ats !== undefined && draft.ats !== base.ats) o.ats = draft.ats;
+  const v = draft.vocabulaire;
+  if (v) {
+    const out: Partial<TargetSheet['vocabulaire']> = {};
+    if (v.registre !== undefined && v.registre !== base.vocabulaire.registre) out.registre = v.registre;
+    if (v.privilegier && !sameList(v.privilegier, base.vocabulaire.privilegier)) out.privilegier = v.privilegier;
+    if (v.equivalences && !sameEq(v.equivalences, base.vocabulaire.equivalences)) out.equivalences = v.equivalences;
+    if (Object.keys(out).length > 0) o.vocabulaire = out;
+  }
+  const a = draft.affichage;
+  if (a) {
+    const out: Partial<TargetSheet['affichage']> = {};
+    if (a.photo && a.photo !== base.affichage.photo) out.photo = a.photo;
+    if (a.longueur !== undefined && a.longueur !== base.affichage.longueur) out.longueur = a.longueur;
+    if (a.sections !== undefined && a.sections !== base.affichage.sections) out.sections = a.sections;
+    if (Object.keys(out).length > 0) o.affichage = out;
+  }
+  return Object.keys(o).length > 0 ? o : undefined;
+}
+
+/** Remplace (ou retire, si rien ne diffère) la surcharge d'un type. */
+export function setSheetOverride(overrides: SheetOverrides, type: TargetType, draft: Partial<TargetSheet>): SheetOverrides {
+  const next = buildSheetOverride(type, draft);
+  const rest = resetSheet(overrides, type);
+  return next ? { ...rest, [type]: next } : rest;
 }

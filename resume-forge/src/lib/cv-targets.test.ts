@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  DEFAULT_TARGET_SHEETS, FIRST_READERS, TARGET_TYPES, atsEnabledFor, atsLevelFor, wordingModeFor, defaultFocusFor, parseSheetOverrides,
+  DEFAULT_TARGET_SHEETS, FIRST_READERS, TARGET_TYPES, atsEnabledFor, atsLevelFor, buildSheetOverride, describeTarget, equivalenceLines, parseEquivalenceLines, setSheetOverride, splitLines, wordingModeFor, defaultFocusFor, parseSheetOverrides,
   resetSheet, resolveTarget, serializeSheetOverrides, sheetFor, titleRuleFor,
 } from './cv-targets';
 import { resolveBulletFocus } from './cv-focus-rules';
@@ -179,8 +179,17 @@ describe('défauts dérivés de la cible', () => {
     expect(wordingModeFor(resolveTarget({ intent: 'mobilite-interne' }), '  ')).toBe('cible');
   });
 
+  it('« transmis par » n\'est gardé que pour une recommandation', () => {
+    expect(resolveTarget({ intent: 'recommandation', referrerName: ' Alex ' }).referrerName).toBe('Alex');
+    expect(resolveTarget({ intent: 'spontanee', referrerName: 'Alex' }).referrerName).toBeUndefined();
+    expect(resolveTarget({ referrerName: 'Alex' }).referrerName).toBeUndefined();
+    const r = resolveTarget({ readerName: ' Camille ', readerRole: ' directeur ' });
+    expect(r.readerName).toBe('Camille');
+    expect(r.readerRole).toBe('directeur');
+  });
+
   it('le formulaire de cible est nettoyé', () => {
-    const r = resolveTarget({ brief: { company: ' Orga ', positions: ['A', ' ', 'B'], strengths: [], referrer: '' } });
+    const r = resolveTarget({ brief: { company: ' Orga ', positions: ['A', ' ', 'B'], strengths: [] } });
     expect(r.brief).toEqual({ company: 'Orga', positions: ['A', 'B'] });
     expect(resolveTarget({ brief: { company: ' ' } }).brief).toBeUndefined();
   });
@@ -221,5 +230,42 @@ describe('fiches personnalisées par profil', () => {
 
   it('le réglage suit la sauvegarde par profil', () => {
     expect(PROFILE_SETTING_NAMES).toContain('cv_target_sheets');
+  });
+});
+
+describe('libellé du ciblage', () => {
+  it('describeTarget : axes résolus, « auto » sinon', () => {
+    expect(describeTarget(resolveTarget({ type: 'public', intent: 'annonce', firstReader: 'rh' }))).toBe('Fonction publique · Annonce · RH');
+    expect(describeTarget(resolveTarget({}))).toBe('type auto · Annonce · lecteur auto');
+    expect(describeTarget(resolveTarget({ type: 'esn', intent: 'spontanee', firstReader: 'ats' }))).toBe('ESN / conseil · Candidature spontanée · Tri automatique');
+  });
+});
+
+describe('édition des fiches : seuls les champs modifiés sont stockés', () => {
+  const eff = (type: keyof typeof DEFAULT_TARGET_SHEETS) => DEFAULT_TARGET_SHEETS[type];
+
+  it('rien ne diffère : aucune surcharge', () => {
+    expect(buildSheetOverride('esn', eff('esn'))).toBeUndefined();
+    expect(setSheetOverride({ esn: { ats: false } }, 'esn', eff('esn'))).toEqual({});
+  });
+
+  it('un champ modifié : seulement celui-là', () => {
+    const o = buildSheetOverride('esn', { ...eff('esn'), eviter: ['autre'], affichage: { ...eff('esn').affichage, photo: 'non' } });
+    expect(o).toEqual({ eviter: ['autre'], affichage: { photo: 'non' } });
+    const v = buildSheetOverride('public', { ...eff('public'), vocabulaire: { ...eff('public').vocabulaire, registre: 'autre' } });
+    expect(v).toEqual({ vocabulaire: { registre: 'autre' } });
+  });
+
+  it('ne touche pas aux autres types', () => {
+    const next = setSheetOverride({ startup: { ats: true } }, 'esn', { ...eff('esn'), ats: false });
+    expect(next).toEqual({ startup: { ats: true }, esn: { ats: false } });
+  });
+
+  it('lignes et équivalences', () => {
+    expect(splitLines(' a \n\n b\n')).toEqual(['a', 'b']);
+    expect(parseEquivalenceLines('sourcing → recherche de candidats\npipeline -> vivier\nincomplet →\n')).toEqual([
+      { from: 'sourcing', to: 'recherche de candidats' }, { from: 'pipeline', to: 'vivier' },
+    ]);
+    expect(equivalenceLines([{ from: 'a', to: 'b' }])).toBe('a → b');
   });
 });

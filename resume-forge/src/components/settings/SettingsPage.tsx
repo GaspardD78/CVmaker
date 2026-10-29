@@ -4,6 +4,7 @@ import { MODULES, ModuleId, BackupData, exportBackup, pickAndParseBackup } from 
 import { ImportConflictModal } from './ImportConflictModal';
 import { GoogleDriveSync } from './GoogleDriveSync';
 import { CvAnglesSettings } from './CvAnglesSettings';
+import { TargetSheetsSettings } from './TargetSheetsSettings';
 import { BulletFocusSelect } from '@/components/cv-builder/BulletFocusSelect';
 import { usePromptStore } from '@/stores/promptStore';
 import { useProfileStore } from '@/stores/profileStore';
@@ -299,6 +300,9 @@ export function SettingsPage() {
 
       {/* ── Angles de CV (bibliothèque + matrice d'affinité) ── */}
       <CvAnglesSettings />
+
+      {/* ── Fiches de ciblage (type de structure) ── */}
+      <TargetSheetsSettings />
 
       {/* ── Google Drive Sync ── */}
       <GoogleDriveSync />

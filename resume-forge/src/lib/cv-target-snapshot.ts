@@ -5,7 +5,7 @@
  */
 import {
   FIRST_READERS, INTENTS, TARGET_TYPES, parseSheetOverrides, sheetFor,
-  type AxisSource, type FirstReader, type Intent, type ResolvedTarget, type TargetBrief, type TargetSheet, type TargetType,
+  type AxisSource, type FirstReader, type Intent, type ResolvedTarget, type TargetBrief, type TargetChoice, type TargetSheet, type TargetType,
 } from './cv-targets';
 
 /** Choix de l'IA dans `analyse.cible` (valeurs déjà normalisées par le parseur). */
@@ -72,6 +72,17 @@ export function reconcileAiTarget(
   return out;
 }
 
+/** Choix de l'utilisateur complété par la proposition de l'IA (axes comblés seulement), pour « Appliquer et régénérer ». */
+export function choiceWithProposal(choice: TargetChoice, outcome: AiTargetOutcome): TargetChoice {
+  const next: TargetChoice = { ...choice };
+  for (const axis of outcome.filled) {
+    if (axis === 'type' && outcome.target.type) next.type = outcome.target.type;
+    else if (axis === 'intent') next.intent = outcome.target.intent;
+    else if (axis === 'firstReader' && outcome.target.firstReader) next.firstReader = outcome.target.firstReader;
+  }
+  return next;
+}
+
 // ── Instantané `cv.settings.target` ──────────────────────────────────────────
 
 /** Ciblage effectif au moment de la génération, fiche comprise : l'historique du CV ne suit pas les modifications des fiches. */
@@ -83,6 +94,8 @@ export interface TargetSnapshot {
   sheet: TargetSheet | null;
   readerNote?: string;
   readerName?: string;
+  readerRole?: string;
+  referrerName?: string;
   brief?: TargetBrief;
   publicDetails?: ResolvedTarget['publicDetails'];
 }
@@ -94,6 +107,8 @@ export function buildTargetSnapshot(target: ResolvedTarget): TargetSnapshot {
   };
   if (target.readerNote) snap.readerNote = target.readerNote;
   if (target.readerName) snap.readerName = target.readerName;
+  if (target.readerRole) snap.readerRole = target.readerRole;
+  if (target.referrerName) snap.referrerName = target.referrerName;
   if (target.brief) snap.brief = target.brief;
   if (target.publicDetails) snap.publicDetails = target.publicDetails;
   return snap;
@@ -121,7 +136,9 @@ export function readTargetSnapshot(settings: Record<string, unknown> | null | un
   }
   const out: ResolvedTarget = { type, intent, firstReader, sheet, sources: { type: sources.type, intent: sources.intent, firstReader: sources.firstReader } };
   if (typeof r.readerNote === 'string' && r.readerNote.trim()) out.readerNote = r.readerNote;
-  if (typeof r.readerName === 'string' && r.readerName.trim()) out.readerName = r.readerName;
+  for (const k of ['readerName', 'readerRole', 'referrerName'] as const) {
+    if (typeof r[k] === 'string' && (r[k] as string).trim()) out[k] = r[k] as string;
+  }
   if (r.brief && typeof r.brief === 'object') out.brief = r.brief as TargetBrief;
   if (r.publicDetails && typeof r.publicDetails === 'object') out.publicDetails = r.publicDetails as ResolvedTarget['publicDetails'];
   return out;

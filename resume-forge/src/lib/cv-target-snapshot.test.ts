@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { parseAiCvResponse } from './ai-cv-response';
 import { applyAiCvToBlocks } from './apply-ai-cv';
 import { buildCvPrompt, buildOutputSchema } from './cv-prompt';
-import { buildTargetSnapshot, readTargetSnapshot, reconcileAiTarget } from './cv-target-snapshot';
+import { buildTargetSnapshot, choiceWithProposal, readTargetSnapshot, reconcileAiTarget } from './cv-target-snapshot';
 import { cibleAnalysisLine, cibleAxesToAsk } from './cv-target-prompt';
 import { DEFAULT_TARGET_SHEETS, resolveTarget } from './cv-targets';
 import { TEST_PROFILE, makeBlocks, makeEntries, makeFakeStore } from './test-helpers/cv-fixtures';
@@ -162,5 +162,16 @@ describe('application : instantané du ciblage, proposition non appliquée', () 
     const report = await applyAiCvToBlocks('cv1', { entries: [], suggestedEntries: [] }, { store: () => store, entries });
     expect(report.target).toBeUndefined();
     expect(store.settings).toEqual({ x: 1 });
+  });
+});
+
+describe('choiceWithProposal : Appliquer et régénérer', () => {
+  it('reprend les axes comblés par l\'IA et conserve le reste du choix', () => {
+    const choice = { type: 'esn' as const, readerNote: 'note', brief: { company: 'Orga' } };
+    const outcome = reconcileAiTarget(resolveTarget(choice), { type: 'public', intent: 'spontanee', firstReader: 'rh' });
+    const next = choiceWithProposal(choice, outcome);
+    expect(next).toEqual({ type: 'esn', intent: 'spontanee', firstReader: 'rh', readerNote: 'note', brief: { company: 'Orga' } });
+    const resolved = resolveTarget(next);
+    expect(resolved.sources).toEqual({ type: 'explicit', intent: 'explicit', firstReader: 'explicit' });
   });
 });

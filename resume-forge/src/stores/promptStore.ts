@@ -5,7 +5,8 @@ import { PROMPT_TEMPLATES } from '@/lib/prompt-templates';
 import { DEFAULT_TARGET_PAGES, normalizeTargetPages } from '@/lib/cv-experience';
 import { personalRulesKey } from '@/lib/cv-prompt';
 import { BULLET_FOCUS_SETTING, normalizeBulletFocus, type BulletFocus } from '@/lib/cv-focus-rules';
-import { loadProfileSetting, saveProfileSetting } from '@/lib/profile-settings';
+import { loadProfileSetting, loadTargetSheetOverrides, saveProfileSetting, saveTargetSheetOverrides } from '@/lib/profile-settings';
+import type { SheetOverrides } from '@/lib/cv-targets';
 
 interface PromptState {
   jobOffer: string;
@@ -33,6 +34,11 @@ interface PromptState {
   bulletFocusProfileId: string | null;
   loadBulletFocus: (profileId: string) => Promise<void>;
   saveBulletFocus: (profileId: string, value: BulletFocus) => Promise<void>;
+  /** Fiches de ciblage personnalisées du profil chargé (seuls les champs modifiés). */
+  targetSheets: SheetOverrides;
+  targetSheetsProfileId: string | null;
+  loadTargetSheets: (profileId: string) => Promise<void>;
+  saveTargetSheets: (profileId: string, overrides: SheetOverrides) => Promise<void>;
 }
 
 export const usePromptStore = create<PromptState>((set, get) => ({
@@ -46,6 +52,8 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   personalRulesProfileId: null,
   bulletFocus: undefined,
   bulletFocusProfileId: null,
+  targetSheets: {},
+  targetSheetsProfileId: null,
 
   setJobOffer: (value) => set({ jobOffer: value }),
 
@@ -107,6 +115,19 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   saveBulletFocus: async (profileId, value) => {
     await saveProfileSetting(BULLET_FOCUS_SETTING, profileId, value);
     set({ bulletFocus: value, bulletFocusProfileId: profileId });
+  },
+
+  loadTargetSheets: async (profileId) => {
+    try {
+      set({ targetSheets: await loadTargetSheetOverrides(profileId), targetSheetsProfileId: profileId });
+    } catch {
+      set({ targetSheets: {}, targetSheetsProfileId: profileId });
+    }
+  },
+
+  saveTargetSheets: async (profileId, overrides) => {
+    await saveTargetSheetOverrides(profileId, overrides);
+    set({ targetSheets: overrides, targetSheetsProfileId: profileId });
   },
 
   saveTargetPages: async (value) => {

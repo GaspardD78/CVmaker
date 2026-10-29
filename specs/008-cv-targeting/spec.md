@@ -1,6 +1,6 @@
 # 008 - Ciblage du CV : type de structure, intention, premier lecteur
 
-Statut : étapes 1 (données et résolution), 2 (bloc de prompt), 3 (détection, `analyse.cible`, instantané) et 4 (garde-fou) livrées ; les étapes 2 à 5 sont décrites ci-dessous.
+Statut : étapes 1 à 5 livrées (données, prompt, détection, garde-fou, interface) ; les étapes 2 à 5 sont décrites ci-dessous.
 
 ## Principe
 
@@ -43,3 +43,11 @@ Les fiches (`lib/cv-targets.ts`, `DEFAULT_TARGET_SHEETS`) sont des données de r
 ## Garde-fou (étape 4)
 
 `GuardContext.target` active des avertissements (jamais bloquants) : `target-forbidden-term` (termes de la fiche, avec l'équivalence), `target-equivalence-applied` (titre ou `titleOverride` traduit via la table de la fiche ; sinon `unsupported-title`), `target-photo`, `target-reader-mentioned` (nom ou fonction du premier lecteur, personne qui transmet le CV ; une expression du profil du candidat lui-même est ignorée). L'anti-invention est identique quel que soit le ciblage.
+
+## Interface (étape 5)
+
+- `TargetPanel` : trois sélecteurs sur une ligne (« Auto » par défaut), « Préciser la cible » replié (formulaire de cible, champs du lecteur, catégorie et filière pour le public). Sans annonce, le formulaire de cible remplace le champ « Annonce ».
+- Champs du lecteur : nom, fonction, « Transmis par : nom » (recommandation seulement), note libre. Les noms vivent uniquement dans `cv.settings.target` : le prompt reçoit la fonction et la note, jamais les noms ; ni export ni sauvegarde Google Drive (`redactTargetPeople`).
+- `TargetStatusLine` (« Ciblage retenu », « Ciblage proposé », « Modifier et régénérer », « Appliquer et régénérer ») au-dessus du rapport du garde-fou.
+- Écran « Fiches de ciblage » (Paramètres) : valeurs par défaut en grisé, seuls les champs modifiés sont stockés.
+- Captures : `specs/008-cv-targeting/captures/`.
