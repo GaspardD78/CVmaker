@@ -25,6 +25,8 @@ import { normalizeDescription, normalizeTypography } from './cv-typography';
 import { bulletItems, isSkillCategory } from './skill-lines';
 import { matchProfileExtras, parseHeaderExtras } from './header-extras';
 import type { BulletFocus } from './cv-focus-rules';
+import { checkTarget, type TargetTextField } from './cv-target-guard';
+import type { ResolvedTarget } from './cv-targets';
 import type { AngleSpec, TitleRule } from './cv-angles';
 
 export type GuardCode =
@@ -32,7 +34,8 @@ export type GuardCode =
   | 'duplicate-skill' | 'skill-in-several-groups' | 'long-bullet' | 'too-many-bullets' | 'empty-description'
   | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume'
   | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented'
-  | 'too-many-numbers' | 'bold-in-missions-mode' | 'summary-has-numbers';
+  | 'too-many-numbers' | 'bold-in-missions-mode' | 'summary-has-numbers'
+  | 'target-forbidden-term' | 'target-equivalence-applied' | 'target-photo' | 'target-reader-mentioned';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -96,7 +99,7 @@ export interface GuardReport {
 export interface GuardContext {
   /** Entrées du profil maître. */
   entries: readonly MasterEntry[];
-  profile?: Pick<Profile, 'title' | 'summary' | 'drivingLicense' | 'headerExtras'> | null;
+  profile?: Pick<Profile, 'title' | 'summary' | 'drivingLicense' | 'headerExtras' | 'photoPath'> | null;
   /** « Contexte additionnel » saisi par l'utilisateur : seule source des suggestions. */
   extraContext?: string;
   /** Pages cibles (réglage « Pages cibles ») ; défaut : 1, comme le prompt. */
@@ -111,6 +114,11 @@ export interface GuardContext {
    * absente ou `resultats` : comportement historique, aucun contrôle de ce type.
    */
   focus?: BulletFocus;
+  /**
+   * Ciblage résolu : ajoute des avertissements propres à la fiche (termes à éviter, équivalences de
+   * titre, photo, mention du premier lecteur). Absent : aucun. L'anti-invention ne change jamais.
+   */
+  target?: ResolvedTarget;
 }
 
 /** Lignes par page A4 à 11 px (titres de section et espacements compris), approximation prudente. */
@@ -606,6 +614,35 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     }
   }
 
+  // ── Ciblage : vocabulaire, équivalences de titre, photo, mention du premier lecteur ──
+  let titleAcceptedByEquivalence = false;
+  const target = ctx.target;
+  if (target && (target.sheet || target.readerName || target.readerNote || target.brief?.referrer)) {
+    const fields: TargetTextField[] = [];
+    if (title) fields.push({ where: 'titre', text: title });
+    if (summary) fields.push({ where: 'accroche', text: summary });
+    for (const e of visible) fields.push({ where: label(e.entry.id), entryId: e.entry.id, text: `${e.title}\n${e.subtitle}\n${e.description}` });
+    const heldTitles = [
+      ...ctx.entries.filter(e => e.entryType === 'experience').map(e => e.title),
+      ctx.profile?.title ?? '',
+    ].filter(Boolean);
+    const titleOverrides = visible
+      .filter(e => e.entry.entryType === 'experience' && (aiById.get(e.entry.id)?.titleOverride ?? undefined) !== undefined)
+      .map(e => ({ entryId: e.entry.id, source: e.entry.title, override: aiById.get(e.entry.id)?.titleOverride as string }));
+    const ownText = [
+      ...ctx.entries.flatMap(e => [e.title, e.subtitle ?? '', e.description ?? '']),
+      ctx.profile?.title ?? '', ctx.profile?.summary ?? '',
+    ].join('\n');
+    const issues = checkTarget({
+      target, fields, ownText, heldTitles, title, titleOverrides,
+      photoShown: Boolean(ctx.profile?.photoPath), french: language === 'fr',
+    });
+    for (const issue of issues) {
+      warn({ code: issue.code, message: issue.message, entryId: issue.entryId });
+      if (issue.code === 'target-equivalence-applied' && !issue.entryId) titleAcceptedByEquivalence = true;
+    }
+  }
+
   // Titre : l'intitulé réel doit figurer parmi les postes tenus.
   if (title) {
     const head = normalizeLabel(title.split(/\s[-|:]\s/)[0]);
@@ -614,7 +651,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       ...effective.filter(e => e.entry.entryType === 'experience').map(e => e.title),
       ctx.profile?.title ?? '',
     ].map(normalizeLabel).filter(Boolean);
-    if (head && !held.some(h => h.includes(head) || head.includes(h))) {
+    if (head && !titleAcceptedByEquivalence && !held.some(h => h.includes(head) || head.includes(h))) {
       warn({ code: 'unsupported-title', message: `Titre « ${title} » : l'intitulé ne correspond à aucun poste tenu dans le profil.` });
     }
   }

@@ -7,6 +7,17 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : ciblage, étape 4 (garde-fou)
+
+- **Ajout** : avertissements du garde-fou liés au ciblage (`lib/cv-target-guard.ts`), jamais bloquants, absents sans ciblage :
+  - `target-forbidden-term` : terme de `avoidTerms` de la fiche dans le titre, l'accroche, une puce ou un override (mots entiers, entrées visibles), avec l'équivalence de la fiche quand elle existe ;
+  - `target-equivalence-applied` : un titre ou un `titleOverride` traduit via la table d'équivalences de la fiche ; hors de la table, l'avertissement `unsupported-title` existant (le titre du CV traduit par équivalence n'en déclenche plus) ; CV non français : traductions fidèles hors contrôle ;
+  - `target-photo` : photo présente alors que la fiche la déconseille (public) ;
+  - `target-reader-mentioned` : nom ou fonction du premier lecteur, ou personne qui transmet le CV, présents dans le CV (une expression du profil du candidat lui-même est ignorée).
+- **Ajout** : `readerName` (nom du premier lecteur) dans le ciblage. L'anti-invention reste identique quel que soit le ciblage (test).
+
+---
+
 ### Moteur de CV IA : ciblage, étape 3 (détection et `analyse.cible`)
 
 - **Ajout** : détection automatique côté application (`lib/cv-target-detect.ts`) à partir du texte de l'annonce et du nom de l'entreprise : `public` (via `isPublicSectorText`, sans les faux positifs « administration système »), `esn`, `cabinet`, et `annonce` dès qu'un texte est fourni. Un signal absent ou contradictoire ne détecte rien.
