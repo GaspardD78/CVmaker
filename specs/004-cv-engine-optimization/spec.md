@@ -48,3 +48,7 @@ Réglage par profil (`settings`, `cv_bullet_focus:{profileId}`) et par CV (`cv.s
 ## Addendum : fusion d'expériences (lot 2)
 
 `mergedEntries: [{ "ids", "titleOverride", "subtitleOverride"?, "description"? }]` (champ additif) regroupe plusieurs entrées d'un même type en une ligne. Le bloc de la plus récente porte `override_data` (`title`, `subtitle`, `description`, dates calculées, `mergedFrom`) ; les autres passent `is_visible = false` avec `mergedInto`. Les dates sont calculées, jamais fournies par l'IA, et jamais via `datesOverride`. Réapplication idempotente ; une application sans fusion, ou le bouton « Défaire », rétablit surcharges et visibilité d'origine (`mergeBackup`, `mergedWasVisible`). Une `cvSkillLine` peut citer une entrée fusionnée comme source.
+
+## Addendum : test de bout en bout
+
+`lib/ai-cv-generalist-e2e.test.tsx` (fixture `lib/test-helpers/generalist-fixture.ts`, données fictives) rejoue le flux complet pour un CV « chargé de recrutement généraliste » en ciblage public · annonce · rh : analyse (aucune erreur, aucun avertissement parasite), application (fusions, lignes de compétences, en-tête, instantané de ciblage), rendu et DOCX. Le contrôle des temps lit la période calculée d'une ligne fusionnée.
