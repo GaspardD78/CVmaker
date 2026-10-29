@@ -356,7 +356,7 @@ describe('garde-fou : une ligne fusionnée sans description est voulue', () => {
   });
   it('hors fusion, une expérience visible sans description est toujours signalée', () => {
     const empty = makeEntry('q1', 'experience', 'Poste vide', { subtitle: 'Employeur Q', startDate: '2020-01', endDate: '2021-01' });
-    const r = guardAiCv(resp({ entries: [{ id: 'q1', visible: true }] }), { entries: [empty], profile: TEST_PROFILE, now: NOW });
+    const r = guardAiCv(resp({ entries: [{ id: 'q1', visible: true }] }), { entries: [empty], profile: TEST_PROFILE, now: NOW, pageBudget: 2 });
     expect(codes(r)).toContain('empty-description');
   });
 });
