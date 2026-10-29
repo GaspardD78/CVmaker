@@ -8,6 +8,7 @@ import { CVSectionHeader } from './CVSectionHeader';
 import { CVEntryBlock } from './CVEntryBlock';
 import { CVBadgeGroup } from './CVBadgeGroup';
 import { CVCustomText } from './CVCustomText';
+import { isSkillLineBlock } from '../../lib/skill-lines';
 import { CVSidebar, type SidebarGroup, type SidebarSection } from './CVSidebar';
 import { safeCssValue, type CssValueKind } from '../../lib/css-sanitize';
 import { readDateSettings } from '../../lib/entry-dates';
@@ -335,27 +336,31 @@ export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
       const block = sortedBlocks[i];
       if (!block.isVisible) { i++; continue; }
 
-      if (block.blockType === 'entry_ref' && block.entryId) {
+      const startsGroup = isSkillLineBlock(block) || (() => {
+        if (block.blockType !== 'entry_ref' || !block.entryId) return false;
         const entry = entries.find(e => e.id === block.entryId);
-        if (entry && BADGE_ENTRY_TYPES.includes(entry.entryType)) {
-          const badgeGroup: CVBlock[] = [block];
-          let j = i + 1;
-          while (j < sortedBlocks.length) {
-            const next = sortedBlocks[j];
-            if (!next.isVisible) { j++; continue; }
-            if (next.blockType !== 'entry_ref' || !next.entryId) break;
-            const nextEntry = entries.find(e => e.id === next.entryId);
-            if (!nextEntry || !BADGE_ENTRY_TYPES.includes(nextEntry.entryType)) break;
-            badgeGroup.push(next);
-            j++;
-          }
-          // Format hérité du titre de SECTION parent : un sous-en-tête de catégorie
-          // ne change pas le format d'affichage.
-          const format = (parentDisplayFormat(sortedBlocks, i) as DisplayFormat | undefined) || 'badges';
-          renderItems.push({ type: 'badge-group', blocks: badgeGroup, format });
-          i = j;
-          continue;
+        return Boolean(entry && BADGE_ENTRY_TYPES.includes(entry.entryType));
+      })();
+      if (startsGroup) {
+        // Lignes de compétences propres au CV et éléments badges consécutifs : un seul groupe.
+        const badgeGroup: CVBlock[] = [block];
+        let j = i + 1;
+        while (j < sortedBlocks.length) {
+          const next = sortedBlocks[j];
+          if (!next.isVisible) { j++; continue; }
+          if (isSkillLineBlock(next)) { badgeGroup.push(next); j++; continue; }
+          if (next.blockType !== 'entry_ref' || !next.entryId) break;
+          const nextEntry = entries.find(e => e.id === next.entryId);
+          if (!nextEntry || !BADGE_ENTRY_TYPES.includes(nextEntry.entryType)) break;
+          badgeGroup.push(next);
+          j++;
         }
+        // Format hérité du titre de SECTION parent : un sous-en-tête de catégorie
+        // ne change pas le format d'affichage.
+        const format = (parentDisplayFormat(sortedBlocks, i) as DisplayFormat | undefined) || 'badges';
+        renderItems.push({ type: 'badge-group', blocks: badgeGroup, format });
+        i = j;
+        continue;
       }
 
       renderItems.push({ type: 'block', block });

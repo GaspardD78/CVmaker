@@ -9,6 +9,8 @@ import { AiCvGuardReport } from './AiCvGuardReport';
 import { useCvTarget } from '@/hooks/useCvTarget';
 import { TargetPanel } from './TargetPanel';
 import { TargetStatusLine } from './TargetStatusLine';
+import { SuggestedEntriesReview } from './SuggestedEntriesReview';
+import { appendEntriesToCv, promoteSuggestedEntries } from '@/lib/suggested-entries';
 import type { ResolvedTarget } from '@/lib/cv-targets';
 import { readCvLanguage } from '@/lib/cv-language';
 import { applyAiCvToBlocks } from '@/lib/apply-ai-cv';
@@ -62,6 +64,16 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
     [jsonInput, entries, profile, targetPages, focus, verbTense, target],
   );
   const hasBlockingIssues = analysis !== null && analysis.ok && analysis.report.errors.length > 0;
+
+  // Entrées suggérées hors profil maître : revue opt-in (rien n'est écrit pour une entrée non cochée).
+  const suggestions = useMemo(() => (analysis && analysis.ok ? analysis.data.suggestedEntries : []), [analysis]);
+  const [acceptedSug, setAcceptedSug] = useState<Set<number>>(new Set());
+  useEffect(() => { setAcceptedSug(new Set()); }, [jsonInput]);
+  const toggleSuggestion = (idx: number) => setAcceptedSug(prev => {
+    const next = new Set(prev);
+    if (next.has(idx)) next.delete(idx); else next.add(idx);
+    return next;
+  });
 
   const selectedTemplate = PROMPT_TEMPLATES.find(t => t.id === selectedTemplateId);
 
@@ -179,9 +191,13 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
 
       // Apply entry-level changes (all types), skill grouping and re-ordering on
       // the CV's blocks — non destructively. The master profile is untouched.
-      // Note: suggestedEntries are intentionally ignored here — that review flow lives in
-      // the job-watch CV generator drawer for now.
       await applyAiCvToBlocks(currentCv.id, data, { target, sheetOverrides });
+
+      // Suggestions acceptées : écrites dans le profil maître (opt-in explicite) puis ajoutées à ce CV.
+      const accepted = data.suggestedEntries.filter((_, i) => acceptedSug.has(i));
+      if (profile && accepted.length > 0) {
+        await appendEntriesToCv(currentCv.id, await promoteSuggestedEntries(profile.id, accepted));
+      }
 
       toast.success("CV sur-mesure appliqué avec succès !");
       setJsonInput('');
@@ -436,6 +452,7 @@ export function AIPromptPanel({ onClose }: AIPromptPanelProps) {
               />
             )}
             {analysis && analysis.ok && <AiCvGuardReport report={analysis.report} />}
+            <SuggestedEntriesReview suggestions={suggestions} accepted={acceptedSug} onToggle={toggleSuggestion} />
 
             <button
               onClick={handleApplyFullCV}

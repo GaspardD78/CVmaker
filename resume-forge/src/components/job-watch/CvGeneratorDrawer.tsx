@@ -11,6 +11,9 @@ import { analyzeAiCvJson } from '@/lib/ai-cv-pipeline';
 import { AiCvGuardReport } from '@/components/cv-builder/AiCvGuardReport';
 import { BulletFocusSelect } from '@/components/cv-builder/BulletFocusSelect';
 import { TargetPanel } from '@/components/cv-builder/TargetPanel';
+import { MIN_SKILL_LINES } from '@/lib/ai-cv-guard';
+import { SuggestedEntriesReview } from '@/components/cv-builder/SuggestedEntriesReview';
+import { appendEntriesToCv, promoteSuggestedEntries } from '@/lib/suggested-entries';
 import { TargetStatusLine } from '@/components/cv-builder/TargetStatusLine';
 import { useCvTarget } from '@/hooks/useCvTarget';
 import { resolveBulletFocus, type BulletFocus } from '@/lib/cv-focus-rules';
@@ -33,17 +36,6 @@ type Tab = 'master' | 'existing' | 'cover';
 
 const NO_ANGLES: CvAngle[] = [];
 
-const ENTRY_TYPE_LABELS: Record<string, string> = {
-  experience: 'Expérience',
-  education: 'Formation',
-  skill: 'Compétence',
-  certification: 'Certification',
-  language: 'Langue',
-  interest: 'Intérêt',
-  project: 'Projet',
-  volunteer: 'Bénévolat',
-};
-
 // ---------------------------------------------------------------------------
 
 export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
@@ -60,7 +52,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const [clarify, setClarify] = useState(false);
   const [suggestions, setSuggestions] = useState<AiCvSuggestedEntry[]>([]);
   const [acceptedSug, setAcceptedSug] = useState<Set<number>>(new Set());
-  const [restructure, setRestructure] = useState<{ reordered: number; sections: number; groups: number }>({ reordered: 0, sections: 0, groups: 0 });
+  const [restructure, setRestructure] = useState<{ reordered: number; sections: number; groups: number; skillLines: number }>({ reordered: 0, sections: 0, groups: 0, skillLines: 0 });
   const [mdInput, setMdInput] = useState('');
   const [coverContactName, setCoverContactName] = useState('');
   const [coverStyle, setCoverStyle] = useState<'formal' | 'direct'>('direct');
@@ -99,7 +91,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setClarify(false);
       setSuggestions([]);
       setAcceptedSug(new Set());
-      setRestructure({ reordered: 0, sections: 0, groups: 0 });
+      setRestructure({ reordered: 0, sections: 0, groups: 0, skillLines: 0 });
       setMdInput('');
       setPromptCopied(false);
       setCvPromptCopied(false);
@@ -118,7 +110,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!analysis || !analysis.ok) {
       setSuggestions([]);
       setAcceptedSug(new Set());
-      setRestructure({ reordered: 0, sections: 0, groups: 0 });
+      setRestructure({ reordered: 0, sections: 0, groups: 0, skillLines: 0 });
       return;
     }
     const parsed = analysis.data;
@@ -127,6 +119,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       reordered: parsed.entryOrder?.length ?? 0,
       sections: parsed.sectionOrder?.length ?? 0,
       groups: parsed.skillGroups?.length ?? 0,
+      skillLines: (parsed.cvSkillLines?.length ?? 0) >= MIN_SKILL_LINES ? parsed.cvSkillLines!.length : 0,
     });
     // Reset selection whenever the input changes.
     setAcceptedSug(new Set());
@@ -175,33 +168,8 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const getAcceptedSuggestions = (): AiCvSuggestedEntry[] =>
     suggestions.filter((_, i) => acceptedSug.has(i));
 
-  /**
-   * Writes validated off-profile suggestions to the master profile (explicit opt-in
-   * only — nothing is written for unchecked items). Returns the IDs of the newly
-   * created master entries, discovered by diffing the store before/after.
-   */
-  const promoteSuggestions = async (accepted: AiCvSuggestedEntry[]): Promise<string[]> => {
-    if (accepted.length === 0 || !profile) return [];
-    const addEntry = useProfileStore.getState().addEntry;
-    const beforeIds = new Set(useProfileStore.getState().entries.map(e => e.id));
-    for (const s of accepted) {
-      await addEntry({
-        profileId: profile.id,
-        entryType: s.entryType,
-        title: s.title,
-        subtitle: s.subtitle ?? null,
-        location: null,
-        startDate: s.startDate ?? null,
-        endDate: s.endDate ?? null,
-        isCurrent: s.isCurrent ?? false,
-        description: s.description ?? null,
-        metadata: {},
-        sortOrder: 0,
-        tags: [],
-      });
-    }
-    return useProfileStore.getState().entries.filter(e => !beforeIds.has(e.id)).map(e => e.id);
-  };
+  const promoteSuggestions = (accepted: AiCvSuggestedEntry[]): Promise<string[]> =>
+    profile ? promoteSuggestedEntries(profile.id, accepted) : Promise.resolve([]);
 
   const renderAnglePanel = () => (
     <CvAnglePanel
@@ -286,6 +254,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (restructure.reordered > 0) parts.push(`réordonner ${restructure.reordered} entrée${restructure.reordered > 1 ? 's' : ''}`);
     if (restructure.sections > 0) parts.push('réorganiser les sections');
     if (restructure.groups > 0) parts.push(`regrouper les compétences en ${restructure.groups} catégorie${restructure.groups > 1 ? 's' : ''}`);
+    if (restructure.skillLines > 0) parts.push(`afficher ${restructure.skillLines} lignes de compétences reformulées propres à ce CV (catégories du profil masquées sauf celles listées)`);
     if (parts.length === 0) return null;
     return (
       <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
@@ -299,48 +268,9 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     );
   };
 
-  const renderSuggestions = () => {
-    if (suggestions.length === 0) return null;
-    return (
-      <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3 space-y-2">
-        <div className="flex items-start gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-purple-800 dark:text-purple-200 leading-relaxed">
-            <strong>Entrées suggérées hors profil maître.</strong> Coche celles à ajouter : elles seront enregistrées dans ton profil <em>et</em> incluses dans ce CV. Non cochées : ignorées (rien n'est écrit).
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          {suggestions.map((s, i) => (
-            <label
-              key={i}
-              className={`flex items-start gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
-                acceptedSug.has(i)
-                  ? 'border-purple-400 dark:border-purple-500 bg-white dark:bg-gray-800'
-                  : 'border-transparent bg-white/60 dark:bg-gray-800/40 hover:bg-white dark:hover:bg-gray-800'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={acceptedSug.has(i)}
-                onChange={() => toggleSuggestion(i)}
-                className="mt-0.5 accent-purple-500 flex-shrink-0"
-              />
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-100">{s.title}</span>
-                  {s.subtitle && <span className="text-[11px] text-gray-500 dark:text-gray-400">· {s.subtitle}</span>}
-                  <span className="text-[9px] uppercase tracking-wide bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
-                    {ENTRY_TYPE_LABELS[s.entryType] ?? s.entryType}
-                  </span>
-                </div>
-                {s.reason && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{s.reason}</p>}
-              </div>
-            </label>
-          ))}
-        </div>
-      </div>
-    );
-  };
+  const renderSuggestions = () => (
+    <SuggestedEntriesReview suggestions={suggestions} accepted={acceptedSug} onToggle={toggleSuggestion} />
+  );
 
   const getCoverPrompt = () =>
     generateCoverLetterPrompt(profile, entries, offerText, {
@@ -461,24 +391,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       // 4. Promote validated off-profile suggestions to master, then append a visible
       //    entry_ref block per new entry (the duplicated CV doesn't auto-import them).
       const newEntryIds = await promoteSuggestions(accepted);
-      if (newEntryIds.length > 0) {
-        await useCvStore.getState().fetchCvBlocks(newCv.id);
-        const cvBlocks = useCvStore.getState().currentCvBlocks;
-        let maxSort = cvBlocks.reduce((m, b) => Math.max(m, b.sortOrder), 0);
-        for (const entryId of newEntryIds) {
-          maxSort += 1;
-          await useCvStore.getState().createCvBlock({
-            cvId: newCv.id,
-            entryId,
-            blockType: 'entry_ref',
-            sectionName: null,
-            customContent: null,
-            sortOrder: maxSort,
-            isVisible: true,
-            overrideData: {},
-          });
-        }
-      }
+      await appendEntriesToCv(newCv.id, newEntryIds);
 
       toast.success(
         <span>

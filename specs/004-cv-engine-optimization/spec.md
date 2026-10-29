@@ -40,3 +40,7 @@ Réglage par profil (`settings`, `cv_bullet_focus:{profileId}`) et par CV (`cv.s
 - Temps des verbes : réglage par profil `cv_verb_tense:{profileId}` (`infinitif` par défaut, `passe-present`, `nominal`), composé avec l'orientation dans `lib/cv-focus-rules.ts` : une seule définition de la puce (`bulletForm`) et une règle du premier mot (`tenseRule`). Le garde-fou adapte `tense` (`bulletLead`) : infinitif = signale participe passé, nom d'action et verbe conjugué ; nominal = signale les verbes ; passé / présent = cohérence historique.
 - Titre libre : `TargetChoice.titleRule = 'free'`, choix manuel pour un CV, prioritaire sur l'angle et la fiche ; le titre proposé est conservé tel quel.
 - Accroche : le prompt interdit de répéter le titre du CV en début d'accroche ; `summary-starts-with-title` côté garde-fou.
+
+## Addendum : lignes de compétences reformulées (lot 3)
+
+`cvSkillLines: [{ "text", "sources" }]` (champ additif) : lignes propres au CV, jamais écrites dans le profil maître. Chaque ligne cite au moins une entrée existante (expérience ou compétence) ; sans source valide, elle est retirée. Avec au moins 3 lignes valides, elles deviennent des blocs `custom_text` (`overrideData.aiSkillLine`) sous « Compétences » et les catégories de compétences du profil ne restent visibles que si l'IA les liste en `visible: true` ; en dessous, rien n'est masqué. Réapplication idempotente ; une application sans lignes défait la précédente.

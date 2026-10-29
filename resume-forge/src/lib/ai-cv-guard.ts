@@ -36,7 +36,7 @@ export type GuardCode =
   | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented'
   | 'too-many-numbers' | 'bold-in-missions-mode' | 'summary-has-numbers'
   | 'target-forbidden-term' | 'target-equivalence-applied' | 'target-photo' | 'target-reader-mentioned'
-  | 'summary-starts-with-title';
+  | 'summary-starts-with-title' | 'skill-line-no-source' | 'skill-line-unsourced' | 'skill-lines-too-few';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -163,6 +163,9 @@ export function extractNumbers(text: string): string[] {
   }
   return out;
 }
+
+/** Lignes de compétences valides minimales pour remplacer les catégories du profil (en dessous : catégories conservées). */
+export const MIN_SKILL_LINES = 3;
 
 /** Mode « missions » : nombre maximal de chiffres distincts sur tout le CV (hors années et durées). */
 export const MAX_MISSION_NUMBERS = 3;
@@ -450,6 +453,47 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     if (skillGroups.length === 0) skillGroups = undefined;
   }
 
+  // ── Lignes de compétences reformulées : chaque ligne cite au moins une entrée source valide ──
+  let skillLines = input.cvSkillLines;
+  if (skillLines) {
+    const seenLines = new Set<string>();
+    const keptLines: NonNullable<AiCvResponse['cvSkillLines']> = [];
+    for (const line of skillLines) {
+      const text = normalizeTypography(line.text, language);
+      const key = normalizeApostrophes(normalizeLabel(text));
+      if (seenLines.has(key)) continue;
+      const sources = [...new Set(line.sources)].filter(id => {
+        const e = entryById.get(id);
+        if (e && (e.entryType === 'experience' || e.entryType === 'skill')) return true;
+        unknownIds.add(id);
+        return false;
+      });
+      if (sources.length === 0) {
+        warn({ code: 'skill-line-no-source', message: `Ligne de compétences retirée, aucune entrée source valide : « ${text} ».` });
+        continue;
+      }
+      seenLines.add(key);
+      // Chiffres et termes techniques : doivent figurer dans les sources citées.
+      const sourceText = sources
+        .map(id => entryById.get(id) as MasterEntry)
+        .flatMap(e => [e.title, e.subtitle ?? '', e.description ?? ''])
+        .join('\n');
+      const sourceNorm = normalizeLabel(sourceText);
+      const sourceNumbers = new Set(extractNumbers(sourceText));
+      const missingNumbers = [...new Set(extractNumbers(text))].filter(n => !sourceNumbers.has(n));
+      const missingTerms = extractTechnicalTerms(text, { properNouns: language === 'fr' }).filter(t => !containsWord(sourceNorm, t));
+      const missing = [...missingNumbers, ...missingTerms];
+      if (missing.length > 0) {
+        warn({ code: 'skill-line-unsourced', message: `Ligne de compétences « ${text} » : absent des sources citées : ${missing.join(', ')}.` });
+      }
+      keptLines.push({ text, sources });
+    }
+    skillLines = keptLines.length > 0 ? keptLines : undefined;
+    if (skillLines && skillLines.length < MIN_SKILL_LINES) {
+      warn({ code: 'skill-lines-too-few', message: `${skillLines.length} ligne(s) de compétences valide(s) (minimum ${MIN_SKILL_LINES}) : les catégories de compétences du profil sont conservées.` });
+    }
+  }
+
   if (unknownIds.size > 0) {
     warn({ code: 'unknown-id', message: `${unknownIds.size} identifiant(s) inconnu(s) ignoré(s) : ${[...unknownIds].slice(0, 5).join(', ')}${unknownIds.size > 5 ? '…' : ''}.` });
   }
@@ -531,6 +575,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     skillGroups,
   };
   if (header !== undefined) data.header = header; else delete data.header;
+  if (skillLines !== undefined) data.cvSkillLines = skillLines; else delete data.cvSkillLines;
   if (data.entryOrder === undefined) delete data.entryOrder;
   if (data.skillGroups === undefined) delete data.skillGroups;
 
@@ -588,6 +633,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   const allowedInSummary = new Set<string>([String(years), String(years + 1), String(Math.max(0, years - 1))]);
   const fields: TextField[] = [];
   if (summary) fields.push({ where: 'résumé', kind: 'summary', text: summary });
+  for (const l of skillLines ?? []) fields.push({ where: `ligne de compétences « ${l.text.slice(0, 40)} »`, kind: 'description', text: l.text });
   for (const e of visible) {
     if (!aiById.has(e.entry.id)) continue; // entrée non touchée par l'IA : source telle quelle
     const ai = aiById.get(e.entry.id) as AiCvEntry;
@@ -699,6 +745,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   let visibleBullets = 0;
   let lines = 5; // en-tête (nom, intitulé, contacts)
   if (summary) lines += Math.ceil(summary.length / CHARS_PER_LINE);
+  if (skillLines && skillLines.length >= MIN_SKILL_LINES) lines += skillLines.length;
   const badgeCounts = new Map<string, number>();
   const sectionsUsed = new Set<string>();
   const overridePatterns = new Set<string>();

@@ -14,7 +14,7 @@ import { formatEntryDates, readDateSettings } from './entry-dates';
 import { isSubHeader, parentDisplayFormat, visibleHeaderMask, type SlotKind } from './cv-sections';
 import { shareBlob } from './share';
 import { entryDisplayTitle } from './entry-display';
-import { BADGE_ENTRY_TYPES, buildBadgeRows, itemLabel, SKILL_ITEM_SEPARATOR, type BadgeItem, type BadgeRow } from './skill-lines';
+import { BADGE_ENTRY_TYPES, buildBadgeRows, isSkillLineBlock, itemLabel, SKILL_ITEM_SEPARATOR, type BadgeItem, type BadgeRow } from './skill-lines';
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -609,6 +609,14 @@ export async function generateDocxBlob(
         border: {
           bottom: { color: accentHex || 'auto', space: 1, style: BorderStyle.SINGLE, size: 6 },
         },
+      }));
+      i++;
+
+    } else if (isSkillLineBlock(block) && block.customContent) {
+      // Ligne de compétences propre au CV : même style qu'une ligne de catégorie.
+      bodyChildren.push(new Paragraph({
+        children: [new TextRun({ text: block.customContent.trim(), size: B, font: F })],
+        spacing: { after: 40, line: lineSpacing },
       }));
       i++;
 

@@ -116,6 +116,16 @@ export interface AiCvAngleChoice {
   raison?: string;
 }
 
+/**
+ * Ligne de compétences reformulée, propre au CV (champ additif `cvSkillLines`). Chaque ligne cite les
+ * entrées du profil (expérience ou compétence) qui l'étayent : c'est la traçabilité anti-invention.
+ * Jamais écrite dans le profil maître.
+ */
+export interface AiCvSkillLine {
+  text: string;
+  sources: string[];
+}
+
 /** Mentions d'en-tête choisies par l'IA (champ additif) : permis et mentions libres du profil. */
 export interface AiCvHeader {
   showDrivingLicense?: boolean;
@@ -158,6 +168,8 @@ export interface AiCvResponse {
   warnings?: string[];
   /** Permis et mentions d'en-tête à afficher (champ additif ; absent : réglages du CV inchangés). */
   header?: AiCvHeader;
+  /** Lignes de compétences reformulées, propres au CV (champ additif ; absent : compétences inchangées). */
+  cvSkillLines?: AiCvSkillLine[];
 }
 
 /** Returns a trimmed non-empty string, or `undefined`. */
@@ -256,6 +268,19 @@ function parseSkillGroups(raw: unknown): AiSkillGroup[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const groups = raw.map(parseSkillGroup).filter((g): g is AiSkillGroup => g !== null);
   return groups.length > 0 ? groups : undefined;
+}
+
+function parseSkillLines(raw: unknown): AiCvSkillLine[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const lines: AiCvSkillLine[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const text = cleanString(r.text)?.replace(/^[-*]\s+/, '').trim();
+    if (!text) continue;
+    lines.push({ text, sources: parseStringList(r.sources) ?? [] });
+  }
+  return lines.length > 0 ? lines : undefined;
 }
 
 function parseHeader(raw: unknown): AiCvHeader | undefined {
@@ -449,6 +474,9 @@ export function parseAiCvResponse(raw: string): AiCvResponse {
 
   const header = parseHeader(obj.header);
   if (header) response.header = header;
+
+  const cvSkillLines = parseSkillLines(obj.cvSkillLines);
+  if (cvSkillLines) response.cvSkillLines = cvSkillLines;
 
   return response;
 }

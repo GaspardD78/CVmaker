@@ -7,6 +7,15 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : compétences reformulées propres au CV (lot 3)
+
+- **Ajout** : champ optionnel additif `cvSkillLines: [{ text, sources }]`. Le garde-fou retire les lignes sans entrée source valide (expérience ou compétence existante, `skill-line-no-source`), les doublons, et signale les chiffres et termes techniques absents des sources citées (`skill-line-unsourced`) ; un chiffre absent de tout le profil reste bloquant (`invented-number`). Moins de 3 lignes valides : `skill-lines-too-few`, catégories du profil conservées.
+- **Ajout** : application en blocs `custom_text` sous l'en-tête « Compétences » (`overrideData.aiSkillLine`, `sources`), propres au CV, jamais écrits dans le profil maître. Idempotent (blocs mis à jour, créés ou supprimés) et réversible : une application sans lignes les retire et rétablit les catégories masquées (`hiddenBySkillLines`). Avec au moins 3 lignes valides, les catégories de compétences du profil ne restent visibles que si l'IA les liste en `visible: true`.
+- **Ajout** : rendu avec le style des lignes de compétences (`cv-skill-line`) sur tous les templates, colonne latérale comprise, et dans l'export DOCX. Le prompt documente `cvSkillLines` et ses règles anti-invention (tous les instantanés de prompt gagnent deux lignes).
+- **Corrigé** : le panneau IA du CV builder n'ignore plus en silence les `suggestedEntries` : revue opt-in (composant partagé `SuggestedEntriesReview` avec le générateur de la Veille), seules les entrées cochées sont écrites dans le profil et ajoutées au CV (`lib/suggested-entries.ts`).
+
+---
+
 ### Moteur de CV IA : lot 4 (temps des verbes, titre libre, accroche)
 
 - **Ajout** : réglage par profil `cv_verb_tense:{profileId}` : `infinitif` (défaut, « Recruter », « Piloter »), `passe-present` (comportement précédent) ou `nominal` (« Recrutement de… »), dans Paramètres > « Orientation du CV ». La définition de la puce compose orientation et temps en un seul endroit (`bulletForm` dans `lib/cv-focus-rules.ts`) : « verbe d'action à l'infinitif + quoi + pour qui ou sur quel périmètre + comment ». Le test « pas de consigne en dur » couvre aussi « verbes au passé » et « verbes au présent ».

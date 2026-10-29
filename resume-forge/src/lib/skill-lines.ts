@@ -22,6 +22,16 @@ export const BADGE_ENTRY_TYPES: readonly EntryType[] = ['skill', 'language', 'in
 export interface BadgeBlockLike {
   entryId: string | null;
   overrideData?: Record<string, unknown> | null;
+  blockType?: string;
+  customContent?: string | null;
+}
+
+/**
+ * Ligne de compétences reformulée, propre au CV (`cvSkillLines`) : bloc `custom_text` marqué
+ * `overrideData.aiSkillLine`, rendu comme une ligne de compétences (jamais écrit dans le profil maître).
+ */
+export function isSkillLineBlock(block: Pick<BadgeBlockLike, 'blockType' | 'overrideData'>): boolean {
+  return block.blockType === 'custom_text' && block.overrideData?.aiSkillLine === true;
 }
 
 /** Un élément de ligne : libellé et, pour le format tableau, niveau (sous-titre). */
@@ -34,6 +44,8 @@ export interface BadgeItem {
 export interface BadgeRow {
   category: string | null;
   items: BadgeItem[];
+  /** Ligne de texte libre propre au CV (`cvSkillLines`) : ni catégorie ni élément libre. */
+  plain?: boolean;
 }
 
 /** Séparateur des éléments d'une catégorie sur une ligne. */
@@ -84,6 +96,11 @@ export function buildBadgeRows(blocks: readonly BadgeBlockLike[], entries: reado
   const rows: BadgeRow[] = [];
   const loose: BadgeItem[] = [];
   for (const block of blocks) {
+    if (isSkillLineBlock(block)) {
+      const text = str(block.customContent);
+      if (text) rows.push({ category: null, items: [{ name: text }], plain: true });
+      continue;
+    }
     const entry = block.entryId ? byId.get(block.entryId) : undefined;
     if (!entry) continue;
     const data: Record<string, unknown> = { ...entry, ...(block.overrideData ?? {}) };
