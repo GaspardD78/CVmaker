@@ -23,13 +23,14 @@ import { normalizeLanguageCode } from './cv-language';
 import { normalizeLabel } from './cv-sections';
 import { normalizeDescription, normalizeTypography } from './cv-typography';
 import { bulletItems, isSkillCategory } from './skill-lines';
+import { matchProfileExtras, parseHeaderExtras } from './header-extras';
 import type { AngleSpec, TitleRule } from './cv-angles';
 
 export type GuardCode =
   | 'unknown-id' | 'invented-number' | 'unsourced-term' | 'unsupported-title' | 'suggestion-rejected'
   | 'duplicate-skill' | 'skill-in-several-groups' | 'long-bullet' | 'too-many-bullets' | 'empty-description'
   | 'one-page' | 'forbidden-phrase' | 'generic-task' | 'pronoun' | 'tense' | 'dates-format' | 'volume'
-  | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected';
+  | 'skill-item-invented' | 'angle-hidden-entry-visible' | 'angle-lead-entry-hidden' | 'angle-title-corrected' | 'header-extra-invented';
 
 export interface GuardIssue {
   code: GuardCode;
@@ -91,7 +92,7 @@ export interface GuardReport {
 export interface GuardContext {
   /** Entrées du profil maître. */
   entries: readonly MasterEntry[];
-  profile?: Pick<Profile, 'title' | 'summary'> | null;
+  profile?: Pick<Profile, 'title' | 'summary' | 'drivingLicense' | 'headerExtras'> | null;
   /** « Contexte additionnel » saisi par l'utilisateur : seule source des suggestions. */
   extraContext?: string;
   /** Pages cibles (réglage « Pages cibles ») ; défaut : 1, comme le prompt. */
@@ -412,6 +413,25 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   }
   const summary = input.summary !== undefined ? normalizeTypography(input.summary, language) : undefined;
 
+  // ── En-tête : seules les mentions qui existent dans le profil ──
+  let header = input.header;
+  if (header) {
+    const profileExtras = parseHeaderExtras(ctx.profile?.headerExtras);
+    const cleanedHeader: NonNullable<AiCvResponse['header']> = {};
+    if (header.showDrivingLicense !== undefined && ctx.profile?.drivingLicense?.trim()) {
+      cleanedHeader.showDrivingLicense = header.showDrivingLicense;
+    }
+    if (header.extras) {
+      const kept = matchProfileExtras(header.extras, profileExtras);
+      const dropped = header.extras.filter(x => !matchProfileExtras([x], profileExtras).length);
+      if (dropped.length > 0) {
+        warn({ code: 'header-extra-invented', message: `En-tête : mention(s) absente(s) du profil retirée(s) : ${dropped.join(', ')}.` });
+      }
+      cleanedHeader.extras = kept;
+    }
+    header = Object.keys(cleanedHeader).length > 0 ? cleanedHeader : undefined;
+  }
+
   const data: AiCvResponse = {
     ...input,
     title,
@@ -421,6 +441,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     entryOrder: entryOrder && entryOrder.length > 0 ? entryOrder : undefined,
     skillGroups,
   };
+  if (header !== undefined) data.header = header; else delete data.header;
   if (data.entryOrder === undefined) delete data.entryOrder;
   if (data.skillGroups === undefined) delete data.skillGroups;
 

@@ -5,6 +5,7 @@ import {
 } from 'docx';
 import { CVDocument, CVBlock } from '../types/cv';
 import { MasterEntry, Profile } from '../types/profile';
+import { profileForHeader } from './header-extras';
 import { CVTemplate } from '../types/template';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
@@ -72,6 +73,8 @@ const CONTACT_ICONS: Record<string, string> = {
   linkedin: '\u25A0',   // ■ (small square for LinkedIn)
   github: '\u25C6',     // ◆
   portfolio: '\u25CE',  // ◎
+  license: '\u25C8',    // ◈
+  extra: '\u2022',      // •
 };
 
 // ── Photo masking (circular/rounded) via canvas ────────────────────────────────
@@ -170,11 +173,12 @@ type DisplayFormat = 'badges' | 'comma' | 'list' | 'columns2' | 'columns3' | 'ta
 
 export async function generateDocxBlob(
   cv: CVDocument,
-  profile: Profile,
+  masterProfile: Profile,
   blocks: CVBlock[],
   entries: MasterEntry[],
   template: CVTemplate
 ): Promise<Blob> {
+  const profile = profileForHeader(masterProfile, cv.settings);
   const cvSettings = (cv.settings || {}) as Record<string, string>;
   const dateSettings = readDateSettings(cv.settings);
 
@@ -255,6 +259,8 @@ export async function generateDocxBlob(
   if (profile.email)        contactItems.push({ icon: CONTACT_ICONS.email,     text: profile.email, href: `mailto:${profile.email}` });
   if (profile.phone)        contactItems.push({ icon: CONTACT_ICONS.phone,     text: profile.phone });
   if (profile.city)         contactItems.push({ icon: CONTACT_ICONS.city,      text: profile.city });
+  if (profile.drivingLicense?.trim()) contactItems.push({ icon: CONTACT_ICONS.license, text: profile.drivingLicense.trim() });
+  for (const extra of profile.headerExtras ?? []) contactItems.push({ icon: CONTACT_ICONS.extra, text: extra });
   if (profile.linkedinUrl)  contactItems.push({ icon: CONTACT_ICONS.linkedin,  text: shortenUrl(profile.linkedinUrl), href: ensureHref(profile.linkedinUrl) });
   if (profile.githubUrl)    contactItems.push({ icon: CONTACT_ICONS.github,    text: shortenUrl(profile.githubUrl),   href: ensureHref(profile.githubUrl) });
   if (profile.portfolioUrl) contactItems.push({ icon: CONTACT_ICONS.portfolio, text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });

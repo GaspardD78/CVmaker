@@ -46,6 +46,21 @@ function GlobeIcon() {
   );
 }
 
+function CarIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
+      <path fillRule="evenodd" d="M4.6 4.2A2 2 0 016.5 3h7a2 2 0 011.9 1.2L16.6 8H17a1 1 0 011 1v4.5a1 1 0 01-1 1h-.5v1a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1h-5v1a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1H3a1 1 0 01-1-1V9a1 1 0 011-1h.4l1.2-3.8zM6.2 5.2L5.3 8h9.4l-.9-2.8a.5.5 0 00-.5-.2h-6.6a.5.5 0 00-.5.2zM5.5 12a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+    </svg>
+  );
+}
+function DotIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" className="mr-1 opacity-60" style={{ width: '14px', height: '14px', display: 'block', flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
 /** Shorten a URL for display */
 function shortenUrl(url: string): string {
   try {
@@ -80,6 +95,8 @@ export function buildContactItems(profile: Profile): ContactItem[] {
   if (profile.email) items.push({ icon: <MailIcon />, text: profile.email, href: `mailto:${profile.email}` });
   if (profile.phone) items.push({ icon: <PhoneIcon />, text: profile.phone, href: `tel:${profile.phone.replace(/\s/g, '')}` });
   if (profile.city) items.push({ icon: <LocationIcon />, text: profile.city });
+  if (profile.drivingLicense?.trim()) items.push({ icon: <CarIcon />, text: profile.drivingLicense.trim() });
+  for (const extra of profile.headerExtras ?? []) items.push({ icon: <DotIcon />, text: extra });
   if (profile.linkedinUrl) items.push({ icon: <LinkedInIcon />, text: shortenUrl(profile.linkedinUrl), href: ensureHref(profile.linkedinUrl) });
   if (profile.githubUrl) items.push({ icon: <GitHubIcon />, text: shortenUrl(profile.githubUrl), href: ensureHref(profile.githubUrl) });
   if (profile.portfolioUrl) items.push({ icon: <GlobeIcon />, text: shortenUrl(profile.portfolioUrl), href: ensureHref(profile.portfolioUrl) });

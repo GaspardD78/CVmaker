@@ -8,7 +8,7 @@ export function toSnakeCase(str: string): string {
   return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
-const JSON_FIELDS = ['metadata', 'tags', 'settings', 'override_data', 'overrideData', 'match_criteria', 'matchCriteria'];
+const JSON_FIELDS = ['metadata', 'tags', 'settings', 'override_data', 'overrideData', 'match_criteria', 'matchCriteria', 'header_extras', 'headerExtras'];
 
 export function keysToCamelCase<T>(obj: unknown): T {
   if (obj === null || typeof obj !== 'object') {

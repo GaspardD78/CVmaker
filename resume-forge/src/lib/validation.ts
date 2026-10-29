@@ -19,6 +19,8 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'photo_path',
     'title',
     'summary',
+    'driving_license',
+    'header_extras',
     'created_at',
     'updated_at',
   ],

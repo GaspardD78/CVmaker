@@ -238,6 +238,14 @@ export async function getDb(): Promise<Database> {
       )
     `).catch(() => {/* already exists */});
 
+    // Fallback: ensure migration 025 schema exists (permis et mentions d'en-tête du profil).
+    for (const stmt of [
+      `ALTER TABLE profiles ADD COLUMN driving_license TEXT`,
+      `ALTER TABLE profiles ADD COLUMN header_extras TEXT`,
+    ]) {
+      await db.execute(stmt).catch(() => {/* already exists */});
+    }
+
     // Fallback: ensure migration 023 schema exists (mesures par source, catégorie d'employeur).
     for (const stmt of [
       `ALTER TABLE job_watch_fetch_log ADD COLUMN metrics TEXT`,

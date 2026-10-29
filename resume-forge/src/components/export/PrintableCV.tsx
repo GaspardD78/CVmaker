@@ -3,6 +3,7 @@ import { CVDocument, CVBlock } from '../../types/cv';
 import { MasterEntry, Profile } from '../../types/profile';
 import { CVTemplate } from '../../types/template';
 import { CVHeader } from './CVHeader';
+import { profileForHeader } from '../../lib/header-extras';
 import { CVSectionHeader } from './CVSectionHeader';
 import { CVEntryBlock } from './CVEntryBlock';
 import { CVBadgeGroup } from './CVBadgeGroup';
@@ -99,7 +100,8 @@ interface PrintableCVProps {
 }
 
 export const PrintableCV = forwardRef<HTMLDivElement, PrintableCVProps>(
-  ({ cv, profile, blocks, entries, template }, ref) => {
+  ({ cv, profile: masterProfile, blocks, entries, template }, ref) => {
+    const profile = profileForHeader(masterProfile, cv.settings);
     const sortedBlocks = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
 
     const title = cv.targetJob || profile.title;

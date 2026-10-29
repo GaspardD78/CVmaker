@@ -24,6 +24,10 @@ export interface Profile {
   photoPath: string | null;
   title: string | null;
   summary: string | null;
+  /** Mention de permis affichée dans l'en-tête, ex. « Permis B » (migration 025). */
+  drivingLicense?: string | null;
+  /** Mentions libres d'en-tête, ex. « Mobilité Île-de-France » (migration 025). */
+  headerExtras?: string[];
   createdAt: string;
   updatedAt: string;
 }
