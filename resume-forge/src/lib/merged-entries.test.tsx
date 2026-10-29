@@ -315,3 +315,48 @@ describe('affichage', () => {
     expect(mergedCount({ overrideData: { mergedFrom: ['a'] } })).toBe(1);
   });
 });
+
+describe('garde-fou : temps des verbes sur une ligne fusionnée', () => {
+  const tense = (r: ReturnType<typeof guardAiCv>) => r.report.warnings.filter(w => w.code === 'tense').map(w => w.message);
+  const old1 = makeEntry('o1', 'experience', 'Chargé de recrutement', { subtitle: 'Employeur O1', startDate: '2012-01', endDate: '2013-12', description: '- Recruter' });
+  const current = makeEntry('o2', 'experience', 'Chargé de recrutement', { subtitle: 'Employeur O2', startDate: '2018-01', endDate: null, isCurrent: true, description: '- Recruter' });
+  // Poste le plus récent sans date de fin mais pas « en cours », fusionné avec un poste terminé.
+  const openEnded = makeEntry('o3', 'experience', 'Chargé de recrutement', { subtitle: 'Employeur O3', startDate: '2015-01', endDate: null, isCurrent: false, description: '- Recruter' });
+  const run = (group: string[], descriptions: string, all: ReturnType<typeof makeEntry>[], verbTense?: 'passe-present') => guardAiCv(
+    resp({ entries: group.map(id => ({ id, visible: true })), mergedEntries: [{ ids: group, titleOverride: 'Chargé de recrutement', description: descriptions }] }),
+    { entries: all, profile: TEST_PROFILE, now: NOW, ...(verbTense ? { verbTense } : { verbTense: 'passe-present' as const }) },
+  );
+
+  it('une entrée du groupe en cours : la ligne fusionnée est « en cours » (verbes au passé signalés)', () => {
+    const r = run(['o1', 'o2'], '- Recruté des profils\n- Piloté les entretiens', [old1, current]);
+    expect(tense(r).join('\n')).toContain('passé sur un poste actuel');
+  });
+
+  it('aucune entrée en cours : la période calculée est terminée, même si le porteur n\'a pas de date de fin', () => {
+    // Règle précédente (porteur sans fin = en cours) : aucun avertissement ; période calculée : « présent sur un poste terminé ».
+    const r = run(['o1', 'o3'], '- Recrute des profils\n- Pilote les entretiens', [old1, openEnded]);
+    expect(tense(r).join('\n')).toContain('présent sur un poste terminé');
+  });
+
+  it('verbes cohérents avec la période : aucun avertissement', () => {
+    expect(tense(run(['o1', 'o2'], '- Recrute des profils\n- Pilote les entretiens', [old1, current]))).toEqual([]);
+    expect(tense(run(['o1', 'o3'], '- Recruté des profils\n- Piloté les entretiens', [old1, openEnded]))).toEqual([]);
+  });
+
+  it('hors fusion : règle historique inchangée (sans date de fin = en cours)', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'o3', visible: true, description: '- Recruté des profils\n- Piloté les entretiens' }] }), { entries: [openEnded], profile: TEST_PROFILE, now: NOW, verbTense: 'passe-present' });
+    expect(tense(r).join('\n')).toContain('passé sur un poste actuel');
+  });
+});
+
+describe('garde-fou : une ligne fusionnée sans description est voulue', () => {
+  it('pas d\'avertissement « visible sans description » sur le porteur', () => {
+    const r = guardAiCv(resp({ entries: [{ id: 'a1', visible: true }, { id: 'a2', visible: true }], mergedEntries: [{ ids: ['a1', 'a2'], titleOverride: 'Chargé de recrutement' }] }), ctx());
+    expect(codes(r)).not.toContain('empty-description');
+  });
+  it('hors fusion, une expérience visible sans description est toujours signalée', () => {
+    const empty = makeEntry('q1', 'experience', 'Poste vide', { subtitle: 'Employeur Q', startDate: '2020-01', endDate: '2021-01' });
+    const r = guardAiCv(resp({ entries: [{ id: 'q1', visible: true }] }), { entries: [empty], profile: TEST_PROFILE, now: NOW });
+    expect(codes(r)).toContain('empty-description');
+  });
+});

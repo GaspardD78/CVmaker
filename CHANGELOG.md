@@ -7,6 +7,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : test de bout en bout « chargé de recrutement généraliste »
+
+- **Ajout** : fixture anonymisée (`lib/test-helpers/generalist-fixture.ts` : employeurs, écoles et contenus fictifs) et test de bout en bout (`ai-cv-generalist-e2e.test.tsx`) : réponse de l'IA -> garde-fou -> application -> rendu écran et DOCX, avec le ciblage « public · annonce · rh » et un titre libre. Le CV est produit entièrement par l'IA, sans retouche manuelle : en-tête avec « Permis B », titre libre « Chargé de recrutement · Évaluation et conseil aux encadrants », 4 postes détaillés et 2 lignes fusionnées aux dates calculées, 7 lignes de compétences rattachées à leurs sources (dont deux citant des entrées fusionnées), formation sur 2 lignes, aucune autre section. Vérifie aussi qu'aucun terme de `avoidTerms` de la fiche « public » ne passe (contrôle négatif avec « sourcing »), l'idempotence de la réapplication, et que les catégories du profil sont masquées au profit des lignes.
+- **Corrigé** : le contrôle des temps (`tense`, mode passé / présent) lit la période calculée d'une ligne fusionnée (en cours si une entrée du groupe l'est), au lieu des dates du seul porteur.
+- **Corrigé** : une ligne fusionnée sans description n'est plus signalée « visible sans description » (une ligne titre, employeurs et dates est voulue).
+
+---
+
 ### Moteur de CV IA : fusion d'expériences (lot 2)
 
 - **Ajout** : champ optionnel additif `mergedEntries: [{ ids, titleOverride, subtitleOverride?, description? }]`. Garde-fou : au moins 2 identifiants existants du même `entryType`, un identifiant dans un seul groupe, sinon le groupe est ignoré avec un avertissement (`merge-ignored`). Les dates ne viennent jamais de l'IA : début le plus ancien, fin la plus récente ou « Présent » si une entrée est en cours, affichées au format du CV ; un `datesOverride` de l'IA sur une entrée fusionnée est ignoré (`merge-dates-ignored`). Sans `subtitleOverride`, les employeurs distincts sont joints par « , », du plus récent au plus ancien. La description suit les règles habituelles (puces, typographie) avec pour source l'union des entrées fusionnées : un chiffre hors de cette union est bloquant.

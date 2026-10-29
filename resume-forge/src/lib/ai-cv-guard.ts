@@ -835,7 +835,8 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
     // Cible 1 page : une expérience ancienne et sans lien peut tenir en une ligne, sans description.
     const oneLineAllowed = strict && type === 'experience' && !isRecent(e) && coversRequired(e) !== true;
 
-    if ((type === 'experience' || type === 'project' || type === 'volunteer') && e.description.trim() === '' && !oneLineAllowed) {
+    // Une ligne fusionnée sans description est voulue (titre, employeurs et dates sur une ligne).
+    if ((type === 'experience' || type === 'project' || type === 'volunteer') && e.description.trim() === '' && !oneLineAllowed && !mergeOf.has(e.entry.id)) {
       warn({ code: 'empty-description', message: `« ${e.title} » est visible sans description.`, entryId: e.entry.id });
     }
     const tooLong = bullets.filter(b => b.length > MAX_BULLET_CHARS);
@@ -850,7 +851,9 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
       const verbTense = ctx.verbTense ?? 'passe-present';
       if (verbTense === 'passe-present') {
         // Cohérence des temps (poste terminé = passé, poste actuel = présent).
-        const current = e.entry.isCurrent || !e.entry.endDate;
+        // Ligne fusionnée : période calculée de la fusion (en cours si une entrée du groupe l'est).
+        const merge = mergeOf.get(e.entry.id);
+        const current = merge ? merge.dates.isCurrent : e.entry.isCurrent || !e.entry.endDate;
         const tenses = bullets.map(b => bulletTense(b, language));
         const wrong = tenses.filter(t => (current ? t === 'past' : t === 'present')).length;
         if (wrong >= 2 && wrong / bullets.length >= 0.5) {
