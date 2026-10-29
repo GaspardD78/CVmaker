@@ -37,8 +37,8 @@ describe('instantanés du prompt par ciblage', () => {
       brief: {
         company: 'Groupe fictif', activity: 'services numériques', hrContext: 'plan de recrutement en cours',
         positions: ['Responsable recrutement', 'Chargé de recrutement senior'], strengths: ['recrutement de profils rares', 'évaluation technique'],
-        referrer: 'Alex Fictif',
       },
+      readerName: 'Camille Fictif', readerRole: 'directeur des opérations', referrerName: 'Alex Fictif',
     }, ''],
     ['cabinet · chasseur · rh', { type: 'cabinet', intent: 'chasseur', firstReader: 'rh' }, 'Mission de recrutement décrite par le cabinet : responsable recrutement IT.'],
   ];
@@ -71,10 +71,22 @@ describe('mode cible : « cible » partout, jamais « annonce »', () => {
     expect(prompt).toContain('priment sur la cible');
   });
 
-  it('recommandation : la personne qui transmet le CV n\'apparaît jamais', () => {
-    const prompt = buildCvPrompt(input({ type: 'grand-groupe', intent: 'recommandation', brief: { referrer: 'Alex Fictif' } }, {}, ''));
+  it('recommandation : la personne qui transmet le CV n\'apparaît jamais, et son nom non plus dans le prompt', () => {
+    const prompt = buildCvPrompt(input({ type: 'grand-groupe', intent: 'recommandation', referrerName: 'Alex Fictif' }, {}, ''));
     expect(prompt).toContain('La personne qui transmet le CV n\'apparaît JAMAIS dans le CV');
-    expect(prompt).toContain('Alex Fictif (ne la mentionne JAMAIS dans le CV)');
+    expect(prompt).not.toContain('Alex Fictif');
+  });
+
+  it('jamais de nom propre dans le prompt : le lecteur y est connu par sa fonction et la note', () => {
+    const prompt = buildCvPrompt(input({
+      type: 'esn', intent: 'recommandation', firstReader: 'direction',
+      readerName: 'Camille Fictif', readerRole: 'directeur des opérations', referrerName: 'Alex Fictif',
+      readerNote: 'dimensionnement, délais',
+    }, {}, ''));
+    expect(prompt).not.toContain('Camille Fictif');
+    expect(prompt).not.toContain('Alex Fictif');
+    expect(prompt).toContain('Fonction du premier lecteur : directeur des opérations. Ne la cite jamais dans le CV.');
+    expect(prompt).toContain('Ce que valorise ce lecteur : « dimensionnement, délais »');
   });
 
   it('mobilité interne et approche de chasseur : « annonce » seulement avec un texte', () => {

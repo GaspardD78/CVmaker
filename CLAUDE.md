@@ -31,6 +31,7 @@ La CI (`.github/workflows/ci.yml`) exécute ces commandes sur chaque PR. Plan d'
 TypeScript strict ≥ 5.x (frontend) + Rust edition 2021 (Tauri 2 backend): Follow standard conventions
 
 ## Recent Changes
+- ciblage du CV, étape 5 (branche claude/pensive-turing-82lmks-targeting-5) : interface (`TargetPanel`, `TargetStatusLine`, `useCvTarget`, écran `TargetSheetsSettings`), champs lecteur dédiés (`readerName`, `readerRole`, `referrerName`, jamais dans le prompt ni l'export, retirés de la sauvegarde Drive via `redactTargetPeople`). Voir `specs/008-cv-targeting/`.
 - ciblage du CV, étape 4 (branche claude/pensive-turing-82lmks-targeting-4) : garde-fou de ciblage (`lib/cv-target-guard.ts`) : `target-forbidden-term`, `target-equivalence-applied`, `target-photo`, `target-reader-mentioned` (avertissements, `GuardContext.target`). Voir `specs/008-cv-targeting/`.
 - ciblage du CV, étape 3 (branche claude/pensive-turing-82lmks-targeting-3) : détection (`lib/cv-target-detect.ts`), champ IA `analyse.cible`, `reconcileAiTarget` (jamais de remplacement silencieux), instantané `cv.settings.target` (`lib/cv-target-snapshot.ts`). Voir `specs/008-cv-targeting/`.
 - ciblage du CV, étape 2 (branche claude/pensive-turing-82lmks-targeting-2) : section « Cible et intention » (`lib/cv-target-prompt.ts`), ATS à trois niveaux (`atsLevelFor` : strict / leger / off), dictionnaire annonce/cible (`lib/cv-wording.ts`), règle de titre `equivalence`, orientation par défaut de la fiche. Tout en `auto` = prompt inchangé. Voir `specs/008-cv-targeting/`.

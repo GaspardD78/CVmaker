@@ -53,12 +53,6 @@ export function equivalenceFor(term: string, equivalences: readonly Equivalence[
   return equivalences.find(e => key(e.from) === t) ?? equivalences.find(e => hasWord(key(e.from), t));
 }
 
-/** Fonction du lecteur : la partie de la note avant « : », « ( », « , » ou « ; » (ex. « directeur des opérations »). */
-export function readerRole(note: string | undefined): string | undefined {
-  const head = note?.split(/[:(;,]/)[0]?.trim();
-  return head && head.split(/\s+/).length >= 2 ? head : undefined;
-}
-
 export function checkTarget(input: TargetGuardInput): TargetIssue[] {
   const { target } = input;
   const issues: TargetIssue[] = [];
@@ -129,9 +123,8 @@ export function checkTarget(input: TargetGuardInput): TargetIssue[] {
   // ── Premier lecteur et personne qui transmet le CV ──
   const reader: { label: string; term: string }[] = [];
   if (target.readerName) reader.push({ label: 'Nom du premier lecteur', term: target.readerName });
-  const role = readerRole(target.readerNote);
-  if (role) reader.push({ label: 'Fonction du premier lecteur', term: role });
-  if (target.brief?.referrer) reader.push({ label: 'Personne qui transmet le CV', term: target.brief.referrer });
+  if (target.readerRole) reader.push({ label: 'Fonction du premier lecteur', term: target.readerRole });
+  if (target.referrerName) reader.push({ label: 'Personne qui transmet le CV', term: target.referrerName });
   const own = key(input.ownText);
   for (const r of reader) {
     const t = key(r.term);

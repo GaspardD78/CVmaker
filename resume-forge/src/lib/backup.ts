@@ -85,6 +85,36 @@ export interface BackupData {
   counts: Partial<Record<ModuleId, number>>;
 }
 
+// ─── Données de ciblage à ne pas envoyer hors de l'appareil ──────────────────
+
+/** Champs de `cv.settings.target` qui désignent des personnes (lecteur, personne qui transmet le CV). */
+export const PRIVATE_TARGET_FIELDS = ['readerName', 'readerRole', 'readerNote', 'referrerName'] as const;
+
+/**
+ * Copie de la sauvegarde sans les champs de ciblage qui désignent des personnes
+ * (`cv_documents.settings.target`). Utilisée pour l'envoi vers Google Drive ; la
+ * sauvegarde locale, qui reste sur l'appareil, les conserve.
+ */
+export function redactTargetPeople(backup: BackupData): BackupData {
+  const rows = backup.modules['cv_documents'];
+  if (!rows) return backup;
+  const redacted = rows.map(row => {
+    const raw = row.settings;
+    let settings: unknown = raw;
+    if (typeof raw === 'string') {
+      try { settings = JSON.parse(raw); } catch { return row; }
+    }
+    if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return row;
+    const target = (settings as Record<string, unknown>).target;
+    if (target === null || typeof target !== 'object' || Array.isArray(target)) return row;
+    const cleaned = { ...(target as Record<string, unknown>) };
+    for (const field of PRIVATE_TARGET_FIELDS) delete cleaned[field];
+    const next = { ...(settings as Record<string, unknown>), target: cleaned };
+    return { ...row, settings: typeof raw === 'string' ? JSON.stringify(next) : next };
+  });
+  return { ...backup, modules: { ...backup.modules, cv_documents: redacted } };
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 /** Collect backup data for the given modules without saving to a file. */

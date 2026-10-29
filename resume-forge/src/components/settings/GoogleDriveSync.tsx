@@ -10,7 +10,7 @@ import {
   isConnected, clearTokens, listDriveBackups, uploadToDrive, downloadFromDrive,
   type DriveFile,
 } from '@/lib/gdrive';
-import { buildBackupData, importBackup, MODULES, BackupProfileChoiceRequired, type BackupData, type ImportPlan } from '@/lib/backup';
+import { buildBackupData, importBackup, redactTargetPeople, MODULES, BackupProfileChoiceRequired, type BackupData, type ImportPlan } from '@/lib/backup';
 import { ImportConflictModal } from './ImportConflictModal';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -79,7 +79,8 @@ export function GoogleDriveSync() {
     setWorking('upload');
     setStatus(null);
     try {
-      const backup = await buildBackupData(MODULES.map(m => m.id));
+      // Les noms du ciblage (lecteur, personne qui transmet le CV) ne quittent pas l'appareil.
+      const backup = redactTargetPeople(await buildBackupData(MODULES.map(m => m.id)));
       const json = JSON.stringify(backup, null, 2);
       const date = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', 'h');
       await uploadToDrive(json, `resumeforge_backup_${date}.cvmaker`, profileId);

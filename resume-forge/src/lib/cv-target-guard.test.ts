@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { guardAiCv, type GuardContext } from './ai-cv-guard';
 import type { AiCvResponse } from './ai-cv-response';
-import { equivalenceFor, readerRole } from './cv-target-guard';
+import { equivalenceFor } from './cv-target-guard';
 import { DEFAULT_TARGET_SHEETS, resolveTarget, type TargetChoice } from './cv-targets';
 import { TEST_PROFILE, makeEntry } from './test-helpers/cv-fixtures';
 
@@ -125,9 +125,9 @@ describe('target-photo', () => {
 describe('target-reader-mentioned', () => {
   const entries = [exp('m1', 'Chargé de recrutement', '- Piloter les recrutements')];
   const choice: TargetChoice = {
-    type: 'esn', firstReader: 'direction', readerName: 'Camille Fictif',
-    readerNote: 'directeur des opérations en infogérance : dimensionnement, délais, engagements tenus',
-    brief: { referrer: 'Alex Exemple' },
+    type: 'esn', intent: 'recommandation', firstReader: 'direction', readerName: 'Camille Fictif',
+    readerRole: 'directeur des opérations en infogérance', readerNote: 'dimensionnement, délais, engagements tenus',
+    referrerName: 'Alex Exemple',
   };
 
   it('fonction, nom du lecteur et personne qui transmet le CV', () => {
@@ -152,12 +152,6 @@ describe('target-reader-mentioned', () => {
   it('rien de cité : aucun avertissement', () => {
     const r = guardAiCv(resp({ summary: 'Chargé de recrutement.', entries: [{ id: 'm1', visible: true }] }), base(entries, choice));
     expect(codes(r)).not.toContain('target-reader-mentioned');
-  });
-
-  it('readerRole : fonction avant les deux-points', () => {
-    expect(readerRole('directeur des opérations : dimensionnement')).toBe('directeur des opérations');
-    expect(readerRole('dimensionnement')).toBeUndefined();
-    expect(readerRole(undefined)).toBeUndefined();
   });
 });
 

@@ -78,7 +78,6 @@ function briefLines(brief: TargetBrief): string[] {
   if (brief.positions?.length) out.push(`- Postes envisagés, par ordre de priorité : ${brief.positions.map((p, i) => `${i + 1}. ${p}`).join(' ; ')}`);
   if (brief.strengths?.length) out.push(`- Atouts à mettre en avant : ${list(brief.strengths)}`);
   if (brief.context) out.push(`- Contexte connu : ${brief.context}`);
-  if (brief.referrer) out.push(`- Personne qui transmet le CV : ${brief.referrer} (ne la mentionne JAMAIS dans le CV)`);
   return out;
 }
 
@@ -87,9 +86,9 @@ function briefLines(brief: TargetBrief): string[] {
  * lecteur, aucune cible) : le prompt reste alors identique à celui d'avant le ciblage.
  */
 export function buildTargetBlock(target: ResolvedTarget, opts: { mode?: Wording } = {}): string {
-  const { sheet, intent, firstReader, readerNote, brief, publicDetails } = target;
+  const { sheet, intent, firstReader, readerNote, readerRole, brief, publicDetails } = target;
   const hasIntent = intent !== 'annonce';
-  if (!sheet && !hasIntent && !firstReader && !readerNote && !brief) return '';
+  if (!sheet && !hasIntent && !firstReader && !readerNote && !readerRole && !brief) return '';
 
   const parts: string[] = ['## Cible et intention'];
   const header = [
@@ -123,8 +122,9 @@ export function buildTargetBlock(target: ResolvedTarget, opts: { mode?: Wording 
     }
   }
 
-  if (firstReader) {
-    const reader = [READER_LINES[firstReader]];
+  if (firstReader || readerRole) {
+    const reader = firstReader ? [READER_LINES[firstReader]] : [];
+    if (readerRole) reader.push(`Fonction du premier lecteur : ${readerRole}. Ne la cite jamais dans le CV.`);
     if (readerNote) {
       reader.push(`Ce que valorise ce lecteur : « ${readerNote} ». Appuie-toi dessus pour choisir quoi mettre en avant. Ne le mentionne JAMAIS dans le CV et n'attribue JAMAIS au candidat ses compétences ou sa fonction.`);
     }

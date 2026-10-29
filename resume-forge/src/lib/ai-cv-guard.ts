@@ -617,7 +617,7 @@ export function guardAiCv(input: AiCvResponse, ctx: GuardContext): { data: AiCvR
   // ── Ciblage : vocabulaire, équivalences de titre, photo, mention du premier lecteur ──
   let titleAcceptedByEquivalence = false;
   const target = ctx.target;
-  if (target && (target.sheet || target.readerName || target.readerNote || target.brief?.referrer)) {
+  if (target && (target.sheet || target.readerName || target.readerRole || target.referrerName)) {
     const fields: TargetTextField[] = [];
     if (title) fields.push({ where: 'titre', text: title });
     if (summary) fields.push({ where: 'accroche', text: summary });
