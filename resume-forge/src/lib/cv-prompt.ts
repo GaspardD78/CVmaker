@@ -77,8 +77,10 @@ export interface CvPromptOptions {
   bulletFocus?: BulletFocus;
   /** Langue du CV (`cv.settings.cvLanguage`) : le bloc d'orientation est rédigé en anglais pour `en`. */
   cvLanguage?: string;
-  /** Ciblage résolu (type de structure, intention, premier lecteur) ; défaut : tout en auto (prompt historique). */
+  /** Ciblage résolu (type de structure, intention, premier lecteur) ; défaut : tout en auto. */
   target?: ResolvedTarget;
+  /** Axes proposés par l'IA dans analyse.cible ; défaut : ceux encore par défaut (`[]` : aucune demande). */
+  cibleAxes?: readonly CibleAxis[];
 }
 
 export interface CvPromptInput {
@@ -493,7 +495,7 @@ export function buildCvPrompt(input: CvPromptInput): string {
     buildHeaderMentions(input.profile),
     buildExtraContext(input.extraContext),
     buildTargetBlock(target, { mode }),
-    buildAnalysisStep({ alertesCap: hasPersonalRules(input), mode, cibleAxes: cibleAxesToAsk(target) }),
+    buildAnalysisStep({ alertesCap: hasPersonalRules(input), mode, cibleAxes: input.options?.cibleAxes ?? cibleAxesToAsk(target) }),
     buildAngleBlock(input),
     buildRules(input),
     buildClarify(input.clarify),
@@ -503,7 +505,7 @@ export function buildCvPrompt(input: CvPromptInput): string {
       header: hasHeaderMentions(input.profile),
       bulletFocus: focusOf(input),
       mode,
-      cibleAxes: cibleAxesToAsk(target),
+      cibleAxes: input.options?.cibleAxes ?? cibleAxesToAsk(target),
     }),
   ].filter(Boolean).join('\n\n');
 }

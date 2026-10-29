@@ -10,8 +10,8 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 ### Moteur de CV IA : ciblage, étape 3 (détection et `analyse.cible`)
 
 - **Ajout** : détection automatique côté application (`lib/cv-target-detect.ts`) à partir du texte de l'annonce et du nom de l'entreprise : `public` (via `isPublicSectorText`, sans les faux positifs « administration système »), `esn`, `cabinet`, et `annonce` dès qu'un texte est fourni. Un signal absent ou contradictoire ne détecte rien.
-- **Ajout** : champ additif `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), lu avec tolérance (casse, accents, variantes de clés). Le prompt le demande pour les axes encore par défaut quand le ciblage est engagé ; tout en auto sans rien de détecté : prompt inchangé. Un choix explicite ou un type détecté par l'application n'est jamais remplacé en silence : le désaccord est rapporté (`ApplyReport.target.contradictions`).
-- **Ajout** : instantané `cv.settings.target` (ciblage effectif, fiche comprise) écrit à l'application quand le ciblage est fourni ; relecture validée (`readTargetSnapshot`). L'historique d'un CV ne bouge pas si les fiches changent.
+- **Ajout** : champ additif `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), lu avec tolérance (casse, accents, variantes de clés). Le prompt le demande pour les axes encore par défaut (type, intention, premier lecteur), y compris quand tout est en auto et rien n'est détecté : c'est alors la seule différence avec le prompt d'avant, sans fiche ni changement de règles, et le CV produit reste identique. La proposition n'est jamais appliquée à ce CV : elle est rapportée (`ApplyReport.target`) pour « Ciblage proposé » / « Appliquer et régénérer » (interface à l'étape 5). Un choix explicite ou un type détecté par l'application n'est jamais remplacé en silence.
+- **Ajout** : instantané `cv.settings.target` (ciblage effectif, fiche comprise) écrit à l'application quand le ciblage est fourni (le ciblage réellement utilisé, pas la proposition de l'IA) ; relecture validée (`readTargetSnapshot`). L'historique d'un CV ne bouge pas si les fiches changent.
 
 ---
 

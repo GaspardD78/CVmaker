@@ -141,13 +141,11 @@ export function buildTargetBlock(target: ResolvedTarget, opts: { mode?: Wording 
 export type CibleAxis = 'type' | 'intent' | 'firstReader';
 
 /**
- * Axes que l'IA doit renseigner dans `analyse.cible` : ceux encore par défaut, une fois le
- * ciblage engagé (un type, un lecteur, une cible ou une intention autre que l'annonce).
- * Tout en auto sans rien de détecté : aucun axe, le prompt reste celui d'avant le ciblage.
+ * Axes que l'IA propose dans `analyse.cible` : ceux encore par défaut (ni choisis ni détectés).
+ * La proposition est seulement affichée au candidat, qui peut l'appliquer et régénérer : elle
+ * ne change ni les règles du prompt ni le CV produit.
  */
 export function cibleAxesToAsk(target: ResolvedTarget): CibleAxis[] {
-  const engaged = target.type !== null || target.firstReader !== null || target.intent !== 'annonce' || Boolean(target.brief) || Boolean(target.readerNote);
-  if (!engaged) return [];
   return (['type', 'intent', 'firstReader'] as const).filter(axis => target.sources[axis] === 'default');
 }
 
@@ -164,7 +162,7 @@ function axisValues(axis: CibleAxis, mode: Wording | undefined): readonly string
 export function cibleAnalysisLine(axes: readonly CibleAxis[], mode: Wording | undefined): string {
   if (axes.length === 0) return '';
   const parts = axes.map(a => `${AXIS_LABEL[a]} (${axisValues(a, mode).join(' | ')})`);
-  return `- cible : renseigne uniquement ${parts.join(', ')}, avec "raison" (une phrase). Les autres axes sont déjà fixés ci-dessus : ne les modifie pas. Ce choix n'est jamais appliqué sur un choix explicite du candidat.`;
+  return `- cible : propose uniquement ${parts.join(', ')}, avec "raison" (une phrase). Cette proposition est seulement affichée au candidat : elle ne change pas ce CV.`;
 }
 
 /** Champ `cible` du schéma JSON ; vide sans axe à renseigner. */

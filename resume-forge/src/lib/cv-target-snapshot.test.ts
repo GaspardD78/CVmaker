@@ -32,16 +32,32 @@ describe('lecture de analyse.cible', () => {
 });
 
 describe('demande de analyse.cible dans le prompt', () => {
-  it('tout en auto sans rien de détecté : prompt inchangé, aucun axe demandé', () => {
-    expect(cibleAxesToAsk(resolveTarget(undefined))).toEqual([]);
-    expect(promptFor(undefined)).not.toContain('"cible"');
-    expect(promptFor(undefined, { intent: 'annonce' })).not.toContain('"cible"');
+  it('tout en auto, rien de détecté : seule la demande de proposition est ajoutée', () => {
+    expect(cibleAxesToAsk(resolveTarget(undefined))).toEqual(['type', 'intent', 'firstReader']);
+    const prompt = promptFor(undefined);
+    expect(prompt).toContain('- cible : propose uniquement type (esn | cabinet | grand-groupe | eti-pme | startup | public | associatif), intention (annonce | spontanee | recommandation | mobilite-interne | chasseur), premierLecteur (rh | operationnel | direction | ats), avec "raison" (une phrase). Cette proposition est seulement affichée au candidat : elle ne change pas ce CV.');
+    expect(prompt).toContain('"cible": { "type": "esn|cabinet|grand-groupe|eti-pme|startup|public|associatif", "intention": "annonce|spontanee|recommandation|mobilite-interne|chasseur", "premierLecteur": "rh|operationnel|direction|ats", "raison": "(une phrase)" }');
+    expect(prompt).not.toContain('## Cible et intention');
   });
-  it('ciblage engagé : l\'IA ne renseigne que les axes par défaut', () => {
+
+  it('hors le champ cible, le prompt « tout en auto » est identique à l\'ancien', () => {
+    const all = (cibleAxes?: readonly ('type' | 'intent' | 'firstReader')[]) =>
+      buildCvPrompt({ profile: TEST_PROFILE, entries: makeEntries(), jobOfferText: JOB, options: { now: NOW, pageBudget: 2, bulletFocus: 'resultats', ...(cibleAxes ? { cibleAxes } : {}) } });
+    const withAsk = all();
+    const withoutAsk = all([]);
+    const stripped = withAsk
+      .replace(/^- cible : .*\n/m, '')
+      .replace(/,\n    "cible": \{.*\}(?=\n  \},)/, '');
+    expect(stripped).toBe(withoutAsk);
+    expect(withAsk).not.toBe(withoutAsk);
+    expect(withAsk.length - withoutAsk.length).toBeLessThan(700);
+  });
+
+  it('ce que le candidat a déjà fixé ou ce que l\'application a détecté n\'est pas redemandé', () => {
     const target = resolveTarget({ type: 'esn' }, {}, { intent: 'annonce' });
     expect(cibleAxesToAsk(target)).toEqual(['firstReader']);
     const prompt = promptFor({ type: 'esn' }, { intent: 'annonce' });
-    expect(prompt).toContain('- cible : renseigne uniquement premierLecteur (rh | operationnel | direction | ats)');
+    expect(prompt).toContain('- cible : propose uniquement premierLecteur (rh | operationnel | direction | ats)');
     expect(prompt).toContain('"cible": { "premierLecteur": "rh|operationnel|direction|ats", "raison": "(une phrase)" }');
   });
   it('tous les axes fixés : rien à demander', () => {
@@ -116,23 +132,29 @@ describe('instantané cv.settings.target', () => {
   });
 });
 
-describe('application : instantané du ciblage', () => {
+describe('application : instantané du ciblage, proposition non appliquée', () => {
   const entries = makeEntries();
-  it('écrit cv.settings.target avec les axes comblés par l\'IA, sans toucher au profil', async () => {
+  it('enregistre le ciblage utilisé ; la proposition de l\'IA est seulement rapportée', async () => {
     const store = makeFakeStore(makeBlocks(entries));
-    const data = parseAiCvResponse(JSON.stringify({ analyse: { indispensables: ['x'], cible: { type: 'public', firstReader: 'rh' } }, entries: [] }));
+    const data = parseAiCvResponse(JSON.stringify({ analyse: { indispensables: ['x'], cible: { type: 'public', firstReader: 'rh', raison: 'Collectivité' } }, entries: [] }));
     const report = await applyAiCvToBlocks('cv1', data, { store: () => store, entries, target: resolveTarget({ intent: 'spontanee' }) });
-    expect(report.target).toEqual({ filled: ['type', 'firstReader'], contradictions: [] });
+    // Instantané : le ciblage réellement utilisé pour générer ce CV.
     const snap = readTargetSnapshot(store.settings);
-    expect(snap?.type).toBe('public');
+    expect(snap?.type).toBeNull();
+    expect(snap?.firstReader).toBeNull();
     expect(snap?.intent).toBe('spontanee');
-    expect(snap?.sources.type).toBe('detected');
+    // Proposition : à afficher (« Ciblage proposé »), prête pour « Appliquer et régénérer ».
+    expect(report.target?.proposed).toEqual(['type', 'firstReader']);
+    expect(report.target?.raison).toBe('Collectivité');
+    expect(report.target?.target.type).toBe('public');
+    expect(report.target?.target.sheet?.type).toBe('public');
   });
   it('désaccord avec un choix explicite : rapporté, non appliqué', async () => {
     const store = makeFakeStore(makeBlocks(entries));
     const data = parseAiCvResponse(JSON.stringify({ analyse: { indispensables: ['x'], cible: { type: 'public' } }, entries: [] }));
     const report = await applyAiCvToBlocks('cv1', data, { store: () => store, entries, target: resolveTarget({ type: 'esn' }) });
     expect(report.target?.contradictions).toHaveLength(1);
+    expect(report.target?.target.type).toBe('esn');
     expect(readTargetSnapshot(store.settings)?.type).toBe('esn');
   });
   it('sans option target : aucun réglage écrit (comportement historique)', async () => {

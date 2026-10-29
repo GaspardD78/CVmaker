@@ -60,8 +60,8 @@ export interface ApplyAiCvOptions {
   /** Profil maître (mentions d'en-tête) ; défaut : le store du profil. */
   profile?: Pick<Profile, 'drivingLicense' | 'headerExtras'> | null;
   /**
-   * Ciblage effectif de la génération. Fourni : le choix de l'IA (`analyse.cible`) comble les axes
-   * encore par défaut et un instantané est enregistré dans `cv.settings.target` (jamais le profil).
+   * Ciblage effectif de la génération. Fourni : un instantané est enregistré dans `cv.settings.target`
+   * (jamais le profil) ; la proposition de l'IA (`analyse.cible`) n'est pas appliquée, seulement rapportée.
    */
   target?: ResolvedTarget;
   /** Fiches personnalisées du profil (pour la fiche d'un type proposé par l'IA). */
@@ -76,8 +76,11 @@ export interface ApplyReport {
   /** Section Langues affichée ? `null` quand le profil n'a aucune langue. */
   languagesShown: boolean | null;
   warnings: string[];
-  /** Ciblage enregistré : axes comblés par l'IA et désaccords non appliqués (absent sans `target`). */
-  target?: { filled: TargetAxis[]; contradictions: TargetContradiction[] };
+  /**
+   * Proposition de ciblage de l'IA (absente sans `target`). Jamais appliquée à ce CV : l'écran la
+   * montre (« Ciblage proposé ») et `target` est le ciblage à utiliser pour « Appliquer et régénérer ».
+   */
+  target?: { proposed: TargetAxis[]; contradictions: TargetContradiction[]; raison?: string; target: ResolvedTarget };
 }
 
 /** Seuils du regroupement des compétences (garde-fou contre les catégories creuses). */
@@ -227,12 +230,17 @@ export async function applyAiCvToBlocks(
     if (Object.keys(patch).length > 0) await store().updateCvSettings(cvId, patch);
   }
 
-  // 4c. Ciblage : instantané du ciblage effectif (les fiches peuvent changer sans toucher à ce CV).
+  // 4c. Ciblage : instantané du ciblage utilisé (les fiches peuvent changer sans toucher à ce CV) et proposition de l'IA, non appliquée.
   let targetReport: ApplyReport['target'];
   if (opts.target) {
+    await store().updateCvSettings(cvId, { target: buildTargetSnapshot(opts.target) });
     const outcome = reconcileAiTarget(opts.target, data.analyse?.cible, opts.sheetOverrides);
-    await store().updateCvSettings(cvId, { target: buildTargetSnapshot(outcome.target) });
-    targetReport = { filled: outcome.filled, contradictions: outcome.contradictions };
+    targetReport = {
+      proposed: outcome.filled,
+      contradictions: outcome.contradictions,
+      ...(outcome.raison ? { raison: outcome.raison } : {}),
+      target: outcome.target,
+    };
   }
 
   // 5. Section labels (after the reorder, which matches on both names) and CV language.

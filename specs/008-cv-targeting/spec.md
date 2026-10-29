@@ -36,6 +36,6 @@ Les fiches (`lib/cv-targets.ts`, `DEFAULT_TARGET_SHEETS`) sont des données de r
 ## Détection et réponse de l'IA (étape 3)
 
 - Application : `detectTarget({ jobOfferText, company })` renvoie `public` (secteur public dans l'annonce ou le nom), `esn` ou `cabinet` quand les signaux sont nets et non contradictoires, et `annonce` quand un texte est fourni.
-- IA : `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), demandé pour les axes encore par défaut quand le ciblage est engagé. Tout en auto sans rien de détecté : prompt inchangé.
+- IA : `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), demandé pour les axes encore par défaut, y compris quand tout est en auto. C'est la seule différence du prompt « tout en auto » : sans fiche, sans autre changement de règles, le CV produit est identique. La proposition n'est jamais appliquée à ce CV : l'écran affiche « Ciblage proposé » et le bouton « Appliquer et régénérer » (étape 5).
 - Priorité : choix explicite > type détecté par l'application > proposition de l'IA > défaut. Un désaccord n'est jamais appliqué : il est rapporté pour correction et régénération.
 - Instantané `cv.settings.target` : ciblage effectif et fiche utilisée (`readTargetSnapshot`).
