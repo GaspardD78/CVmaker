@@ -7,6 +7,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Non publié] - 2026-10-29
 
+### Moteur de CV IA : ciblage, étape 3 (détection et `analyse.cible`)
+
+- **Ajout** : détection automatique côté application (`lib/cv-target-detect.ts`) à partir du texte de l'annonce et du nom de l'entreprise : `public` (via `isPublicSectorText`, sans les faux positifs « administration système »), `esn`, `cabinet`, et `annonce` dès qu'un texte est fourni. Un signal absent ou contradictoire ne détecte rien.
+- **Ajout** : champ additif `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), lu avec tolérance (casse, accents, variantes de clés). Le prompt le demande pour les axes encore par défaut quand le ciblage est engagé ; tout en auto sans rien de détecté : prompt inchangé. Un choix explicite ou un type détecté par l'application n'est jamais remplacé en silence : le désaccord est rapporté (`ApplyReport.target.contradictions`).
+- **Ajout** : instantané `cv.settings.target` (ciblage effectif, fiche comprise) écrit à l'application quand le ciblage est fourni ; relecture validée (`readTargetSnapshot`). L'historique d'un CV ne bouge pas si les fiches changent.
+
+---
+
 ### Moteur de CV IA : ciblage, étape 2 (bloc de prompt)
 
 - **Ajout** : section « Cible et intention » du prompt (`lib/cv-target-prompt.ts`) : attentes, éléments à mettre en avant, à éviter (consignes et termes), vocabulaire et équivalences de la fiche, démarche (annonce, spontanée, recommandation, mobilité interne, approche de chasseur), formulaire de cible (entreprise, activité, contexte RH, postes envisagés, atouts, personne qui transmet le CV) et premier lecteur avec « ce que valorise ce lecteur » (jamais cité dans le CV). Option `target` de `CvPromptOptions`.

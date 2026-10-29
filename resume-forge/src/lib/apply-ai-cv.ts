@@ -14,6 +14,8 @@ import { useProfileStore } from '@/stores/profileStore';
 import type { CVBlock } from '@/types/cv';
 import type { MasterEntry, Profile } from '@/types/profile';
 import { headerSettingsPatch } from './header-extras';
+import { buildTargetSnapshot, reconcileAiTarget, type TargetAxis, type TargetContradiction } from './cv-target-snapshot';
+import type { ResolvedTarget, SheetOverrides } from './cv-targets';
 
 /** Sous-ensemble du store CV utilisé ici (injectable pour les tests, sans base de données). */
 export interface CvBlockPort {
@@ -57,6 +59,13 @@ export interface ApplyAiCvOptions {
   entries?: MasterEntry[];
   /** Profil maître (mentions d'en-tête) ; défaut : le store du profil. */
   profile?: Pick<Profile, 'drivingLicense' | 'headerExtras'> | null;
+  /**
+   * Ciblage effectif de la génération. Fourni : le choix de l'IA (`analyse.cible`) comble les axes
+   * encore par défaut et un instantané est enregistré dans `cv.settings.target` (jamais le profil).
+   */
+  target?: ResolvedTarget;
+  /** Fiches personnalisées du profil (pour la fiche d'un type proposé par l'IA). */
+  sheetOverrides?: SheetOverrides;
 }
 
 export interface ApplyReport {
@@ -67,6 +76,8 @@ export interface ApplyReport {
   /** Section Langues affichée ? `null` quand le profil n'a aucune langue. */
   languagesShown: boolean | null;
   warnings: string[];
+  /** Ciblage enregistré : axes comblés par l'IA et désaccords non appliqués (absent sans `target`). */
+  target?: { filled: TargetAxis[]; contradictions: TargetContradiction[] };
 }
 
 /** Seuils du regroupement des compétences (garde-fou contre les catégories creuses). */
@@ -216,13 +227,21 @@ export async function applyAiCvToBlocks(
     if (Object.keys(patch).length > 0) await store().updateCvSettings(cvId, patch);
   }
 
+  // 4c. Ciblage : instantané du ciblage effectif (les fiches peuvent changer sans toucher à ce CV).
+  let targetReport: ApplyReport['target'];
+  if (opts.target) {
+    const outcome = reconcileAiTarget(opts.target, data.analyse?.cible, opts.sheetOverrides);
+    await store().updateCvSettings(cvId, { target: buildTargetSnapshot(outcome.target) });
+    targetReport = { filled: outcome.filled, contradictions: outcome.contradictions };
+  }
+
   // 5. Section labels (after the reorder, which matches on both names) and CV language.
   await applySectionLabels(store, data.sectionLabels, cvLanguage);
   if (explicitLanguage && store().getCvSettings(cvId).cvLanguage !== explicitLanguage) {
     await store().updateCvSettings(cvId, { cvLanguage: explicitLanguage });
   }
 
-  return { cvLanguage, skillGrouping, languagesShown, warnings };
+  return { cvLanguage, skillGrouping, languagesShown, warnings, ...(targetReport ? { target: targetReport } : {}) };
 }
 
 /**

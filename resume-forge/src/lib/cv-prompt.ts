@@ -21,7 +21,7 @@ import {
 } from './cv-focus-rules';
 import { applyWording, type Wording } from './cv-wording';
 import { atsLevelFor, defaultFocusFor, resolveTarget, titleRuleFor, wordingModeFor, type ResolvedTarget } from './cv-targets';
-import { atsRule, buildTargetBlock, targetTitleRule } from './cv-target-prompt';
+import { atsRule, buildTargetBlock, cibleAnalysisLine, cibleAxesToAsk, cibleSchemaField, targetTitleRule, type CibleAxis } from './cv-target-prompt';
 import { bulletItems, isSkillCategory } from './skill-lines';
 import { buildAngle, buildAngleChoice } from './cv-angle-prompt';
 import type { AngleSpec } from './cv-angles';
@@ -305,14 +305,14 @@ ${trimmed || '(aucun - donc "suggestedEntries" DOIT être un tableau vide)'}`;
  * Étape d'analyse. `alertesCap` : demande aussi les critères de recherche du
  * candidat (règles personnelles) contredits par l'annonce.
  */
-export function buildAnalysisStep(opts: { alertesCap?: boolean; mode?: Wording } = {}): string {
+export function buildAnalysisStep(opts: { alertesCap?: boolean; mode?: Wording; cibleAxes?: readonly CibleAxis[] } = {}): string {
   return applyWording(`## Étape 0 - Analyse (remplis "analyse" EN PREMIER dans le JSON)
 - langue_annonce : code ISO 639-1 de la langue de l'annonce (fr, en, de...).
 - indispensables : 5 à 8 exigences, formulation EXACTE de l'annonce (mots-clés tels qu'écrits).
 - importants : 3 à 5 exigences secondaires.
 - correspondances : pour chaque indispensable, l'ID de l'entrée du profil qui l'étaye, ou null s'il n'y en a pas.
 - ecarts : les indispensables sans preuve dans le profil. À signaler, JAMAIS à combler : ne les reformule pas pour qu'ils paraissent couverts.
-${opts.alertesCap ? "- alertes_cap : les critères de recherche des règles personnelles que l'annonce contredit (télétravail, trajet, rémunération, langues, horaires…), une phrase chacun ; omis s'il n'y en a pas. Ils ne changent pas le CV.\n" : ''}Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette analyse.`, opts.mode);
+${opts.alertesCap ? "- alertes_cap : les critères de recherche des règles personnelles que l'annonce contredit (télétravail, trajet, rémunération, langues, horaires…), une phrase chacun ; omis s'il n'y en a pas. Ils ne changent pas le CV.\n" : ''}${cibleAnalysisLine(opts.cibleAxes ?? [], opts.mode) ? `${cibleAnalysisLine(opts.cibleAxes ?? [], opts.mode)}\n` : ''}Appuie ensuite toutes tes décisions (sélection, ordre, accroche) sur cette analyse.`, opts.mode);
 }
 
 /** Règles de contenu imposées pour une cible d'une page (remplacent PUCES, VOLUME et COMPÉTENCES). */
@@ -406,6 +406,8 @@ export interface OutputSchemaOptions {
   bulletFocus?: BulletFocus;
   /** « annonce » ou « cible » (dictionnaire central). */
   mode?: Wording;
+  /** Axes du ciblage que l'IA doit proposer dans analyse.cible. */
+  cibleAxes?: readonly CibleAxis[];
 }
 
 export function buildOutputSchema(opts: OutputSchemaOptions = {}): string {
@@ -431,7 +433,7 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
     "indispensables": ["(exigence, formulation exacte de l'annonce)"],
     "importants": ["(exigence secondaire)"],
     "correspondances": [{ "exigence": "(un indispensable)", "entryId": "(ID de l'entrée qui l'étaye, ou null)" }],
-    "ecarts": ["(indispensable sans preuve dans le profil)"]${alertesField}${angleField}
+    "ecarts": ["(indispensable sans preuve dans le profil)"]${alertesField}${angleField}${cibleSchemaField(opts.cibleAxes ?? [], opts.mode)}
   },
   "title": "(intitulé réel, avec le mot-clé de l'annonce si cohérent)",
   "summary": "(accroche de 2 à 3 phrases)",
@@ -491,7 +493,7 @@ export function buildCvPrompt(input: CvPromptInput): string {
     buildHeaderMentions(input.profile),
     buildExtraContext(input.extraContext),
     buildTargetBlock(target, { mode }),
-    buildAnalysisStep({ alertesCap: hasPersonalRules(input), mode }),
+    buildAnalysisStep({ alertesCap: hasPersonalRules(input), mode, cibleAxes: cibleAxesToAsk(target) }),
     buildAngleBlock(input),
     buildRules(input),
     buildClarify(input.clarify),
@@ -501,6 +503,7 @@ export function buildCvPrompt(input: CvPromptInput): string {
       header: hasHeaderMentions(input.profile),
       bulletFocus: focusOf(input),
       mode,
+      cibleAxes: cibleAxesToAsk(target),
     }),
   ].filter(Boolean).join('\n\n');
 }

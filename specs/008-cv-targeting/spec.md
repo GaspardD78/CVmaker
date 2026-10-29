@@ -1,6 +1,6 @@
 # 008 - Ciblage du CV : type de structure, intention, premier lecteur
 
-Statut : étapes 1 (données et résolution) et 2 (bloc de prompt) livrées ; les étapes 2 à 5 sont décrites ci-dessous.
+Statut : étapes 1 (données et résolution), 2 (bloc de prompt) et 3 (détection, `analyse.cible`, instantané) livrées ; les étapes 2 à 5 sont décrites ci-dessous.
 
 ## Principe
 
@@ -32,3 +32,10 @@ Les fiches (`lib/cv-targets.ts`, `DEFAULT_TARGET_SHEETS`) sont des données de r
 3. Détection automatique et champ `analyse.cible`, instantané `cv.settings.target`.
 4. Garde-fou : `target-forbidden-term`, `target-equivalence-applied`, `target-photo`, `target-reader-mentioned`.
 5. Interface : sélecteurs, formulaire de cible, ligne « Ciblage retenu », écran des fiches.
+
+## Détection et réponse de l'IA (étape 3)
+
+- Application : `detectTarget({ jobOfferText, company })` renvoie `public` (secteur public dans l'annonce ou le nom), `esn` ou `cabinet` quand les signaux sont nets et non contradictoires, et `annonce` quand un texte est fourni.
+- IA : `analyse.cible` (`type`, `intention`, `premierLecteur`, `raison`), demandé pour les axes encore par défaut quand le ciblage est engagé. Tout en auto sans rien de détecté : prompt inchangé.
+- Priorité : choix explicite > type détecté par l'application > proposition de l'IA > défaut. Un désaccord n'est jamais appliqué : il est rapporté pour correction et régénération.
+- Instantané `cv.settings.target` : ciblage effectif et fiche utilisée (`readTargetSnapshot`).
