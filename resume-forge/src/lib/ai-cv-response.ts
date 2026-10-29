@@ -117,6 +117,20 @@ export interface AiCvAngleChoice {
 }
 
 /**
+ * Fusion de plusieurs entrées d'un même type en une ligne du CV (champ additif `mergedEntries`).
+ * Les dates ne sont jamais fournies par l'IA : elles sont calculées (début le plus ancien, fin la plus
+ * récente ou « Présent »). `subtitleOverride` absent : employeurs distincts joints par « , ».
+ */
+export interface AiCvMergedEntry {
+  /** Identifiants des entrées à fusionner (au moins 2, même type). */
+  ids: string[];
+  titleOverride?: string;
+  subtitleOverride?: string;
+  /** Texte fusionné (puces) ; absent : la ligne n'affiche ni description. */
+  description?: string;
+}
+
+/**
  * Ligne de compétences reformulée, propre au CV (champ additif `cvSkillLines`). Chaque ligne cite les
  * entrées du profil (expérience ou compétence) qui l'étayent : c'est la traçabilité anti-invention.
  * Jamais écrite dans le profil maître.
@@ -168,6 +182,8 @@ export interface AiCvResponse {
   warnings?: string[];
   /** Permis et mentions d'en-tête à afficher (champ additif ; absent : réglages du CV inchangés). */
   header?: AiCvHeader;
+  /** Fusions d'entrées en une ligne (champ additif ; absent : aucune fusion). */
+  mergedEntries?: AiCvMergedEntry[];
   /** Lignes de compétences reformulées, propres au CV (champ additif ; absent : compétences inchangées). */
   cvSkillLines?: AiCvSkillLine[];
 }
@@ -267,6 +283,25 @@ function parseSkillGroup(raw: unknown): AiSkillGroup | null {
 function parseSkillGroups(raw: unknown): AiSkillGroup[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const groups = raw.map(parseSkillGroup).filter((g): g is AiSkillGroup => g !== null);
+  return groups.length > 0 ? groups : undefined;
+}
+
+function parseMergedEntries(raw: unknown): AiCvMergedEntry[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const groups: AiCvMergedEntry[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const ids = parseStringList(r.ids);
+    if (!ids) continue;
+    const group: AiCvMergedEntry = { ids };
+    const title = cleanString(r.titleOverride);
+    if (title) group.titleOverride = title;
+    const subtitle = cleanString(r.subtitleOverride);
+    if (subtitle) group.subtitleOverride = subtitle;
+    if (typeof r.description === 'string' && r.description.trim()) group.description = r.description;
+    groups.push(group);
+  }
   return groups.length > 0 ? groups : undefined;
 }
 
@@ -474,6 +509,9 @@ export function parseAiCvResponse(raw: string): AiCvResponse {
 
   const header = parseHeader(obj.header);
   if (header) response.header = header;
+
+  const mergedEntries = parseMergedEntries(obj.mergedEntries);
+  if (mergedEntries) response.mergedEntries = mergedEntries;
 
   const cvSkillLines = parseSkillLines(obj.cvSkillLines);
   if (cvSkillLines) response.cvSkillLines = cvSkillLines;

@@ -3,6 +3,7 @@ import { aiEntryToOverrideData, planCvBlockOrder } from './ai-cv-response';
 import { isSectionHeader, isSubHeader, normalizeLabel } from './cv-sections';
 import { isSkillCategory } from './skill-lines';
 import { MIN_SKILL_LINES } from './ai-cv-guard';
+import { remapEntryOrder, resolveMergedGroup, type ResolvedMerge } from './merged-entries';
 import {
   decideLanguageSection,
   defaultSectionLabel,
@@ -78,6 +79,8 @@ export interface ApplyReport {
   skillLines: 'applied' | 'skipped' | 'none';
   /** Section Langues affichée ? `null` quand le profil n'a aucune langue. */
   languagesShown: boolean | null;
+  /** Nombre de fusions d'expériences appliquées (`mergedEntries`). */
+  merges: number;
   warnings: string[];
   /**
    * Proposition de ciblage de l'IA (absente sans `target`). Jamais appliquée à ce CV : l'écran la
@@ -126,8 +129,12 @@ export async function applyAiCvToBlocks(
   const explicitLanguage = normalizeLanguageCode(data.analyse?.langueAnnonce);
   const cvLanguage = explicitLanguage ?? readCvLanguage(store().getCvSettings(cvId));
 
-  // 1. Entry overrides + visibility.
+  // 0. Fusions d'une application précédente : défaites d'abord (surcharges et visibilité d'origine rétablies),
+  //    ce qui rend la réapplication idempotente et une application sans fusion propre.
   await store().fetchCvBlocks(cvId);
+  await undoMerges(store);
+
+  // 1. Entry overrides + visibility.
   for (const aiEntry of data.entries) {
     const block = store().currentCvBlocks.find(b => b.entryId === aiEntry.id);
     if (!block) continue;
@@ -140,6 +147,9 @@ export async function applyAiCvToBlocks(
       });
     }
   }
+
+  // 1a. Fusions d'expériences : le bloc de l'entrée la plus récente porte la ligne fusionnée, les autres sont masqués.
+  const mergeResult = await applyMerges(data, store, entryById, warnings);
 
   // 1b. Language names and levels follow the CV language when the AI stated it (the legacy
   //     schema has no language) and left them as-is.
@@ -214,9 +224,11 @@ export async function applyAiCvToBlocks(
   const skillLinePlan = await applySkillLines(cvId, data, store, entryById, warnings);
 
   // 4. Re-order (entries + sections + skill grouping + ad language first) in a single pass.
+  // `entryOrder` peut citer n'importe quel identifiant d'un groupe fusionné : il s'applique au bloc porteur.
+  const orderedIds = remapEntryOrder(data.entryOrder, mergeResult.merges);
   const entryOrder = languageFrontId
-    ? [languageFrontId, ...(data.entryOrder ?? []).filter(id => id !== languageFrontId)]
-    : data.entryOrder;
+    ? [languageFrontId, ...(orderedIds ?? []).filter(id => id !== languageFrontId)]
+    : orderedIds;
   const needsReorder =
     (entryOrder?.length ?? 0) > 0 || (data.sectionOrder?.length ?? 0) > 0 || groupPlans.length > 0 || skillLinePlan.lineIds.length > 0;
   if (needsReorder) {
@@ -259,7 +271,7 @@ export async function applyAiCvToBlocks(
     await store().updateCvSettings(cvId, { cvLanguage: explicitLanguage });
   }
 
-  return { cvLanguage, skillGrouping, skillLines: skillLinePlan.status, languagesShown, warnings, ...(targetReport ? { target: targetReport } : {}) };
+  return { cvLanguage, skillGrouping, skillLines: skillLinePlan.status, languagesShown, merges: mergeResult.merges.length, warnings, ...(targetReport ? { target: targetReport } : {}) };
 }
 
 /**
@@ -489,4 +501,119 @@ async function applySkillLines(
     }
   }
   return { status: 'applied', headerId: header.id, lineIds: ids };
+}
+
+// ── Fusion d'expériences ────────────────────────────────────────────────────
+
+/** Clés de `override_data` écrites par une fusion sur le bloc porteur (restaurées à la défusion). */
+const MERGE_KEYS = ['title', 'subtitle', 'description', 'startDate', 'endDate', 'isCurrent', 'datesOverride'] as const;
+
+interface MergeBackup {
+  values: Record<string, unknown>;
+  absent: string[];
+}
+
+/** Rétablit un bloc porteur : surcharges d'avant la fusion, sans marqueur de fusion. */
+function restoredCarrier(block: CVBlock): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...(block.overrideData ?? {}) };
+  const backup = next.mergeBackup as MergeBackup | undefined;
+  delete next.mergedFrom;
+  delete next.mergeBackup;
+  for (const key of MERGE_KEYS) {
+    if (backup && key in backup.values) next[key] = backup.values[key];
+    else delete next[key];
+  }
+  return next;
+}
+
+const isMergeCarrier = (b: CVBlock): boolean => b.blockType === 'entry_ref' && Array.isArray(b.overrideData?.mergedFrom);
+const isMergeMember = (b: CVBlock): boolean => b.blockType === 'entry_ref' && typeof b.overrideData?.mergedInto === 'string';
+
+async function restoreMember(store: () => CvBlockPort, block: CVBlock): Promise<void> {
+  const next: Record<string, unknown> = { ...(block.overrideData ?? {}) };
+  const wasVisible = next.mergedWasVisible !== false;
+  delete next.mergedInto;
+  delete next.mergedWasVisible;
+  await store().updateCvBlock(block.id, { isVisible: wasVisible, overrideData: next });
+}
+
+/** Défait toutes les fusions du CV : porteurs rétablis, membres de nouveau visibles. */
+async function undoMerges(store: () => CvBlockPort): Promise<void> {
+  for (const b of store().currentCvBlocks.filter(isMergeCarrier)) {
+    await store().updateCvBlock(b.id, { overrideData: restoredCarrier(b) });
+  }
+  for (const b of store().currentCvBlocks.filter(isMergeMember)) await restoreMember(store, b);
+}
+
+/** Défait la fusion portée par un bloc (bouton « Défaire » du CV builder) : visibilité et surcharges rétablies. */
+export async function unmergeCarrierBlock(cvId: string, carrierBlockId: string, opts: { store?: () => CvBlockPort } = {}): Promise<void> {
+  const store = opts.store ?? realStorePort;
+  await store().fetchCvBlocks(cvId);
+  const carrier = store().currentCvBlocks.find(b => b.id === carrierBlockId);
+  if (!carrier || !isMergeCarrier(carrier)) return;
+  const carrierEntryId = carrier.entryId;
+  await store().updateCvBlock(carrier.id, { overrideData: restoredCarrier(carrier) });
+  for (const b of store().currentCvBlocks.filter(isMergeMember)) {
+    if (b.overrideData.mergedInto === carrierEntryId) await restoreMember(store, b);
+  }
+}
+
+async function applyMerges(
+  data: AiCvResponse,
+  store: () => CvBlockPort,
+  entryById: Map<string, MasterEntry>,
+  warnings: string[],
+): Promise<{ merges: ResolvedMerge[] }> {
+  const merges: ResolvedMerge[] = [];
+  const taken = new Set<string>();
+  for (const group of data.mergedEntries ?? []) {
+    const res = resolveMergedGroup(group, entryById, taken);
+    if (!res.ok) {
+      warnings.push(`Fusion ignorée (${res.reason}) : ${group.ids.join(', ')}.`);
+      continue;
+    }
+    const merge = res.merge;
+    const carrier = store().currentCvBlocks.find(b => b.blockType === 'entry_ref' && b.entryId === merge.carrierId);
+    if (!carrier) {
+      warnings.push(`Fusion ignorée : bloc introuvable pour « ${entryById.get(merge.carrierId)?.title ?? merge.carrierId} ».`);
+      continue;
+    }
+    merge.ids.forEach(id => taken.add(id));
+    merges.push(merge);
+
+    // Surcharges d'avant la fusion, gardées pour pouvoir la défaire.
+    const base = carrier.overrideData ?? {};
+    const backup: MergeBackup = { values: {}, absent: [] };
+    for (const key of MERGE_KEYS) {
+      if (key in base) backup.values[key] = base[key]; else backup.absent.push(key);
+    }
+    const next: Record<string, unknown> = {
+      ...base,
+      subtitle: merge.subtitle,
+      description: merge.description,
+      startDate: merge.dates.startDate,
+      endDate: merge.dates.endDate,
+      isCurrent: merge.dates.isCurrent,
+      mergedFrom: merge.ids,
+      mergeBackup: backup,
+    };
+    if (merge.titleOverride !== undefined) next.title = merge.titleOverride;
+    // Dates calculées, au format habituel du CV : jamais de datesOverride sur une ligne fusionnée.
+    delete next.datesOverride;
+
+    // L'IA peut masquer toutes les entrées du groupe : la ligne fusionnée l'est aussi.
+    const visible = merge.ids.some(id => data.entries.find(e => e.id === id)?.visible !== false);
+    await store().updateCvBlock(carrier.id, { isVisible: visible, overrideData: next });
+
+    for (const id of merge.ids) {
+      if (id === merge.carrierId) continue;
+      const member = store().currentCvBlocks.find(b => b.blockType === 'entry_ref' && b.entryId === id);
+      if (!member) continue;
+      await store().updateCvBlock(member.id, {
+        isVisible: false,
+        overrideData: { ...(member.overrideData ?? {}), mergedInto: merge.carrierId, mergedWasVisible: member.isVisible },
+      });
+    }
+  }
+  return { merges };
 }

@@ -33,7 +33,10 @@ export function entryDisplayTitle(
   overrideData?: Record<string, unknown> | null,
 ): string {
   const titleOverride = overrideData?.title;
-  if (typeof titleOverride === 'string' && titleOverride.trim()) return titleOverride;
   const subtitle = typeof overrideData?.subtitle === 'string' ? overrideData.subtitle : entry.subtitle;
+  if (typeof titleOverride === 'string' && titleOverride.trim()) {
+    // Ligne fusionnée : l'employeur déjà listé en sous-titre n'est pas répété entre parenthèses dans le titre.
+    return Array.isArray(overrideData?.mergedFrom) ? displayTitle(titleOverride, subtitle) : titleOverride;
+  }
   return displayTitle(entry.title, subtitle);
 }

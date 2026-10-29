@@ -52,7 +52,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
   const [clarify, setClarify] = useState(false);
   const [suggestions, setSuggestions] = useState<AiCvSuggestedEntry[]>([]);
   const [acceptedSug, setAcceptedSug] = useState<Set<number>>(new Set());
-  const [restructure, setRestructure] = useState<{ reordered: number; sections: number; groups: number; skillLines: number }>({ reordered: 0, sections: 0, groups: 0, skillLines: 0 });
+  const [restructure, setRestructure] = useState<{ reordered: number; sections: number; groups: number; skillLines: number; merges: number }>({ reordered: 0, sections: 0, groups: 0, skillLines: 0, merges: 0 });
   const [mdInput, setMdInput] = useState('');
   const [coverContactName, setCoverContactName] = useState('');
   const [coverStyle, setCoverStyle] = useState<'formal' | 'direct'>('direct');
@@ -91,7 +91,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       setClarify(false);
       setSuggestions([]);
       setAcceptedSug(new Set());
-      setRestructure({ reordered: 0, sections: 0, groups: 0, skillLines: 0 });
+      setRestructure({ reordered: 0, sections: 0, groups: 0, skillLines: 0, merges: 0 });
       setMdInput('');
       setPromptCopied(false);
       setCvPromptCopied(false);
@@ -110,7 +110,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (!analysis || !analysis.ok) {
       setSuggestions([]);
       setAcceptedSug(new Set());
-      setRestructure({ reordered: 0, sections: 0, groups: 0, skillLines: 0 });
+      setRestructure({ reordered: 0, sections: 0, groups: 0, skillLines: 0, merges: 0 });
       return;
     }
     const parsed = analysis.data;
@@ -120,6 +120,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
       sections: parsed.sectionOrder?.length ?? 0,
       groups: parsed.skillGroups?.length ?? 0,
       skillLines: (parsed.cvSkillLines?.length ?? 0) >= MIN_SKILL_LINES ? parsed.cvSkillLines!.length : 0,
+      merges: parsed.mergedEntries?.length ?? 0,
     });
     // Reset selection whenever the input changes.
     setAcceptedSug(new Set());
@@ -255,6 +256,7 @@ export function CvGeneratorDrawer({ offer, onClose }: CvGeneratorDrawerProps) {
     if (restructure.sections > 0) parts.push('réorganiser les sections');
     if (restructure.groups > 0) parts.push(`regrouper les compétences en ${restructure.groups} catégorie${restructure.groups > 1 ? 's' : ''}`);
     if (restructure.skillLines > 0) parts.push(`afficher ${restructure.skillLines} lignes de compétences reformulées propres à ce CV (catégories du profil masquées sauf celles listées)`);
+    if (restructure.merges > 0) parts.push(`fusionner des expériences en ${restructure.merges} ligne${restructure.merges > 1 ? 's' : ''} (dates calculées, défaisable dans le CV builder)`);
     if (parts.length === 0) return null;
     return (
       <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">

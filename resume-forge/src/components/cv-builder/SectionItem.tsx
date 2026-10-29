@@ -7,6 +7,9 @@ import { useCvStore } from '@/stores/cvStore';
 import { useProfileStore } from '@/stores/profileStore';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { toast } from 'sonner';
+import { MergeBadge } from './MergeBadge';
+import { isMergedMember } from '@/lib/merged-entries';
+import { unmergeCarrierBlock } from '@/lib/apply-ai-cv';
 
 type DisplayFormat = 'badges' | 'comma' | 'list' | 'columns2' | 'columns3' | 'table';
 
@@ -325,11 +328,12 @@ export function SectionItem({ block }: SectionItemProps) {
           <span className={`text-sm truncate ${isSectionHeader ? 'font-bold uppercase tracking-wide text-gray-600 dark:text-gray-400 text-xs' : 'font-medium text-gray-800 dark:text-gray-200'}`}>
             {title}
           </span>
-          {!block.isVisible && (
+          {!block.isVisible && !isMergedMember(block) && (
             <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
               Masqué
             </span>
           )}
+          {isEntryRef && <MergeBadge block={block} onUnmerge={() => { void unmergeCarrierBlock(block.cvId, block.id); }} />}
         </div>
         {subtitle && <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{subtitle}</span>}
       </div>

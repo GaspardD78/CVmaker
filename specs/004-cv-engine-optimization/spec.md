@@ -44,3 +44,7 @@ Réglage par profil (`settings`, `cv_bullet_focus:{profileId}`) et par CV (`cv.s
 ## Addendum : lignes de compétences reformulées (lot 3)
 
 `cvSkillLines: [{ "text", "sources" }]` (champ additif) : lignes propres au CV, jamais écrites dans le profil maître. Chaque ligne cite au moins une entrée existante (expérience ou compétence) ; sans source valide, elle est retirée. Avec au moins 3 lignes valides, elles deviennent des blocs `custom_text` (`overrideData.aiSkillLine`) sous « Compétences » et les catégories de compétences du profil ne restent visibles que si l'IA les liste en `visible: true` ; en dessous, rien n'est masqué. Réapplication idempotente ; une application sans lignes défait la précédente.
+
+## Addendum : fusion d'expériences (lot 2)
+
+`mergedEntries: [{ "ids", "titleOverride", "subtitleOverride"?, "description"? }]` (champ additif) regroupe plusieurs entrées d'un même type en une ligne. Le bloc de la plus récente porte `override_data` (`title`, `subtitle`, `description`, dates calculées, `mergedFrom`) ; les autres passent `is_visible = false` avec `mergedInto`. Les dates sont calculées, jamais fournies par l'IA, et jamais via `datesOverride`. Réapplication idempotente ; une application sans fusion, ou le bouton « Défaire », rétablit surcharges et visibilité d'origine (`mergeBackup`, `mergedWasVisible`). Une `cvSkillLine` peut citer une entrée fusionnée comme source.
