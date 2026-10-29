@@ -36,7 +36,8 @@ function CategoryLine({ row, className }: { row: BadgeRow; className: string }) 
 export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroupProps) {
   const rows = buildBadgeRows(blocks, entries);
   const categories = rows.filter(r => r.category !== null);
-  const loose: BadgeItem[] = rows.find(r => r.category === null)?.items ?? [];
+  const plainLines = rows.filter(r => r.plain);
+  const loose: BadgeItem[] = rows.find(r => r.category === null && !r.plain)?.items ?? [];
   const labels = loose.map(itemLabel);
   const itemClass = template.preview.skillClass || 'text-sm text-gray-800';
 
@@ -99,9 +100,10 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
   };
 
   // Sans catégorie : même DOM qu'avant (références golden inchangées).
-  if (categories.length === 0) return renderLoose();
+  if (categories.length === 0 && plainLines.length === 0) return renderLoose();
 
   const renderCategories = () => {
+    if (categories.length === 0) return null;
     if (format === 'list') {
       return categories.map((row, ri) => (
         <div key={ri} className="cv-skill-category-block">
@@ -149,6 +151,9 @@ export function CVBadgeGroup({ blocks, entries, template, format }: CVBadgeGroup
 
   return (
     <div className="cv-skill-lines">
+      {plainLines.map((row, i) => (
+        <p key={`line-${i}`} className={`cv-desc cv-skill-line ${template.preview.descriptionClass}`}>{row.items[0].name}</p>
+      ))}
       {renderCategories()}
       {renderLoose()}
     </div>

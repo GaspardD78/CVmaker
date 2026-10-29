@@ -396,6 +396,7 @@ ${atsRule(atsLevelFor(target))}
 ${onePage ? buildOnePageRules() : `- VOLUME : ${pages} pages maximum, soit environ ${pages * BULLETS_PER_PAGE} puces au total. Priorité aux 5 dernières années et aux expériences qui couvrent un indispensable ; masque ou raccourcis le reste.
 - COMPÉTENCES : masque les non pertinentes, ordonne par pertinence. Utilise "skillGroups" seulement s'il y a au moins 8 compétences visibles : 2 à 4 groupes, au moins 2 compétences par groupe, libellés dans la langue de l'annonce, chaque compétence visible dans un seul groupe. Sinon omets "skillGroups".`}
 - CATÉGORIES DE COMPÉTENCES (entrées listées avec « Catégorie » et « Éléments ») : la catégorie garde son titre. Tu peux réduire et réordonner ses éléments dans "description" (une puce « - » par élément, le plus pertinent d'abord), en recopiant uniquement des éléments existants de la source, mot pour mot. Aucun ajout, aucune reformulation. "skillGroups" ne concerne que les compétences isolées (listées avec « Titre »), jamais une catégorie.
+- LIGNES DE COMPÉTENCES (optionnel, "cvSkillLines") : pour un CV généraliste, tu peux proposer 3 à 8 lignes reformulées propres à ce CV (ex. « Analyse des besoins et rédaction de fiches de poste »), jamais ajoutées au profil. Chaque ligne cite dans "sources" au moins un ID d'entrée existante (expérience ou compétence) qui l'étaye ; elle ne contient aucun outil, technologie ou chiffre absent de ces sources. Une ligne sans source valide est retirée. Avec au moins 3 lignes valides, les catégories de compétences du profil ne restent visibles que si tu les listes dans "entries" avec \`visible: true\` ; en dessous, elles sont conservées.
 - ORDRE : le plus pertinent d'abord, entre les sections ("sectionOrder", avec les libellés standard ci-dessus) et à l'intérieur de chaque section ("entryOrder").
 - SURCHARGES D'AFFICHAGE (optionnelles) : "titleOverride" (libellé principal), "subtitleOverride" (libellé secondaire : entreprise, école, niveau de langue traduit, émetteur). Uniquement si l'annonce justifie un affichage différent de la source ; elles ne modifient jamais le profil.
 
@@ -467,7 +468,8 @@ Schéma (les valeurs entre parenthèses décrivent le contenu attendu ; les cham
   "entryOrder": ["(optionnel) id de l'entrée la plus pertinente", "id suivante"],
   "sectionOrder": ["(optionnel) Compétences", "Expériences Professionnelles"],
   "sectionLabels": { "(optionnel) Compétences": "(libellé dans la langue de l'annonce)" },
-  "skillGroups": [{ "category": "(optionnel) libellé de catégorie", "entryIds": ["id_skill_1", "id_skill_2"] }],${headerField}
+  "skillGroups": [{ "category": "(optionnel) libellé de catégorie", "entryIds": ["id_skill_1", "id_skill_2"] }],
+  "cvSkillLines": [{ "text": "(optionnel) ligne de compétences reformulée", "sources": ["id_entree_1", "id_entree_2"] }],${headerField}
   "suggestedEntries": [
     {
       "entryType": "experience|education|skill|certification|language|project|interest|volunteer",
