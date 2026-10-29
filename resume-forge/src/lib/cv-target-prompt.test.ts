@@ -96,6 +96,16 @@ describe('règle des mots-clés ATS', () => {
     expect(r).toContain('sans répétition forcée');
     expect(r).not.toContain('MOTS-CLÉS ATS :');
   });
+  it('mobilité interne et chasseur avec un texte d\'annonce : ATS off (le texte sert à l\'analyse, pas aux mots-clés exacts)', () => {
+    for (const intent of ['mobilite-interne', 'chasseur'] as const) {
+      for (const type of ['esn', 'cabinet', 'grand-groupe'] as const) {
+        const r = rules({ type, intent }, 'Poste décrit : responsable recrutement.');
+        expect(r).toContain("- MOTS-CLÉS : les mots-clés de l'annonce apparaissent naturellement, sans répétition forcée.");
+        expect(r).not.toContain('MOTS-CLÉS ATS :');
+        expect(r).not.toContain('ATS léger');
+      }
+    }
+  });
   it('off : recommandation, ou fiche sans ATS, avec la formulation demandée', () => {
     expect(rules({ type: 'esn', intent: 'recommandation' }, '')).toContain('- MOTS-CLÉS : les mots-clés de la cible apparaissent naturellement, sans répétition forcée.');
     expect(rules({ type: 'public', intent: 'annonce' })).toContain("- MOTS-CLÉS : les mots-clés de l'annonce apparaissent naturellement, sans répétition forcée.");

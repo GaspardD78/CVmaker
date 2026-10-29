@@ -4,7 +4,7 @@
  * elles n'ajoutent aucun fait au CV.
  */
 import { applyWording, type Wording } from './cv-wording';
-import type { AtsLevel, Equivalence, FirstReader, Intent, ResolvedTarget, TargetBrief, TargetTitleRule } from './cv-targets';
+import { FIRST_READERS, INTENTS, TARGET_TYPES, type AtsLevel, Equivalence, FirstReader, Intent, ResolvedTarget, TargetBrief, TargetTitleRule } from './cv-targets';
 
 const list = (items: readonly string[]): string => items.join(' ; ');
 const bullets = (items: readonly string[]): string => items.map(i => `- ${i}`).join('\n');
@@ -134,4 +134,42 @@ export function buildTargetBlock(target: ResolvedTarget, opts: { mode?: Wording 
   }
 
   return applyWording(parts.filter(Boolean).join('\n\n'), opts.mode);
+}
+
+// ── Ciblage proposé par l'IA (`analyse.cible`) ───────────────────────────────
+
+export type CibleAxis = 'type' | 'intent' | 'firstReader';
+
+/**
+ * Axes que l'IA doit renseigner dans `analyse.cible` : ceux encore par défaut, une fois le
+ * ciblage engagé (un type, un lecteur, une cible ou une intention autre que l'annonce).
+ * Tout en auto sans rien de détecté : aucun axe, le prompt reste celui d'avant le ciblage.
+ */
+export function cibleAxesToAsk(target: ResolvedTarget): CibleAxis[] {
+  const engaged = target.type !== null || target.firstReader !== null || target.intent !== 'annonce' || Boolean(target.brief) || Boolean(target.readerNote);
+  if (!engaged) return [];
+  return (['type', 'intent', 'firstReader'] as const).filter(axis => target.sources[axis] === 'default');
+}
+
+const AXIS_LABEL: Record<CibleAxis, string> = { type: 'type', intent: 'intention', firstReader: 'premierLecteur' };
+
+/** Valeurs permises pour un axe (sans `annonce` quand le prompt n'a pas de texte d'annonce). */
+function axisValues(axis: CibleAxis, mode: Wording | undefined): readonly string[] {
+  if (axis === 'type') return TARGET_TYPES;
+  if (axis === 'firstReader') return FIRST_READERS;
+  return mode === 'cible' ? INTENTS.filter(i => i !== 'annonce') : INTENTS;
+}
+
+/** Ligne de l'étape 0 qui demande le ciblage ; vide sans axe à renseigner. */
+export function cibleAnalysisLine(axes: readonly CibleAxis[], mode: Wording | undefined): string {
+  if (axes.length === 0) return '';
+  const parts = axes.map(a => `${AXIS_LABEL[a]} (${axisValues(a, mode).join(' | ')})`);
+  return `- cible : renseigne uniquement ${parts.join(', ')}, avec "raison" (une phrase). Les autres axes sont déjà fixés ci-dessus : ne les modifie pas. Ce choix n'est jamais appliqué sur un choix explicite du candidat.`;
+}
+
+/** Champ `cible` du schéma JSON ; vide sans axe à renseigner. */
+export function cibleSchemaField(axes: readonly CibleAxis[], mode: Wording | undefined): string {
+  if (axes.length === 0) return '';
+  const fields = axes.map(a => `"${AXIS_LABEL[a]}": "${axisValues(a, mode).join('|')}"`);
+  return `,\n    "cible": { ${fields.join(', ')}, "raison": "(une phrase)" }`;
 }
