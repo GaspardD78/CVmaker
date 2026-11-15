@@ -170,6 +170,7 @@ export function CVList() {
   const { cvs, fetchCvs, createCv, deleteCv, duplicateCv } = useCvStore();
   const { profile, entries, fetchProfile } = useProfileStore();
   const [showNewModal, setShowNewModal] = useState(false);
+  const navigate = useNavigate();
   const [newCvName, setNewCvName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -264,7 +265,7 @@ export function CVList() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-          <button className="rf-btn-secondary">
+          <button className="rf-btn-secondary" onClick={() => navigate('/import')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="23 6 13.5 15.5 8.5 10.5 1 17" /><polyline points="17 6 23 6 23 12" />
             </svg>
